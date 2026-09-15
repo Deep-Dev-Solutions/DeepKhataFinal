@@ -13,15 +13,17 @@ import {
   Settings,
   LogOut,
   ShieldCheck,
-  BarChart3
+  BarChart3,
+  Banknote,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 
-const navItems =[
+const navItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Orders", href: "/orders", icon: ShoppingCart },
   { name: "Products", href: "/products", icon: Package },
   { name: "Customers", href: "/customers", icon: Users },
+  { name: "Cash Hub", href: "/cash", icon: Banknote },
   { name: "Settings", href: "/settings", icon: Settings },
   { name: "Reports", href: "/reports", icon: BarChart3 },
 ];
