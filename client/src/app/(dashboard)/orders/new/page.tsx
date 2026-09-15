@@ -46,7 +46,7 @@ type Product = {
   }>;
 };
 
-type CartItem = Product & { qty: number };
+type CartItem = Product & { qty: number; condition: string };
 
 function CreateOrderPOSContent() {
   const router = useRouter();
@@ -69,6 +69,12 @@ function CreateOrderPOSContent() {
   const [customerResults, setCustomerResults] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
+  const [walkInName, setWalkInName] = useState("");
+  const [walkInPhone, setWalkInPhone] = useState("");
+
+  const [conditionModalProduct, setConditionModalProduct] = useState<
+    (Product & { conditionCounts?: any }) | null
+  >(null);
 
   // 4. DISCOUNT & PAYMENT STATES
   const [discount, setDiscount] = useState<number>(0);
@@ -307,10 +313,13 @@ function CreateOrderPOSContent() {
     const payload = {
       customerId:
         customerMode === "walk-in" ? null : selectedCustomer?.id || null,
+      walkInName: customerMode === "walk-in" ? walkInName || null : null,
+      walkInPhone: customerMode === "walk-in" ? walkInPhone || null : null,
       items: cart.map((item) => ({
         productId: item.id,
         quantity: item.qty,
         price: item.price,
+        condition: item.condition,
       })),
       discount: currentDiscount,
       amountPaid: currentPaid,
@@ -393,8 +402,8 @@ function CreateOrderPOSContent() {
         id: data.order?.id || "N/A",
         orderNumber: `ORD-${data.order?.orderNumber || data.order?.id?.slice(0, 4) || "NEW"}`,
         status: data.order?.status || currentStatus,
-        customer:
-          currentCustomer || data.order?.customer || { name: "Walk-in Customer" },
+        customer: currentCustomer ||
+          data.order?.customer || { name: "Walk-in Customer" },
         items: currentCart.map((c) => ({
           name: c.name,
           qty: c.qty,
@@ -447,27 +456,48 @@ function CreateOrderPOSContent() {
   };
 
   // Cart Functions
-  const addToCart = (product: Product) => {
-    if (product.stock === 0) return alert("Out of stock!");
+  const addToCart = (product: Product, condition: string) => {
     setCart((prev) => {
-      const exists = prev.find((item) => item.id === product.id);
+      const exists = prev.find(
+        (item) => item.id === product.id && item.condition === condition,
+      );
       if (exists) {
-        if (exists.qty >= product.stock) {
-          alert("Cannot exceed available physical stock!");
-          return prev;
-        }
         return prev.map((item) =>
-          item.id === product.id ? { ...item, qty: item.qty + 1 } : item,
+          item.id === product.id && item.condition === condition
+            ? { ...item, qty: item.qty + 1 }
+            : item,
         );
       }
-      return [...prev, { ...product, qty: 1 }];
+      return [...prev, { ...product, qty: 1, condition }];
     });
   };
 
-  const updateQty = (id: string, delta: number) => {
+  const handleProductClick = (product: Product) => {
+    if (product.stock === 0) return alert("Out of stock!");
+
+    const conditionCounts = (product.instances || []).reduce(
+      (acc: any, inst: any) => {
+        if (inst.status === "AVAILABLE") {
+          acc[inst.condition] = (acc[inst.condition] || 0) + 1;
+        }
+        return acc;
+      },
+      {},
+    );
+
+    if (Object.keys(conditionCounts).length === 0) {
+      addToCart(product, "ORIGINAL_PULL");
+    } else if (Object.keys(conditionCounts).length === 1) {
+      addToCart(product, Object.keys(conditionCounts)[0]);
+    } else {
+      setConditionModalProduct({ ...product, conditionCounts });
+    }
+  };
+
+  const updateQty = (id: string, condition: string, delta: number) => {
     setCart((prev) =>
       prev.map((item) => {
-        if (item.id === id) {
+        if (item.id === id && item.condition === condition) {
           const newQty = item.qty + delta;
           return newQty > 0 ? { ...item, qty: newQty } : item;
         }
@@ -476,8 +506,10 @@ function CreateOrderPOSContent() {
     );
   };
 
-  const removeItem = (id: string) =>
-    setCart((prev) => prev.filter((item) => item.id !== id));
+  const removeItem = (id: string, condition: string) =>
+    setCart((prev) =>
+      prev.filter((item) => !(item.id === id && item.condition === condition)),
+    );
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
   const grandTotal = subtotal - (Number(discount) || 0);
@@ -611,7 +643,7 @@ function CreateOrderPOSContent() {
                   return (
                     <button
                       key={product.id}
-                      onClick={() => addToCart(product)}
+                      onClick={() => handleProductClick(product)}
                       disabled={product.stock === 0}
                       className={`flex flex-col text-left bg-white p-4 rounded-xl border transition-all active:scale-95 shadow-sm relative overflow-hidden ${
                         product.stock === 0
@@ -683,6 +715,25 @@ function CreateOrderPOSContent() {
                 Existing / Search
               </button>
             </div>
+
+            {customerMode === "walk-in" && (
+              <div className="mt-3 flex flex-col gap-2">
+                <input
+                  type="text"
+                  placeholder="Customer Name (Optional)"
+                  value={walkInName}
+                  onChange={(e) => setWalkInName(e.target.value)}
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+                <input
+                  type="text"
+                  placeholder="Phone Number (Optional)"
+                  value={walkInPhone}
+                  onChange={(e) => setWalkInPhone(e.target.value)}
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+              </div>
+            )}
 
             {customerMode === "existing" && (
               <div className="mt-3 relative">
@@ -756,21 +807,26 @@ function CreateOrderPOSContent() {
             ) : (
               cart.map((item) => (
                 <div
-                  key={item.id}
+                  key={`${item.id}-${item.condition}`}
                   className="flex items-center justify-between bg-white border border-slate-200 p-3 rounded-xl shadow-sm"
                 >
                   <div className="flex-1 pr-3">
                     <p className="text-sm font-bold text-slate-900 leading-tight">
                       {item.name}
                     </p>
-                    <p className="text-xs font-medium text-slate-500 mt-1">
-                      Rs. {item.price.toLocaleString()}
-                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-xs font-medium text-slate-500">
+                        Rs. {item.price.toLocaleString()}
+                      </p>
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                        {item.condition.replace(/_/g, " ")}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <div className="flex items-center bg-slate-100 rounded-lg border border-slate-200 shadow-sm">
                       <button
-                        onClick={() => updateQty(item.id, -1)}
+                        onClick={() => updateQty(item.id, item.condition, -1)}
                         className="p-1 hover:bg-slate-200 rounded-l-lg"
                       >
                         <Minus className="w-4 h-4 text-slate-600" />
@@ -779,14 +835,14 @@ function CreateOrderPOSContent() {
                         {item.qty}
                       </span>
                       <button
-                        onClick={() => updateQty(item.id, 1)}
+                        onClick={() => updateQty(item.id, item.condition, 1)}
                         className="p-1 hover:bg-slate-200 rounded-r-lg"
                       >
                         <Plus className="w-4 h-4 text-slate-600" />
                       </button>
                     </div>
                     <button
-                      onClick={() => removeItem(item.id)}
+                      onClick={() => removeItem(item.id, item.condition)}
                       className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -1042,6 +1098,46 @@ function CreateOrderPOSContent() {
                   <Plus className="w-4 h-4" /> Next Sale
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* 🟢 CONDITION SELECTOR MODAL */}
+      {conditionModalProduct && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="font-bold text-slate-900">Select Condition</h3>
+              <button
+                onClick={() => setConditionModalProduct(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-2">
+              <p className="text-sm font-medium text-slate-700 mb-3">
+                {conditionModalProduct.name}
+              </p>
+              {Object.entries(conditionModalProduct.conditionCounts || {}).map(
+                ([cond, count]) => (
+                  <button
+                    key={cond}
+                    onClick={() => {
+                      addToCart(conditionModalProduct, cond);
+                      setConditionModalProduct(null);
+                    }}
+                    className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50 transition-colors"
+                  >
+                    <span className="font-bold text-slate-800 text-sm">
+                      {cond.replace(/_/g, " ")}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-1 rounded-md">
+                      {count as number} Available
+                    </span>
+                  </button>
+                ),
+              )}
             </div>
           </div>
         </div>

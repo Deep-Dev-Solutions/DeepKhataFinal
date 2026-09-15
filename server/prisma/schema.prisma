@@ -178,6 +178,8 @@ model Order {
   totalAmount   Float
   createdBy     String?  
   orderNumber   Int      @default(autoincrement()) 
+  walkInName    String?
+  walkInPhone   String?
 
   creator   User?       @relation("OrderCreator", fields: [createdBy], references: [id])
   customer  Customer?    @relation(fields: [customerId], references: [id])

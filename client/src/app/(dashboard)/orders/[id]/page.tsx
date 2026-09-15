@@ -64,6 +64,10 @@ export default function OrderDetailsLedger() {
   const [convertPaymentMethod, setConvertPaymentMethod] = useState("CASH");
   const [isSubmittingStatus, setIsSubmittingStatus] = useState(false);
 
+  // 🟢 Return Modal States
+  const [returnItemModal, setReturnItemModal] = useState<any>(null);
+  const [returnQty, setReturnQty] = useState<number>(1);
+
   const refreshOrder = useCallback(async () => {
     setIsLoading(true);
     setError("");
@@ -84,6 +88,7 @@ export default function OrderDetailsLedger() {
       // Normalize items
       const items = (rawOrder.items || []).map((item: any) => ({
         id: item.id,
+        productId: item.productId,
         name: item.product?.name || "Unknown Product",
         price: Number(item.price ?? 0),
         qty: Number(item.quantity ?? 0),
@@ -264,6 +269,43 @@ export default function OrderDetailsLedger() {
       await refreshOrder();
     } catch (err: any) {
       alert(err.message || "Failed to convert memo to final sale");
+    } finally {
+      setIsSubmittingStatus(false);
+    }
+  };
+
+  const handleOpenReturnModal = (item: any) => {
+    setReturnItemModal(item);
+    setReturnQty(1);
+  };
+
+  const handleProcessReturn = async () => {
+    if (!returnItemModal) return;
+    setIsSubmittingStatus(true);
+    try {
+      const payload = {
+        itemsToReturn: [
+          {
+            productId: returnItemModal.productId,
+            quantity: returnQty,
+          },
+        ],
+      };
+
+      const response = await fetch(`${API_BASE_URL}/order/${id}/return`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.message || "Failed to process return");
+      }
+      setReturnItemModal(null);
+      await refreshOrder();
+    } catch (err: any) {
+      alert(err.message || "Failed to process return");
     } finally {
       setIsSubmittingStatus(false);
     }
@@ -541,7 +583,12 @@ export default function OrderDetailsLedger() {
                       Rs. {item.total.toLocaleString()}
                     </span>
                     <button
-                      className="text-slate-400 hover:text-rose-500 p-1.5 rounded-md hover:bg-rose-50 transition-colors tooltip-trigger"
+                      onClick={() => handleOpenReturnModal(item)}
+                      disabled={
+                        order.status === "RETURNED" ||
+                        order.status === "CANCELLED"
+                      }
+                      className="text-slate-400 hover:text-rose-500 p-1.5 rounded-md hover:bg-rose-50 transition-colors tooltip-trigger disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-slate-400"
                       title="Process Return/Refund"
                     >
                       <RefreshCcw className="w-4 h-4" />
@@ -844,6 +891,59 @@ export default function OrderDetailsLedger() {
                 className="px-5 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50"
               >
                 {isSubmittingStatus ? "Processing..." : "Confirm Final Sale"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🟢 RETURN ITEM MODAL */}
+      {returnItemModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                <RefreshCcw className="w-4 h-4 text-rose-500" /> Process Return
+              </h3>
+              <button
+                onClick={() => setReturnItemModal(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <p className="text-sm font-medium text-slate-700">
+                  {returnItemModal.name}
+                </p>
+                <p className="text-xs text-slate-500">
+                  Max Qty to return: {returnItemModal.qty}
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Return Quantity
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max={returnItemModal.qty}
+                  value={returnQty}
+                  onChange={(e) => setReturnQty(Number(e.target.value))}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                />
+              </div>
+              <button
+                onClick={handleProcessReturn}
+                disabled={
+                  isSubmittingStatus ||
+                  returnQty < 1 ||
+                  returnQty > returnItemModal.qty
+                }
+                className="w-full flex justify-center items-center gap-2 bg-rose-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-rose-700 transition-colors disabled:opacity-50"
+              >
+                {isSubmittingStatus ? "Processing..." : "Confirm Return"}
               </button>
             </div>
           </div>

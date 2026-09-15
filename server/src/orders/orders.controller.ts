@@ -96,4 +96,16 @@ export class OrdersController {
   async getPublicInvoice(@Param('id') id: string) {
     return this.ordersService.getPublicInvoice(id);
   }
+
+  @Post(':id/return')
+  @UseGuards(JwtAuthGuard, PermissionsGuard, RolesGuard)
+  @Roles('OWNER', 'MANAGER')
+  @RequirePermissions('update:order')
+  async processReturn(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.ordersService.processReturn(req.user.id, id, body);
+  }
 }

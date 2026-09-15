@@ -22,6 +22,8 @@ export class OrdersService {
       amountPaid = 0,
       paymentMethod = 'CASH',
       orderStatus = 'FINAL',
+      walkInName,
+      walkInPhone,
     } = data;
 
     if (!items || items.length === 0)
@@ -79,6 +81,8 @@ export class OrdersService {
             id: data.id || undefined,
             businessId,
             customerId: customerId || null,
+            walkInName: walkInName || null,
+            walkInPhone: walkInPhone || null,
             totalAmount: finalGrandTotal,
             discount: parsedDiscount,
             paymentStatus: calculatedPaymentStatus as any,
@@ -100,10 +104,15 @@ export class OrdersService {
             data: { stock: { decrement: item.quantity } },
           });
 
+          const conditionFilter = item.condition ? { condition: item.condition } : {};
           const instances = await tx.productInstance.findMany({
-            where: { productId: item.productId, status: 'AVAILABLE' },
+            where: { productId: item.productId, status: 'AVAILABLE', ...conditionFilter },
             take: item.quantity,
           });
+          
+          if (instances.length < item.quantity) {
+             throw new Error(`Not enough available instances for product ${item.productId} with condition ${item.condition || 'any'}.`);
+          }
 
           if (instances.length > 0) {
             await tx.productInstance.updateMany({
@@ -207,11 +216,18 @@ export class OrdersService {
       queryConditions.paymentStatus = paymentStatus;
 
     if (search) {
-      queryConditions.OR = [
+      const searchNum = parseInt(search.replace(/\D/g, ''), 10);
+      const orConditions: any[] = [
         { id: { contains: search, mode: 'insensitive' } },
         { customer: { name: { contains: search, mode: 'insensitive' } } },
         { customer: { phone: { contains: search, mode: 'insensitive' } } },
+        { walkInName: { contains: search, mode: 'insensitive' } },
+        { walkInPhone: { contains: search, mode: 'insensitive' } },
       ];
+      if (!isNaN(searchNum)) {
+        orConditions.push({ orderNumber: searchNum });
+      }
+      queryConditions.OR = orConditions;
     }
 
     const orders = await this.prisma.order.findMany({
@@ -524,5 +540,107 @@ export class OrdersService {
     };
 
     return { success: true, invoice: formattedInvoice };
+  }
+
+  async processReturn(userId: string, id: string, data: any) {
+    const { itemsToReturn, returnStatus = 'AVAILABLE' } = data; 
+    
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true },
+    });
+
+    if (!currentUser?.businessId)
+      throw new BadRequestException('User does not belong to a workspace');
+
+    const order = await this.prisma.order.findFirst({
+      where: { id, businessId: currentUser.businessId },
+      include: { items: true, payments: true },
+    });
+
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status !== 'FINAL' && order.status !== 'MEMO') {
+      throw new BadRequestException('Can only return FINAL or MEMO orders');
+    }
+
+    if (!itemsToReturn || itemsToReturn.length === 0) {
+      throw new BadRequestException('No items provided to return');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      let refundAmount = 0;
+
+      for (const returnItem of itemsToReturn) {
+        const orderItem = order.items.find(i => i.productId === returnItem.productId);
+        if (!orderItem) {
+          throw new BadRequestException(`Product ${returnItem.productId} not found in order`);
+        }
+        
+        refundAmount += orderItem.price * returnItem.quantity;
+
+        await tx.product.update({
+          where: { id: returnItem.productId },
+          data: { stock: { increment: returnItem.quantity } },
+        });
+
+        const instanceStatus = order.status === 'MEMO' ? 'MEMO_LOCKED' : 'SOLD';
+        const conditionFilter = returnItem.condition ? { condition: returnItem.condition } : {};
+        
+        const instances = await tx.productInstance.findMany({
+          where: { productId: returnItem.productId, status: instanceStatus, ...conditionFilter },
+          take: returnItem.quantity,
+        });
+
+        if (instances.length > 0) {
+          await tx.productInstance.updateMany({
+            where: { id: { in: instances.map((i) => i.id) } },
+            data: { status: returnStatus },
+          });
+        }
+      }
+
+      await tx.order.update({
+        where: { id },
+        data: { status: 'RETURNED' },
+      });
+      
+      if (order.status === 'FINAL') {
+        const postings = [];
+        
+        postings.push({
+          accountId: 'REVENUE',
+          accountType: 'REVENUE',
+          amount: refundAmount,
+        });
+
+        const totalPaid = order.payments.reduce((sum, p) => sum + p.amount, 0);
+        if (totalPaid > 0) {
+          postings.push({
+            accountId: 'CASH',
+            accountType: 'ASSET',
+            amount: -Math.min(refundAmount, totalPaid), 
+          });
+        }
+        
+        const remainingRefund = refundAmount - totalPaid;
+        if (remainingRefund > 0 && order.customerId) {
+          postings.push({
+            accountId: order.customerId,
+            accountType: 'CUSTOMER_AR',
+            amount: -remainingRefund, 
+          });
+        }
+
+        await this.ledgerService.createBalancedTransaction({
+          businessId: order.businessId,
+          referenceId: `RET-${order.id}`,
+          type: 'RETURN',
+          description: `Return for Order ${order.id}`,
+          postings,
+        });
+      }
+    });
+
+    return { success: true, message: 'Return processed successfully' };
   }
 }

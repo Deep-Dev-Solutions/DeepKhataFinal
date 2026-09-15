@@ -113,8 +113,12 @@ export default function OrdersHubPage() {
         id: order.id,
         // 🟢 FIX: Map the auto-increment orderNumber from DB
         orderNumber: `ORD-${order.orderNumber || order.id.substring(0, 4)}`,
-        customer: order.customer ? order.customer.name : "Walk-in Customer",
-        phone: order.customer ? order.customer.phone : "N/A",
+        customer: order.customer
+          ? order.customer.name
+          : order.walkInName || "Walk-in Customer",
+        phone: order.customer
+          ? order.customer.phone
+          : order.walkInPhone || "N/A",
         total: Number(order.totalAmount ?? 0),
         status: order.status,
         paymentStatus: order.paymentStatus, // Use actual database field name
