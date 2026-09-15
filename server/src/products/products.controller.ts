@@ -60,6 +60,25 @@ export class ProductsController {
     return this.productsService.addCabinet(req.user.id, body);
   }
 
+  @Get('getbranches')
+  async getBranches(@Req() req: any) {
+    return this.productsService.getBranches(req.user.id);
+  }
+
+  @Post('addbranch')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('write:products')
+  async addBranch(@Req() req: any, @Body() body: any) {
+    return this.productsService.addBranch(req.user.id, body);
+  }
+
+  @Post('bulk-restock')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('write:products')
+  async bulkRestock(@Req() req: any, @Body() body: any) {
+    return this.productsService.bulkRestock(req.user.id, body);
+  }
+
   @Patch('updateprice/:id')
   @UseGuards(PermissionsGuard, RolesGuard)
   @Roles('OWNER')

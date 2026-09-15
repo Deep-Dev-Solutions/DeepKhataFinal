@@ -31,10 +31,23 @@ model Business {
   invitations Invitation[] 
   categories  Category[]   
   
+  branches       Branch[]
   cabinets       Cabinet[]
   transactions   Transaction[]
   
   createdAt   DateTime @default(now())
+}
+
+model Branch {
+  id         String   @id @default(uuid())
+  name       String
+  location   String?
+  
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  cabinets   Cabinet[]
+  createdAt  DateTime @default(now())
 }
 
 model User {
@@ -95,6 +108,9 @@ model Cabinet {
   
   businessId String
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  branchId   String?
+  branch     Branch?  @relation(fields: [branchId], references: [id], onDelete: Cascade)
   
   instances  ProductInstance[]
   createdAt  DateTime @default(now())

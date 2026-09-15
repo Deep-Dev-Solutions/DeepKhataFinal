@@ -4,6 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "BizFlow - Modern Business OS",
   description: "The Complete Operating System for Modern Businesses",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({

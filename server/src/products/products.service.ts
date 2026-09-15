@@ -281,5 +281,96 @@ export class ProductsService {
 
     return { success: true, product };
   }
+  async getBranches(userId: string) {
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true },
+    });
+    if (!currentUser?.businessId) throw new BadRequestException('No business found.');
+
+    const branches = await this.prisma.branch.findMany({
+      where: { businessId: currentUser.businessId },
+      include: { cabinets: true },
+      orderBy: { name: 'asc' },
+    });
+
+    return { success: true, branches };
+  }
+
+  async addBranch(userId: string, data: any) {
+    const { name, location } = data;
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true },
+    });
+    if (!currentUser?.businessId) throw new BadRequestException('No business found.');
+
+    const branch = await this.prisma.branch.create({
+      data: {
+        name,
+        location,
+        businessId: currentUser.businessId,
+      }
+    });
+
+    return { success: true, branch };
+  }
+
+  async bulkRestock(userId: string, data: any) {
+    const { productId, branchId, cabinetId, condition, quantity } = data;
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true },
+    });
+    if (!currentUser?.businessId) throw new BadRequestException('No business found.');
+
+    const qty = Math.max(1, Number(quantity) || 1);
+
+    const validConditions = [
+      'ORIGINAL_PULL',
+      'COPY',
+      'MINOR_SCRATCHES',
+      'WORKING',
+      'DEAD_DONOR',
+    ];
+    const sanitizedCondition = validConditions.includes(condition)
+      ? condition
+      : 'ORIGINAL_PULL';
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const product = await tx.product.findFirst({
+        where: { id: productId, businessId: currentUser.businessId }
+      });
+      if (!product) throw new BadRequestException('Product not found');
+
+      let finalCabinetId = cabinetId;
+      if (finalCabinetId) {
+        const cab = await tx.cabinet.findFirst({
+          where: { id: finalCabinetId, businessId: currentUser.businessId }
+        });
+        if (!cab) throw new BadRequestException('Cabinet not found');
+      }
+
+      const instancesData = Array.from({ length: qty }).map(() => ({
+        productId: product.id,
+        cabinetId: finalCabinetId || null,
+        condition: sanitizedCondition as any,
+        status: 'AVAILABLE' as any,
+      }));
+
+      await tx.productInstance.createMany({
+        data: instancesData
+      });
+
+      const updatedProduct = await tx.product.update({
+        where: { id: product.id },
+        data: { stock: { increment: qty } }
+      });
+
+      return updatedProduct;
+    });
+
+    return { success: true, product: result };
+  }
 }
 
