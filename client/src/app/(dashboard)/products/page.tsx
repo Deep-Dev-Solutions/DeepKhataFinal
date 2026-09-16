@@ -54,19 +54,7 @@ type ProductRow = {
   conditions: string[];
 };
 
-const API_BASE_URL = "http://localhost:5000";
-
-const getAuthHeaders = () => {
-  if (typeof window === "undefined") {
-    return { "Content-Type": "application/json" };
-  }
-
-  const accessToken = localStorage.getItem("accessToken");
-  return {
-    "Content-Type": "application/json",
-    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-  };
-};
+import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 
 const normalizeProduct = (product: ProductRecord): ProductRow => {
   const instances = product.instances || [];

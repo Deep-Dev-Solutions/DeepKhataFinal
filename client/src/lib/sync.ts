@@ -1,6 +1,6 @@
+import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import { offlineDb, type SyncQueueItem } from "./db";
 
-const API_BASE_URL = "http://localhost:5000";
 
 let isSyncing = false;
 

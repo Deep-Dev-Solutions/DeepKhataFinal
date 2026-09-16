@@ -16,6 +16,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { LedgerModule } from './ledger/ledger.module';
 import { SyncModule } from './sync/sync.module';
 import { CashModule } from './cash/cash.module';
+import { WorkOrdersModule } from './work-orders/work-orders.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { CashModule } from './cash/cash.module';
     LedgerModule,
     SyncModule,
     CashModule,
+    WorkOrdersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

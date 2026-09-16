@@ -1,4 +1,5 @@
 "use client";
+import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -28,15 +29,43 @@ import CloseRegisterModal from "@/components/modals/CloseRegisterModal";
 import OpenRegisterModal from "@/components/modals/OpenRegisterModal";
 import ZReportModal from "@/components/modals/ZReportModal";
 
-const API_BASE_URL = "http://localhost:5000";
-
 const EXPENSE_CATEGORIES = [
-  { id: "CHAI_REFRESHMENT", label: "Chai / Tea", icon: Coffee, color: "text-amber-700 bg-amber-50 border-amber-200" },
-  { id: "DELIVERY_RIDER", label: "Delivery Rider", icon: Bike, color: "text-blue-700 bg-blue-50 border-blue-200" },
-  { id: "REPAIR_PARTS", label: "Parts / Shop", icon: Wrench, color: "text-purple-700 bg-purple-50 border-purple-200" },
-  { id: "SUPPLIES", label: "Packaging", icon: Package, color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
-  { id: "UTILITIES", label: "Bills / Power", icon: Zap, color: "text-orange-700 bg-orange-50 border-orange-200" },
-  { id: "OTHER", label: "Other Expense", icon: Tag, color: "text-slate-700 bg-slate-50 border-slate-200" },
+  {
+    id: "CHAI_REFRESHMENT",
+    label: "Chai / Tea",
+    icon: Coffee,
+    color: "text-amber-700 bg-amber-50 border-amber-200",
+  },
+  {
+    id: "DELIVERY_RIDER",
+    label: "Delivery Rider",
+    icon: Bike,
+    color: "text-blue-700 bg-blue-50 border-blue-200",
+  },
+  {
+    id: "REPAIR_PARTS",
+    label: "Parts / Shop",
+    icon: Wrench,
+    color: "text-purple-700 bg-purple-50 border-purple-200",
+  },
+  {
+    id: "SUPPLIES",
+    label: "Packaging",
+    icon: Package,
+    color: "text-emerald-700 bg-emerald-50 border-emerald-200",
+  },
+  {
+    id: "UTILITIES",
+    label: "Bills / Power",
+    icon: Zap,
+    color: "text-orange-700 bg-orange-50 border-orange-200",
+  },
+  {
+    id: "OTHER",
+    label: "Other Expense",
+    icon: Tag,
+    color: "text-slate-700 bg-slate-50 border-slate-200",
+  },
 ];
 
 export default function CashHubPage() {
@@ -51,7 +80,9 @@ export default function CashHubPage() {
   const [description, setDescription] = useState("");
   const [branchId, setBranchId] = useState("");
   const [submittingExpense, setSubmittingExpense] = useState(false);
-  const [expenseSuccessMsg, setExpenseSuccessMsg] = useState<string | null>(null);
+  const [expenseSuccessMsg, setExpenseSuccessMsg] = useState<string | null>(
+    null,
+  );
 
   // Modals
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
@@ -64,7 +95,10 @@ export default function CashHubPage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const getHeaders = () => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem("accessToken")
+        : null;
     return {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -77,7 +111,9 @@ export default function CashHubPage() {
       const headers = getHeaders();
 
       // Fetch Register Status
-      const statusRes = await fetch(`${API_BASE_URL}/cash/register/status`, { headers });
+      const statusRes = await fetch(`${API_BASE_URL}/cash/register/status`, {
+        headers,
+      });
       const statusData = await statusRes.json();
       if (statusData.success) {
         setRegisterStatus(statusData);
@@ -91,7 +127,9 @@ export default function CashHubPage() {
       }
 
       // Fetch Branches for selector
-      const branchRes = await fetch(`${API_BASE_URL}/product/getbranches`, { headers });
+      const branchRes = await fetch(`${API_BASE_URL}/product/getbranches`, {
+        headers,
+      });
       const branchData = await branchRes.json();
       if (branchData.success) {
         setBranches(branchData.branches);
@@ -132,7 +170,9 @@ export default function CashHubPage() {
       if (data.success) {
         setAmount("");
         setDescription("");
-        setExpenseSuccessMsg(`✓ PKR ${numAmount.toLocaleString()} recorded & balanced in ledger!`);
+        setExpenseSuccessMsg(
+          `✓ PKR ${numAmount.toLocaleString()} recorded & balanced in ledger!`,
+        );
         setTimeout(() => setExpenseSuccessMsg(null), 4000);
         await fetchCashData();
       } else {
@@ -147,7 +187,10 @@ export default function CashHubPage() {
   };
 
   // Open Register Handler
-  const handleOpenRegister = async (data: { openingBalance: number; notes?: string }) => {
+  const handleOpenRegister = async (data: {
+    openingBalance: number;
+    notes?: string;
+  }) => {
     const headers = getHeaders();
     const res = await fetch(`${API_BASE_URL}/cash/register/open`, {
       method: "POST",
@@ -167,7 +210,10 @@ export default function CashHubPage() {
   };
 
   // Close Register Handler
-  const handleCloseRegister = async (data: { actualCash: number; notes?: string }) => {
+  const handleCloseRegister = async (data: {
+    actualCash: number;
+    notes?: string;
+  }) => {
     const headers = getHeaders();
     const res = await fetch(`${API_BASE_URL}/cash/register/close`, {
       method: "POST",
@@ -209,7 +255,9 @@ export default function CashHubPage() {
   };
 
   const filteredExpenses = expenses.filter((exp) => {
-    const matchesCat = selectedFilterCategory === "ALL" || exp.category === selectedFilterCategory;
+    const matchesCat =
+      selectedFilterCategory === "ALL" ||
+      exp.category === selectedFilterCategory;
     const matchesSearch =
       !searchQuery ||
       exp.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -221,7 +269,6 @@ export default function CashHubPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs">
         <div>
@@ -234,20 +281,27 @@ export default function CashHubPage() {
             </h1>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Double-entry operational cash expense tracking and End of Day (Z-Report) drawer reconciliation.
+            Double-entry operational cash expense tracking and End of Day
+            (Z-Report) drawer reconciliation.
           </p>
         </div>
 
         {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-2.5">
           {/* Shift Status Pill */}
-          <div className={`px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 border ${
-            registerStatus?.isOpen
-              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-              : "bg-slate-100 text-slate-600 border-slate-200"
-          }`}>
-            <span className={`w-2 h-2 rounded-full ${registerStatus?.isOpen ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
-            {registerStatus?.isOpen ? "Shift Active (Drawer Open)" : "Register Closed"}
+          <div
+            className={`px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 border ${
+              registerStatus?.isOpen
+                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                : "bg-slate-100 text-slate-600 border-slate-200"
+            }`}
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${registerStatus?.isOpen ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`}
+            />
+            {registerStatus?.isOpen
+              ? "Shift Active (Drawer Open)"
+              : "Register Closed"}
           </div>
 
           <button
@@ -288,18 +342,21 @@ export default function CashHubPage() {
 
       {/* Live KPI Drawer Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
         {/* Card 1: Opening Float */}
         <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-2">
             <span>Opening Cash Float</span>
-            <span className="p-1.5 bg-slate-100 rounded-lg text-slate-600"><Clock className="w-3.5 h-3.5" /></span>
+            <span className="p-1.5 bg-slate-100 rounded-lg text-slate-600">
+              <Clock className="w-3.5 h-3.5" />
+            </span>
           </div>
           <div className="text-2xl font-extrabold font-mono text-slate-900">
             PKR {(registerStatus?.openingBalance || 0).toLocaleString()}
           </div>
           <div className="text-[11px] text-slate-400 mt-1">
-            {registerStatus?.isOpen ? `Opened at ${new Date(registerStatus.session.openedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : "Initial drawer base"}
+            {registerStatus?.isOpen
+              ? `Opened at ${new Date(registerStatus.session.openedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+              : "Initial drawer base"}
           </div>
         </div>
 
@@ -307,7 +364,9 @@ export default function CashHubPage() {
         <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-2">
             <span>Cash Sales Inflows</span>
-            <span className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg"><ArrowUpRight className="w-3.5 h-3.5" /></span>
+            <span className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg">
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </span>
           </div>
           <div className="text-2xl font-extrabold font-mono text-emerald-600">
             +PKR {(registerStatus?.cashSales || 0).toLocaleString()}
@@ -321,7 +380,9 @@ export default function CashHubPage() {
         <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-2">
             <span>Cash Expenses Out</span>
-            <span className="p-1.5 bg-rose-100 text-rose-700 rounded-lg"><ArrowDownRight className="w-3.5 h-3.5" /></span>
+            <span className="p-1.5 bg-rose-100 text-rose-700 rounded-lg">
+              <ArrowDownRight className="w-3.5 h-3.5" />
+            </span>
           </div>
           <div className="text-2xl font-extrabold font-mono text-rose-600">
             -PKR {(registerStatus?.cashExpenses || 0).toLocaleString()}
@@ -335,8 +396,12 @@ export default function CashHubPage() {
         <div className="bg-slate-900 text-white p-5 rounded-3xl shadow-sm relative overflow-hidden flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-xs font-medium text-slate-400 mb-2">
-              <span className="font-semibold text-slate-300">Expected in Drawer</span>
-              <span className="px-2 py-0.5 bg-slate-800 text-[10px] rounded text-emerald-400 font-mono">Live Ledger</span>
+              <span className="font-semibold text-slate-300">
+                Expected in Drawer
+              </span>
+              <span className="px-2 py-0.5 bg-slate-800 text-[10px] rounded text-emerald-400 font-mono">
+                Live Ledger
+              </span>
             </div>
             <div className="text-2xl font-extrabold font-mono text-emerald-400">
               PKR {(registerStatus?.expectedCash || 0).toLocaleString()}
@@ -344,15 +409,15 @@ export default function CashHubPage() {
           </div>
           <div className="text-[10px] text-slate-400 pt-2 border-t border-slate-800 flex justify-between">
             <span>Float + Sales - Expenses</span>
-            <span className="text-slate-300 font-semibold">Must match physical cash</span>
+            <span className="text-slate-300 font-semibold">
+              Must match physical cash
+            </span>
           </div>
         </div>
-
       </div>
 
       {/* Main Two-Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
         {/* LEFT: Quick Operational Expense Entry Form (5 Cols) */}
         <div className="lg:col-span-5 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-5">
           <div>
@@ -361,12 +426,12 @@ export default function CashHubPage() {
               Quick Expense Voucher
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Pulling petty cash from drawer for chai, rider, or parts? Log it here to balance the double-entry ledger.
+              Pulling petty cash from drawer for chai, rider, or parts? Log it
+              here to balance the double-entry ledger.
             </p>
           </div>
 
           <form onSubmit={handleLogExpense} className="space-y-4">
-            
             {/* Category Chips */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-2">
@@ -401,7 +466,9 @@ export default function CashHubPage() {
                 Amount (PKR)
               </label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">PKR</span>
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
+                  PKR
+                </span>
                 <input
                   type="number"
                   min="1"
@@ -420,7 +487,9 @@ export default function CashHubPage() {
                   <button
                     key={amt}
                     type="button"
-                    onClick={() => setAmount(String((parseFloat(amount) || 0) + amt))}
+                    onClick={() =>
+                      setAmount(String((parseFloat(amount) || 0) + amt))
+                    }
                     className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition-colors"
                   >
                     +{amt}
@@ -465,7 +534,9 @@ export default function CashHubPage() {
                 >
                   <option value="">All Branches / Main Counter</option>
                   {branches.map((b) => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -486,24 +557,30 @@ export default function CashHubPage() {
               className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all disabled:opacity-50 flex items-center justify-center gap-2"
             >
               <Plus className="w-4 h-4" />
-              {submittingExpense ? "Posting to Ledger..." : "Record Cash Expense & Debit Ledger"}
+              {submittingExpense
+                ? "Posting to Ledger..."
+                : "Record Cash Expense & Debit Ledger"}
             </button>
 
             <p className="text-[11px] text-slate-400 text-center italic">
-              Posting: Debits Expense Account • Credits Cash Drawer (Zero-Sum Balanced)
+              Posting: Debits Expense Account • Credits Cash Drawer (Zero-Sum
+              Balanced)
             </p>
           </form>
         </div>
 
         {/* RIGHT: Today's Expense Disbursements Table (7 Cols) */}
         <div className="lg:col-span-7 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-          
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200/80 pb-4">
             <div>
-              <h2 className="text-base font-bold text-slate-900">Today&apos;s Expense Ledger</h2>
-              <p className="text-xs text-slate-500">Chronological log of petty cash disbursements</p>
+              <h2 className="text-base font-bold text-slate-900">
+                Today&apos;s Expense Ledger
+              </h2>
+              <p className="text-xs text-slate-500">
+                Chronological log of petty cash disbursements
+              </p>
             </div>
-            
+
             {/* Search Input */}
             <div className="relative w-full sm:w-48">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -548,19 +625,31 @@ export default function CashHubPage() {
           {filteredExpenses.length === 0 ? (
             <div className="py-12 text-center text-slate-400 space-y-2">
               <Coffee className="w-8 h-8 mx-auto text-slate-300" />
-              <p className="text-xs font-medium">No expenses logged yet for today.</p>
-              <p className="text-[11px] text-slate-400">Use the quick form on the left to record daily chai or rider expenses.</p>
+              <p className="text-xs font-medium">
+                No expenses logged yet for today.
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Use the quick form on the left to record daily chai or rider
+                expenses.
+              </p>
             </div>
           ) : (
             <div className="border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-100">
               {filteredExpenses.map((exp) => {
-                const catMeta = EXPENSE_CATEGORIES.find((c) => c.id === exp.category) || EXPENSE_CATEGORIES[5];
+                const catMeta =
+                  EXPENSE_CATEGORIES.find((c) => c.id === exp.category) ||
+                  EXPENSE_CATEGORIES[5];
                 const Icon = catMeta.icon;
 
                 return (
-                  <div key={exp.id} className="p-3.5 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3">
+                  <div
+                    key={exp.id}
+                    className="p-3.5 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3"
+                  >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className={`p-2 rounded-xl border shrink-0 ${catMeta.color}`}>
+                      <div
+                        className={`p-2 rounded-xl border shrink-0 ${catMeta.color}`}
+                      >
                         <Icon className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
@@ -573,7 +662,12 @@ export default function CashHubPage() {
                           </span>
                         </div>
                         <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
-                          <span>{new Date(exp.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span>
+                            {new Date(exp.createdAt).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
                           <span>•</span>
                           <span>By {exp.createdBy?.name || "Staff"}</span>
                           {exp.branch && (
@@ -600,9 +694,7 @@ export default function CashHubPage() {
               })}
             </div>
           )}
-
         </div>
-
       </div>
 
       {/* Close Register Modal */}
@@ -629,7 +721,6 @@ export default function CashHubPage() {
         onClose={() => setIsZReportModalOpen(false)}
         reportData={currentZReport}
       />
-
     </div>
   );
 }

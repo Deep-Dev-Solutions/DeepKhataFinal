@@ -48,7 +48,10 @@ export default function Header() {
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setIsNotifOpen(false);
       }
     }
@@ -62,12 +65,14 @@ export default function Header() {
     };
   }, [isNotifOpen]);
 
-  const unreadCount = mockNotifications.filter((notification) => notification.unread).length;
+  const unreadCount = mockNotifications.filter(
+    (notification) => notification.unread,
+  ).length;
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 sticky top-0 z-50 px-4 sm:px-6 lg:px-8 flex items-center justify-between">
       <div className="md:hidden font-bold text-lg text-slate-900 tracking-tight">
-        BizFlow
+        DeepKhata
       </div>
 
       <div className="hidden md:flex flex-1 max-w-md ml-4">
@@ -141,7 +146,9 @@ export default function Header() {
 
                     <div className="flex-1">
                       <div className="flex items-start justify-between gap-2">
-                        <p className={`text-sm ${notification.unread ? "font-bold text-slate-900" : "font-semibold text-slate-700"}`}>
+                        <p
+                          className={`text-sm ${notification.unread ? "font-bold text-slate-900" : "font-semibold text-slate-700"}`}
+                        >
                           {notification.title}
                         </p>
                         <span className="text-[10px] font-medium text-slate-400 whitespace-nowrap">
@@ -163,7 +170,10 @@ export default function Header() {
               </div>
 
               <div className="p-3 border-t border-slate-100 bg-slate-50 text-center">
-                <button type="button" className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
+                <button
+                  type="button"
+                  className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors"
+                >
                   View all notifications
                 </button>
               </div>

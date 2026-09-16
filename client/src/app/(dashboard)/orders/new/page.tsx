@@ -46,7 +46,17 @@ type Product = {
   }>;
 };
 
-type CartItem = Product & { qty: number; condition: string };
+type CartItem = {
+  id: string;
+  name: string;
+  sku?: string | null;
+  price: number;
+  stock?: number;
+  qty: number;
+  condition?: string;
+  isService?: boolean;
+  notes?: string;
+};
 
 function CreateOrderPOSContent() {
   const router = useRouter();
@@ -75,6 +85,11 @@ function CreateOrderPOSContent() {
   const [conditionModalProduct, setConditionModalProduct] = useState<
     (Product & { conditionCounts?: any }) | null
   >(null);
+
+  const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
+  const [serviceName, setServiceName] = useState("");
+  const [servicePrice, setServicePrice] = useState("");
+  const [serviceNotes, setServiceNotes] = useState("");
 
   // 4. DISCOUNT & PAYMENT STATES
   const [discount, setDiscount] = useState<number>(0);
@@ -316,10 +331,13 @@ function CreateOrderPOSContent() {
       walkInName: customerMode === "walk-in" ? walkInName || null : null,
       walkInPhone: customerMode === "walk-in" ? walkInPhone || null : null,
       items: cart.map((item) => ({
-        productId: item.id,
+        productId: item.isService ? null : item.id,
         quantity: item.qty,
         price: item.price,
         condition: item.condition,
+        isService: item.isService,
+        serviceName: item.isService ? item.name : undefined,
+        notes: item.notes,
       })),
       discount: currentDiscount,
       amountPaid: currentPaid,
@@ -472,6 +490,26 @@ function CreateOrderPOSContent() {
     });
   };
 
+  const addServiceToCart = () => {
+    if (!serviceName || !servicePrice)
+      return alert("Service Name and Price are required.");
+    setCart((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        name: serviceName,
+        price: Number(servicePrice),
+        qty: 1,
+        isService: true,
+        notes: serviceNotes,
+      },
+    ]);
+    setIsServiceModalOpen(false);
+    setServiceName("");
+    setServicePrice("");
+    setServiceNotes("");
+  };
+
   const handleProductClick = (product: Product) => {
     if (product.stock === 0) return alert("Out of stock!");
 
@@ -486,7 +524,7 @@ function CreateOrderPOSContent() {
     );
 
     if (Object.keys(conditionCounts).length === 0) {
-      addToCart(product, "ORIGINAL_PULL");
+      alert("No available instances for this product!");
     } else if (Object.keys(conditionCounts).length === 1) {
       addToCart(product, Object.keys(conditionCounts)[0]);
     } else {
@@ -494,7 +532,11 @@ function CreateOrderPOSContent() {
     }
   };
 
-  const updateQty = (id: string, condition: string, delta: number) => {
+  const updateQty = (
+    id: string,
+    condition: string | undefined,
+    delta: number,
+  ) => {
     setCart((prev) =>
       prev.map((item) => {
         if (item.id === id && item.condition === condition) {
@@ -506,7 +548,7 @@ function CreateOrderPOSContent() {
     );
   };
 
-  const removeItem = (id: string, condition: string) =>
+  const removeItem = (id: string, condition: string | undefined) =>
     setCart((prev) =>
       prev.filter((item) => !(item.id === id && item.condition === condition)),
     );
@@ -571,7 +613,6 @@ function CreateOrderPOSContent() {
           )}
         </div>
       </div>
-
       {/* 🟢 OFFLINE SUCCESS / QUEUE BANNER */}
       {offlineSuccessMsg && (
         <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs font-bold text-amber-900 shadow-sm animate-in fade-in">
@@ -588,7 +629,6 @@ function CreateOrderPOSContent() {
           </button>
         </div>
       )}
-
       <div className="flex flex-col lg:flex-row flex-1 overflow-hidden mt-3 gap-6">
         {/* LEFT SIDE: CATALOG */}
         <div className="flex-1 flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm">
@@ -698,6 +738,17 @@ function CreateOrderPOSContent() {
         {/* RIGHT SIDE: CART */}
         <div className="w-full lg:w-105 flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden shrink-0 h-full">
           <div className="p-4 border-b border-slate-100 bg-slate-50 shrink-0">
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="font-bold text-slate-800 flex items-center gap-2">
+                <Receipt className="w-4 h-4 text-slate-500" /> Current Invoice
+              </h2>
+              <button
+                onClick={() => setIsServiceModalOpen(true)}
+                className="flex items-center gap-1.5 text-[10px] font-bold bg-blue-50 text-blue-700 px-2.5 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors shadow-sm"
+              >
+                <Plus className="w-3 h-3" /> Add Service
+              </button>
+            </div>
             <div className="flex bg-white rounded-lg p-1 border border-slate-200 shadow-sm">
               <button
                 onClick={() => {
@@ -813,14 +864,26 @@ function CreateOrderPOSContent() {
                   <div className="flex-1 pr-3">
                     <p className="text-sm font-bold text-slate-900 leading-tight">
                       {item.name}
+                      {item.isService && (
+                        <span className="ml-2 text-[9px] font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200">
+                          SERVICE
+                        </span>
+                      )}
                     </p>
+                    {item.notes && (
+                      <p className="text-[10px] text-slate-500 truncate max-w-[150px] mt-0.5">
+                        {item.notes}
+                      </p>
+                    )}
                     <div className="flex items-center gap-2 mt-1">
                       <p className="text-xs font-medium text-slate-500">
                         Rs. {item.price.toLocaleString()}
                       </p>
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
-                        {item.condition.replace(/_/g, " ")}
-                      </span>
+                      {!item.isService && item.condition && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                          {item.condition.replace(/_/g, " ")}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
@@ -976,7 +1039,6 @@ function CreateOrderPOSContent() {
           </div>
         </div>
       </div>
-
       {/* 🟢 POS ORDER SUCCESS & WHATSAPP MODAL */}
       {completedOrderData && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -1138,6 +1200,67 @@ function CreateOrderPOSContent() {
                   </button>
                 ),
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🟢 SERVICE MODAL */}
+      {isServiceModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h3 className="font-bold text-slate-900">Add Service / Labor</h3>
+              <button
+                onClick={() => setIsServiceModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Service Name
+                </label>
+                <input
+                  type="text"
+                  value={serviceName}
+                  onChange={(e) => setServiceName(e.target.value)}
+                  placeholder="e.g. Screen Fitting, Repair"
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Price (Rs)
+                </label>
+                <input
+                  type="number"
+                  value={servicePrice}
+                  onChange={(e) => setServicePrice(e.target.value)}
+                  placeholder="0"
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Device Notes (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={serviceNotes}
+                  onChange={(e) => setServiceNotes(e.target.value)}
+                  placeholder="IMEI, Passcode, Color..."
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+              </div>
+              <button
+                onClick={addServiceToCart}
+                className="w-full py-2.5 mt-2 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors shadow-md"
+              >
+                Add to Invoice
+              </button>
             </div>
           </div>
         </div>

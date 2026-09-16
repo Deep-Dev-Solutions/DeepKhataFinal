@@ -31,18 +31,7 @@ import { generateWhatsAppReceipt } from "@/lib/utils";
 
 // You will need to create this modal component next!
 import RecordPaymentModal from "@/components/modals/RecordPaymentModal";
-
-const API_BASE_URL = "http://localhost:5000";
-
-const getAuthHeaders = () => {
-  if (typeof window === "undefined")
-    return { "Content-Type": "application/json" };
-  const accessToken = localStorage.getItem("accessToken");
-  return {
-    "Content-Type": "application/json",
-    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-  };
-};
+import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 
 export default function OrderDetailsLedger() {
   const { id } = useParams(); // The secret UUID from the URL
@@ -89,10 +78,14 @@ export default function OrderDetailsLedger() {
       const items = (rawOrder.items || []).map((item: any) => ({
         id: item.id,
         productId: item.productId,
-        name: item.product?.name || "Unknown Product",
+        name: item.isService
+          ? item.serviceName
+          : item.product?.name || "Unknown Product",
         price: Number(item.price ?? 0),
         qty: Number(item.quantity ?? 0),
         total: Number(item.price ?? 0) * Number(item.quantity ?? 0),
+        isService: item.isService || false,
+        notes: item.notes || "",
       }));
 
       const subtotal = items.reduce(
@@ -573,8 +566,22 @@ export default function OrderDetailsLedger() {
                   className="p-4 flex items-center justify-between group hover:bg-slate-50 transition-colors"
                 >
                   <div>
-                    <p className="font-semibold text-slate-900">{item.name}</p>
-                    <p className="text-sm text-slate-500">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-slate-900">
+                        {item.name}
+                      </p>
+                      {item.isService && (
+                        <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                          Service
+                        </span>
+                      )}
+                    </div>
+                    {item.notes && (
+                      <p className="text-xs text-slate-500 italic mt-0.5">
+                        Note: {item.notes}
+                      </p>
+                    )}
+                    <p className="text-sm text-slate-500 mt-0.5">
                       Rs. {item.price.toLocaleString()} x {item.qty}
                     </p>
                   </div>

@@ -1,8 +1,8 @@
-import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
 }
 
 export function formatPakistaniPhone(phone?: string | null): string {
@@ -24,7 +24,7 @@ export function formatPakistaniPhone(phone?: string | null): string {
 export function generateWhatsAppReceipt(
   order: any,
   customer?: any,
-  runningBalance?: number
+  runningBalance?: number,
 ): string {
   const cust = customer || order?.customer;
   const custName = cust?.name || "Walk-in Customer";
@@ -38,33 +38,39 @@ export function generateWhatsAppReceipt(
   const orderDate = order?.date
     ? order.date
     : order?.createdAt
-    ? new Date(order.createdAt).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
-    : new Date().toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
+      ? new Date(order.createdAt).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : new Date().toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        });
 
   const statusLabel =
     order?.status === "MEMO"
       ? "MEMO (AMANAT)"
       : order?.status === "RETURNED"
-      ? "RETURNED TO STOCK"
-      : order?.status === "CANCELLED"
-      ? "CANCELLED"
-      : "FINAL SALE";
+        ? "RETURNED TO STOCK"
+        : order?.status === "CANCELLED"
+          ? "CANCELLED"
+          : "FINAL SALE";
 
   // Items
   const items = (order?.items || []).map((item: any) => {
-    const name = item.name || item.product?.name || "Item";
+    const isService = item.isService || false;
+    const rawName =
+      item.name ||
+      (isService ? item.serviceName : item.product?.name) ||
+      "Item";
+    const name = isService ? `[Service] ${rawName}` : rawName;
     const qty = Number(item.qty ?? item.quantity ?? 1);
     const price = Number(item.price ?? 0);
     const total = Number(item.total ?? price * qty);
-    return `• ${name} (x${qty}) - Rs. ${total.toLocaleString()}`;
+    const notesStr = item.notes ? `\n   Note: ${item.notes}` : "";
+    return `• ${name} (x${qty}) - Rs. ${total.toLocaleString()}${notesStr}`;
   });
 
   const subtotal = Number(
@@ -73,18 +79,23 @@ export function generateWhatsAppReceipt(
         const q = Number(i.qty ?? i.quantity ?? 1);
         const p = Number(i.price ?? 0);
         return s + (i.total ?? p * q);
-      }, 0)
+      }, 0),
   );
 
   const discount = Number(order?.financials?.discount ?? order?.discount ?? 0);
   const total = Number(
-    order?.financials?.total ?? order?.totalAmount ?? Math.max(0, subtotal - discount)
+    order?.financials?.total ??
+      order?.totalAmount ??
+      Math.max(0, subtotal - discount),
   );
 
   const paid = Number(
     order?.financials?.paid ??
       order?.amountPaid ??
-      (order?.payments || []).reduce((s: number, p: any) => s + Number(p.amount ?? 0), 0)
+      (order?.payments || []).reduce(
+        (s: number, p: any) => s + Number(p.amount ?? 0),
+        0,
+      ),
   );
 
   const balance = Math.max(0, total - paid);
@@ -109,7 +120,9 @@ export function generateWhatsAppReceipt(
 
   if (typeof runningBalance === "number") {
     lines.push(`--------------------------------`);
-    lines.push(`*Total Udhar Balance (Baqaya):* Rs. ${runningBalance.toLocaleString()}`);
+    lines.push(
+      `*Total Udhar Balance (Baqaya):* Rs. ${runningBalance.toLocaleString()}`,
+    );
   }
 
   lines.push(`--------------------------------`);
@@ -124,4 +137,3 @@ export function generateWhatsAppReceipt(
   }
   return `https://wa.me/?text=${encodedText}`;
 }
-

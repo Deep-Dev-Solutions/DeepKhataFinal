@@ -11,69 +11,72 @@ datasource db {
 }
 
 model Business {
-  id          String   @id @default(uuid())
-  name        String
-  email       String? 
-  slug        String   @unique 
-  currency    String   @default("PKR") 
-  industry    String?
-  teamSize    String?
-  phone       String?
-  address     String?
-  ownerId     String
-  logoUrl     String?
-  
-  owner       User     @relation("BusinessOwner", fields: [ownerId], references: [id])
-  users       User[]   @relation("BusinessUsers")
+  id       String  @id @default(uuid())
+  name     String
+  email    String?
+  slug     String  @unique
+  currency String  @default("PKR")
+  industry String?
+  teamSize String?
+  phone    String?
+  address  String?
+  ownerId  String
+  logoUrl  String?
+
+  owner       User         @relation("BusinessOwner", fields: [ownerId], references: [id])
+  users       User[]       @relation("BusinessUsers")
   customers   Customer[]
   products    Product[]
   orders      Order[]
-  invitations Invitation[] 
-  categories  Category[]   
-  
-  branches       Branch[]
-  cabinets       Cabinet[]
-  transactions   Transaction[]
-  expenses       Expense[]
+  invitations Invitation[]
+  categories  Category[]
+
+  branches         Branch[]
+  cabinets         Cabinet[]
+  transactions     Transaction[]
+  expenses         Expense[]
   registerSessions CashRegisterSession[]
-  
-  createdAt   DateTime @default(now())
+  workOrders       WorkOrder[]
+
+  createdAt DateTime @default(now())
 }
 
 model Branch {
-  id         String   @id @default(uuid())
-  name       String
-  location   String?
-  
+  id       String  @id @default(uuid())
+  name     String
+  location String?
+
   businessId String
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  
-  cabinets   Cabinet[]
-  expenses   Expense[]
+
+  cabinets         Cabinet[]
+  expenses         Expense[]
   registerSessions CashRegisterSession[]
-  createdAt  DateTime @default(now())
+  workOrders       WorkOrder[]
+  createdAt        DateTime              @default(now())
 }
 
 model User {
-  id               String    @id @default(uuid())
-  name             String
-  email            String    @unique
-  password         String
-  role             Role      @default(OWNER)
-  phone            String?    
-  avatarUrl        String? 
-  
-  businessId       String?   
-  business         Business? @relation("BusinessUsers", fields: [businessId], references: [id])
-  
-  ownedBusinesses  Business[] @relation("BusinessOwner")
-  createdOrders    Order[]    @relation("OrderCreator")
-  receivedPayments Payment[]  @relation("PaymentReceiver")
-  createdExpenses  Expense[]  @relation("ExpenseCreator")
-  openedRegisters  CashRegisterSession[] @relation("RegisterOpener")
-  closedRegisters  CashRegisterSession[] @relation("RegisterCloser")
-  
-  createdAt        DateTime   @default(now())
+  id        String  @id @default(uuid())
+  name      String
+  email     String  @unique
+  password  String
+  role      Role    @default(OWNER)
+  phone     String?
+  avatarUrl String?
+
+  businessId String?
+  business   Business? @relation("BusinessUsers", fields: [businessId], references: [id])
+
+  ownedBusinesses      Business[]            @relation("BusinessOwner")
+  createdOrders        Order[]               @relation("OrderCreator")
+  receivedPayments     Payment[]             @relation("PaymentReceiver")
+  createdExpenses      Expense[]             @relation("ExpenseCreator")
+  openedRegisters      CashRegisterSession[] @relation("RegisterOpener")
+  closedRegisters      CashRegisterSession[] @relation("RegisterCloser")
+  technicianWorkOrders WorkOrder[]           @relation("TechnicianWorkOrders")
+
+  createdAt DateTime @default(now())
 }
 
 model Invitation {
@@ -85,104 +88,107 @@ model Invitation {
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
 
-  @@unique([email, businessId]) 
+  @@unique([email, businessId])
 }
 
 model Customer {
-  id               String   @id @default(uuid())
-  name             String
-  phone            String
-  
-  email            String?
-  address          String?
-  cnicNumber       String?  
-  
-  // Anti-Fraud System
-  creditLimit      Float    @default(0) 
-  isDefaulter      Boolean  @default(false)
-  guarantorPhone   String?
-  
-  businessId       String
-  business         Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  orders           Order[]
-  createdAt        DateTime @default(now())
-}
+  id    String @id @default(uuid())
+  name  String
+  phone String
 
-model Cabinet {
-  id         String   @id @default(uuid())
-  name       String
-  location   String?  // e.g., Shop Location -> Rack -> Shelf -> Bin
-  
+  email      String?
+  address    String?
+  cnicNumber String?
+
+  // Anti-Fraud System
+  creditLimit    Float   @default(0)
+  isDefaulter    Boolean @default(false)
+  guarantorPhone String?
+
   businessId String
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  
-  branchId   String?
-  branch     Branch?  @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  
-  instances  ProductInstance[]
+  orders     Order[]
   createdAt  DateTime @default(now())
 }
 
-model Product {
-  id          String   @id @default(uuid())
-  name        String
-  sku         String?  
-  price       Float    
-  costPrice   Float?   
-  stock       Int      @default(0)
-  
-  categoryId  String?  
-  category    Category? @relation(fields: [categoryId], references: [id])
+model Cabinet {
+  id       String  @id @default(uuid())
+  name     String
+  location String? // e.g., Shop Location -> Rack -> Shelf -> Bin
 
-  businessId  String
-  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  
-  orderItems  OrderItem[] 
-  instances   ProductInstance[]
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  instances ProductInstance[]
+  createdAt DateTime          @default(now())
+}
+
+model Product {
+  id        String  @id @default(uuid())
+  name      String
+  sku       String?
+  price     Float
+  costPrice Float?
+  stock     Int     @default(0)
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  orderItems OrderItem[]
+  instances  ProductInstance[]
 }
 
 model ProductInstance {
-  id           String        @id @default(uuid())
-  productId    String
-  cabinetId    String?
-  
-  condition    ItemCondition @default(ORIGINAL_PULL)
+  id        String  @id @default(uuid())
+  productId String
+  cabinetId String?
+
+  condition    ItemCondition  @default(ORIGINAL_PULL)
   status       InstanceStatus @default(AVAILABLE) // For MEMO locks
   serialNumber String?
-  
-  product      Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
-  cabinet      Cabinet?      @relation(fields: [cabinetId], references: [id])
-  
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+
+  product Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cabinet Cabinet? @relation(fields: [cabinetId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workOrderId String?
+  workOrder   WorkOrder? @relation(fields: [workOrderId], references: [id])
 }
 
 model Category {
-  id         String   @id @default(uuid())
+  id         String @id @default(uuid())
   name       String
   businessId String
-  
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  products   Product[]
 
-  @@unique([name, businessId]) 
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([name, businessId])
 }
 
 model Order {
-  id            String   @id @default(uuid())
+  id            String        @id @default(uuid())
   customerId    String?
   businessId    String
   discount      Float         @default(0)
   status        OrderStatus
   paymentStatus PaymentStatus @default(UNPAID)
   totalAmount   Float
-  createdBy     String?  
-  orderNumber   Int      @default(autoincrement()) 
+  createdBy     String?
+  orderNumber   Int           @default(autoincrement())
   walkInName    String?
   walkInPhone   String?
 
   creator   User?       @relation("OrderCreator", fields: [createdBy], references: [id])
-  customer  Customer?    @relation(fields: [customerId], references: [id])
+  customer  Customer?   @relation(fields: [customerId], references: [id])
   business  Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
   items     OrderItem[]
   payments  Payment[]
@@ -190,51 +196,55 @@ model Order {
 }
 
 model OrderItem {
-  id        String  @id @default(uuid())
-  orderId   String
-  productId String
-  quantity  Int
-  price     Float
+  id          String   @id @default(uuid())
+  orderId     String
+  productId   String?
+  quantity    Int
+  price       Float
+  isService   Boolean  @default(false)
+  serviceName String?
+  notes       String?
 
-  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id])
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id])
 }
 
 model Payment {
-  id        String   @id @default(uuid())
-  orderId   String
-  amount    Float
-  method    PaymentMethod
-  receivedBy String  
-  
-  receiver   User  @relation("PaymentReceiver", fields: [receivedBy], references: [id])
-  order      Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
+  id         String        @id @default(uuid())
+  orderId    String
+  amount     Float
+  method     PaymentMethod
+  receivedBy String
+
+  receiver  User     @relation("PaymentReceiver", fields: [receivedBy], references: [id])
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 }
 
 model Transaction {
-  id          String    @id @default(uuid())
+  id          String   @id @default(uuid())
   businessId  String
-  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   referenceId String?
   type        String
   description String?
-  
-  postings    Posting[]
-  expense     Expense?
-  createdAt   DateTime  @default(now())
+
+  postings  Posting[]
+  expense   Expense?
+  createdAt DateTime   @default(now())
+  WorkOrder WorkOrder?
 }
 
 model Posting {
   id            String      @id @default(uuid())
   transactionId String
   transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  
-  accountId     String      // Could be Customer ID or Ledger Account ID
-  accountType   String      // e.g., CUSTOMER, CASH, REVENUE, INVENTORY
-  amount        Float       // Positive for debit, negative for credit
-  
-  createdAt     DateTime    @default(now())
+
+  accountId   String // Could be Customer ID or Ledger Account ID
+  accountType String // e.g., CUSTOMER, CASH, REVENUE, INVENTORY
+  amount      Float // Positive for debit, negative for credit
+
+  createdAt DateTime @default(now())
 }
 
 enum OrderStatus {
@@ -256,6 +266,42 @@ enum InstanceStatus {
   AVAILABLE
   MEMO_LOCKED
   SOLD
+  DEFECTIVE
+  RETURNED_WORKING
+  CONSUMED
+}
+
+enum WorkOrderStatus {
+  INTAKE
+  DIAGNOSING
+  WAITING_ON_PARTS
+  COMPLETED
+  DELIVERED
+}
+
+model WorkOrder {
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branchId   String?
+  branch     Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  deviceInfo       String
+  issueDescription String
+  laborCost        Float
+
+  technicianId String?
+  technician   User?   @relation("TechnicianWorkOrders", fields: [technicianId], references: [id])
+
+  status WorkOrderStatus @default(INTAKE)
+
+  consumedParts ProductInstance[]
+
+  transactionId String?      @unique
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum Role {
@@ -277,57 +323,57 @@ enum PaymentStatus {
 }
 
 model Expense {
-  id            String               @id @default(uuid())
-  businessId    String
-  business      Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  branchId      String?
-  branch        Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  
-  amount        Float
-  category      String               // e.g., CHAI_REFRESHMENT, DELIVERY_RIDER, REPAIR_PARTS, SUPPLIES, UTILITIES, OTHER
-  description   String?
-  
-  createdById   String?
-  createdBy     User?                @relation("ExpenseCreator", fields: [createdById], references: [id])
-  
-  transactionId String?              @unique
-  transaction   Transaction?         @relation(fields: [transactionId], references: [id])
-  
-  sessionId     String?
-  session       CashRegisterSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
-  
-  createdAt     DateTime             @default(now())
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branchId   String?
+  branch     Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  amount      Float
+  category    String // e.g., CHAI_REFRESHMENT, DELIVERY_RIDER, REPAIR_PARTS, SUPPLIES, UTILITIES, OTHER
+  description String?
+
+  createdById String?
+  createdBy   User?   @relation("ExpenseCreator", fields: [createdById], references: [id])
+
+  transactionId String?      @unique
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+
+  sessionId String?
+  session   CashRegisterSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
 }
 
 model CashRegisterSession {
-  id             String         @id @default(uuid())
-  businessId     String
-  business       Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  branchId       String?
-  branch         Branch?        @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  
-  openedById     String
-  openedBy       User           @relation("RegisterOpener", fields: [openedById], references: [id])
-  closedById     String?
-  closedBy       User?          @relation("RegisterCloser", fields: [closedById], references: [id])
-  
-  status         RegisterStatus @default(OPEN)
-  
-  openingBalance Float          @default(0)
-  cashSales      Float          @default(0)
-  cashExpenses   Float          @default(0)
-  expectedCash   Float          @default(0)
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branchId   String?
+  branch     Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  openedById String
+  openedBy   User    @relation("RegisterOpener", fields: [openedById], references: [id])
+  closedById String?
+  closedBy   User?   @relation("RegisterCloser", fields: [closedById], references: [id])
+
+  status RegisterStatus @default(OPEN)
+
+  openingBalance Float   @default(0)
+  cashSales      Float   @default(0)
+  cashExpenses   Float   @default(0)
+  expectedCash   Float   @default(0)
   actualCash     Float?
   difference     Float?
   notes          String?
-  
-  openedAt       DateTime       @default(now())
-  closedAt       DateTime?
-  
-  expenses       Expense[]
-  
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+
+  openedAt DateTime  @default(now())
+  closedAt DateTime?
+
+  expenses Expense[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum RegisterStatus {

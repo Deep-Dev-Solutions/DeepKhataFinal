@@ -16,20 +16,7 @@ import {
 import OrderMetrics from "@/components/orders/OrderMetrics";
 import OrderTable from "@/components/orders/OrderTable";
 import OrderPagination from "@/components/orders/OrderPagination";
-
-const API_BASE_URL = "http://localhost:5000";
-
-const getAuthHeaders = () => {
-  if (typeof window === "undefined") {
-    return { "Content-Type": "application/json" };
-  }
-
-  const accessToken = localStorage.getItem("accessToken");
-  return {
-    "Content-Type": "application/json",
-    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-  };
-};
+import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 
 const getFriendlyDate = (dateStr: string) => {
   const date = new Date(dateStr);

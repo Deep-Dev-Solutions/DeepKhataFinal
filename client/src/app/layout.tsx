@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "BizFlow - Modern Business OS",
+  title: "DeepKhata - Modern Business OS",
   description: "The Complete Operating System for Modern Businesses",
   manifest: "/manifest.json",
 };

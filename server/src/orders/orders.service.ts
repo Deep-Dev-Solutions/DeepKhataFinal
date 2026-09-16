@@ -47,12 +47,17 @@ export class OrdersService {
         const secureProducts: Record<string, any> = {};
 
         for (const item of items) {
+          if (item.isService) {
+            calculatedTotal += Number(item.price) * item.quantity;
+            continue;
+          }
+
           const product = await tx.product.findUnique({
             where: { id: item.productId },
           });
-          if (!product) throw new Error(`Product not found`);
+          if (!product) throw new BadRequestException(`Product not found`);
           if (product.stock < item.quantity) {
-            throw new Error(
+            throw new BadRequestException(
               `Not enough stock for ${product.name}. Only ${product.stock} left.`,
             );
           }
@@ -90,15 +95,23 @@ export class OrdersService {
             createdBy: userId,
             items: {
               create: items.map((item: any) => ({
-                productId: item.productId,
+                productId: item.isService ? null : item.productId,
                 quantity: item.quantity,
-                price: secureProducts[item.productId].price,
+                price: item.isService ? Number(item.price) : secureProducts[item.productId].price,
+                isService: item.isService || false,
+                serviceName: item.serviceName || null,
+                notes: item.notes || null,
               })),
             },
           },
+          include: {
+            items: true,
+          }
         });
 
         for (const item of items) {
+          if (item.isService) continue;
+
           await tx.product.update({
             where: { id: item.productId },
             data: { stock: { decrement: item.quantity } },
@@ -111,7 +124,7 @@ export class OrdersService {
           });
           
           if (instances.length < item.quantity) {
-             throw new Error(`Not enough available instances for product ${item.productId} with condition ${item.condition || 'any'}.`);
+             throw new BadRequestException(`Not enough available instances for product ${item.productId} with condition ${item.condition || 'any'}.`);
           }
 
           if (instances.length > 0) {
@@ -160,11 +173,50 @@ export class OrdersService {
     const udhaarRequested = order.totalAmount - amountPaid;
     const postings = [];
 
-    postings.push({
-      accountId: 'REVENUE',
-      accountType: 'REVENUE',
-      amount: -order.totalAmount,
-    });
+    let partsTotal = 0;
+    let serviceTotal = 0;
+
+    if (order.items) {
+      for (const item of order.items) {
+        if (item.isService) {
+          serviceTotal += item.price * item.quantity;
+        } else {
+          partsTotal += item.price * item.quantity;
+        }
+      }
+    } else {
+      partsTotal = order.totalAmount; // Fallback
+    }
+
+    // Since discount is applied to the total, we should proportionally reduce parts and service revenue,
+    // or apply it fully to parts. The simplest is to just use partsTotal - discount if we assume discount applies to total.
+    // Let's proportionally split the discount, or just subtract from parts for simplicity, but proportionally is safer.
+    const totalBeforeDiscount = partsTotal + serviceTotal;
+    let finalPartsTotal = partsTotal;
+    let finalServiceTotal = serviceTotal;
+
+    if (order.discount > 0 && totalBeforeDiscount > 0) {
+      const partsRatio = partsTotal / totalBeforeDiscount;
+      const serviceRatio = serviceTotal / totalBeforeDiscount;
+      finalPartsTotal = partsTotal - (order.discount * partsRatio);
+      finalServiceTotal = serviceTotal - (order.discount * serviceRatio);
+    }
+
+    if (finalPartsTotal > 0) {
+      postings.push({
+        accountId: 'PARTS_REVENUE',
+        accountType: 'REVENUE',
+        amount: -finalPartsTotal,
+      });
+    }
+
+    if (finalServiceTotal > 0) {
+      postings.push({
+        accountId: 'SERVICE_REVENUE',
+        accountType: 'REVENUE',
+        amount: -finalServiceTotal,
+      });
+    }
 
     if (amountPaid > 0) {
       postings.push({
@@ -578,10 +630,14 @@ export class OrdersService {
         
         refundAmount += orderItem.price * returnItem.quantity;
 
-        await tx.product.update({
-          where: { id: returnItem.productId },
-          data: { stock: { increment: returnItem.quantity } },
-        });
+        const targetStatus = returnItem.returnCondition === 'DEFECTIVE' ? 'DEFECTIVE' : 'AVAILABLE';
+
+        if (targetStatus === 'AVAILABLE') {
+          await tx.product.update({
+            where: { id: returnItem.productId },
+            data: { stock: { increment: returnItem.quantity } },
+          });
+        }
 
         const instanceStatus = order.status === 'MEMO' ? 'MEMO_LOCKED' : 'SOLD';
         const conditionFilter = returnItem.condition ? { condition: returnItem.condition } : {};
@@ -594,7 +650,7 @@ export class OrdersService {
         if (instances.length > 0) {
           await tx.productInstance.updateMany({
             where: { id: { in: instances.map((i) => i.id) } },
-            data: { status: returnStatus },
+            data: { status: targetStatus },
           });
         }
       }
