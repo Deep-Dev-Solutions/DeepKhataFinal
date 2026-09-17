@@ -30,6 +30,7 @@ model Business {
   orders      Order[]
   invitations Invitation[]
   categories  Category[]
+  vendors     Vendor[]
 
   branches           Branch[]
   cabinets           Cabinet[]
@@ -273,6 +274,7 @@ model Posting {
 }
 
 enum OrderStatus {
+  ESTIMATE
   MEMO
   FINAL
   CANCELLED
@@ -378,4 +380,17 @@ model CashRegisterSession {
 enum RegisterStatus {
   OPEN
   CLOSED
+}
+
+model Vendor {
+  id           String  @id @default(uuid())
+  businessName String
+  contactName  String?
+  phone        String?
+  address      String?
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
 }

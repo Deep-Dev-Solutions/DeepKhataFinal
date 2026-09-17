@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import { usePermissions } from "@/hooks/usePermissions";
 import { MapPin } from "lucide-react";
+import AddProductModal from "@/components/modals/AddProductModal";
 
 type StockFilter = "all" | "low" | "out";
 

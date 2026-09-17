@@ -111,67 +111,69 @@ export class OrdersService {
           },
         });
 
-        for (const item of items) {
-          if (item.isService) continue;
+        if (orderStatus !== 'ESTIMATE') {
+          for (const item of items) {
+            if (item.isService) continue;
 
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { stock: { decrement: item.quantity } },
-          });
+            await tx.product.update({
+              where: { id: item.productId },
+              data: { stock: { decrement: item.quantity } },
+            });
 
-          const conditionFilter = item.condition
-            ? { condition: item.condition }
-            : {};
-          const instances = await tx.productInstance.findMany({
-            where: {
-              productId: item.productId,
-              status: 'AVAILABLE',
-              ...conditionFilter,
-            },
-            take: item.quantity,
-          });
+            const conditionFilter = item.condition
+              ? { condition: item.condition }
+              : {};
+            const instances = await tx.productInstance.findMany({
+              where: {
+                productId: item.productId,
+                status: 'AVAILABLE',
+                ...conditionFilter,
+              },
+              take: item.quantity,
+            });
 
-          if (instances.length < item.quantity) {
-            throw new BadRequestException(
-              `Not enough available instances for product ${item.productId} with condition ${item.condition || 'any'}.`,
-            );
-          }
+            if (instances.length < item.quantity) {
+              throw new BadRequestException(
+                `Not enough available instances for product ${item.productId} with condition ${item.condition || 'any'}.`,
+              );
+            }
 
-          let instanceStatus: 'SOLD' | 'MEMO_LOCKED' = 'SOLD';
-          if (instances.length > 0) {
-            instanceStatus =
-              orderStatus === 'MEMO' ? 'MEMO_LOCKED' : 'SOLD';
-            await tx.productInstance.updateMany({
-              where: { id: { in: instances.map((i) => i.id) } },
-              data: { status: instanceStatus },
+            let instanceStatus: 'SOLD' | 'MEMO_LOCKED' = 'SOLD';
+            if (instances.length > 0) {
+              instanceStatus = orderStatus === 'MEMO' ? 'MEMO_LOCKED' : 'SOLD';
+              await tx.productInstance.updateMany({
+                where: { id: { in: instances.map((i) => i.id) } },
+                data: { status: instanceStatus },
+              });
+            }
+
+            await tx.inventoryMovement.create({
+              data: {
+                productId: item.productId,
+                cabinetId: instances[0]?.cabinetId || null,
+                fromCondition:
+                  item.condition || instances[0]?.condition || null,
+                toCondition: item.condition || instances[0]?.condition || null,
+                quantity: item.quantity,
+                direction: 'OUT',
+                referenceType: orderStatus === 'MEMO' ? 'MEMO' : 'ORDER',
+                referenceId: order.id,
+                userId,
+                businessId,
+              },
             });
           }
 
-          await tx.inventoryMovement.create({
-            data: {
-              productId: item.productId,
-              cabinetId: instances[0]?.cabinetId || null,
-              fromCondition: item.condition || instances[0]?.condition || null,
-              toCondition: item.condition || instances[0]?.condition || null,
-              quantity: item.quantity,
-              direction: 'OUT',
-              referenceType: orderStatus === 'MEMO' ? 'MEMO' : 'ORDER',
-              referenceId: order.id,
-              userId,
-              businessId,
-            },
-          });
-        }
-
-        if (parsedAmountPaid > 0) {
-          await tx.payment.create({
-            data: {
-              orderId: order.id,
-              amount: parsedAmountPaid,
-              method: paymentMethod as any,
-              receivedBy: userId,
-            },
-          });
+          if (parsedAmountPaid > 0) {
+            await tx.payment.create({
+              data: {
+                orderId: order.id,
+                amount: parsedAmountPaid,
+                method: paymentMethod as any,
+                receivedBy: userId,
+              },
+            });
+          }
         }
 
         return order;
@@ -358,7 +360,85 @@ export class OrdersService {
 
     if (!order) throw new NotFoundException('Order not found');
 
-    if (order.status === 'MEMO' && status === 'FINAL') {
+    if (
+      order.status === 'ESTIMATE' &&
+      (status === 'FINAL' || status === 'MEMO')
+    ) {
+      await this.prisma.$transaction(async (tx) => {
+        for (const item of order.items) {
+          if (!item.productId) continue;
+
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { decrement: item.quantity } },
+          });
+
+          const instances = await tx.productInstance.findMany({
+            where: { productId: item.productId, status: 'AVAILABLE' },
+            take: item.quantity,
+          });
+
+          if (instances.length < item.quantity) {
+            throw new BadRequestException(
+              `Not enough available instances for product ${item.productId}.`,
+            );
+          }
+
+          const instanceStatus = status === 'MEMO' ? 'MEMO_LOCKED' : 'SOLD';
+          await tx.productInstance.updateMany({
+            where: { id: { in: instances.map((i) => i.id) } },
+            data: { status: instanceStatus },
+          });
+
+          await tx.inventoryMovement.create({
+            data: {
+              productId: item.productId,
+              cabinetId: instances[0]?.cabinetId || null,
+              fromCondition: null,
+              toCondition: null,
+              quantity: item.quantity,
+              direction: 'OUT',
+              referenceType: status === 'MEMO' ? 'MEMO' : 'ORDER',
+              referenceId: order.id,
+              userId,
+              businessId: currentUser?.businessId,
+            },
+          });
+        }
+
+        await tx.order.update({
+          where: { id },
+          data: { status: status as any },
+        });
+      });
+
+      if (status === 'FINAL') {
+        if (parsedAmountPaid > 0) {
+          await this.prisma.payment.create({
+            data: {
+              orderId: id,
+              amount: parsedAmountPaid,
+              method: paymentMethod as any,
+              receivedBy: userId,
+            },
+          });
+
+          await this.prisma.order.update({
+            where: { id },
+            data: {
+              paymentStatus:
+                parsedAmountPaid >= order.totalAmount
+                  ? 'PAID'
+                  : ('PARTIAL' as any),
+            },
+          });
+        }
+        const totalPaid =
+          order.payments.reduce((sum, p) => sum + p.amount, 0) +
+          parsedAmountPaid;
+        await this.postDoubleEntrySequence(order, totalPaid);
+      }
+    } else if (order.status === 'MEMO' && status === 'FINAL') {
       throw new BadRequestException(
         'To convert a MEMO to FINAL, use the settle-memo endpoint',
       );
@@ -719,9 +799,10 @@ export class OrdersService {
             productId: returnItem.productId,
             cabinetId: instances[0]?.cabinetId || null,
             fromCondition: returnItem.condition || null,
-            toCondition: returnItem.returnCondition === 'DEFECTIVE'
-              ? 'DEFECTIVE'
-              : (returnItem.condition as any) || null,
+            toCondition:
+              returnItem.returnCondition === 'DEFECTIVE'
+                ? 'DEFECTIVE'
+                : (returnItem.condition as any) || null,
             quantity: returnItem.quantity,
             direction: 'IN',
             referenceType: 'RETURN',

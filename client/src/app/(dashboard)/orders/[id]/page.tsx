@@ -49,6 +49,9 @@ export default function OrderDetailsLedger() {
 
   // 🟢 Memo Settlement States
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
+  const [convertTargetStatus, setConvertTargetStatus] = useState<
+    "FINAL" | "MEMO"
+  >("FINAL");
   const [convertAmountPaid, setConvertAmountPaid] = useState("0");
   const [convertPaymentMethod, setConvertPaymentMethod] = useState("CASH");
   const [isSubmittingStatus, setIsSubmittingStatus] = useState(false);
@@ -234,34 +237,64 @@ export default function OrderDetailsLedger() {
     }
   };
 
-  const handleOpenConvertModal = () => {
-    setConvertAmountPaid("0");
-    setConvertPaymentMethod("CASH");
-    setIsConvertModalOpen(true);
+  const handleOpenConvertModal = (target: "FINAL" | "MEMO" = "FINAL") => {
+    setConvertTargetStatus(target);
+    if (target === "FINAL") {
+      setConvertAmountPaid("0");
+      setConvertPaymentMethod("CASH");
+      setIsConvertModalOpen(true);
+    } else {
+      if (
+        window.confirm(
+          "Convert to MEMO (Amanat)? This will lock the inventory instances.",
+        )
+      ) {
+        void handleProcessConversion("MEMO");
+      }
+    }
   };
 
-  const handleConvertToFinalSale = async () => {
+  const handleProcessConversion = async (targetOverride?: "FINAL" | "MEMO") => {
     setIsSubmittingStatus(true);
+    const targetStatus = targetOverride || convertTargetStatus;
+
     try {
-      const response = await fetch(`${API_BASE_URL}/order/${id}/settle-memo`, {
-        method: "PATCH",
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
+      let url, body;
+
+      if (order.status === "MEMO" && targetStatus === "FINAL") {
+        url = `${API_BASE_URL}/order/${id}/settle-memo`;
+        body = {
           amountPaid: Number(convertAmountPaid) || 0,
           paymentMethod: convertPaymentMethod,
-        }),
+        };
+      } else if (order.status === "ESTIMATE") {
+        url = `${API_BASE_URL}/order/${id}/status`;
+        body = {
+          status: targetStatus,
+          amountPaid:
+            targetStatus === "FINAL" ? Number(convertAmountPaid) || 0 : 0,
+          paymentMethod: convertPaymentMethod,
+        };
+      } else {
+        throw new Error("Invalid conversion operation");
+      }
+
+      const response = await fetch(url, {
+        method: "PATCH",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(body),
       });
 
       const data = await response.json();
       if (!response.ok) {
         throw new Error(
-          data?.message || "Failed to convert memo to final sale",
+          data?.message || `Failed to convert order to ${targetStatus}`,
         );
       }
       setIsConvertModalOpen(false);
       await refreshOrder();
     } catch (err: any) {
-      alert(err.message || "Failed to convert memo to final sale");
+      alert(err.message || "Failed to convert order");
     } finally {
       setIsSubmittingStatus(false);
     }
@@ -410,6 +443,9 @@ export default function OrderDetailsLedger() {
                 {(order.status === "FINAL" || order.status === "COMPLETED") && (
                   <CheckCircle2 className="w-3.5 h-3.5" />
                 )}
+                {order.status === "ESTIMATE" && (
+                  <FileText className="w-3.5 h-3.5 text-blue-600" />
+                )}
                 {order.status === "MEMO" && (
                   <Clock className="w-3.5 h-3.5 text-amber-600" />
                 )}
@@ -441,7 +477,26 @@ export default function OrderDetailsLedger() {
                 <RotateCcw className="w-4 h-4" /> Return to Stock
               </button>
               <button
-                onClick={handleOpenConvertModal}
+                onClick={() => handleOpenConvertModal("FINAL")}
+                disabled={isSubmittingStatus}
+                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs sm:text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm shadow-emerald-200 disabled:opacity-50"
+              >
+                <ShoppingBag className="w-4 h-4" /> Convert to Final Sale
+              </button>
+            </>
+          )}
+
+          {order.status === "ESTIMATE" && (
+            <>
+              <button
+                onClick={() => handleOpenConvertModal("MEMO")}
+                disabled={isSubmittingStatus}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-xs sm:text-sm font-semibold hover:bg-amber-100 transition-colors shadow-sm disabled:opacity-50"
+              >
+                <Clock className="w-4 h-4" /> Convert to MEMO
+              </button>
+              <button
+                onClick={() => handleOpenConvertModal("FINAL")}
                 disabled={isSubmittingStatus}
                 className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs sm:text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm shadow-emerald-200 disabled:opacity-50"
               >
@@ -520,7 +575,50 @@ export default function OrderDetailsLedger() {
                 <RotateCcw className="w-4 h-4" /> Return to Stock
               </button>
               <button
-                onClick={handleOpenConvertModal}
+                onClick={() => handleOpenConvertModal("FINAL")}
+                disabled={isSubmittingStatus}
+                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm shadow-emerald-200 disabled:opacity-50"
+              >
+                <ShoppingBag className="w-4 h-4" /> Convert to Final Sale
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 📄 ESTIMATE BANNER */}
+      {order.status === "ESTIMATE" && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 rounded-2xl p-5 shadow-sm">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 bg-blue-100 text-blue-800 rounded-xl mt-0.5 border border-blue-200">
+                <FileText className="w-5 h-5 text-blue-700" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-blue-950 flex items-center gap-2">
+                  Quotation / Estimate
+                  <span className="text-xs bg-blue-200/80 text-blue-900 font-bold px-2 py-0.5 rounded-md">
+                    No Stock Locked
+                  </span>
+                </h3>
+                <p className="text-sm text-blue-800/90 mt-1 max-w-2xl leading-relaxed">
+                  This is purely a quotation. Stock is not reserved and no
+                  ledger postings were created. When the customer confirms, you
+                  can convert this into a MEMO (Amanat) or directly to a Final
+                  Sale.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => handleOpenConvertModal("MEMO")}
+                disabled={isSubmittingStatus}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white text-amber-600 border border-amber-200 rounded-xl text-sm font-bold hover:bg-amber-50 transition-colors shadow-sm disabled:opacity-50"
+              >
+                <Clock className="w-4 h-4" /> Convert to MEMO
+              </button>
+              <button
+                onClick={() => handleOpenConvertModal("FINAL")}
                 disabled={isSubmittingStatus}
                 className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm shadow-emerald-200 disabled:opacity-50"
               >
@@ -630,6 +728,7 @@ export default function OrderDetailsLedger() {
               {order.financials.balance > 0 &&
                 order.status !== "CANCELLED" &&
                 order.status !== "MEMO" &&
+                order.status !== "ESTIMATE" &&
                 order.status !== "RETURNED" && (
                   <button
                     onClick={() => setIsPaymentModalOpen(true)}
@@ -893,11 +992,14 @@ export default function OrderDetailsLedger() {
               </button>
               <button
                 type="button"
-                onClick={handleConvertToFinalSale}
+                onClick={() => handleProcessConversion()}
                 disabled={isSubmittingStatus}
-                className="px-5 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50"
+                className="w-full flex justify-center items-center gap-2 px-5 py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50"
               >
-                {isSubmittingStatus ? "Processing..." : "Confirm Final Sale"}
+                <Check className="w-5 h-5" />
+                {isSubmittingStatus
+                  ? "Processing..."
+                  : "Convert & Record Payment"}
               </button>
             </div>
           </div>

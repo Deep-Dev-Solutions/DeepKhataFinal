@@ -115,6 +115,13 @@ export class ProductsController {
     return this.productsService.bulkRestock(req.user.id, body);
   }
 
+  @Post('import')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('write:products')
+  async importProducts(@Req() req: any, @Body() body: any) {
+    return this.productsService.importProducts(req.user.id, body.products);
+  }
+
   @Patch('updateprice/:id')
   @UseGuards(PermissionsGuard, RolesGuard)
   @Roles('OWNER')

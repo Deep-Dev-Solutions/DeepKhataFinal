@@ -17,6 +17,7 @@ import { LedgerModule } from './ledger/ledger.module';
 import { SyncModule } from './sync/sync.module';
 import { CashModule } from './cash/cash.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { VendorsModule } from './vendors/vendors.module.js';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { InventoryModule } from './inventory/inventory.module';
     SyncModule,
     CashModule,
     InventoryModule,
+    VendorsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

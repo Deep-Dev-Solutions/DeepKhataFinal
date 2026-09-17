@@ -89,7 +89,11 @@ export class ProductsService {
       data: { name: newName },
     });
 
-    return { success: true, message: 'Category updated successfully', category: updated };
+    return {
+      success: true,
+      message: 'Category updated successfully',
+      category: updated,
+    };
   }
 
   async deleteCategory(userId: string, id: string) {
@@ -200,7 +204,11 @@ export class ProductsService {
       },
     });
 
-    return { success: true, message: 'Cabinet updated successfully', cabinet: updated };
+    return {
+      success: true,
+      message: 'Cabinet updated successfully',
+      cabinet: updated,
+    };
   }
 
   async deleteCabinet(userId: string, id: string) {
@@ -413,7 +421,8 @@ export class ProductsService {
       where: { id: userId },
       select: { businessId: true },
     });
-    if (!currentUser?.businessId) throw new BadRequestException('No business found.');
+    if (!currentUser?.businessId)
+      throw new BadRequestException('No business found.');
 
     const branches = await this.prisma.branch.findMany({
       where: { businessId: currentUser.businessId },
@@ -430,14 +439,15 @@ export class ProductsService {
       where: { id: userId },
       select: { businessId: true },
     });
-    if (!currentUser?.businessId) throw new BadRequestException('No business found.');
+    if (!currentUser?.businessId)
+      throw new BadRequestException('No business found.');
 
     const branch = await this.prisma.branch.create({
       data: {
         name,
         location,
         businessId: currentUser.businessId,
-      }
+      },
     });
 
     return { success: true, branch };
@@ -449,7 +459,8 @@ export class ProductsService {
       where: { id: userId },
       select: { businessId: true },
     });
-    if (!currentUser?.businessId) throw new BadRequestException('No business found.');
+    if (!currentUser?.businessId)
+      throw new BadRequestException('No business found.');
 
     const qty = Math.max(1, Number(quantity) || 1);
 
@@ -467,14 +478,14 @@ export class ProductsService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       const product = await tx.product.findFirst({
-        where: { id: productId, businessId: currentUser.businessId }
+        where: { id: productId, businessId: currentUser.businessId },
       });
       if (!product) throw new BadRequestException('Product not found');
 
       let finalCabinetId = cabinetId;
       if (finalCabinetId) {
         const cab = await tx.cabinet.findFirst({
-          where: { id: finalCabinetId, businessId: currentUser.businessId }
+          where: { id: finalCabinetId, businessId: currentUser.businessId },
         });
         if (!cab) throw new BadRequestException('Cabinet not found');
       }
@@ -487,12 +498,12 @@ export class ProductsService {
       }));
 
       await tx.productInstance.createMany({
-        data: instancesData
+        data: instancesData,
       });
 
       const updatedProduct = await tx.product.update({
         where: { id: product.id },
-        data: { stock: { increment: qty } }
+        data: { stock: { increment: qty } },
       });
 
       await tx.inventoryMovement.create({
@@ -515,5 +526,111 @@ export class ProductsService {
 
     return { success: true, product: result };
   }
-}
 
+  async importProducts(userId: string, productsData: any[]) {
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true },
+    });
+    if (!currentUser?.businessId) {
+      throw new BadRequestException(
+        'User does not have an associated business',
+      );
+    }
+
+    if (!Array.isArray(productsData) || productsData.length === 0) {
+      throw new BadRequestException('No products provided for import');
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      let importedCount = 0;
+
+      // Cache categories
+      const categoriesCache = new Map<string, string>();
+      const existingCategories = await tx.category.findMany({
+        where: { businessId: currentUser.businessId },
+      });
+      existingCategories.forEach((c) =>
+        categoriesCache.set(c.name.toLowerCase(), c.id),
+      );
+
+      for (const item of productsData) {
+        const name = item.name || item.Name;
+        if (!name || !name.trim()) continue;
+
+        // Resolve or create Category
+        let categoryId;
+        const catName =
+          (item.category || item.Category)?.trim() || 'Uncategorized';
+        const catKey = catName.toLowerCase();
+
+        if (categoriesCache.has(catKey)) {
+          categoryId = categoriesCache.get(catKey);
+        } else {
+          const newCat = await tx.category.create({
+            data: { name: catName, businessId: currentUser.businessId },
+          });
+          categoryId = newCat.id;
+          categoriesCache.set(catKey, newCat.id);
+        }
+
+        const parsedPrice = Number(item.price || item.Price) || 0;
+        const instanceQty = Math.max(
+          1,
+          Number(item.quantity || item.Quantity) || 1,
+        );
+        const sku =
+          item.sku ||
+          item.SKU ||
+          `SKU-${Math.floor(1000 + Math.random() * 9000)}`;
+
+        const validConditions = [
+          'ORIGINAL_PULL',
+          'COPY',
+          'MINOR_SCRATCHES',
+          'WORKING',
+          'DEAD_DONOR',
+          'DEFECTIVE',
+        ];
+        const inputCondition = item.condition || item.Condition;
+        const sanitizedCondition = validConditions.includes(inputCondition)
+          ? inputCondition
+          : 'ORIGINAL_PULL';
+
+        const product = await tx.product.create({
+          data: {
+            name: name.trim(),
+            price: parsedPrice,
+            categoryId: categoryId,
+            stock: instanceQty,
+            sku: sku,
+            businessId: currentUser.businessId,
+          },
+        });
+
+        const instancesData = Array.from({ length: instanceQty }).map(
+          (_, index) => ({
+            productId: product.id,
+            cabinetId: null,
+            condition: sanitizedCondition as any,
+            status: 'AVAILABLE' as any,
+            serialNumber: sku ? `${sku}-${index + 1}` : null,
+          }),
+        );
+
+        await tx.productInstance.createMany({
+          data: instancesData,
+        });
+
+        importedCount++;
+      }
+      return importedCount;
+    });
+
+    return {
+      success: true,
+      message: `Successfully imported ${result} products.`,
+      count: result,
+    };
+  }
+}
