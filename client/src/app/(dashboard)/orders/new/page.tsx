@@ -26,6 +26,8 @@ import {
   X,
   User,
   Store,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import { offlineDb, type SyncQueueItem } from "@/lib/db";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
@@ -33,6 +35,7 @@ import { generateWhatsAppReceipt } from "@/lib/utils";
 import OrderSuccessModal, {
   type CompletedOrderData,
 } from "@/components/modals/OrderSuccessModal";
+import NewCustomerModal from "@/components/modals/NewCustomerModal";
 
 type Product = {
   id: string;
@@ -70,6 +73,7 @@ function CreateOrderPOSContent() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [categories, setCategories] = useState<string[]>(["All"]);
+  const [catalogView, setCatalogView] = useState<"grid" | "list">("grid");
 
   // 2. POS STATES
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -95,6 +99,9 @@ function CreateOrderPOSContent() {
   const [serviceName, setServiceName] = useState("");
   const [servicePrice, setServicePrice] = useState("");
   const [serviceNotes, setServiceNotes] = useState("");
+
+  // Interrupt modal — create a customer without losing cart state
+  const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false);
 
   // 4. DISCOUNT & PAYMENT STATES
   const [discount, setDiscount] = useState<string>("");
@@ -728,18 +735,37 @@ function CreateOrderPOSContent() {
       <div className="grid grid-cols-1 lg:grid-cols-[40%_35%_25%] flex-1 overflow-hidden mt-3 gap-4 min-h-0">
         {/* ───────── LEFT COLUMN: PRODUCT CATALOG (40%) ───────── */}
         <div className="flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm min-h-0">
-          <div className="p-3.5 border-b border-slate-100 shrink-0 bg-slate-50/50">
-            <div className="relative flex-1">
-              <Search className="h-4 w-4 text-slate-400 absolute left-3 top-3" />
-              <input
-                type="text"
-                autoFocus
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search products or scan barcode..."
-                className="w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
-              />
-              <Barcode className="h-4 w-4 text-slate-400 absolute right-3 top-3" />
+          <div className="p-3.5 border-b border-slate-100 shrink-0 bg-slate-50/50 space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="h-4 w-4 text-slate-400 absolute left-3 top-3" />
+                <input
+                  type="text"
+                  autoFocus
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search products or scan barcode..."
+                  className="w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+                />
+                <Barcode className="h-4 w-4 text-slate-400 absolute right-3 top-3" />
+              </div>
+              {/* Grid / List toggle */}
+              <div className="flex bg-white rounded-xl border border-slate-200 shadow-sm p-0.5 shrink-0">
+                <button
+                  onClick={() => setCatalogView("grid")}
+                  title="Grid view"
+                  className={`p-2 rounded-lg transition-colors cursor-pointer ${catalogView === "grid" ? "bg-slate-900 text-white shadow-sm" : "text-slate-400 hover:text-slate-700"}`}
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setCatalogView("list")}
+                  title="Compact list view"
+                  className={`p-2 rounded-lg transition-colors cursor-pointer ${catalogView === "list" ? "bg-slate-900 text-white shadow-sm" : "text-slate-400 hover:text-slate-700"}`}
+                >
+                  <List className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -755,7 +781,9 @@ function CreateOrderPOSContent() {
             ))}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3.5 bg-slate-50/50 grid grid-cols-2 gap-3 content-start">
+          <div
+            className={`flex-1 overflow-y-auto p-3.5 bg-slate-50/50 ${catalogView === "grid" ? "grid grid-cols-2 gap-3 content-start" : "flex flex-col gap-1.5 content-start"}`}
+          >
             {isLoadingProducts ? (
               <div className="col-span-2 h-40 flex items-center justify-center text-slate-400 text-sm">
                 Loading products...
@@ -765,12 +793,116 @@ function CreateOrderPOSContent() {
                 <PackageOpen className="w-8 h-8 mb-2 opacity-30" />
                 No products found in this category.
               </div>
+            ) : catalogView === "list" ? (
+              products.map((product) => {
+                const availableInstances =
+                  product.instances?.filter((i) => i.status === "AVAILABLE") ||
+                  [];
+                const availableCount = availableInstances.length;
+                const isOutOfStock = availableCount === 0;
+
+                const conditions = Array.from(
+                  new Set(
+                    availableInstances.length > 0
+                      ? availableInstances.map((i) => i.condition)
+                      : product.instances?.map((i) => i.condition) || [],
+                  ),
+                );
+
+                const isExpanded = expandedConditionProduct?.id === product.id;
+
+                return (
+                  <div key={product.id} className="relative">
+                    <button
+                      onClick={() => handleProductClick(product)}
+                      disabled={isOutOfStock}
+                      className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg border transition-all text-left ${
+                        isOutOfStock
+                          ? "border-slate-200 bg-slate-100/70 opacity-50 cursor-not-allowed select-none"
+                          : "bg-white border-slate-200 hover:border-blue-500 hover:shadow-sm shadow-sm cursor-pointer"
+                      } ${isExpanded ? "border-blue-500 ring-1 ring-blue-500/20" : ""}`}
+                    >
+                      <span
+                        className={`flex-1 min-w-0 truncate text-[12.5px] font-semibold ${isOutOfStock ? "text-slate-400" : "text-slate-900"}`}
+                      >
+                        {product.name}
+                      </span>
+                      <span
+                        className={`text-xs font-black shrink-0 ${isOutOfStock ? "text-slate-400" : "text-blue-600"}`}
+                      >
+                        Rs. {product.price.toLocaleString()}
+                      </span>
+                      <span className="flex flex-wrap gap-1 shrink-0 max-w-28">
+                        {conditions.slice(0, 2).map((cond) => (
+                          <span
+                            key={cond}
+                            className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded ${cond === "DEFECTIVE" ? "bg-red-50 text-red-600" : cond === "DEAD_DONOR" ? "bg-rose-50 text-rose-600" : cond === "COPY" ? "bg-blue-50 text-blue-600" : "bg-emerald-50 text-emerald-600"}`}
+                          >
+                            {cond.replace(/_/g, " ")}
+                          </span>
+                        ))}
+                        {conditions.length > 2 && (
+                          <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
+                            +{conditions.length - 2}
+                          </span>
+                        )}
+                      </span>
+                      <span
+                        className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                          isOutOfStock
+                            ? "bg-slate-200 text-slate-500"
+                            : availableCount <= 3
+                              ? "bg-amber-50 text-amber-600"
+                              : "bg-emerald-50 text-emerald-600"
+                        }`}
+                      >
+                        {isOutOfStock ? "Out" : `${availableCount} avail`}
+                      </span>
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleProductClick(product);
+                        }}
+                        className="flex items-center justify-center w-7 h-7 rounded-lg bg-slate-900 text-white hover:bg-blue-600 transition-colors shrink-0"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </span>
+                    </button>
+
+                    {isExpanded &&
+                      expandedConditionProduct?.conditionCounts && (
+                        <div
+                          className="mt-1 rounded-lg border border-blue-200 bg-white shadow-sm p-1.5 space-y-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {Object.entries(
+                            expandedConditionProduct.conditionCounts,
+                          ).map(([cond, count]) => (
+                            <button
+                              key={cond}
+                              onClick={() =>
+                                addToCart(expandedConditionProduct, cond)
+                              }
+                              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-left bg-blue-50/60 hover:bg-blue-100 transition-colors"
+                            >
+                              <span className="font-semibold text-slate-800 text-[11px]">
+                                {cond.replace(/_/g, " ")}
+                              </span>
+                              <span className="text-[10px] font-semibold text-slate-500">
+                                {count as number} avail
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                  </div>
+                );
+              })
             ) : (
               products.map((product) => {
                 const availableInstances =
-                  product.instances?.filter(
-                    (i) => i.status === "AVAILABLE",
-                  ) || [];
+                  product.instances?.filter((i) => i.status === "AVAILABLE") ||
+                  [];
                 const availableCount = availableInstances.length;
                 const isOutOfStock = availableCount === 0;
 
@@ -784,8 +916,7 @@ function CreateOrderPOSContent() {
                   product.instances?.[0]?.condition ||
                   "ORIGINAL_PULL";
 
-                const isExpanded =
-                  expandedConditionProduct?.id === product.id;
+                const isExpanded = expandedConditionProduct?.id === product.id;
 
                 return (
                   <button
@@ -966,8 +1097,8 @@ function CreateOrderPOSContent() {
                 <Receipt className="w-12 h-12 opacity-20" />
                 <p className="text-sm font-medium">Cart is empty</p>
                 <p className="text-xs text-slate-400 text-center max-w-48">
-                  Add parts from the catalog or attach a labor charge to build
-                  a unified invoice.
+                  Add parts from the catalog or attach a labor charge to build a
+                  unified invoice.
                 </p>
               </div>
             ) : (
@@ -1032,9 +1163,7 @@ function CreateOrderPOSContent() {
                       </button>
                     </div>
                     <button
-                      onClick={() =>
-                        removeItem(item.id, item.condition)
-                      }
+                      onClick={() => removeItem(item.id, item.condition)}
                       className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -1117,13 +1246,22 @@ function CreateOrderPOSContent() {
                   </div>
                 ) : (
                   <div>
-                    <input
-                      type="text"
-                      placeholder="Type name or phone..."
-                      value={customerSearch}
-                      onChange={(e) => setCustomerSearch(e.target.value)}
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                    />
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="Type name or phone..."
+                        value={customerSearch}
+                        onChange={(e) => setCustomerSearch(e.target.value)}
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      />
+                      <button
+                        onClick={() => setIsNewCustomerModalOpen(true)}
+                        className="px-2.5 py-1.5 rounded-lg bg-blue-600 text-white text-[10px] font-bold hover:bg-blue-700 transition-colors shrink-0 shadow-sm cursor-pointer"
+                        title="Create new customer"
+                      >
+                        + New
+                      </button>
+                    </div>
                     {isSearchingCustomer && (
                       <span className="text-[10px] text-slate-400 mt-1 block">
                         Searching...
@@ -1305,6 +1443,18 @@ function CreateOrderPOSContent() {
         order={completedOrderData}
         onClose={() => setCompletedOrderData(null)}
         onViewOrder={(id) => router.push(`/orders/${id}`)}
+      />
+
+      {/* 🟢 INTERRUPT MODAL — create customer without losing cart state */}
+      <NewCustomerModal
+        isOpen={isNewCustomerModalOpen}
+        onClose={() => setIsNewCustomerModalOpen(false)}
+        onCreated={(customer) => {
+          setSelectedCustomer(customer);
+          setCustomerMode("existing");
+          setCustomerSearch("");
+          setCustomerResults([]);
+        }}
       />
     </div>
   );

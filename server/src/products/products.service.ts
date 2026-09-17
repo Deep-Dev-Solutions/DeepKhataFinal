@@ -50,9 +50,70 @@ export class ProductsService {
 
     const categories = await this.prisma.category.findMany({
       where: { businessId: currentUser.businessId },
+      include: {
+        _count: { select: { products: true } },
+      },
+      orderBy: { name: 'asc' },
     });
 
     return { success: true, categories };
+  }
+
+  async updateCategory(userId: string, id: string, data: any) {
+    const { name } = data;
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true },
+    });
+    if (!currentUser?.businessId)
+      throw new BadRequestException('No business found.');
+
+    const category = await this.prisma.category.findFirst({
+      where: { id, businessId: currentUser.businessId },
+    });
+    if (!category) throw new BadRequestException('Category not found');
+
+    const newName = (name?.trim && name.trim()) || category.name;
+
+    const duplicate = await this.prisma.category.findFirst({
+      where: {
+        businessId: currentUser.businessId,
+        name: { equals: newName, mode: 'insensitive' },
+        id: { not: id },
+      },
+    });
+    if (duplicate) throw new ConflictException('Category already exists');
+
+    const updated = await this.prisma.category.update({
+      where: { id },
+      data: { name: newName },
+    });
+
+    return { success: true, message: 'Category updated successfully', category: updated };
+  }
+
+  async deleteCategory(userId: string, id: string) {
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true },
+    });
+    if (!currentUser?.businessId)
+      throw new BadRequestException('No business found.');
+
+    const category = await this.prisma.category.findFirst({
+      where: { id, businessId: currentUser.businessId },
+    });
+    if (!category) throw new BadRequestException('Category not found');
+
+    await this.prisma.$transaction([
+      this.prisma.product.updateMany({
+        where: { categoryId: id },
+        data: { categoryId: null },
+      }),
+      this.prisma.category.delete({ where: { id } }),
+    ]);
+
+    return { success: true, message: 'Category deleted successfully' };
   }
 
   async getCabinets(userId: string) {
@@ -103,6 +164,71 @@ export class ProductsService {
     });
 
     return { success: true, cabinet };
+  }
+
+  async updateCabinet(userId: string, id: string, data: any) {
+    const { name, rack, shelf, bin } = data;
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true },
+    });
+    if (!currentUser?.businessId)
+      throw new BadRequestException('No business found.');
+
+    const cabinet = await this.prisma.cabinet.findFirst({
+      where: { id, businessId: currentUser.businessId },
+    });
+    if (!cabinet) throw new BadRequestException('Cabinet not found');
+
+    const locationParts = [
+      rack ? `Rack ${rack}` : null,
+      shelf ? `Shelf ${shelf}` : null,
+      bin ? `Bin ${bin}` : null,
+    ].filter(Boolean);
+    const locationStr = locationParts.length
+      ? locationParts.join(' -> ')
+      : cabinet.location;
+    const newName =
+      (name?.trim && name.trim()) ||
+      (locationParts.length ? locationParts.join(' / ') : cabinet.name);
+
+    const updated = await this.prisma.cabinet.update({
+      where: { id },
+      data: {
+        name: newName,
+        location: locationStr || 'Shop Storage',
+      },
+    });
+
+    return { success: true, message: 'Cabinet updated successfully', cabinet: updated };
+  }
+
+  async deleteCabinet(userId: string, id: string) {
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true },
+    });
+    if (!currentUser?.businessId)
+      throw new BadRequestException('No business found.');
+
+    const cabinet = await this.prisma.cabinet.findFirst({
+      where: { id, businessId: currentUser.businessId },
+    });
+    if (!cabinet) throw new BadRequestException('Cabinet not found');
+
+    await this.prisma.$transaction([
+      this.prisma.productInstance.updateMany({
+        where: { cabinetId: id },
+        data: { cabinetId: null },
+      }),
+      this.prisma.inventoryMovement.updateMany({
+        where: { cabinetId: id },
+        data: { cabinetId: null },
+      }),
+      this.prisma.cabinet.delete({ where: { id } }),
+    ]);
+
+    return { success: true, message: 'Cabinet deleted successfully' };
   }
 
   async addProduct(userId: string, data: any) {

@@ -7,6 +7,9 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
+// Store-wide default credit line for new Udhar accounts (PKR).
+const DEFAULT_CREDIT_LIMIT = 50000;
+
 @Injectable()
 export class CustomersService {
   constructor(private prisma: PrismaService) {}
@@ -38,6 +41,11 @@ export class CustomersService {
         shopName: shopName || null,
         address: address || null,
         email: email || null,
+        // Udhar is enabled immediately with the store default credit line.
+        creditLimit:
+          data.creditLimit !== undefined && data.creditLimit !== null
+            ? parseFloat(data.creditLimit)
+            : DEFAULT_CREDIT_LIMIT,
         businessId: currentUser.businessId,
       },
     });
@@ -132,6 +140,7 @@ export class CustomersService {
         shopName: true,
         address: true,
         email: true,
+        creditLimit: true,
         _count: { select: { orders: true } },
         orders: {
           where: { status: { not: 'CANCELLED' } },
@@ -164,6 +173,7 @@ export class CustomersService {
         shopName: customer.shopName || '',
         address: customer.address || '',
         email: customer.email || '',
+        creditLimit: customer.creditLimit,
         totalOrders: customer._count.orders,
         lifetimeValue: lifetimeSpend,
         balance: outstandingBalance > 0 ? outstandingBalance : 0,

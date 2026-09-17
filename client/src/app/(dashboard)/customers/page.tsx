@@ -12,8 +12,10 @@ import {
   Wallet,
   CheckCircle2,
   AlertCircle,
+  Plus,
 } from "lucide-react";
 import { offlineDb } from "@/lib/db";
+import NewCustomerModal from "@/components/modals/NewCustomerModal";
 
 type CustomerRow = {
   id: string;
@@ -44,11 +46,7 @@ function CustomersPageContent() {
   const [pageError, setPageError] = useState("");
 
   // Quick Add State
-  const [newName, setNewName] = useState("");
-  const [newPhone, setNewPhone] = useState("");
-  const [newShopName, setNewShopName] = useState("");
-  const [newAddress, setNewAddress] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
+  const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false);
 
   // Debounce search query to prevent spamming the rate-limited endpoint
   useEffect(() => {
@@ -120,50 +118,6 @@ function CustomersPageContent() {
     void refreshCustomers();
   }, [refreshCustomers]);
 
-  // --- ACTIONS ---
-  const handleAddCustomer = async () => {
-    const nameTrimmed = newName.trim();
-    const phoneTrimmed = newPhone.trim();
-
-    if (!nameTrimmed || !phoneTrimmed) return;
-
-    setIsSaving(true);
-    setPageError("");
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/customer/newcustomer`, {
-        method: "POST",
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          name: nameTrimmed,
-          phone: phoneTrimmed,
-          shopName: newShopName.trim() || undefined,
-          address: newAddress.trim() || undefined,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data?.message || data?.error || "Failed to add customer",
-        );
-      }
-
-      await refreshCustomers();
-      setNewName("");
-      setNewPhone("");
-      setNewShopName("");
-      setNewAddress("");
-    } catch (error) {
-      setPageError(
-        error instanceof Error ? error.message : "Failed to add customer",
-      );
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   // --- MATH & FILTERS ---
   const totalOutstandingDebt = customers.reduce((sum, c) => sum + c.balance, 0);
   const unpaidCustomersCount = customers.filter((c) => c.balance > 0).length;
@@ -182,6 +136,12 @@ function CustomersPageContent() {
             Manage your clients, track outstanding balances, and send reminders.
           </p>
         </div>
+        <button
+          onClick={() => setIsNewCustomerModalOpen(true)}
+          className="flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 w-full sm:w-auto cursor-pointer"
+        >
+          <Plus className="w-4 h-4" /> New Customer
+        </button>
       </div>
 
       {/* 🟢 2. CRM METRICS CARDS */}
@@ -287,62 +247,6 @@ function CustomersPageContent() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {/* --- ⚡ INLINE QUICK-ADD ROW --- */}
-              <tr className="bg-blue-50/30">
-                <td className="px-6 py-3">
-                  <div className="flex flex-col gap-2 min-w-64">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newName}
-                        onChange={(e) => setNewName(e.target.value)}
-                        placeholder="+ New Customer Name"
-                        className="w-full bg-white border border-blue-200 rounded-lg py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-blue-300 font-medium"
-                        disabled={isSaving}
-                      />
-                      <input
-                        type="text"
-                        value={newPhone}
-                        onChange={(e) => setNewPhone(e.target.value)}
-                        placeholder="Phone Number"
-                        className="w-full bg-white border border-blue-200 rounded-lg py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-blue-300"
-                        disabled={isSaving}
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newShopName}
-                        onChange={(e) => setNewShopName(e.target.value)}
-                        placeholder="Shop Name (Optional)"
-                        className="w-full bg-white border border-blue-200 rounded-lg py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-blue-300"
-                        disabled={isSaving}
-                      />
-                      <input
-                        type="text"
-                        value={newAddress}
-                        onChange={(e) => setNewAddress(e.target.value)}
-                        placeholder="Shop Address (Optional)"
-                        className="w-full bg-white border border-blue-200 rounded-lg py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-blue-300"
-                        disabled={isSaving}
-                      />
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-3 text-slate-400">-</td>
-                <td className="px-6 py-3 text-slate-400">-</td>
-                <td className="px-6 py-3 text-slate-400">-</td>
-                <td className="px-6 py-3 text-right">
-                  <button
-                    onClick={handleAddCustomer}
-                    disabled={!newName || !newPhone || isSaving}
-                    className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors ml-auto flex items-center gap-1"
-                  >
-                    {isSaving ? "Saving..." : "Save"}
-                  </button>
-                </td>
-              </tr>
-
               {/* --- ACTUAL DATA ROWS --- */}
               {isLoadingCustomers ? (
                 <tr>
@@ -447,6 +351,15 @@ function CustomersPageContent() {
           </table>
         </div>
       </div>
+
+      {/* 🟢 Interrupt Modal — create customer without leaving the page */}
+      <NewCustomerModal
+        isOpen={isNewCustomerModalOpen}
+        onClose={() => setIsNewCustomerModalOpen(false)}
+        onCreated={async () => {
+          await refreshCustomers();
+        }}
+      />
     </div>
   );
 }

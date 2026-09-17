@@ -60,6 +60,42 @@ export class ProductsController {
     return this.productsService.addCabinet(req.user.id, body);
   }
 
+  @Patch('category/:id')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('write:products')
+  async updateCategory(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.productsService.updateCategory(req.user.id, id, body);
+  }
+
+  @Patch('cabinet/:id')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('write:products')
+  async updateCabinet(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.productsService.updateCabinet(req.user.id, id, body);
+  }
+
+  @Post('category/:id/delete')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('write:products')
+  async deleteCategory(@Req() req: any, @Param('id') id: string) {
+    return this.productsService.deleteCategory(req.user.id, id);
+  }
+
+  @Post('cabinet/:id/delete')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('write:products')
+  async deleteCabinet(@Req() req: any, @Param('id') id: string) {
+    return this.productsService.deleteCabinet(req.user.id, id);
+  }
+
   @Get('getbranches')
   async getBranches(@Req() req: any) {
     return this.productsService.getBranches(req.user.id);
