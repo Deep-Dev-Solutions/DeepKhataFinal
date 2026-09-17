@@ -105,3 +105,44 @@
 body {
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* 🟢 Thermal Slip Printing Rules (80mm / 58mm roll standard) */
+@media print {
+  aside,
+  header,
+  nav,
+  .print-hidden,
+  [role="navigation"],
+  button,
+  .no-print {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 80mm !important;
+  }
+
+  @page {
+    size: 80mm auto;
+    margin: 0mm;
+  }
+
+  .thermal-slip {
+    display: block !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+    font-size: 12px !important;
+    line-height: 1.35 !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+    padding: 2mm 3mm !important;
+    margin: 0 auto !important;
+    box-sizing: border-box !important;
+  }
+}

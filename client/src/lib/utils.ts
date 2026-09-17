@@ -127,7 +127,7 @@ export function generateWhatsAppReceipt(
 
   lines.push(`--------------------------------`);
   lines.push(`_Thank you for your business!_`);
-  lines.push(`*DeepKhata / BizFlow*`);
+  lines.push(`*DeepKhata*`);
 
   const messageText = lines.join("\n");
   const encodedText = encodeURIComponent(messageText);

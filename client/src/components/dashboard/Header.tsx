@@ -70,7 +70,7 @@ export default function Header() {
   ).length;
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 sticky top-0 z-50 px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+    <header className="h-16 bg-white border-b border-slate-200 sticky top-0 z-50 px-4 sm:px-6 lg:px-8 flex items-center justify-between print:hidden">
       <div className="md:hidden font-bold text-lg text-slate-900 tracking-tight">
         DeepKhata
       </div>

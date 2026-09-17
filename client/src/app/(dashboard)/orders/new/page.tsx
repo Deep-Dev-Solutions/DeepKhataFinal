@@ -30,6 +30,9 @@ import {
 import { offlineDb, type SyncQueueItem, type LocalProduct } from "@/lib/db";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { generateWhatsAppReceipt } from "@/lib/utils";
+import OrderSuccessModal, {
+  type CompletedOrderData,
+} from "@/components/modals/OrderSuccessModal";
 
 type Product = {
   id: string;
@@ -92,7 +95,7 @@ function CreateOrderPOSContent() {
   const [serviceNotes, setServiceNotes] = useState("");
 
   // 4. DISCOUNT & PAYMENT STATES
-  const [discount, setDiscount] = useState<number>(0);
+  const [discount, setDiscount] = useState<string>("");
   const [amountPaid, setAmountPaid] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [orderStatus, setOrderStatus] = useState("FINAL");
@@ -101,9 +104,8 @@ function CreateOrderPOSContent() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [offlineSuccessMsg, setOfflineSuccessMsg] = useState("");
-  const [completedOrderData, setCompletedOrderData] = useState<any | null>(
-    null,
-  );
+  const [completedOrderData, setCompletedOrderData] =
+    useState<CompletedOrderData | null>(null);
 
   // ==========================================
   // 🟢 FETCH REAL CATEGORIES (Cached with offline fallback)
@@ -361,6 +363,7 @@ function CreateOrderPOSContent() {
 
         // Deduct from local Dexie cached products
         for (const ci of cart) {
+          if (ci.isService) continue;
           const cachedProd = await offlineDb.products.get(ci.id);
           if (cachedProd) {
             await offlineDb.products.update(ci.id, {
@@ -369,22 +372,75 @@ function CreateOrderPOSContent() {
           }
         }
 
-        // Update local React state
+        // Update local React state (including instances to keep available count in sync)
         setProducts((prev) =>
           prev.map((p) => {
             const inCart = cart.find((ci) => ci.id === p.id);
-            return inCart
-              ? { ...p, stock: Math.max(0, p.stock - inCart.qty) }
-              : p;
+            if (!inCart || inCart.isService) return p;
+            let deducted = 0;
+            const updatedInstances = (p.instances || []).map((inst) => {
+              if (
+                inst.status === "AVAILABLE" &&
+                (!inCart.condition || inst.condition === inCart.condition) &&
+                deducted < inCart.qty
+              ) {
+                deducted++;
+                return { ...inst, status: "SOLD" };
+              }
+              return inst;
+            });
+            return {
+              ...p,
+              stock: Math.max(0, p.stock - inCart.qty),
+              instances: updatedInstances,
+            };
           }),
         );
+
+        const subtotalOffline = currentCart.reduce(
+          (s, i) => s + i.price * i.qty,
+          0,
+        );
+        const netTotalOffline = Math.max(0, subtotalOffline - currentDiscount);
+        const balanceOffline = Math.max(0, netTotalOffline - currentPaid);
+
+        setCompletedOrderData({
+          id: localOrderId,
+          orderNumber: `ORD-${localOrderId.slice(0, 6).toUpperCase()}`,
+          status: currentStatus,
+          customer: currentCustomer || {
+            name:
+              customerMode === "walk-in"
+                ? walkInName || "Walk-in Customer"
+                : "Walk-in Customer",
+            phone: customerMode === "walk-in" ? walkInPhone || null : null,
+          },
+          items: currentCart.map((c) => ({
+            name: c.name,
+            qty: c.qty,
+            price: c.price,
+            total: c.price * c.qty,
+            isService: c.isService,
+          })),
+          financials: {
+            subtotal: subtotalOffline,
+            discount: currentDiscount,
+            total: netTotalOffline,
+            paid: currentPaid,
+            balance: balanceOffline,
+          },
+          paymentMethod,
+          runningBalance: currentCustomer?.metrics?.outstandingBalance,
+          isOffline: true,
+          createdAt: new Date().toISOString(),
+        });
 
         setOfflineSuccessMsg(
           `Offline Intercept: ${orderStatus === "MEMO" ? "MEMO (Amanat)" : "FINAL Sale"} Order (#${localOrderId.slice(0, 8)}) safely queued in IndexedDB. Stock reserved. Will auto-sync when network returns.`,
         );
         setCart([]);
         setAmountPaid("");
-        setDiscount(0);
+        setDiscount("");
         return;
       } catch (err: any) {
         console.error("Failed to queue offline order:", err);
@@ -421,12 +477,19 @@ function CreateOrderPOSContent() {
         orderNumber: `ORD-${data.order?.orderNumber || data.order?.id?.slice(0, 4) || "NEW"}`,
         status: data.order?.status || currentStatus,
         customer: currentCustomer ||
-          data.order?.customer || { name: "Walk-in Customer" },
+          data.order?.customer || {
+            name:
+              customerMode === "walk-in"
+                ? walkInName || "Walk-in Customer"
+                : "Walk-in Customer",
+            phone: customerMode === "walk-in" ? walkInPhone || null : null,
+          },
         items: currentCart.map((c) => ({
           name: c.name,
           qty: c.qty,
           price: c.price,
           total: c.price * c.qty,
+          isService: c.isService,
         })),
         financials: {
           subtotal,
@@ -435,13 +498,15 @@ function CreateOrderPOSContent() {
           paid: currentPaid,
           balance: orderBalance,
         },
+        paymentMethod,
         runningBalance: currentCustomer?.metrics?.outstandingBalance,
         isOffline: false,
+        createdAt: data.order?.createdAt || new Date().toISOString(),
       });
 
       setCart([]);
       setAmountPaid("");
-      setDiscount(0);
+      setDiscount("");
     } catch (error: any) {
       // Fallback: If network failed during fetch, queue in Dexie instead of crashing!
       const isNetworkIssue =
@@ -464,7 +529,7 @@ function CreateOrderPOSContent() {
         );
         setCart([]);
         setAmountPaid("");
-        setDiscount(0);
+        setDiscount("");
       } else {
         alert(error.message);
       }
@@ -511,20 +576,20 @@ function CreateOrderPOSContent() {
   };
 
   const handleProductClick = (product: Product) => {
-    if (product.stock === 0) return alert("Out of stock!");
+    const availableInstances =
+      product.instances?.filter((i) => i.status === "AVAILABLE") || [];
 
-    const conditionCounts = (product.instances || []).reduce(
-      (acc: any, inst: any) => {
-        if (inst.status === "AVAILABLE") {
-          acc[inst.condition] = (acc[inst.condition] || 0) + 1;
-        }
-        return acc;
-      },
-      {},
-    );
+    if (availableInstances.length === 0) {
+      return;
+    }
+
+    const conditionCounts = availableInstances.reduce((acc: any, inst: any) => {
+      acc[inst.condition] = (acc[inst.condition] || 0) + 1;
+      return acc;
+    }, {});
 
     if (Object.keys(conditionCounts).length === 0) {
-      alert("No available instances for this product!");
+      return;
     } else if (Object.keys(conditionCounts).length === 1) {
       addToCart(product, Object.keys(conditionCounts)[0]);
     } else {
@@ -554,7 +619,7 @@ function CreateOrderPOSContent() {
     );
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
-  const grandTotal = subtotal - (Number(discount) || 0);
+  const grandTotal = Math.max(0, subtotal - (Number(discount) || 0));
   const pendingAmount = grandTotal - (Number(amountPaid) || 0);
 
   return (
@@ -672,26 +737,48 @@ function CreateOrderPOSContent() {
             ) : (
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                 {products.map((product) => {
+                  const availableInstances =
+                    product.instances?.filter(
+                      (i) => i.status === "AVAILABLE",
+                    ) || [];
+                  const availableCount = availableInstances.length;
+                  const isOutOfStock = availableCount === 0;
+
                   const primaryCabinet = product.instances?.[0]?.cabinet;
                   const loc =
                     primaryCabinet?.location ||
                     primaryCabinet?.name ||
                     "Cabinet Bin";
                   const condition =
-                    product.instances?.[0]?.condition || "ORIGINAL_PULL";
+                    availableInstances[0]?.condition ||
+                    product.instances?.[0]?.condition ||
+                    "ORIGINAL_PULL";
 
                   return (
                     <button
                       key={product.id}
                       onClick={() => handleProductClick(product)}
-                      disabled={product.stock === 0}
-                      className={`flex flex-col text-left bg-white p-4 rounded-xl border transition-all active:scale-95 shadow-sm relative overflow-hidden ${
-                        product.stock === 0
-                          ? "border-slate-200 opacity-60 cursor-not-allowed"
-                          : "border-slate-200 hover:border-blue-500 hover:shadow-md"
+                      disabled={isOutOfStock}
+                      className={`flex flex-col text-left p-4 rounded-xl border transition-all relative overflow-hidden ${
+                        isOutOfStock
+                          ? "border-slate-200 bg-slate-100/70 opacity-60 cursor-not-allowed select-none"
+                          : "bg-white border-slate-200 hover:border-blue-500 hover:shadow-md active:scale-95 shadow-sm cursor-pointer"
                       }`}
                     >
-                      <span className="font-bold text-slate-900 text-sm line-clamp-2 mb-1">
+                      {/* Visual Out of Stock badge */}
+                      {isOutOfStock && (
+                        <div className="absolute top-2 right-2 z-10">
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-slate-200 text-slate-600 border border-slate-300">
+                            Out of Stock
+                          </span>
+                        </div>
+                      )}
+
+                      <span
+                        className={`font-bold text-sm line-clamp-2 mb-1 ${
+                          isOutOfStock ? "text-slate-500" : "text-slate-900"
+                        }`}
+                      >
                         {product.name}
                       </span>
                       <div className="flex items-center gap-1.5 mb-2">
@@ -710,21 +797,25 @@ function CreateOrderPOSContent() {
                       </div>
 
                       <div className="mt-auto flex items-end justify-between w-full">
-                        <span className="text-blue-600 font-black text-sm">
+                        <span
+                          className={`font-black text-sm ${
+                            isOutOfStock ? "text-slate-400" : "text-blue-600"
+                          }`}
+                        >
                           Rs. {product.price.toLocaleString()}
                         </span>
                         <span
-                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                            product.stock > 5
-                              ? "bg-emerald-50 text-emerald-600"
-                              : product.stock > 0
-                                ? "bg-yellow-50 text-yellow-600"
-                                : "bg-rose-50 text-rose-600"
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                            availableCount > 5
+                              ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
+                              : availableCount > 0
+                                ? "bg-amber-50 text-amber-600 border border-amber-100"
+                                : "bg-slate-200 text-slate-600 border border-slate-300"
                           }`}
                         >
-                          {product.stock === 0
-                            ? "Out of stock"
-                            : `${product.stock} left`}
+                          {isOutOfStock
+                            ? "Out of Stock"
+                            : `${availableCount} left`}
                         </span>
                       </div>
                     </button>
@@ -917,18 +1008,36 @@ function CreateOrderPOSContent() {
           </div>
 
           <div className="p-5 border-t border-slate-200 bg-slate-50 shrink-0 space-y-4">
-            <div className="flex items-center justify-between bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm focus-within:border-slate-400 transition-colors">
               <label className="flex items-center gap-1.5 text-sm font-bold text-slate-700">
-                <Tag className="w-4 h-4 text-blue-600" /> Discount (Rs)
+                <Tag className="w-4 h-4 text-slate-500" /> Discount (Rs)
               </label>
-              <input
-                type="number"
-                min="0"
-                value={discount}
-                onChange={(e) => setDiscount(Number(e.target.value) || 0)}
-                className="w-24 text-right outline-none font-bold text-rose-600 bg-transparent placeholder-slate-300"
-                placeholder="0"
-              />
+              <div className="flex items-center gap-2">
+                {Number(discount) > 0 && (
+                  <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                    Discount
+                  </span>
+                )}
+                <input
+                  type="number"
+                  min="0"
+                  value={discount}
+                  onFocus={() => {
+                    if (discount === "0" || Number(discount) === 0)
+                      setDiscount("");
+                  }}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "") {
+                      setDiscount("");
+                    } else {
+                      setDiscount(String(Math.max(0, Number(val))));
+                    }
+                  }}
+                  className="w-24 text-right outline-none font-bold text-slate-900 bg-transparent placeholder-slate-400 text-sm"
+                  placeholder="0"
+                />
+              </div>
             </div>
 
             <div className="flex items-end justify-between">
@@ -1018,152 +1127,63 @@ function CreateOrderPOSContent() {
               )}
             </div>
 
-            <button
-              onClick={handleCompleteOrder}
-              disabled={
-                cart.length === 0 ||
-                (customerMode === "walk-in" && pendingAmount > 0) ||
-                isSubmitting
-              }
-              className="w-full py-4 mt-2 bg-slate-900 text-white rounded-xl font-bold text-base hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
-            >
-              {isSubmitting
-                ? "Processing..."
-                : !isOnline
-                  ? `Queue ${orderStatus} Order Offline`
-                  : orderStatus === "FINAL"
-                    ? "Complete Order"
-                    : "Save Pending Order (MEMO)"}
-              {!isSubmitting && <CheckCircle2 className="w-5 h-5" />}
-            </button>
+            {/* Disabled Reason Helper / Tooltip Indicator */}
+            {(() => {
+              const getDisabledReason = () => {
+                if (cart.length === 0) {
+                  return "Add items or services to the invoice first.";
+                }
+                if (customerMode === "existing" && !selectedCustomer) {
+                  return "Select an existing customer to proceed with customer account.";
+                }
+                if (customerMode === "walk-in" && pendingAmount > 0) {
+                  return "Enter full amount or select an existing customer for Udhar.";
+                }
+                return null;
+              };
+
+              const disabledReason = getDisabledReason();
+              const isCheckoutDisabled =
+                Boolean(disabledReason) || isSubmitting;
+
+              return (
+                <div className="space-y-2">
+                  {disabledReason && cart.length > 0 && (
+                    <div className="flex items-center gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs font-semibold text-amber-800 animate-in fade-in duration-200">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                      <span>{disabledReason}</span>
+                    </div>
+                  )}
+
+                  <div title={disabledReason || undefined} className="w-full">
+                    <button
+                      onClick={handleCompleteOrder}
+                      disabled={isCheckoutDisabled}
+                      className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-base hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {isSubmitting
+                        ? "Processing..."
+                        : !isOnline
+                          ? `Queue ${orderStatus} Order Offline`
+                          : orderStatus === "FINAL"
+                            ? "Complete Order"
+                            : "Save Pending Order (MEMO)"}
+                      {!isSubmitting && <CheckCircle2 className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
-      {/* 🟢 POS ORDER SUCCESS & WHATSAPP MODAL */}
-      {completedOrderData && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-6 bg-gradient-to-b from-emerald-50 to-white text-center border-b border-slate-100 relative">
-              <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3 shadow-inner">
-                <CheckCircle2 className="w-8 h-8" />
-              </div>
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                {completedOrderData.isOffline
-                  ? "Order Queued Offline!"
-                  : "Sale Completed Successfully!"}
-              </h2>
-              <div className="flex items-center justify-center gap-2 mt-1">
-                <span className="font-mono text-sm font-bold text-slate-700">
-                  {completedOrderData.orderNumber}
-                </span>
-                <span
-                  className={`text-xs font-extrabold px-2 py-0.5 rounded-md border ${
-                    completedOrderData.status === "MEMO"
-                      ? "bg-amber-100 text-amber-800 border-amber-300"
-                      : "bg-emerald-100 text-emerald-800 border-emerald-300"
-                  }`}
-                >
-                  {completedOrderData.status === "MEMO"
-                    ? "MEMO (Amanat)"
-                    : "FINAL SALE"}
-                </span>
-              </div>
-            </div>
 
-            <div className="p-6 space-y-4 text-sm">
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Customer</span>
-                  <span className="font-bold text-slate-900">
-                    {completedOrderData.customer.name}{" "}
-                    {completedOrderData.customer.phone
-                      ? `(${completedOrderData.customer.phone})`
-                      : ""}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Items Purchased</span>
-                  <span className="font-semibold text-slate-800">
-                    {completedOrderData.items.reduce(
-                      (s: number, i: any) => s + i.qty,
-                      0,
-                    )}{" "}
-                    item(s)
-                  </span>
-                </div>
-                <div className="flex justify-between border-t border-slate-200 pt-2">
-                  <span className="text-slate-500">Net Total</span>
-                  <span className="font-black text-slate-900 text-base">
-                    Rs. {completedOrderData.financials.total.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Amount Paid</span>
-                  <span className="font-bold text-emerald-600">
-                    Rs. {completedOrderData.financials.paid.toLocaleString()}
-                  </span>
-                </div>
-                {completedOrderData.financials.balance > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-rose-600 font-semibold">
-                      Remaining Udhar
-                    </span>
-                    <span className="font-black text-rose-600">
-                      Rs.{" "}
-                      {completedOrderData.financials.balance.toLocaleString()}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {completedOrderData.isOffline && (
-                <p className="text-xs text-amber-800 bg-amber-50 p-2.5 rounded-lg border border-amber-200 text-center font-medium">
-                  Saved securely in IndexedDB. Stock is reserved locally and
-                  will automatically synchronize when network is restored.
-                </p>
-              )}
-
-              {/* WhatsApp Receipt Action */}
-              <a
-                href={generateWhatsAppReceipt(
-                  completedOrderData,
-                  completedOrderData.customer,
-                  completedOrderData.runningBalance,
-                )}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full flex items-center justify-center gap-2.5 py-3 px-4 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl font-bold transition-colors shadow-md shadow-emerald-600/20"
-              >
-                <MessageCircle className="w-5 h-5" /> Share via WhatsApp
-              </a>
-
-              <div className="grid grid-cols-2 gap-3 pt-1">
-                {!completedOrderData.isOffline && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      router.push(`/orders/${completedOrderData.id}`)
-                    }
-                    className="flex items-center justify-center gap-2 py-2.5 px-3 border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 rounded-xl text-xs sm:text-sm font-semibold transition-colors"
-                  >
-                    <span>View Order</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setCompletedOrderData(null)}
-                  className={`flex items-center justify-center gap-2 py-2.5 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs sm:text-sm font-bold transition-colors ${
-                    completedOrderData.isOffline ? "col-span-2" : ""
-                  }`}
-                >
-                  <Plus className="w-4 h-4" /> Next Sale
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 🟢 POS ORDER SUCCESS & THERMAL PRINT MODAL */}
+      <OrderSuccessModal
+        order={completedOrderData}
+        onClose={() => setCompletedOrderData(null)}
+        onViewOrder={(id) => router.push(`/orders/${id}`)}
+      />
       {/* 🟢 CONDITION SELECTOR MODAL */}
       {conditionModalProduct && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">

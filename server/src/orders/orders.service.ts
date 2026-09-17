@@ -97,7 +97,9 @@ export class OrdersService {
               create: items.map((item: any) => ({
                 productId: item.isService ? null : item.productId,
                 quantity: item.quantity,
-                price: item.isService ? Number(item.price) : secureProducts[item.productId].price,
+                price: item.isService
+                  ? Number(item.price)
+                  : secureProducts[item.productId].price,
                 isService: item.isService || false,
                 serviceName: item.serviceName || null,
                 notes: item.notes || null,
@@ -106,7 +108,7 @@ export class OrdersService {
           },
           include: {
             items: true,
-          }
+          },
         });
 
         for (const item of items) {
@@ -117,14 +119,22 @@ export class OrdersService {
             data: { stock: { decrement: item.quantity } },
           });
 
-          const conditionFilter = item.condition ? { condition: item.condition } : {};
+          const conditionFilter = item.condition
+            ? { condition: item.condition }
+            : {};
           const instances = await tx.productInstance.findMany({
-            where: { productId: item.productId, status: 'AVAILABLE', ...conditionFilter },
+            where: {
+              productId: item.productId,
+              status: 'AVAILABLE',
+              ...conditionFilter,
+            },
             take: item.quantity,
           });
-          
+
           if (instances.length < item.quantity) {
-             throw new BadRequestException(`Not enough available instances for product ${item.productId} with condition ${item.condition || 'any'}.`);
+            throw new BadRequestException(
+              `Not enough available instances for product ${item.productId} with condition ${item.condition || 'any'}.`,
+            );
           }
 
           if (instances.length > 0) {
@@ -170,77 +180,58 @@ export class OrdersService {
   }
 
   private async postDoubleEntrySequence(order: any, amountPaid: number) {
-    const udhaarRequested = order.totalAmount - amountPaid;
-    const postings = [];
+    const grossItemsAmount =
+      order.items && order.items.length > 0
+        ? order.items.reduce(
+            (sum: number, item: any) =>
+              sum + Number(item.price) * Number(item.quantity),
+            0,
+          )
+        : Number(order.totalAmount) + Number(order.discount || 0);
 
-    let partsTotal = 0;
-    let serviceTotal = 0;
+    const discount = Number(order.discount) || 0;
+    const netAmount = Math.max(0, grossItemsAmount - discount);
 
-    if (order.items) {
-      for (const item of order.items) {
-        if (item.isService) {
-          serviceTotal += item.price * item.quantity;
-        } else {
-          partsTotal += item.price * item.quantity;
-        }
-      }
-    } else {
-      partsTotal = order.totalAmount; // Fallback
-    }
+    const postings: any[] = [];
 
-    // Since discount is applied to the total, we should proportionally reduce parts and service revenue,
-    // or apply it fully to parts. The simplest is to just use partsTotal - discount if we assume discount applies to total.
-    // Let's proportionally split the discount, or just subtract from parts for simplicity, but proportionally is safer.
-    const totalBeforeDiscount = partsTotal + serviceTotal;
-    let finalPartsTotal = partsTotal;
-    let finalServiceTotal = serviceTotal;
-
-    if (order.discount > 0 && totalBeforeDiscount > 0) {
-      const partsRatio = partsTotal / totalBeforeDiscount;
-      const serviceRatio = serviceTotal / totalBeforeDiscount;
-      finalPartsTotal = partsTotal - (order.discount * partsRatio);
-      finalServiceTotal = serviceTotal - (order.discount * serviceRatio);
-    }
-
-    if (finalPartsTotal > 0) {
+    // Credit REVENUE matching the exact netAmount (-netAmount)
+    if (netAmount > 0) {
       postings.push({
-        accountId: 'PARTS_REVENUE',
+        accountId: 'REVENUE',
         accountType: 'REVENUE',
-        amount: -finalPartsTotal,
+        amount: -netAmount,
       });
     }
 
-    if (finalServiceTotal > 0) {
-      postings.push({
-        accountId: 'SERVICE_REVENUE',
-        accountType: 'REVENUE',
-        amount: -finalServiceTotal,
-      });
-    }
+    // Debit CASH and/or CUSTOMER_AR to sum exactly to +netAmount
+    const cashPortion = Math.min(Number(amountPaid) || 0, netAmount);
+    const arPortion = netAmount - cashPortion;
 
-    if (amountPaid > 0) {
+    if (cashPortion > 0) {
       postings.push({
         accountId: 'CASH',
         accountType: 'ASSET',
-        amount: amountPaid,
+        amount: cashPortion,
       });
     }
 
-    if (udhaarRequested > 0 && order.customerId) {
+    if (arPortion > 0 && order.customerId) {
       postings.push({
         accountId: order.customerId,
         accountType: 'CUSTOMER_AR',
-        amount: udhaarRequested,
+        amount: arPortion,
       });
     }
 
-    await this.ledgerService.createBalancedTransaction({
-      businessId: order.businessId,
-      referenceId: order.id,
-      type: 'SALE',
-      description: `Sale for Order ${order.id}`,
-      postings,
-    });
+    if (postings.length > 0) {
+      await this.ledgerService.createBalancedTransaction({
+        businessId: order.businessId,
+        referenceId: order.id,
+        type: 'SALE',
+        description: `Sale for Order ${order.id}`,
+        postings,
+      });
+    }
   }
 
   async getAllOrders(userId: string, query: any) {
@@ -350,7 +341,9 @@ export class OrdersService {
     if (!order) throw new NotFoundException('Order not found');
 
     if (order.status === 'MEMO' && status === 'FINAL') {
-      throw new BadRequestException('To convert a MEMO to FINAL, use the settle-memo endpoint');
+      throw new BadRequestException(
+        'To convert a MEMO to FINAL, use the settle-memo endpoint',
+      );
     } else if (status === 'RETURNED' && order.status === 'MEMO') {
       await this.prisma.$transaction(async (tx) => {
         for (const item of order.items) {
@@ -475,8 +468,11 @@ export class OrdersService {
     });
 
     await this.postDoubleEntrySequence(order, totalPaid);
-    
-    return { success: true, message: 'Memo converted to final sale successfully' };
+
+    return {
+      success: true,
+      message: 'Memo converted to final sale successfully',
+    };
   }
 
   async recordPayment(userId: string, data: any) {
@@ -595,8 +591,8 @@ export class OrdersService {
   }
 
   async processReturn(userId: string, id: string, data: any) {
-    const { itemsToReturn, returnStatus = 'AVAILABLE' } = data; 
-    
+    const { itemsToReturn, returnStatus = 'AVAILABLE' } = data;
+
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { businessId: true },
@@ -623,14 +619,21 @@ export class OrdersService {
       let refundAmount = 0;
 
       for (const returnItem of itemsToReturn) {
-        const orderItem = order.items.find(i => i.productId === returnItem.productId);
+        const orderItem = order.items.find(
+          (i) => i.productId === returnItem.productId,
+        );
         if (!orderItem) {
-          throw new BadRequestException(`Product ${returnItem.productId} not found in order`);
+          throw new BadRequestException(
+            `Product ${returnItem.productId} not found in order`,
+          );
         }
-        
+
         refundAmount += orderItem.price * returnItem.quantity;
 
-        const targetStatus = returnItem.returnCondition === 'DEFECTIVE' ? 'DEFECTIVE' : 'AVAILABLE';
+        const targetStatus =
+          returnItem.returnCondition === 'DEFECTIVE'
+            ? 'DEFECTIVE'
+            : 'AVAILABLE';
 
         if (targetStatus === 'AVAILABLE') {
           await tx.product.update({
@@ -640,10 +643,16 @@ export class OrdersService {
         }
 
         const instanceStatus = order.status === 'MEMO' ? 'MEMO_LOCKED' : 'SOLD';
-        const conditionFilter = returnItem.condition ? { condition: returnItem.condition } : {};
-        
+        const conditionFilter = returnItem.condition
+          ? { condition: returnItem.condition }
+          : {};
+
         const instances = await tx.productInstance.findMany({
-          where: { productId: returnItem.productId, status: instanceStatus, ...conditionFilter },
+          where: {
+            productId: returnItem.productId,
+            status: instanceStatus,
+            ...conditionFilter,
+          },
           take: returnItem.quantity,
         });
 
@@ -659,10 +668,10 @@ export class OrdersService {
         where: { id },
         data: { status: 'RETURNED' },
       });
-      
+
       if (order.status === 'FINAL') {
         const postings = [];
-        
+
         postings.push({
           accountId: 'REVENUE',
           accountType: 'REVENUE',
@@ -674,16 +683,16 @@ export class OrdersService {
           postings.push({
             accountId: 'CASH',
             accountType: 'ASSET',
-            amount: -Math.min(refundAmount, totalPaid), 
+            amount: -Math.min(refundAmount, totalPaid),
           });
         }
-        
+
         const remainingRefund = refundAmount - totalPaid;
         if (remainingRefund > 0 && order.customerId) {
           postings.push({
             accountId: order.customerId,
             accountType: 'CUSTOMER_AR',
-            amount: -remainingRefund, 
+            amount: -remainingRefund,
           });
         }
 
