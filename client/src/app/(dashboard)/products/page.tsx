@@ -17,9 +17,8 @@ import {
 import AddProductModal, {
   ProductFormValues,
 } from "@/components/modals/AddProductModal"; // 🟢 IMPORT MODAL
-import BulkRestockModal from "@/components/modals/BulkRestockModal";
 import { usePermissions } from "@/hooks/usePermissions";
-import { MapPin, Layers } from "lucide-react";
+import { MapPin } from "lucide-react";
 
 type StockFilter = "all" | "low" | "out";
 
@@ -101,7 +100,6 @@ function ProductsPageContent() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
-  const [isBulkRestockModalOpen, setIsBulkRestockModalOpen] = useState(false);
 
   const [newCategoryName, setNewCategoryName] = useState("");
 
@@ -183,25 +181,6 @@ function ProductsPageContent() {
     }
 
     setIsAddModalOpen(false);
-    await refreshProducts();
-  };
-
-  const handleBulkRestock = async (data: any) => {
-    const response = await fetch(`${API_BASE_URL}/product/bulk-restock`, {
-      method: "POST",
-      headers: getAuthHeaders(),
-      body: JSON.stringify(data),
-    });
-
-    const resData = await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        resData?.message || resData?.error || "Failed to bulk restock",
-      );
-    }
-
-    setIsBulkRestockModalOpen(false);
     await refreshProducts();
   };
 
@@ -304,12 +283,6 @@ function ProductsPageContent() {
 
         {hasPermission("write:products") && (
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsBulkRestockModalOpen(true)}
-              className="flex items-center justify-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-slate-800 transition-colors shadow-sm"
-            >
-              <Layers className="w-4 h-4" /> Bulk Restock
-            </button>
             <button
               onClick={() => setIsAddModalOpen(true)}
               className="flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200"
@@ -575,14 +548,6 @@ function ProductsPageContent() {
         onClose={() => setIsAddModalOpen(false)}
         onAdd={handleAddProduct}
         categories={categories}
-      />
-
-      <BulkRestockModal
-        isOpen={isBulkRestockModalOpen}
-        onClose={() => setIsBulkRestockModalOpen(false)}
-        onRestock={handleBulkRestock}
-        products={products.map((p) => ({ id: p.id, name: p.name }))}
-        apiBaseUrl={API_BASE_URL}
       />
 
       {/* 2. Add Category Modal (Inline for now) */}

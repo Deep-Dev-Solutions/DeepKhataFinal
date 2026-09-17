@@ -15,7 +15,6 @@ import {
   ShieldCheck,
   BarChart3,
   Banknote,
-  Wrench,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 
@@ -24,8 +23,7 @@ const navItems = [
   { name: "Orders", href: "/orders", icon: ShoppingCart },
   { name: "Products", href: "/products", icon: Package },
   { name: "Customers", href: "/customers", icon: Users },
-  { name: "Work Orders", href: "/work-orders", icon: Wrench },
-  { name: "Cash Hub", href: "/cash", icon: Banknote },
+  // { name: "Cash Hub", href: "/cash", icon: Banknote },
   { name: "Settings", href: "/settings", icon: Settings },
   { name: "Reports", href: "/reports", icon: BarChart3 },
 ];

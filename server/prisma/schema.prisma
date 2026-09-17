@@ -31,12 +31,12 @@ model Business {
   invitations Invitation[]
   categories  Category[]
 
-  branches         Branch[]
-  cabinets         Cabinet[]
-  transactions     Transaction[]
-  expenses         Expense[]
-  registerSessions CashRegisterSession[]
-  workOrders       WorkOrder[]
+  branches           Branch[]
+  cabinets           Cabinet[]
+  transactions       Transaction[]
+  expenses           Expense[]
+  registerSessions   CashRegisterSession[]
+  inventoryMovements InventoryMovement[]
 
   createdAt DateTime @default(now())
 }
@@ -52,8 +52,8 @@ model Branch {
   cabinets         Cabinet[]
   expenses         Expense[]
   registerSessions CashRegisterSession[]
-  workOrders       WorkOrder[]
-  createdAt        DateTime              @default(now())
+
+  createdAt DateTime @default(now())
 }
 
 model User {
@@ -68,13 +68,13 @@ model User {
   businessId String?
   business   Business? @relation("BusinessUsers", fields: [businessId], references: [id])
 
-  ownedBusinesses      Business[]            @relation("BusinessOwner")
-  createdOrders        Order[]               @relation("OrderCreator")
-  receivedPayments     Payment[]             @relation("PaymentReceiver")
-  createdExpenses      Expense[]             @relation("ExpenseCreator")
-  openedRegisters      CashRegisterSession[] @relation("RegisterOpener")
-  closedRegisters      CashRegisterSession[] @relation("RegisterCloser")
-  technicianWorkOrders WorkOrder[]           @relation("TechnicianWorkOrders")
+  ownedBusinesses    Business[]            @relation("BusinessOwner")
+  createdOrders      Order[]               @relation("OrderCreator")
+  receivedPayments   Payment[]             @relation("PaymentReceiver")
+  createdExpenses    Expense[]             @relation("ExpenseCreator")
+  openedRegisters    CashRegisterSession[] @relation("RegisterOpener")
+  closedRegisters    CashRegisterSession[] @relation("RegisterCloser")
+  inventoryMovements InventoryMovement[]
 
   createdAt DateTime @default(now())
 }
@@ -124,6 +124,8 @@ model Cabinet {
 
   instances ProductInstance[]
   createdAt DateTime          @default(now())
+
+  movements InventoryMovement[]
 }
 
 model Product {
@@ -142,6 +144,7 @@ model Product {
 
   orderItems OrderItem[]
   instances  ProductInstance[]
+  movements  InventoryMovement[]
 }
 
 model ProductInstance {
@@ -158,9 +161,6 @@ model ProductInstance {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  workOrderId String?
-  workOrder   WorkOrder? @relation(fields: [workOrderId], references: [id])
 }
 
 model Category {
@@ -172,6 +172,31 @@ model Category {
   products Product[]
 
   @@unique([name, businessId])
+}
+
+model InventoryMovement {
+  id            String             @id @default(uuid())
+  productId     String
+  cabinetId     String?
+  fromCondition ItemCondition?
+  toCondition   ItemCondition
+  quantity      Int
+  direction     InventoryDirection // IN (restock) | OUT (sale/return/adjust)
+  referenceType String? // ORDER | RESTOCK | RETURN | ADJUSTMENT
+  referenceId   String?
+  notes         String?
+  userId        String
+  businessId    String
+  createdAt     DateTime           @default(now())
+
+  product  Product  @relation(fields: [productId], references: [id])
+  cabinet  Cabinet? @relation(fields: [cabinetId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([productId])
+  @@index([businessId])
+  @@index([createdAt])
 }
 
 model Order {
@@ -196,12 +221,12 @@ model Order {
 }
 
 model OrderItem {
-  id          String   @id @default(uuid())
+  id          String  @id @default(uuid())
   orderId     String
   productId   String?
   quantity    Int
   price       Float
-  isService   Boolean  @default(false)
+  isService   Boolean @default(false)
   serviceName String?
   notes       String?
 
@@ -231,8 +256,7 @@ model Transaction {
 
   postings  Posting[]
   expense   Expense?
-  createdAt DateTime   @default(now())
-  WorkOrder WorkOrder?
+  createdAt DateTime  @default(now())
 }
 
 model Posting {
@@ -260,6 +284,7 @@ enum ItemCondition {
   MINOR_SCRATCHES
   WORKING
   DEAD_DONOR
+  DEFECTIVE
 }
 
 enum InstanceStatus {
@@ -268,40 +293,13 @@ enum InstanceStatus {
   SOLD
   DEFECTIVE
   RETURNED_WORKING
+  RETURNED_DEFECTIVE
   CONSUMED
 }
 
-enum WorkOrderStatus {
-  INTAKE
-  DIAGNOSING
-  WAITING_ON_PARTS
-  COMPLETED
-  DELIVERED
-}
-
-model WorkOrder {
-  id         String   @id @default(uuid())
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  branchId   String?
-  branch     Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
-
-  deviceInfo       String
-  issueDescription String
-  laborCost        Float
-
-  technicianId String?
-  technician   User?   @relation("TechnicianWorkOrders", fields: [technicianId], references: [id])
-
-  status WorkOrderStatus @default(INTAKE)
-
-  consumedParts ProductInstance[]
-
-  transactionId String?      @unique
-  transaction   Transaction? @relation(fields: [transactionId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum InventoryDirection {
+  IN
+  OUT
 }
 
 enum Role {
