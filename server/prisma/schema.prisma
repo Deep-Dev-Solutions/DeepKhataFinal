@@ -153,6 +153,7 @@ model ProductInstance {
   id        String  @id @default(uuid())
   productId String
   cabinetId String?
+  vendorId  String?
 
   condition    ItemCondition  @default(ORIGINAL_PULL)
   status       InstanceStatus @default(AVAILABLE) // For MEMO locks
@@ -160,6 +161,7 @@ model ProductInstance {
 
   product Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   cabinet Cabinet? @relation(fields: [cabinetId], references: [id])
+  vendor  Vendor?  @relation(fields: [vendorId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -189,12 +191,14 @@ model InventoryMovement {
   notes         String?
   userId        String
   businessId    String
+  vendorId      String?
   createdAt     DateTime           @default(now())
 
   product  Product  @relation(fields: [productId], references: [id])
   cabinet  Cabinet? @relation(fields: [cabinetId], references: [id])
   user     User     @relation(fields: [userId], references: [id])
   business Business @relation(fields: [businessId], references: [id])
+  vendor   Vendor?  @relation(fields: [vendorId], references: [id])
 
   @@index([productId])
   @@index([businessId])
@@ -391,6 +395,9 @@ model Vendor {
 
   businessId String
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  productInstances   ProductInstance[]
+  inventoryMovements InventoryMovement[]
 
   createdAt DateTime @default(now())
 }

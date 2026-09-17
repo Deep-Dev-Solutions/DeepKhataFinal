@@ -38,6 +38,12 @@ type ProductFormValues = {
   cabinetId?: string;
   condition: ItemConditionType;
   quantity: number;
+  vendorId?: string;
+};
+
+type Vendor = {
+  id: string;
+  businessName: string;
 };
 
 interface CabinetOption {
@@ -100,7 +106,9 @@ export default function AddProductPage() {
   const [categories, setCategories] = useState<string[]>([]);
 
   const [cabinets, setCabinets] = useState<CabinetOption[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [selectedCabinetId, setSelectedCabinetId] = useState("");
+  const [selectedVendorId, setSelectedVendorId] = useState("");
   const [rack, setRack] = useState("");
   const [shelf, setShelf] = useState("");
   const [bin, setBin] = useState("");
@@ -114,23 +122,30 @@ export default function AddProductPage() {
   useEffect(() => {
     const loadMeta = async () => {
       try {
-        const [catRes, cabRes] = await Promise.all([
+        const [catRes, cabRes, venRes] = await Promise.all([
           fetch(`${API_BASE_URL}/product/getcategories`, {
             headers: getAuthHeaders(),
           }),
           fetch(`${API_BASE_URL}/product/getcabinets`, {
             headers: getAuthHeaders(),
           }),
+          fetch(`${API_BASE_URL}/vendors`, {
+            headers: getAuthHeaders(),
+          }),
         ]);
 
         const catData = await catRes.json();
         const cabData = await cabRes.json();
+        const venData = await venRes.json();
 
         if (catData.success && Array.isArray(catData.categories)) {
           setCategories(catData.categories.map((c: any) => c.name));
         }
         if (cabData.success && Array.isArray(cabData.cabinets)) {
           setCabinets(cabData.cabinets);
+        }
+        if (venData.success && Array.isArray(venData.vendors)) {
+          setVendors(venData.vendors);
         }
       } catch (err) {
         console.error("Failed to load categories/cabinets:", err);
@@ -159,6 +174,7 @@ export default function AddProductPage() {
         cabinetId: selectedCabinetId || undefined,
         condition,
         quantity: Math.max(1, Number(quantity) || 1),
+        vendorId: selectedVendorId || undefined,
       };
 
       const response = await fetch(`${API_BASE_URL}/product/addproduct`, {
@@ -169,7 +185,9 @@ export default function AddProductPage() {
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data?.message || data?.error || "Failed to add product");
+        throw new Error(
+          data?.message || data?.error || "Failed to add product",
+        );
       }
 
       setSuccessMsg(
@@ -183,6 +201,7 @@ export default function AddProductPage() {
       setShelf("");
       setBin("");
       setSelectedCabinetId("");
+      setSelectedVendorId("");
       setCondition("ORIGINAL_PULL");
       setQuantity("1");
 
@@ -386,6 +405,22 @@ export default function AddProductPage() {
                     Settings &rarr; Cabinets
                   </Link>
                 </p>
+              </div>
+
+              <div>
+                <label className={label}>Select Vendor (Optional)</label>
+                <select
+                  value={selectedVendorId}
+                  onChange={(e) => setSelectedVendorId(e.target.value)}
+                  className={`${input} cursor-pointer`}
+                >
+                  <option value="">-- No Vendor --</option>
+                  {vendors.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.businessName}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>

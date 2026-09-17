@@ -252,6 +252,7 @@ export class ProductsService {
       bin,
       condition = 'ORIGINAL_PULL',
       quantity = 1,
+      vendorId,
     } = data;
 
     const currentUser = await this.prisma.user.findUnique({
@@ -326,6 +327,7 @@ export class ProductsService {
         (_, index) => ({
           productId: product.id,
           cabinetId: targetCabinetId || null,
+          vendorId: vendorId || null,
           condition: sanitizedCondition as any,
           status: 'AVAILABLE' as any,
           serialNumber: sku ? `${sku}-${index + 1}` : null,
@@ -335,6 +337,25 @@ export class ProductsService {
       await tx.productInstance.createMany({
         data: instancesData,
       });
+
+      if (instanceQty > 0) {
+        await tx.inventoryMovement.create({
+          data: {
+            productId: product.id,
+            cabinetId: targetCabinetId || null,
+            fromCondition: null,
+            toCondition: sanitizedCondition as any,
+            quantity: instanceQty,
+            direction: 'IN',
+            referenceType: 'INITIAL_STOCK',
+            referenceId: product.id,
+            notes: 'Initial stock during product creation',
+            userId,
+            businessId: currentUser.businessId,
+            vendorId: vendorId || null,
+          },
+        });
+      }
 
       const fullProduct = await tx.product.findUnique({
         where: { id: product.id },

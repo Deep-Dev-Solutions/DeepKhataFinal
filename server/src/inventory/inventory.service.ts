@@ -26,7 +26,9 @@ export class InventoryService {
       select: { businessId: true },
     });
     if (!currentUser?.businessId)
-      throw new BadRequestException('User does not have an associated business');
+      throw new BadRequestException(
+        'User does not have an associated business',
+      );
     const businessId = currentUser.businessId;
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -41,6 +43,7 @@ export class InventoryService {
           condition,
           quantity,
           notes,
+          vendorId,
         } = item;
 
         if (!productId)
@@ -76,6 +79,7 @@ export class InventoryService {
           data: Array.from({ length: qty }).map(() => ({
             productId: product.id,
             cabinetId: finalCabinetId,
+            vendorId: vendorId || null,
             condition: sanitizedCondition as any,
             status: 'AVAILABLE' as any,
           })),
@@ -99,6 +103,7 @@ export class InventoryService {
             notes: notes || null,
             userId,
             businessId,
+            vendorId: vendorId || null,
           },
         });
 
@@ -138,6 +143,7 @@ export class InventoryService {
         product: { select: { name: true, sku: true } },
         cabinet: { select: { name: true, location: true } },
         user: { select: { name: true } },
+        vendor: { select: { businessName: true } },
       },
       orderBy: { createdAt: 'desc' },
       take: Math.min(parseInt(String(limit)) || 50, 200),

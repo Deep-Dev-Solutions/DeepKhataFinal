@@ -30,6 +30,11 @@ type Cabinet = {
   location?: string | null;
 };
 
+type Vendor = {
+  id: string;
+  businessName: string;
+};
+
 type Product = {
   id: string;
   name: string;
@@ -62,6 +67,7 @@ export default function RestockPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [activeCategory, setActiveCategory] = useState("All");
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -69,6 +75,7 @@ export default function RestockPage() {
   const [selectedProductId, setSelectedProductId] = useState("");
   const [selectedBranchId, setSelectedBranchId] = useState("");
   const [selectedCabinetId, setSelectedCabinetId] = useState("");
+  const [selectedVendorId, setSelectedVendorId] = useState("");
   const [condition, setCondition] = useState("ORIGINAL_PULL");
   const [quantity, setQuantity] = useState("1");
   const [notes, setNotes] = useState("");
@@ -128,11 +135,21 @@ export default function RestockPage() {
       });
       const data = await res.json();
       if (data.success)
-        setCategories(
-          data.categories.map((c: any) => c.name).sort(),
-        );
+        setCategories(data.categories.map((c: any) => c.name).sort());
     } catch (err) {
       console.error("Failed to load categories", err);
+    }
+  }, []);
+
+  const loadVendors = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/vendors`, {
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json();
+      if (data.success) setVendors(data.vendors);
+    } catch (err) {
+      console.error("Failed to load vendors", err);
     }
   }, []);
 
@@ -140,7 +157,8 @@ export default function RestockPage() {
     void loadBranches();
     void loadCategories();
     void loadProducts();
-  }, [loadBranches, loadCategories, loadProducts]);
+    void loadVendors();
+  }, [loadBranches, loadCategories, loadProducts, loadVendors]);
 
   const handleAddToBatch = () => {
     if (!selectedProduct) {
@@ -156,7 +174,8 @@ export default function RestockPage() {
       condition,
       quantity: qty,
       notes: notes.trim() || undefined,
-    };
+      vendorId: selectedVendorId || undefined,
+    } as BatchLine & { vendorId?: string };
 
     setBatch((prev) => [...prev, line]);
     setErrorMsg("");
@@ -164,6 +183,7 @@ export default function RestockPage() {
     setSelectedProductId("");
     setSelectedBranchId("");
     setSelectedCabinetId("");
+    setSelectedVendorId("");
     setQuantity("1");
     setCondition("ORIGINAL_PULL");
   };
@@ -191,6 +211,7 @@ export default function RestockPage() {
           condition: line.condition,
           quantity: line.quantity,
           notes: line.notes,
+          vendorId: (line as any).vendorId,
         })),
       };
 
@@ -375,6 +396,24 @@ export default function RestockPage() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1.5">
+                  Select Vendor (Optional)
+                </label>
+                <select
+                  value={selectedVendorId}
+                  onChange={(e) => setSelectedVendorId(e.target.value)}
+                  className="w-full border border-slate-300 rounded-xl py-2 px-3 text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
+                >
+                  <option value="">-- No Vendor --</option>
+                  {vendors.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.businessName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5">
                   Condition *
                 </label>
                 <select
@@ -525,10 +564,8 @@ export default function RestockPage() {
                           <span className="truncate max-w-28">
                             {branches
                               .find((b) => b.id === line.branchId)
-                              ?.cabinets.find(
-                                (c) => c.id === line.cabinetId,
-                              )?.name ||
-                              "Default Cabinet"}
+                              ?.cabinets.find((c) => c.id === line.cabinetId)
+                              ?.name || "Default Cabinet"}
                           </span>
                         </div>
                       </td>

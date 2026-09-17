@@ -17,6 +17,9 @@ import {
   Warehouse,
   ChevronLeft,
   ChevronRight,
+  Truck,
+  Tags,
+  Database,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSidebar } from "@/context/SidebarContext";
@@ -26,10 +29,16 @@ const navItems = [
   { name: "Orders", href: "/orders", icon: ShoppingCart },
   { name: "Products", href: "/products", icon: Package },
   { name: "Inventory", href: "/inventory/restock", icon: Warehouse },
+  { name: "Vendors", href: "/vendors", icon: Truck },
   { name: "Customers", href: "/customers", icon: Users },
   { name: "Cash Hub", href: "/cash", icon: Banknote },
-  { name: "Settings", href: "/settings", icon: Settings },
   { name: "Reports", href: "/reports", icon: BarChart3 },
+];
+
+const settingsItems = [
+  { name: "Cabinets", href: "/settings/cabinets", icon: Warehouse },
+  { name: "Categories", href: "/settings/categories", icon: Tags },
+  { name: "Import Data", href: "/settings/import", icon: Database },
 ];
 
 export default function Sidebar() {
@@ -176,6 +185,61 @@ export default function Sidebar() {
             </Link>
           );
         })}
+
+        {/* 🟢 Settings Group */}
+        <div className={`pt-4 pb-2 ${isCollapsed ? "px-1" : "px-3"}`}>
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <Settings
+              className={`w-4 h-4 text-slate-400 ${isCollapsed ? "mx-auto" : ""}`}
+            />
+            {!isCollapsed && (
+              <span className="text-xs font-bold text-slate-400 tracking-wider uppercase">
+                Settings
+              </span>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            {settingsItems.map((item) => {
+              const isActive =
+                pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const Icon = item.icon;
+
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  title={item.name}
+                  className={`flex ${
+                    isCollapsed
+                      ? "flex-col items-center justify-center py-2 px-1 text-center"
+                      : "items-center gap-3 px-3 py-2"
+                  } rounded-xl text-sm font-medium transition-all group ${
+                    isActive
+                      ? "bg-slate-100 text-slate-900 shadow-sm border border-slate-200/50"
+                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
+                >
+                  <Icon
+                    className={`w-4 h-4 shrink-0 ${
+                      isActive
+                        ? "text-slate-700"
+                        : "text-slate-400 group-hover:text-slate-600"
+                    }`}
+                  />
+                  <span
+                    className={`${
+                      isCollapsed
+                        ? "text-[10px] font-semibold mt-1 tracking-tight truncate max-w-full"
+                        : "truncate"
+                    }`}
+                  >
+                    {item.name}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
       </nav>
 
       {/* 🟢 THE EXPANDED / COMPACT USER CARD */}
