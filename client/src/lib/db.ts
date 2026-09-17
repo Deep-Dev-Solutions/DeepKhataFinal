@@ -19,6 +19,8 @@ export interface LocalCustomer {
   id: string;
   name: string;
   phone: string;
+  shopName?: string;
+  address?: string;
   creditLimit?: number;
   isDefaulter?: boolean;
 }

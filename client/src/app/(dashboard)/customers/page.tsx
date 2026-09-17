@@ -19,6 +19,7 @@ type CustomerRow = {
   id: string;
   name: string;
   phone: string;
+  shopName?: string | null;
   totalOrders: number;
   lifetimeValue: number;
   balance: number;
@@ -45,6 +46,8 @@ function CustomersPageContent() {
   // Quick Add State
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
+  const [newShopName, setNewShopName] = useState("");
+  const [newAddress, setNewAddress] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
   // Debounce search query to prevent spamming the rate-limited endpoint
@@ -134,6 +137,8 @@ function CustomersPageContent() {
         body: JSON.stringify({
           name: nameTrimmed,
           phone: phoneTrimmed,
+          shopName: newShopName.trim() || undefined,
+          address: newAddress.trim() || undefined,
         }),
       });
 
@@ -148,6 +153,8 @@ function CustomersPageContent() {
       await refreshCustomers();
       setNewName("");
       setNewPhone("");
+      setNewShopName("");
+      setNewAddress("");
     } catch (error) {
       setPageError(
         error instanceof Error ? error.message : "Failed to add customer",
@@ -283,23 +290,43 @@ function CustomersPageContent() {
               {/* --- ⚡ INLINE QUICK-ADD ROW --- */}
               <tr className="bg-blue-50/30">
                 <td className="px-6 py-3">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newName}
-                      onChange={(e) => setNewName(e.target.value)}
-                      placeholder="+ New Customer Name"
-                      className="w-full bg-white border border-blue-200 rounded-lg py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-blue-300 font-medium"
-                      disabled={isSaving}
-                    />
-                    <input
-                      type="text"
-                      value={newPhone}
-                      onChange={(e) => setNewPhone(e.target.value)}
-                      placeholder="Phone Number"
-                      className="w-full bg-white border border-blue-200 rounded-lg py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-blue-300"
-                      disabled={isSaving}
-                    />
+                  <div className="flex flex-col gap-2 min-w-64">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newName}
+                        onChange={(e) => setNewName(e.target.value)}
+                        placeholder="+ New Customer Name"
+                        className="w-full bg-white border border-blue-200 rounded-lg py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-blue-300 font-medium"
+                        disabled={isSaving}
+                      />
+                      <input
+                        type="text"
+                        value={newPhone}
+                        onChange={(e) => setNewPhone(e.target.value)}
+                        placeholder="Phone Number"
+                        className="w-full bg-white border border-blue-200 rounded-lg py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-blue-300"
+                        disabled={isSaving}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newShopName}
+                        onChange={(e) => setNewShopName(e.target.value)}
+                        placeholder="Shop Name (Optional)"
+                        className="w-full bg-white border border-blue-200 rounded-lg py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-blue-300"
+                        disabled={isSaving}
+                      />
+                      <input
+                        type="text"
+                        value={newAddress}
+                        onChange={(e) => setNewAddress(e.target.value)}
+                        placeholder="Shop Address (Optional)"
+                        className="w-full bg-white border border-blue-200 rounded-lg py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-blue-300"
+                        disabled={isSaving}
+                      />
+                    </div>
                   </div>
                 </td>
                 <td className="px-6 py-3 text-slate-400">-</td>
@@ -357,6 +384,11 @@ function CustomersPageContent() {
                           <span className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
                             {customer.name}
                           </span>
+                          {customer.shopName && (
+                            <span className="text-slate-400 text-[11px] font-medium">
+                              {customer.shopName}
+                            </span>
+                          )}
                           <a
                             href={`tel:${customer.phone}`}
                             onClick={(e) => e.stopPropagation()}

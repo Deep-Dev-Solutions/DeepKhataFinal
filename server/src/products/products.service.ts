@@ -147,6 +147,7 @@ export class ProductsService {
       'MINOR_SCRATCHES',
       'WORKING',
       'DEAD_DONOR',
+      'DEFECTIVE',
     ];
     const sanitizedCondition = validConditions.includes(condition)
       ? condition
@@ -332,6 +333,7 @@ export class ProductsService {
       'MINOR_SCRATCHES',
       'WORKING',
       'DEAD_DONOR',
+      'DEFECTIVE',
     ];
     const sanitizedCondition = validConditions.includes(condition)
       ? condition
@@ -365,6 +367,21 @@ export class ProductsService {
       const updatedProduct = await tx.product.update({
         where: { id: product.id },
         data: { stock: { increment: qty } }
+      });
+
+      await tx.inventoryMovement.create({
+        data: {
+          productId: product.id,
+          cabinetId: finalCabinetId || null,
+          fromCondition: null,
+          toCondition: sanitizedCondition as any,
+          quantity: qty,
+          direction: 'IN',
+          referenceType: 'RESTOCK',
+          notes: 'Bulk restock',
+          userId,
+          businessId: currentUser.businessId,
+        },
       });
 
       return updatedProduct;

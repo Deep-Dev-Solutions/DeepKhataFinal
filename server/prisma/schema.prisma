@@ -96,6 +96,7 @@ model Customer {
   name  String
   phone String
 
+  shopName   String?
   email      String?
   address    String?
   cnicNumber String?

@@ -12,7 +12,7 @@ export class CustomersService {
   constructor(private prisma: PrismaService) {}
 
   async newCustomer(userId: string, data: any) {
-    const { name, phone } = data;
+    const { name, phone, shopName, address, email } = data;
 
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -32,7 +32,14 @@ export class CustomersService {
       );
 
     const customer = await this.prisma.customer.create({
-      data: { name, phone, businessId: currentUser.businessId },
+      data: {
+        name,
+        phone,
+        shopName: shopName || null,
+        address: address || null,
+        email: email || null,
+        businessId: currentUser.businessId,
+      },
     });
 
     return { success: true, customer };
@@ -111,6 +118,7 @@ export class CustomersService {
     if (search) {
       queryConditions.OR = [
         { name: { contains: search, mode: 'insensitive' } },
+        { shopName: { contains: search, mode: 'insensitive' } },
         { phone: { contains: search, mode: 'insensitive' } },
       ];
     }
@@ -121,6 +129,9 @@ export class CustomersService {
         id: true,
         name: true,
         phone: true,
+        shopName: true,
+        address: true,
+        email: true,
         _count: { select: { orders: true } },
         orders: {
           where: { status: { not: 'CANCELLED' } },
@@ -150,6 +161,9 @@ export class CustomersService {
         id: customer.id,
         name: customer.name,
         phone: customer.phone,
+        shopName: customer.shopName || '',
+        address: customer.address || '',
+        email: customer.email || '',
         totalOrders: customer._count.orders,
         lifetimeValue: lifetimeSpend,
         balance: outstandingBalance > 0 ? outstandingBalance : 0,
@@ -258,6 +272,7 @@ export class CustomersService {
       id: customer.id,
       name: customer.name,
       phone: customer.phone,
+      shopName: customer.shopName || '',
       email: customer.email || '',
       address: customer.address || '',
       cnic: customer.cnicNumber || '',

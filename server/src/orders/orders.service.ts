@@ -137,12 +137,30 @@ export class OrdersService {
             );
           }
 
+          let instanceStatus: 'SOLD' | 'MEMO_LOCKED' = 'SOLD';
           if (instances.length > 0) {
+            instanceStatus =
+              orderStatus === 'MEMO' ? 'MEMO_LOCKED' : 'SOLD';
             await tx.productInstance.updateMany({
               where: { id: { in: instances.map((i) => i.id) } },
-              data: { status: orderStatus === 'MEMO' ? 'MEMO_LOCKED' : 'SOLD' },
+              data: { status: instanceStatus },
             });
           }
+
+          await tx.inventoryMovement.create({
+            data: {
+              productId: item.productId,
+              cabinetId: instances[0]?.cabinetId || null,
+              fromCondition: item.condition || instances[0]?.condition || null,
+              toCondition: item.condition || instances[0]?.condition || null,
+              quantity: item.quantity,
+              direction: 'OUT',
+              referenceType: orderStatus === 'MEMO' ? 'MEMO' : 'ORDER',
+              referenceId: order.id,
+              userId,
+              businessId,
+            },
+          });
         }
 
         if (parsedAmountPaid > 0) {
@@ -347,6 +365,7 @@ export class OrdersService {
     } else if (status === 'RETURNED' && order.status === 'MEMO') {
       await this.prisma.$transaction(async (tx) => {
         for (const item of order.items) {
+          if (!item.productId) continue;
           await tx.product.update({
             where: { id: item.productId },
             data: { stock: { increment: item.quantity } },
@@ -362,6 +381,21 @@ export class OrdersService {
               data: { status: 'AVAILABLE' },
             });
           }
+
+          await tx.inventoryMovement.create({
+            data: {
+              productId: item.productId,
+              cabinetId: instances[0]?.cabinetId || null,
+              fromCondition: null,
+              toCondition: null,
+              quantity: item.quantity,
+              direction: 'IN',
+              referenceType: 'RETURN',
+              referenceId: order.id,
+              userId,
+              businessId: currentUser?.businessId,
+            },
+          });
         }
         await tx.order.update({
           where: { id },
@@ -371,6 +405,7 @@ export class OrdersService {
     } else if (status === 'CANCELLED' && order.status !== 'CANCELLED') {
       await this.prisma.$transaction(async (tx) => {
         for (const item of order.items) {
+          if (!item.productId) continue;
           await tx.product.update({
             where: { id: item.productId },
             data: { stock: { increment: item.quantity } },
@@ -388,6 +423,22 @@ export class OrdersService {
               data: { status: 'AVAILABLE' },
             });
           }
+
+          await tx.inventoryMovement.create({
+            data: {
+              productId: item.productId,
+              cabinetId: instances[0]?.cabinetId || null,
+              fromCondition: null,
+              toCondition: null,
+              quantity: item.quantity,
+              direction: 'IN',
+              referenceType: 'ADJUSTMENT',
+              notes: 'Order cancelled',
+              referenceId: order.id,
+              userId,
+              businessId: currentUser?.businessId,
+            },
+          });
         }
         await tx.order.update({
           where: { id },
@@ -662,6 +713,23 @@ export class OrdersService {
             data: { status: targetStatus },
           });
         }
+
+        await tx.inventoryMovement.create({
+          data: {
+            productId: returnItem.productId,
+            cabinetId: instances[0]?.cabinetId || null,
+            fromCondition: returnItem.condition || null,
+            toCondition: returnItem.returnCondition === 'DEFECTIVE'
+              ? 'DEFECTIVE'
+              : (returnItem.condition as any) || null,
+            quantity: returnItem.quantity,
+            direction: 'IN',
+            referenceType: 'RETURN',
+            referenceId: order.id,
+            userId,
+            businessId: order.businessId,
+          },
+        });
       }
 
       await tx.order.update({

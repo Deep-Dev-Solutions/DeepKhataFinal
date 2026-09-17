@@ -14,9 +14,7 @@ import {
   Tag,
   Barcode,
 } from "lucide-react";
-import AddProductModal, {
-  ProductFormValues,
-} from "@/components/modals/AddProductModal"; // 🟢 IMPORT MODAL
+import Link from "next/link";
 import { usePermissions } from "@/hooks/usePermissions";
 import { MapPin } from "lucide-react";
 
@@ -96,8 +94,7 @@ function ProductsPageContent() {
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [pageError, setPageError] = useState("");
 
-  // 🟢 MODAL STATES
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  // 🟢 STATES
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
 
@@ -166,23 +163,6 @@ function ProductsPageContent() {
       setIsLoadingProducts(false);
     }
   }, [debouncedSearchQuery, activeCategory, stockFilter]);
-
-  const handleAddProduct = async (newProduct: ProductFormValues) => {
-    const response = await fetch(`${API_BASE_URL}/product/addproduct`, {
-      method: "POST",
-      headers: getAuthHeaders(),
-      body: JSON.stringify(newProduct),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data?.message || data?.error || "Failed to add product");
-    }
-
-    setIsAddModalOpen(false);
-    await refreshProducts();
-  };
 
   const handleAddCategory = async () => {
     const trimmedName = newCategoryName.trim();
@@ -283,12 +263,12 @@ function ProductsPageContent() {
 
         {hasPermission("write:products") && (
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsAddModalOpen(true)}
+            <Link
+              href="/products/new"
               className="flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200"
             >
               <Plus className="w-4 h-4" /> Add Product
-            </button>
+            </Link>
           </div>
         )}
       </div>
@@ -542,15 +522,7 @@ function ProductsPageContent() {
           🟢 RENDER MODALS HERE
       ========================================== */}
 
-      {/* 1. Add Product Modal Component */}
-      <AddProductModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onAdd={handleAddProduct}
-        categories={categories}
-      />
-
-      {/* 2. Add Category Modal (Inline for now) */}
+      {/* Add Category Modal (Inline for now) */}
       {isCategoryModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div

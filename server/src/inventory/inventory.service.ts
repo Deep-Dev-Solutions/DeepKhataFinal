@@ -1,0 +1,148 @@
+import { Injectable, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+
+const VALID_CONDITIONS = [
+  'ORIGINAL_PULL',
+  'COPY',
+  'MINOR_SCRATCHES',
+  'WORKING',
+  'DEAD_DONOR',
+  'DEFECTIVE',
+];
+
+@Injectable()
+export class InventoryService {
+  constructor(private prisma: PrismaService) {}
+
+  async restock(userId: string, data: any) {
+    const { items } = data;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      throw new BadRequestException('Restock batch is empty');
+    }
+
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true },
+    });
+    if (!currentUser?.businessId)
+      throw new BadRequestException('User does not have an associated business');
+    const businessId = currentUser.businessId;
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const createdMovements: any[] = [];
+      let totalUnits = 0;
+
+      for (const item of items) {
+        const {
+          productId,
+          cabinetId,
+          branchId,
+          condition,
+          quantity,
+          notes,
+        } = item;
+
+        if (!productId)
+          throw new BadRequestException('Each restock line needs a productId');
+
+        const qty = Math.max(1, Number(quantity) || 1);
+
+        const product = await tx.product.findFirst({
+          where: { id: productId, businessId },
+        });
+        if (!product) throw new BadRequestException('Product not found');
+
+        const sanitizedCondition = VALID_CONDITIONS.includes(condition)
+          ? condition
+          : 'ORIGINAL_PULL';
+
+        let finalCabinetId = cabinetId || null;
+        if (finalCabinetId) {
+          const cabinet = await tx.cabinet.findFirst({
+            where: { id: finalCabinetId, businessId },
+          });
+          if (!cabinet) throw new BadRequestException('Cabinet not found');
+        }
+
+        if (branchId) {
+          const branch = await tx.branch.findFirst({
+            where: { id: branchId, businessId },
+          });
+          if (!branch) throw new BadRequestException('Branch not found');
+        }
+
+        await tx.productInstance.createMany({
+          data: Array.from({ length: qty }).map(() => ({
+            productId: product.id,
+            cabinetId: finalCabinetId,
+            condition: sanitizedCondition as any,
+            status: 'AVAILABLE' as any,
+          })),
+        });
+
+        await tx.product.update({
+          where: { id: product.id },
+          data: { stock: { increment: qty } },
+        });
+
+        const movement = await tx.inventoryMovement.create({
+          data: {
+            productId: product.id,
+            cabinetId: finalCabinetId,
+            fromCondition: null,
+            toCondition: sanitizedCondition as any,
+            quantity: qty,
+            direction: 'IN',
+            referenceType: 'RESTOCK',
+            referenceId: item.referenceId || null,
+            notes: notes || null,
+            userId,
+            businessId,
+          },
+        });
+
+        createdMovements.push(movement);
+        totalUnits += qty;
+      }
+
+      return {
+        movements: createdMovements,
+        totalUnits,
+        lineCount: items.length,
+      };
+    });
+
+    return {
+      success: true,
+      message: `Restocked ${result.totalUnits} units across ${result.lineCount} line(s).`,
+      movements: result.movements,
+    };
+  }
+
+  async getMovements(userId: string, query: any) {
+    const { productId, limit = 50 } = query;
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true },
+    });
+    if (!currentUser?.businessId)
+      throw new BadRequestException('No business found.');
+
+    const movements = await this.prisma.inventoryMovement.findMany({
+      where: {
+        businessId: currentUser.businessId,
+        ...(productId ? { productId } : {}),
+      },
+      include: {
+        product: { select: { name: true, sku: true } },
+        cabinet: { select: { name: true, location: true } },
+        user: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(parseInt(String(limit)) || 50, 200),
+    });
+
+    return { success: true, movements };
+  }
+}
