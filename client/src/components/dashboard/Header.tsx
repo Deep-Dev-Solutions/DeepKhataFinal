@@ -8,7 +8,10 @@ import {
   Package,
   AlertTriangle,
   Wallet,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
+import { useSidebar } from "@/context/SidebarContext";
 
 const mockNotifications = [
   {
@@ -38,6 +41,7 @@ const mockNotifications = [
 ];
 
 export default function Header() {
+  const { isCollapsed, toggleSidebar } = useSidebar();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -71,11 +75,25 @@ export default function Header() {
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 sticky top-0 z-50 px-4 sm:px-6 lg:px-8 flex items-center justify-between print:hidden">
+      {/* Desktop Sidebar Toggle */}
+      <button
+        type="button"
+        onClick={toggleSidebar}
+        className="hidden md:flex items-center justify-center p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors mr-2 cursor-pointer border border-slate-200/60 shadow-xs"
+        title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+      >
+        {isCollapsed ? (
+          <PanelLeftOpen className="w-5 h-5 text-blue-600" />
+        ) : (
+          <PanelLeftClose className="w-5 h-5 text-slate-600" />
+        )}
+      </button>
+
       <div className="md:hidden font-bold text-lg text-slate-900 tracking-tight">
         DeepKhata
       </div>
 
-      <div className="hidden md:flex flex-1 max-w-md ml-4">
+      <div className="hidden md:flex flex-1 max-w-md ml-2">
         <div className="relative w-full">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search className="h-4 w-4 text-slate-400" />
