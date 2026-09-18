@@ -3,6 +3,7 @@ import {
   BadRequestException,
   NotFoundException,
   UnauthorizedException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../ledger/ledger.service';
@@ -746,114 +747,128 @@ export class OrdersService {
       throw new BadRequestException('No items provided to return');
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      let refundAmount = 0;
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        let refundAmount = 0;
 
-      for (const returnItem of itemsToReturn) {
-        const orderItem = order.items.find(
-          (i) => i.productId === returnItem.productId,
-        );
-        if (!orderItem) {
-          throw new BadRequestException(
-            `Product ${returnItem.productId} not found in order`,
+        for (const returnItem of itemsToReturn) {
+          const orderItem = order.items.find(
+            (i) => i.productId === returnItem.productId,
           );
-        }
+          if (!orderItem) {
+            throw new BadRequestException(
+              `Product ${returnItem.productId} not found in order`,
+            );
+          }
 
-        refundAmount += orderItem.price * returnItem.quantity;
+          refundAmount += orderItem.price * returnItem.quantity;
 
-        const targetStatus =
-          returnItem.returnCondition === 'DEFECTIVE'
-            ? 'DEFECTIVE'
-            : 'AVAILABLE';
+          const targetStatus =
+            returnItem.returnCondition === 'DEFECTIVE'
+              ? 'DEFECTIVE'
+              : 'AVAILABLE';
 
-        if (targetStatus === 'AVAILABLE') {
-          await tx.product.update({
-            where: { id: returnItem.productId },
-            data: { stock: { increment: returnItem.quantity } },
+          if (targetStatus === 'AVAILABLE') {
+            await tx.product.update({
+              where: { id: returnItem.productId },
+              data: { stock: { increment: returnItem.quantity } },
+            });
+          }
+
+          const instanceStatus =
+            order.status === 'MEMO' ? 'MEMO_LOCKED' : 'SOLD';
+          const conditionFilter = returnItem.condition
+            ? { condition: returnItem.condition }
+            : {};
+
+          const instances = await tx.productInstance.findMany({
+            where: {
+              productId: returnItem.productId,
+              status: instanceStatus,
+              ...conditionFilter,
+            },
+            take: returnItem.quantity,
+          });
+
+          if (instances.length > 0) {
+            await tx.productInstance.updateMany({
+              where: { id: { in: instances.map((i) => i.id) } },
+              data: { status: targetStatus },
+            });
+          }
+
+          await tx.inventoryMovement.create({
+            data: {
+              productId: returnItem.productId,
+              cabinetId: instances[0]?.cabinetId || null,
+              fromCondition: returnItem.condition || null,
+              toCondition:
+                returnItem.returnCondition === 'DEFECTIVE'
+                  ? 'DEFECTIVE'
+                  : (returnItem.condition as any) || 'ORIGINAL_PULL',
+              quantity: returnItem.quantity,
+              direction: 'IN',
+              referenceType: 'RETURN',
+              referenceId: order.id,
+              userId,
+              businessId: order.businessId,
+            },
           });
         }
 
-        const instanceStatus = order.status === 'MEMO' ? 'MEMO_LOCKED' : 'SOLD';
-        const conditionFilter = returnItem.condition
-          ? { condition: returnItem.condition }
-          : {};
-
-        const instances = await tx.productInstance.findMany({
-          where: {
-            productId: returnItem.productId,
-            status: instanceStatus,
-            ...conditionFilter,
-          },
-          take: returnItem.quantity,
+        await tx.order.update({
+          where: { id },
+          data: { status: 'RETURNED' },
         });
 
-        if (instances.length > 0) {
-          await tx.productInstance.updateMany({
-            where: { id: { in: instances.map((i) => i.id) } },
-            data: { status: targetStatus },
-          });
-        }
+        if (order.status === 'FINAL') {
+          const postings = [];
 
-        await tx.inventoryMovement.create({
-          data: {
-            productId: returnItem.productId,
-            cabinetId: instances[0]?.cabinetId || null,
-            fromCondition: returnItem.condition || null,
-            toCondition:
-              returnItem.returnCondition === 'DEFECTIVE'
-                ? 'DEFECTIVE'
-                : (returnItem.condition as any) || null,
-            quantity: returnItem.quantity,
-            direction: 'IN',
-            referenceType: 'RETURN',
-            referenceId: order.id,
-            userId,
+          postings.push({
+            accountId: 'REVENUE',
+            accountType: 'REVENUE',
+            amount: refundAmount,
+          });
+
+          const totalPaid = order.payments.reduce(
+            (sum, p) => sum + p.amount,
+            0,
+          );
+          if (totalPaid > 0) {
+            postings.push({
+              accountId: 'CASH',
+              accountType: 'ASSET',
+              amount: -Math.min(refundAmount, totalPaid),
+            });
+          }
+
+          const remainingRefund = refundAmount - totalPaid;
+          if (remainingRefund > 0 && order.customerId) {
+            postings.push({
+              accountId: order.customerId,
+              accountType: 'CUSTOMER_AR',
+              amount: -remainingRefund,
+            });
+          }
+
+          await this.ledgerService.createBalancedTransaction({
             businessId: order.businessId,
-          },
-        });
-      }
-
-      await tx.order.update({
-        where: { id },
-        data: { status: 'RETURNED' },
+            referenceId: `RET-${order.id}`,
+            type: 'RETURN',
+            description: `Return for Order ${order.id}`,
+            postings,
+          });
+        }
       });
-
-      if (order.status === 'FINAL') {
-        const postings = [];
-
-        postings.push({
-          accountId: 'REVENUE',
-          accountType: 'REVENUE',
-          amount: refundAmount,
-        });
-
-        const totalPaid = order.payments.reduce((sum, p) => sum + p.amount, 0);
-        if (totalPaid > 0) {
-          postings.push({
-            accountId: 'CASH',
-            accountType: 'ASSET',
-            amount: -Math.min(refundAmount, totalPaid),
-          });
-        }
-
-        const remainingRefund = refundAmount - totalPaid;
-        if (remainingRefund > 0 && order.customerId) {
-          postings.push({
-            accountId: order.customerId,
-            accountType: 'CUSTOMER_AR',
-            amount: -remainingRefund,
-          });
-        }
-
-        await this.ledgerService.createBalancedTransaction({
-          businessId: order.businessId,
-          referenceId: `RET-${order.id}`,
-          type: 'RETURN',
-          description: `Return for Order ${order.id}`,
-          postings,
-        });
+    } catch (error) {
+      console.error('Failed to process return:', error);
+      if (error instanceof BadRequestException) {
+        throw error;
       }
-    });
+      throw new InternalServerErrorException(
+        'Failed to process return. Please check inventory condition mapping or ledger invariant.',
+      );
+    }
 
     return { success: true, message: 'Return processed successfully' };
   }

@@ -18,6 +18,7 @@ import { SyncModule } from './sync/sync.module';
 import { CashModule } from './cash/cash.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { VendorsModule } from './vendors/vendors.module.js';
+import { BusinessModule } from './business/business.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { VendorsModule } from './vendors/vendors.module.js';
     CashModule,
     InventoryModule,
     VendorsModule,
+    BusinessModule,
   ],
   controllers: [AppController],
   providers: [AppService],
