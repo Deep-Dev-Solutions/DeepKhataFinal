@@ -97,6 +97,19 @@ export function middleware(request: NextRequest) {
       }
       return NextResponse.redirect(loginUrl);
     }
+    // 5a. Block STAFF from reports and settings routes
+    if (role === "STAFF") {
+      const isStaffRestricted =
+        pathname === "/reports" ||
+        pathname.startsWith("/reports/") ||
+        pathname === "/settings" ||
+        pathname.startsWith("/settings/");
+
+      if (isStaffRestricted) {
+        return NextResponse.redirect(new URL("/dashboard", request.url));
+      }
+    }
+
     // Authenticated users (whether OWNER, STAFF, or SUPER_ADMIN) proceed directly to the requested merchant route.
     return NextResponse.next();
   }

@@ -3,6 +3,7 @@ import {
   BadRequestException,
   NotFoundException,
   UnauthorizedException,
+  ForbiddenException,
   InternalServerErrorException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -351,8 +352,14 @@ export class OrdersService {
 
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { businessId: true },
+      select: { businessId: true, role: true },
     });
+
+    if (status === 'CANCELLED' && currentUser?.role === 'STAFF') {
+      throw new ForbiddenException(
+        'Staff members are not permitted to cancel orders',
+      );
+    }
 
     const order = await this.prisma.order.findFirst({
       where: { id, businessId: currentUser?.businessId },

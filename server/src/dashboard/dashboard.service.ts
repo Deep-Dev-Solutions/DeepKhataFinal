@@ -52,53 +52,87 @@ export class DashboardService {
     startOfSevenDays.setDate(startOfSevenDays.getDate() - 6);
     startOfSevenDays.setHours(0, 0, 0, 0);
 
-    const [orders, todaysOrders, unpaidOrders, paymentBreakdown] =
-      await Promise.all([
-        this.prisma.order.findMany({
-          where: { businessId, status: { not: 'CANCELLED' } },
-          include: {
-            customer: { select: { name: true } },
-            payments: { select: { amount: true } },
+    const [
+      orders,
+      todaysOrdersWithItems,
+      unpaidOrders,
+      paymentBreakdown,
+      todaysExpenses,
+      yesterdaysOrders,
+    ] = await Promise.all([
+      this.prisma.order.findMany({
+        where: { businessId, status: { not: 'CANCELLED' } },
+        include: {
+          customer: { select: { name: true } },
+          payments: { select: { amount: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      }),
+      this.prisma.order.findMany({
+        where: {
+          businessId,
+          status: { not: 'CANCELLED' },
+          createdAt: { gte: startOfToday },
+        },
+        include: {
+          items: {
+            include: {
+              product: { select: { costPrice: true, price: true } },
+            },
           },
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-        }),
-        this.prisma.order.findMany({
+        },
+      }),
+      this.prisma.order.findMany({
+        where: {
+          businessId,
+          status: { not: 'CANCELLED' },
+          paymentStatus: { in: ['UNPAID', 'PARTIAL'] },
+        },
+        select: {
+          id: true,
+          totalAmount: true,
+          paymentStatus: true,
+          customerId: true,
+          createdAt: true,
+          payments: { select: { amount: true } },
+        },
+      }),
+      this.prisma.payment.groupBy({
+        by: ['method'],
+        _sum: { amount: true },
+        where: {
+          order: { businessId, createdAt: { gte: startOfSevenDays } },
+        },
+      }),
+      this.prisma.expense.findMany({
+        where: {
+          businessId,
+          createdAt: { gte: startOfToday },
+        },
+        select: { amount: true },
+      }),
+      (() => {
+        const startOfYesterday = new Date(startOfToday);
+        startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+        return this.prisma.order.findMany({
           where: {
             businessId,
             status: { not: 'CANCELLED' },
-            createdAt: { gte: startOfToday },
+            createdAt: { gte: startOfYesterday, lt: startOfToday },
           },
           select: { totalAmount: true },
-        }),
-        this.prisma.order.findMany({
-          where: {
-            businessId,
-            status: { not: 'CANCELLED' },
-            paymentStatus: { in: ['UNPAID', 'PARTIAL'] },
-          },
-          select: {
-            id: true,
-            totalAmount: true,
-            paymentStatus: true,
-            customerId: true,
-            createdAt: true,
-            payments: { select: { amount: true } },
-          },
-        }),
-        this.prisma.payment.groupBy({
-          by: ['method'],
-          _sum: { amount: true },
-          where: {
-            order: { businessId, createdAt: { gte: startOfSevenDays } },
-          },
-        }),
-      ]);
+        });
+      })(),
+    ]);
 
-    const todayRevenue = todaysOrders.reduce(
+    // 1. Daily Gross Sales
+    const dailyGrossSales = todaysOrdersWithItems.reduce(
       (sum, order) => sum + (Number(order.totalAmount) || 0),
       0,
     );
+
+    // 2. Total Pending Customer Udhar
     const pendingPayments = unpaidOrders.reduce((sum, order) => {
       const totalPaid = order.payments.reduce(
         (paymentSum, payment) => paymentSum + Number(payment.amount || 0),
@@ -107,12 +141,47 @@ export class DashboardService {
       return sum + Math.max(0, Number(order.totalAmount || 0) - totalPaid);
     }, 0);
 
+    // 3. Daily Cost of Goods Sold (COGS)
+    let dailyCOGS = 0;
+    for (const order of todaysOrdersWithItems) {
+      for (const item of order.items) {
+        if (!item.isService) {
+          const unitCost = Number(item.product?.costPrice ?? 0);
+          dailyCOGS += unitCost * item.quantity;
+        }
+      }
+    }
+
+    // 4. Daily Expenses
+    const dailyExpenses = todaysExpenses.reduce(
+      (sum, exp) => sum + (Number(exp.amount) || 0),
+      0,
+    );
+
+    // 5. Net Profit = Gross Revenue - COGS - Daily Expenses
+    const netProfit = dailyGrossSales - dailyCOGS - dailyExpenses;
+    const profitMargin =
+      dailyGrossSales > 0 ? (netProfit / dailyGrossSales) * 100 : 0;
+
+    // 6. Revenue trend compared to yesterday
+    const yesterdayRevenue = yesterdaysOrders.reduce(
+      (sum, o) => sum + (Number(o.totalAmount) || 0),
+      0,
+    );
+    const revenueGrowth =
+      yesterdayRevenue > 0
+        ? ((dailyGrossSales - yesterdayRevenue) / yesterdayRevenue) * 100
+        : dailyGrossSales > 0
+          ? 100
+          : 0;
+
     const activeOrders = await this.prisma.order.count({
       where: { businessId, status: { not: 'CANCELLED' } },
     });
 
     const pendingOrderCount = unpaidOrders.length;
 
+    // 7-day revenue chart data
     const chartData = [];
     for (let i = 6; i >= 0; i -= 1) {
       const date = new Date(now);
@@ -162,9 +231,24 @@ export class DashboardService {
       relativeTime: this.formatRelativeTime(order.createdAt),
     }));
 
+    const isStaff = currentUser?.role === 'STAFF';
+
     return {
       success: true,
-      kpis: { todayRevenue, pendingPayments, activeOrders, pendingOrderCount },
+      kpis: {
+        todayRevenue: dailyGrossSales,
+        dailyGrossSales,
+        pendingPayments,
+        pendingUdhar: pendingPayments,
+        dailyCOGS: isStaff ? null : dailyCOGS,
+        dailyExpenses: isStaff ? null : dailyExpenses,
+        netProfit: isStaff ? null : netProfit,
+        profitMargin: isStaff ? null : Number(profitMargin.toFixed(1)),
+        revenueGrowth: Number(revenueGrowth.toFixed(1)),
+        activeOrders,
+        pendingOrderCount,
+        isStaff,
+      },
       chartData,
       paymentHealth,
       recentOrders,

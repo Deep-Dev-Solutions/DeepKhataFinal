@@ -15,6 +15,7 @@ import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { Role } from '@prisma/client';
 import { ThrottlerGuard } from '@nestjs/throttler';
 
 @Controller('product')
@@ -83,15 +84,17 @@ export class ProductsController {
   }
 
   @Post('category/:id/delete')
-  @UseGuards(PermissionsGuard)
+  @UseGuards(PermissionsGuard, RolesGuard)
   @RequirePermissions('write:products')
+  @Roles(Role.OWNER, Role.SUPER_ADMIN)
   async deleteCategory(@Req() req: any, @Param('id') id: string) {
     return this.productsService.deleteCategory(req.user.id, id);
   }
 
   @Post('cabinet/:id/delete')
-  @UseGuards(PermissionsGuard)
+  @UseGuards(PermissionsGuard, RolesGuard)
   @RequirePermissions('write:products')
+  @Roles(Role.OWNER, Role.SUPER_ADMIN)
   async deleteCabinet(@Req() req: any, @Param('id') id: string) {
     return this.productsService.deleteCabinet(req.user.id, id);
   }

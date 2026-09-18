@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -38,6 +38,8 @@ import OrderSuccessModal, {
   type CompletedOrderData,
 } from "@/components/modals/OrderSuccessModal";
 import NewCustomerModal from "@/components/modals/NewCustomerModal";
+import { useAuth } from "@/context/AuthContext";
+import { API_BASE_URL } from "@/lib/auth";
 
 type Product = {
   id: string;
@@ -70,6 +72,15 @@ function CreateOrderPOSContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isOnline, pendingCount, triggerSync } = useOfflineSync();
+  const { user } = useAuth();
+
+  // 🟢 BARCODE SCANNER FOCUS TRAP STATES
+  const [scanFeedback, setScanFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+  const scanBufferRef = useRef<string>("");
+  const lastKeyTimeRef = useRef<number>(0);
 
   // 1. API & CATALOG STATES
   const [products, setProducts] = useState<Product[]>([]);
@@ -572,6 +583,127 @@ function CreateOrderPOSContent() {
     setExpandedConditionProduct(null);
   };
 
+  // 🟢 BARCODE SCANNER FOCUS TRAP HANDLER
+  const handleBarcodeScan = useCallback(
+    async (scannedSku: string) => {
+      const cleanSku = scannedSku.trim();
+      if (!cleanSku) return;
+
+      // 1. Try to find in local products state
+      let targetProduct = products.find(
+        (p) => p.sku && p.sku.trim().toLowerCase() === cleanSku.toLowerCase(),
+      );
+
+      // 2. Try to find in Dexie IndexedDB cache if not found locally
+      if (!targetProduct) {
+        try {
+          const allCached = await offlineDb.products.toArray();
+          targetProduct = allCached.find(
+            (p) =>
+              p.sku && p.sku.trim().toLowerCase() === cleanSku.toLowerCase(),
+          ) as Product | undefined;
+        } catch {}
+      }
+
+      // 3. Fallback: Query backend by exact SKU/search
+      if (!targetProduct) {
+        try {
+          const token = localStorage.getItem("accessToken");
+          const res = await fetch(
+            `${API_BASE_URL}/product/getproducts?search=${encodeURIComponent(cleanSku)}`,
+            {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            },
+          );
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && Array.isArray(data.products)) {
+              targetProduct = data.products.find(
+                (p: any) =>
+                  p.sku &&
+                  p.sku.trim().toLowerCase() === cleanSku.toLowerCase(),
+              );
+            }
+          }
+        } catch {}
+      }
+
+      if (targetProduct) {
+        const availableInstances =
+          targetProduct.instances?.filter((i) => i.status === "AVAILABLE") ||
+          [];
+        const condition = availableInstances[0]?.condition || "ORIGINAL_PULL";
+
+        addToCart(targetProduct, condition);
+        setScanFeedback({
+          type: "success",
+          message: `Scanned: "${targetProduct.name}" (SKU: ${cleanSku}) added to cart!`,
+        });
+      } else {
+        setScanFeedback({
+          type: "error",
+          message: `No product found for scanned SKU: "${cleanSku}"`,
+        });
+      }
+
+      setTimeout(() => {
+        setScanFeedback(null);
+      }, 4000);
+    },
+    [products],
+  );
+
+  // 🟢 GLOBAL KEYBOARD FOCUS TRAP FOR BARCODE SCANNERS
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Ignore system shortcuts
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+      const now = Date.now();
+      const timeDiff = now - lastKeyTimeRef.current;
+      lastKeyTimeRef.current = now;
+
+      if (e.key === "Enter") {
+        const buffered = scanBufferRef.current.trim();
+        // Hardware scanners output characters rapidly (< 75ms between keys) followed by Enter
+        if (buffered.length >= 2) {
+          e.preventDefault();
+          e.stopPropagation();
+          scanBufferRef.current = "";
+          handleBarcodeScan(buffered);
+
+          // Clear any input field that captured the barcode characters
+          const activeEl = document.activeElement as HTMLInputElement | null;
+          if (
+            activeEl &&
+            (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA")
+          ) {
+            if (activeEl.value.includes(buffered)) {
+              activeEl.value = activeEl.value.replace(buffered, "").trim();
+            }
+          }
+          return;
+        }
+        scanBufferRef.current = "";
+        return;
+      }
+
+      if (e.key.length === 1) {
+        // If typing speed is human pace (> 75ms), reset buffer
+        if (timeDiff > 75) {
+          scanBufferRef.current = e.key;
+        } else {
+          scanBufferRef.current += e.key;
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", handleGlobalKeyDown, true);
+    };
+  }, [handleBarcodeScan]);
+
   const addServiceToCart = () => {
     if (!serviceName || !servicePrice)
       return alert("Service Name and Price are required.");
@@ -844,6 +976,27 @@ function CreateOrderPOSContent() {
         </div>
       )}
 
+      {scanFeedback && (
+        <div
+          className={`mx-3 sm:mx-6 mt-2 p-2.5 rounded-xl border flex items-center justify-between text-xs font-bold shadow-sm animate-in fade-in slide-in-from-top-2 duration-200 ${
+            scanFeedback.type === "success"
+              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+              : "bg-rose-50 text-rose-800 border-rose-200"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <Barcode className="w-4 h-4 text-blue-600" />
+            <span>{scanFeedback.message}</span>
+          </div>
+          <button
+            onClick={() => setScanFeedback(null)}
+            className="text-slate-400 hover:text-slate-700 px-1"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* ==================================================
           THREE-COLUMN RESIZABLE LAYOUT WITH HORIZONTAL SCROLL
           Side-by-side columns: Catalog | Cart | Checkout
@@ -856,6 +1009,18 @@ function CreateOrderPOSContent() {
             className="flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm min-h-0 shrink-0 min-w-[280px]"
           >
             <div className="p-3.5 border-b border-slate-100 shrink-0 bg-slate-50/50 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Catalog
+                </span>
+                <span
+                  title="USB/Bluetooth barcode scanner focus trap is globally active. Any rapid scan will auto-add item to cart."
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Auto-Scanner Active
+                </span>
+              </div>
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
                   <Search className="h-4 w-4 text-slate-400 absolute left-3 top-3" />
@@ -864,7 +1029,7 @@ function CreateOrderPOSContent() {
                     autoFocus
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search products..."
+                    placeholder="Search products or scan barcode (SKU)..."
                     className="w-full pl-9 pr-9 py-2 border border-slate-200 rounded-xl text-xs sm:text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
                   />
                   <Barcode className="h-4 w-4 text-slate-400 absolute right-3 top-2.5" />
@@ -1323,14 +1488,16 @@ function CreateOrderPOSContent() {
                           </p>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => removeItem(item.id, item.condition)}
-                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors shrink-0"
-                        title="Remove item"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {user?.role !== "STAFF" && (
+                        <button
+                          type="button"
+                          onClick={() => removeItem(item.id, item.condition)}
+                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors shrink-0"
+                          title="Remove item"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
 
                     {/* Row 2: Unit Price & Condition Tags */}

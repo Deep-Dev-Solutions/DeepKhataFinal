@@ -29,11 +29,12 @@ import {
 } from "lucide-react";
 import { generateWhatsAppReceipt } from "@/lib/utils";
 
-// You will need to create this modal component next!
 import RecordPaymentModal from "@/components/modals/RecordPaymentModal";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { useAuth } from "@/context/AuthContext";
 
 export default function OrderDetailsLedger() {
+  const { user } = useAuth();
   const { id } = useParams(); // The secret UUID from the URL
   const router = useRouter();
 
@@ -834,7 +835,7 @@ export default function OrderDetailsLedger() {
             </div>
           </div>
 
-          {order.status !== "CANCELLED" && (
+          {order.status !== "CANCELLED" && user?.role !== "STAFF" && (
             <div className="bg-white p-5 rounded-2xl border border-rose-200 shadow-sm">
               <h3 className="text-xs font-bold text-rose-600 uppercase tracking-wider mb-2 flex items-center gap-2">
                 <AlertCircle className="w-4 h-4" /> Danger Zone

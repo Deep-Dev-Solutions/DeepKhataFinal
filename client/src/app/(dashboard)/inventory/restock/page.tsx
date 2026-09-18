@@ -16,6 +16,7 @@ import {
   Warehouse,
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { useAuth } from "@/context/AuthContext";
 
 type Branch = {
   id: string;
@@ -63,6 +64,7 @@ const CONDITIONS = [
 ];
 
 export default function RestockPage() {
+  const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [activeCategory, setActiveCategory] = useState("All");
@@ -578,12 +580,15 @@ export default function RestockPage() {
                         {line.quantity}
                       </td>
                       <td className="py-2.5 text-right">
-                        <button
-                          onClick={() => removeLine(index)}
-                          className="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {user?.role !== "STAFF" && (
+                          <button
+                            onClick={() => removeLine(index)}
+                            className="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title="Remove line"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

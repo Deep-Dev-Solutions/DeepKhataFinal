@@ -3,11 +3,15 @@ import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { Role } from '@prisma/client';
 import { ThrottlerGuard } from '@nestjs/throttler';
 
 @Controller('reports')
-@UseGuards(ThrottlerGuard, JwtAuthGuard, PermissionsGuard)
+@UseGuards(ThrottlerGuard, JwtAuthGuard, PermissionsGuard, RolesGuard)
 @RequirePermissions('read:reports')
+@Roles(Role.OWNER, Role.SUPER_ADMIN)
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 

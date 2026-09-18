@@ -119,7 +119,13 @@ export default function Sidebar() {
         }`}
       >
         {navItems.map((item) => {
-          if (item.name === "Reports" && !hasPermission("read:reports")) {
+          if (
+            item.name === "Reports" &&
+            (user?.role === "STAFF" || !hasPermission("read:reports"))
+          ) {
+            return null;
+          }
+          if (item.name === "Settings" && user?.role === "STAFF") {
             return null;
           }
 
@@ -162,60 +168,63 @@ export default function Sidebar() {
           );
         })}
 
-        {/* 🟢 Settings Group */}
-        <div className={`pt-4 pb-2 ${isCollapsed ? "px-1" : "px-3"}`}>
-          <div className="flex items-center gap-2 mb-2 px-1">
-            <Settings
-              className={`w-4 h-4 text-slate-400 ${isCollapsed ? "mx-auto" : ""}`}
-            />
-            {!isCollapsed && (
-              <span className="text-xs font-bold text-slate-400 tracking-wider uppercase">
-                Settings
-              </span>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            {settingsItems.map((item) => {
-              const isActive =
-                pathname === item.href || pathname.startsWith(`${item.href}/`);
-              const Icon = item.icon;
+        {/* 🟢 Settings Group (Hidden for STAFF) */}
+        {user?.role !== "STAFF" && (
+          <div className={`pt-4 pb-2 ${isCollapsed ? "px-1" : "px-3"}`}>
+            <div className="flex items-center gap-2 mb-2 px-1">
+              <Settings
+                className={`w-4 h-4 text-slate-400 ${isCollapsed ? "mx-auto" : ""}`}
+              />
+              {!isCollapsed && (
+                <span className="text-xs font-bold text-slate-400 tracking-wider uppercase">
+                  Settings
+                </span>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              {settingsItems.map((item) => {
+                const isActive =
+                  pathname === item.href ||
+                  pathname.startsWith(`${item.href}/`);
+                const Icon = item.icon;
 
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  title={item.name}
-                  className={`flex ${
-                    isCollapsed
-                      ? "flex-col items-center justify-center py-2 px-1 text-center"
-                      : "items-center gap-3 px-3 py-2"
-                  } rounded-xl text-sm font-medium transition-all group ${
-                    isActive
-                      ? "bg-slate-100 text-slate-900 shadow-sm border border-slate-200/50"
-                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                  }`}
-                >
-                  <Icon
-                    className={`w-4 h-4 shrink-0 ${
-                      isActive
-                        ? "text-slate-700"
-                        : "text-slate-400 group-hover:text-slate-600"
-                    }`}
-                  />
-                  <span
-                    className={`${
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    title={item.name}
+                    className={`flex ${
                       isCollapsed
-                        ? "text-[10px] font-semibold mt-1 tracking-tight truncate max-w-full"
-                        : "truncate"
+                        ? "flex-col items-center justify-center py-2 px-1 text-center"
+                        : "items-center gap-3 px-3 py-2"
+                    } rounded-xl text-sm font-medium transition-all group ${
+                      isActive
+                        ? "bg-slate-100 text-slate-900 shadow-sm border border-slate-200/50"
+                        : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                     }`}
                   >
-                    {item.name}
-                  </span>
-                </Link>
-              );
-            })}
+                    <Icon
+                      className={`w-4 h-4 shrink-0 ${
+                        isActive
+                          ? "text-slate-700"
+                          : "text-slate-400 group-hover:text-slate-600"
+                      }`}
+                    />
+                    <span
+                      className={`${
+                        isCollapsed
+                          ? "text-[10px] font-semibold mt-1 tracking-tight truncate max-w-full"
+                          : "truncate"
+                      }`}
+                    >
+                      {item.name}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </nav>
 
       {/* 🟢 Pinned Compact User Card with Logout */}

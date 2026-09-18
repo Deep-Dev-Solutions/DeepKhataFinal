@@ -10,12 +10,16 @@ import {
 } from '@nestjs/common';
 import { SettingsService } from './settings.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { Role } from '@prisma/client';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { storage } from '../utils/cloudinary.storage';
 
 @Controller('settings')
-@UseGuards(ThrottlerGuard, JwtAuthGuard)
+@UseGuards(ThrottlerGuard, JwtAuthGuard, RolesGuard)
+@Roles(Role.OWNER, Role.SUPER_ADMIN)
 export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
 
