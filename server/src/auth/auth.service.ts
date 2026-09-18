@@ -2,6 +2,7 @@ import {
   Injectable,
   BadRequestException,
   UnauthorizedException,
+  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
@@ -39,6 +40,8 @@ export class AuthService {
     const accesstoken = this.jwtService.sign(
       {
         id: NewUser.id,
+        name: NewUser.name,
+        email: NewUser.email,
         role: NewUser.role,
         businessId: NewUser.businessId,
       },
@@ -70,6 +73,8 @@ export class AuthService {
     const accesstoken = this.jwtService.sign(
       {
         id: existinguser.id,
+        name: existinguser.name,
+        email: existinguser.email,
         role: existinguser.role,
         businessId: existinguser.businessId,
       },
@@ -99,6 +104,28 @@ export class AuthService {
       accessToken: accesstoken,
       user: existinguser,
     });
+  }
+
+  async getMe(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        businessId: true,
+        phone: true,
+        avatarUrl: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return user;
   }
 
   logout(res: Response) {

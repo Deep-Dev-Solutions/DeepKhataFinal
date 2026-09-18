@@ -1,29 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import MobileNav from "@/components/dashboard/MobileNav";
 import Header from "@/components/dashboard/Header";
 import { SidebarProvider, useSidebar } from "@/context/SidebarContext";
-
-function isTokenExpired(token: string): boolean {
-  try {
-    const base64Url = token.split(".")[1];
-    if (!base64Url) return true;
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join(""),
-    );
-    const payload = JSON.parse(jsonPayload);
-    return Date.now() >= payload.exp * 1000;
-  } catch {
-    return true;
-  }
-}
+import { useAuth } from "@/context/AuthContext";
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { isCollapsed } = useSidebar();
@@ -59,21 +41,15 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const router = useRouter();
-  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const { isAuthenticated, isLoading, logout } = useAuth();
 
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
-    if (!token || isTokenExpired(token)) {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("user");
-      router.replace("/login");
-    } else {
-      setIsAuthorized(true);
+    if (!isLoading && !isAuthenticated) {
+      logout();
     }
-  }, [router]);
+  }, [isLoading, isAuthenticated, logout]);
 
-  if (isAuthorized === null) {
+  if (isLoading || !isAuthenticated) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center font-sans text-slate-500">
         <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-2" />

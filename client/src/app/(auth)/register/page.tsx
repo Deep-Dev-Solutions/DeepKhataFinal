@@ -5,9 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { Store, Mail, Lock, User, ArrowRight } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { API_BASE_URL } from "@/lib/auth";
 
 function RegisterPageContent() {
   const router = useRouter();
+  const { setSession } = useAuth();
   const searchParams = useSearchParams();
   const invitedEmail = searchParams.get("email") || "";
   const [name, setName] = useState("");
@@ -24,7 +27,7 @@ function RegisterPageContent() {
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:5000/auth/register", {
+      const res = await fetch(`${API_BASE_URL}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, password }),
@@ -35,10 +38,7 @@ function RegisterPageContent() {
       if (!res.ok) throw new Error(data?.message || "Registration failed");
 
       if (data?.accessToken) {
-        localStorage.setItem("accessToken", data.accessToken);
-      }
-      if (data?.user) {
-        localStorage.setItem("user", JSON.stringify(data.user));
+        setSession(data.accessToken, data.user);
       }
 
       setSuccess(data?.message || "Account created successfully");

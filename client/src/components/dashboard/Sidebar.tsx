@@ -23,16 +23,18 @@ import {
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSidebar } from "@/context/SidebarContext";
+import { useAuth } from "@/context/AuthContext";
 
 const navItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Orders", href: "/orders", icon: ShoppingCart },
   { name: "Products", href: "/products", icon: Package },
-  { name: "Inventory", href: "/inventory/restock", icon: Warehouse },
   { name: "Vendors", href: "/vendors", icon: Truck },
   { name: "Customers", href: "/customers", icon: Users },
-  { name: "Cash Hub", href: "/cash", icon: Banknote },
+  { name: "Cash Register", href: "/cash", icon: Banknote },
+  { name: "Inventory", href: "/inventory/restock", icon: Warehouse },
   { name: "Reports", href: "/reports", icon: BarChart3 },
+  { name: "Settings", href: "/settings", icon: Settings },
 ];
 
 const settingsItems = [
@@ -46,22 +48,7 @@ export default function Sidebar() {
   const router = useRouter();
   const { hasPermission } = usePermissions();
   const { isCollapsed, toggleSidebar } = useSidebar();
-  const [user, setUser] = useState<{
-    name?: string;
-    email?: string;
-    role?: string;
-  } | null>(null);
-
-  useEffect(() => {
-    const rawUser = localStorage.getItem("user");
-    if (!rawUser) return;
-
-    try {
-      setUser(JSON.parse(rawUser));
-    } catch {
-      setUser(null);
-    }
-  }, []);
+  const { user, logout } = useAuth();
 
   const initials = useMemo(() => {
     const name = user?.name || "Ali Khan";
@@ -74,20 +61,7 @@ export default function Sidebar() {
   }, [user]);
 
   const handleLogout = async () => {
-    const token = localStorage.getItem("accessToken");
-
-    try {
-      await fetch("http://localhost:5000/auth/logout", {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-    } catch {
-      // Clear local state even if the network request fails.
-    } finally {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("user");
-      router.push("/login");
-    }
+    await logout();
   };
 
   return (

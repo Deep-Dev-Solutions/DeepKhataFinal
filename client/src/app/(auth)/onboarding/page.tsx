@@ -12,9 +12,12 @@ import {
   Store,
   Wallet,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { API_BASE_URL } from "@/lib/auth";
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const { setSession } = useAuth();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -59,7 +62,7 @@ export default function OnboardingPage() {
         ownerId,
       };
 
-      const res = await fetch("http://localhost:5000/onboard/onboarding", {
+      const res = await fetch(`${API_BASE_URL}/onboard/onboarding`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -68,24 +71,26 @@ export default function OnboardingPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Onboarding failed");
 
-      if (data?.accessToken) {
-        localStorage.setItem("accessToken", data.accessToken);
+      const storedUser = localStorage.getItem("user");
+      let currentUser: any = {};
+      if (storedUser) {
+        try {
+          currentUser = JSON.parse(storedUser);
+        } catch {}
       }
 
-      const storedUser = localStorage.getItem("user");
-      if (storedUser && data?.business?.id) {
-        try {
-          const currentUser = JSON.parse(storedUser);
-          localStorage.setItem(
-            "user",
-            JSON.stringify({
-              ...currentUser,
-              businessId: data.business.id,
-              role: "OWNER",
-            }),
-          );
-        } catch {
-          // Ignore local persistence issues; server state is already updated.
+      const updatedUser = {
+        ...currentUser,
+        businessId: data?.business?.id || currentUser.businessId,
+        role: "OWNER",
+      };
+
+      if (data?.accessToken) {
+        setSession(data.accessToken, updatedUser);
+      } else {
+        const existingToken = localStorage.getItem("accessToken");
+        if (existingToken) {
+          setSession(existingToken, updatedUser);
         }
       }
 
