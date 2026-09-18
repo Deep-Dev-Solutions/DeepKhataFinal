@@ -43,7 +43,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   setSession: (token: string, userData?: Partial<UserSession>) => void;
-  logout: () => Promise<void>;
+  logout: (customRedirect?: string) => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
@@ -161,31 +161,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [fetchUserProfile],
   );
 
-  const logout = useCallback(async () => {
-    const activeToken = token || getAuthToken();
+  const logout = useCallback(
+    async (customRedirect?: string) => {
+      const activeToken = token || getAuthToken();
+      const isSuperAdmin = user?.role === "SUPER_ADMIN";
 
-    // Clear client-side state & tokens first
-    clearAuthToken();
-    setTokenState(null);
-    setUser(null);
+      // Clear client-side state & tokens first
+      clearAuthToken();
+      setTokenState(null);
+      setUser(null);
 
-    // Best-effort notify backend to clear cookie/session
-    try {
-      if (activeToken) {
-        await fetch(`${API_BASE_URL}/auth/logout`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${activeToken}`,
-          },
-        });
+      // Best-effort notify backend to clear cookie/session
+      try {
+        if (activeToken) {
+          await fetch(`${API_BASE_URL}/auth/logout`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${activeToken}`,
+            },
+          });
+        }
+      } catch {
+        // Ignore network errors during logout
       }
-    } catch {
-      // Ignore network errors during logout
-    }
 
-    // Force hard redirect to /login
-    window.location.href = "/login";
-  }, [token]);
+      // Force hard redirect to appropriate login
+      window.location.href =
+        customRedirect || (isSuperAdmin ? "/agency-admin/login" : "/login");
+    },
+    [token, user],
+  );
 
   const refreshUser = useCallback(async () => {
     const activeToken = token || getAuthToken();

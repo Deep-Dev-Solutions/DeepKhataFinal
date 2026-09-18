@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-function isTokenValid(token: string | undefined | null): boolean {
-  if (!token) return false;
+function decodeToken(token: string | undefined | null): any | null {
+  if (!token) return null;
   try {
     const parts = token.split(".");
-    if (parts.length !== 3) return false;
+    if (parts.length !== 3) return null;
 
-    // Base64url to base64
     const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
     const jsonPayload = decodeURIComponent(
       atob(base64)
@@ -17,16 +16,15 @@ function isTokenValid(token: string | undefined | null): boolean {
     );
     const payload = JSON.parse(jsonPayload);
 
-    if (!payload || typeof payload !== "object") return false;
+    if (!payload || typeof payload !== "object") return null;
 
-    // Check expiration if present
     if (payload.exp && payload.exp * 1000 <= Date.now()) {
-      return false;
+      return null;
     }
 
-    return true;
+    return payload;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -42,8 +40,6 @@ const PROTECTED_PREFIXES = [
   "/vendors",
 ];
 
-const AUTH_PAGES = ["/", "/login"];
-
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -55,25 +51,54 @@ export function middleware(request: NextRequest) {
   }
 
   const token = cookieToken || headerToken;
-  const hasValidToken = isTokenValid(token);
+  const payload = decodeToken(token);
+  const hasValidToken = !!payload;
+  const role = payload?.role;
 
-  // 2. If authenticated and hitting '/' or '/login', redirect to '/dashboard'
-  if (hasValidToken && AUTH_PAGES.includes(pathname)) {
+  // 2. Agency login page handling
+  if (pathname === "/agency-admin/login") {
+    if (hasValidToken && role === "SUPER_ADMIN") {
+      return NextResponse.redirect(new URL("/agency-admin", request.url));
+    }
+    if (hasValidToken && role !== "SUPER_ADMIN") {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+    return NextResponse.next();
+  }
+
+  // 3. Merchant login page: redirect already authenticated users to /dashboard
+  if (hasValidToken && pathname === "/login") {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  // 3. If unauthenticated and hitting a protected route, redirect to '/login'
+  // 4. Agency protected routes
+  const isAgencyRoute =
+    pathname === "/agency-admin" || pathname.startsWith("/agency-admin/");
+  if (isAgencyRoute) {
+    if (!hasValidToken) {
+      return NextResponse.redirect(new URL("/agency-admin/login", request.url));
+    }
+    if (role !== "SUPER_ADMIN") {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+    return NextResponse.next();
+  }
+
+  // 5. Merchant shop protected routes (Accessible to ALL authenticated roles, including SUPER_ADMIN)
   const isProtected = PROTECTED_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
 
-  if (!hasValidToken && isProtected) {
-    const loginUrl = new URL("/login", request.url);
-    // Optionally preserve redirect path:
-    if (pathname !== "/dashboard") {
-      loginUrl.searchParams.set("from", pathname);
+  if (isProtected) {
+    if (!hasValidToken) {
+      const loginUrl = new URL("/login", request.url);
+      if (pathname !== "/dashboard") {
+        loginUrl.searchParams.set("from", pathname);
+      }
+      return NextResponse.redirect(loginUrl);
     }
-    return NextResponse.redirect(loginUrl);
+    // Authenticated users (whether OWNER, STAFF, or SUPER_ADMIN) proceed directly to the requested merchant route.
+    return NextResponse.next();
   }
 
   return NextResponse.next();
@@ -81,7 +106,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/",
     "/login",
     "/dashboard/:path*",
     "/cash/:path*",
@@ -92,5 +116,6 @@ export const config = {
     "/reports/:path*",
     "/settings/:path*",
     "/vendors/:path*",
+    "/agency-admin/:path*",
   ],
 };

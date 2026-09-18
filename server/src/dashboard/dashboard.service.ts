@@ -30,14 +30,20 @@ export class DashboardService {
   async getDashboardData(userId: string) {
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { businessId: true },
+      select: { businessId: true, role: true },
     });
 
-    if (!currentUser?.businessId) {
-      throw new BadRequestException('User does not belong to a workspace');
+    let businessId = currentUser?.businessId;
+    if (!businessId && currentUser?.role === 'SUPER_ADMIN') {
+      const firstBiz = await this.prisma.business.findFirst({
+        orderBy: { createdAt: 'desc' },
+      });
+      businessId = firstBiz?.id;
     }
 
-    const businessId = currentUser.businessId;
+    if (!businessId) {
+      throw new BadRequestException('User does not belong to a workspace');
+    }
 
     const now = new Date();
     const startOfToday = new Date(now);

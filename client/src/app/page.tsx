@@ -10,12 +10,11 @@ import {
   TrendingUp,
   ShieldCheck,
   LayoutDashboard,
-  LogOut,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 export default function Home() {
-  const { isAuthenticated, isLoading, user, logout } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
@@ -43,15 +42,6 @@ export default function Home() {
                   <LayoutDashboard className="w-4 h-4" />
                   Go to Dashboard
                 </Link>
-                <button
-                  type="button"
-                  onClick={() => logout()}
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-rose-600 transition-colors cursor-pointer"
-                  title="Sign Out"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span className="hidden sm:inline">Sign Out</span>
-                </button>
               </>
             ) : (
               <>

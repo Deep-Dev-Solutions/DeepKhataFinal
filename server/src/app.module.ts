@@ -19,6 +19,7 @@ import { CashModule } from './cash/cash.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { VendorsModule } from './vendors/vendors.module.js';
 import { BusinessModule } from './business/business.module';
+import { AgencyModule } from './agency/agency.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { BusinessModule } from './business/business.module';
     InventoryModule,
     VendorsModule,
     BusinessModule,
+    AgencyModule,
   ],
   controllers: [AppController],
   providers: [AppService],

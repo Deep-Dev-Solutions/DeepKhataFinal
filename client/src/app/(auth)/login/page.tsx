@@ -14,10 +14,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isLockedOut, setIsLockedOut] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
+    setIsLockedOut(false);
     setLoading(true);
 
     try {
@@ -29,7 +31,17 @@ export default function LoginPage() {
 
       const data = await res.json();
 
-      if (!res.ok) throw new Error(data?.message || "Login failed");
+      if (!res.ok) {
+        const errorMsg = data?.message || "Login failed";
+        if (
+          res.status === 429 ||
+          errorMsg.toLowerCase().includes("lockout") ||
+          errorMsg.toLowerCase().includes("locked")
+        ) {
+          setIsLockedOut(true);
+        }
+        throw new Error(errorMsg);
+      }
 
       // 1. Save credentials and hydrate global auth context & cookies
       if (data?.accessToken) {
@@ -37,8 +49,9 @@ export default function LoginPage() {
       }
 
       // 2. 🟢 SMART ROUTING LOGIC
-      // Check if the user has a business attached to their account
-      if (data?.user?.businessId) {
+      if (data?.user?.role === "SUPER_ADMIN") {
+        router.push("/agency-admin");
+      } else if (data?.user?.businessId) {
         // Business exists -> Go to main app
         router.push("/dashboard");
       } else {
@@ -155,10 +168,14 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg">
-                <p className="text-sm text-rose-600 font-medium text-center">
-                  {error}
-                </p>
+              <div
+                className={`p-3.5 rounded-xl border text-sm font-medium ${
+                  isLockedOut
+                    ? "bg-rose-50 border-rose-200 text-rose-700"
+                    : "bg-amber-50 border-amber-200 text-amber-800"
+                }`}
+              >
+                <p className="text-center">{error}</p>
               </div>
             )}
 
@@ -175,7 +192,7 @@ export default function LoginPage() {
           </form>
 
           {/* Footer Link */}
-          <div className="mt-6 text-center">
+          <div className="mt-6 text-center space-y-3">
             <p className="text-sm text-slate-600">
               Don't have an account?{" "}
               <Link
@@ -185,6 +202,14 @@ export default function LoginPage() {
                 Start your free trial
               </Link>
             </p>
+            <div>
+              <Link
+                href="/agency-admin/login"
+                className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                Agency Master Portal →
+              </Link>
+            </div>
           </div>
         </div>
       </div>

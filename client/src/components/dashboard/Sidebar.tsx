@@ -66,9 +66,10 @@ export default function Sidebar() {
 
   return (
     <aside
+      style={{ height: "100dvh", maxHeight: "100dvh" }}
       className={`hidden md:flex flex-col ${
         isCollapsed ? "w-20" : "w-64"
-      } bg-white border-r border-slate-200 min-h-screen fixed left-0 top-0 z-20 print:hidden transition-[width] duration-300 ease-in-out`}
+      } bg-white border-r border-slate-200 fixed inset-y-0 left-0 z-20 print:hidden transition-[width] duration-300 ease-in-out overflow-hidden`}
     >
       {/* 🟢 Brand Logo & Collapse Toggle */}
       <div
@@ -110,11 +111,12 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* 🟢 Navigation Links */}
+      {/* 🟢 Navigation Links - Scrollable */}
       <nav
-        className={`flex-1 ${
-          isCollapsed ? "px-2 py-3 space-y-2" : "px-4 py-6 space-y-1.5"
-        } overflow-y-auto`}
+        style={{ flex: "1 1 0%", minHeight: 0, overflowY: "auto" }}
+        className={`sidebar-scroll overflow-y-auto min-h-0 flex-1 ${
+          isCollapsed ? "px-2 py-3 space-y-2" : "px-3 py-3 pb-6 space-y-1"
+        }`}
       >
         {navItems.map((item) => {
           if (item.name === "Reports" && !hasPermission("read:reports")) {
@@ -216,61 +218,71 @@ export default function Sidebar() {
         </div>
       </nav>
 
-      {/* 🟢 THE EXPANDED / COMPACT USER CARD */}
+      {/* 🟢 Pinned Compact User Card with Logout */}
       <div
+        style={{ flexShrink: 0 }}
         className={`${
-          isCollapsed ? "p-2" : "p-4"
-        } border-t border-slate-200 bg-slate-50/50 transition-all`}
+          isCollapsed ? "p-2" : "p-2.5"
+        } border-t border-slate-200 bg-slate-50/95 shrink-0 mt-auto shadow-xs`}
       >
         {isCollapsed ? (
           <div className="flex flex-col items-center gap-2 py-1">
             <div
-              className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0 border border-blue-200"
-              title={`${user?.name || "Ali Khan"} (${(user?.role || "OWNER").toUpperCase()})`}
+              className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0 border border-blue-200"
+              title={`${user?.name || "User"} (${(user?.role || "OWNER").toUpperCase()})`}
             >
-              {initials || "AK"}
+              {initials || "U"}
             </div>
             <button
               onClick={handleLogout}
-              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
               title="Log out"
             >
               <LogOut className="w-4 h-4" />
             </button>
           </div>
         ) : (
-          <div className="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-sm">
-            {/* User Info */}
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm shrink-0 border border-blue-200">
-                {initials || "AK"}
-              </div>
-              <div className="flex flex-col overflow-hidden min-w-0">
-                <span className="text-sm font-bold text-slate-900 truncate">
-                  {user?.name || "Ali Khan"}
-                </span>
-                <span className="text-[11px] font-medium text-slate-500 truncate">
-                  {user?.email || "ali@alfatah.pk"}
-                </span>
-              </div>
-            </div>
-
-            {/* Role & Logout Row */}
-            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-              <div className="flex items-center gap-1 bg-slate-100 text-slate-600 px-2 py-1 rounded-md">
-                <ShieldCheck className="w-3 h-3" />
-                <span className="text-[10px] font-bold tracking-wider">
-                  {(user?.role || "OWNER").toUpperCase()}
-                </span>
+          <div className="bg-white border border-slate-200 p-2.5 rounded-xl shadow-xs space-y-2">
+            {/* User row + Prominent Logout button */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0 border border-blue-200">
+                  {initials || "U"}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-bold text-slate-900 truncate leading-tight">
+                    {user?.name || "User"}
+                  </span>
+                  <span className="text-[10px] text-slate-500 truncate leading-tight">
+                    {user?.email || ""}
+                  </span>
+                </div>
               </div>
 
               <button
                 onClick={handleLogout}
-                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                className="flex items-center gap-1 px-2.5 py-1 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer text-xs font-semibold shrink-0 border border-slate-200"
                 title="Log out"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-3.5 h-3.5 text-rose-500" />
+                <span>Logout</span>
               </button>
+            </div>
+
+            {/* Role & Super Admin Link */}
+            <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10px]">
+              <div className="flex items-center gap-1 text-slate-500 font-medium">
+                <ShieldCheck className="w-3 h-3 text-slate-400" />
+                <span>{(user?.role || "OWNER").toUpperCase()}</span>
+              </div>
+              {user?.role === "SUPER_ADMIN" && (
+                <Link
+                  href="/agency-admin"
+                  className="font-semibold text-indigo-600 hover:text-indigo-800"
+                >
+                  Agency Portal →
+                </Link>
+              )}
             </div>
           </div>
         )}

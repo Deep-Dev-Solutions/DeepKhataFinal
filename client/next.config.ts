@@ -9,6 +9,9 @@ const withSerwist = withSerwistInit({
 
 const nextConfig: NextConfig = {
   turbopack: {},
+  devIndicators: {
+    position: "bottom-right",
+  },
 };
 
 export default withSerwist(nextConfig);
