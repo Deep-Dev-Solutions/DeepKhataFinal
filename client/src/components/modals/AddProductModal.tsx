@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X, Barcode, Layers, Archive, Tag, Check, MapPin } from "lucide-react";
+import { API_BASE_URL } from "@/lib/auth";
 
 export type ItemConditionType =
   | "ORIGINAL_PULL"
@@ -104,7 +105,7 @@ export default function AddProductModal({
     const fetchCabinets = async () => {
       try {
         const token = localStorage.getItem("accessToken");
-        const res = await fetch("http://localhost:5000/product/getcabinets", {
+        const res = await fetch(`${API_BASE_URL}/product/getcabinets`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();

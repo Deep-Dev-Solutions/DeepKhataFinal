@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
-
-const API_BASE_URL = "http://localhost:5000/reports";
+import { API_BASE_URL } from "@/lib/auth";
 
 export default function InventoryInsightsTab() {
   const [topProducts, setTopProducts] = useState<any[]>([]);
@@ -19,21 +18,23 @@ export default function InventoryInsightsTab() {
       setError("");
 
       try {
-        const res = await fetch(`${API_BASE_URL}/inventory`, {
+        const res = await fetch(`${API_BASE_URL}/reports/inventory`, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
           },
         });
 
         const json = await res.json();
-        if (!res.ok || !json?.success) throw new Error(json?.message || "Failed to load inventory report");
+        if (!res.ok || !json?.success)
+          throw new Error(json?.message || "Failed to load inventory report");
 
         if (isActive) {
           setTopProducts(json.topProducts || []);
           setDeadStock(json.deadStock || []);
         }
       } catch (err: any) {
-        if (isActive) setError(err?.message || "Could not load inventory insights.");
+        if (isActive)
+          setError(err?.message || "Could not load inventory insights.");
       } finally {
         if (isActive) setIsLoading(false);
       }
@@ -49,7 +50,8 @@ export default function InventoryInsightsTab() {
   if (isLoading) {
     return (
       <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm text-slate-500 shadow-sm">
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading inventory insights...
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading inventory
+        insights...
       </div>
     );
   }
@@ -65,12 +67,15 @@ export default function InventoryInsightsTab() {
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
         {/* Top Selling Products */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-100">
-            <h2 className="text-lg font-bold text-slate-900">Top Performing Products</h2>
-            <p className="text-sm text-slate-500">Items generating the most revenue.</p>
+            <h2 className="text-lg font-bold text-slate-900">
+              Top Performing Products
+            </h2>
+            <p className="text-sm text-slate-500">
+              Items generating the most revenue.
+            </p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
@@ -84,9 +89,13 @@ export default function InventoryInsightsTab() {
               <tbody className="divide-y divide-slate-100">
                 {topProducts.map((p, i) => (
                   <tr key={i} className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-semibold text-slate-900">{p.name || "Product"}</td>
+                    <td className="px-6 py-4 font-semibold text-slate-900">
+                      {p.name || "Product"}
+                    </td>
                     <td className="px-6 py-4 text-slate-600">{p.sold ?? 0}</td>
-                    <td className="px-6 py-4 font-bold text-emerald-600">Rs. {Number(p.revenue || 0).toLocaleString()}</td>
+                    <td className="px-6 py-4 font-bold text-emerald-600">
+                      Rs. {Number(p.revenue || 0).toLocaleString()}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -101,7 +110,9 @@ export default function InventoryInsightsTab() {
               <h2 className="text-lg font-bold text-rose-700 flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5" /> Dead Stock Alerts
               </h2>
-              <p className="text-sm text-slate-500">Items with 0 sales in the last 30 days.</p>
+              <p className="text-sm text-slate-500">
+                Items with 0 sales in the last 30 days.
+              </p>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -117,18 +128,25 @@ export default function InventoryInsightsTab() {
                 {deadStock.map((p, i) => (
                   <tr key={i} className="hover:bg-slate-50">
                     <td className="px-6 py-4">
-                      <p className="font-semibold text-slate-900">{p.name || "Product"}</p>
-                      <p className="text-xs text-rose-500">{p.daysUnsold ?? 0} days unsold</p>
+                      <p className="font-semibold text-slate-900">
+                        {p.name || "Product"}
+                      </p>
+                      <p className="text-xs text-rose-500">
+                        {p.daysUnsold ?? 0} days unsold
+                      </p>
                     </td>
-                    <td className="px-6 py-4 text-slate-600">{p.stock ?? 0} units</td>
-                    <td className="px-6 py-4 font-bold text-rose-600">Rs. {Number(p.tiedValue || 0).toLocaleString()}</td>
+                    <td className="px-6 py-4 text-slate-600">
+                      {p.stock ?? 0} units
+                    </td>
+                    <td className="px-6 py-4 font-bold text-rose-600">
+                      Rs. {Number(p.tiedValue || 0).toLocaleString()}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </div>
-
       </div>
     </div>
   );

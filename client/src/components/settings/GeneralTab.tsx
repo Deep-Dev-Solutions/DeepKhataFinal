@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { UploadCloud, AlertCircle, Loader2, CheckCircle2 } from "lucide-react";
+import { API_BASE_URL } from "@/lib/auth";
 
 export default function GeneralTab({
   business,
@@ -16,9 +17,12 @@ export default function GeneralTab({
   const [currency, setCurrency] = useState(business?.currency || "PKR");
   const [address, setAddress] = useState(business?.address || "");
   const [logoUrl, setLogoUrl] = useState(business?.logoUrl || "");
-
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+
+  const [saveStatus, setSaveStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -35,7 +39,7 @@ export default function GeneralTab({
     setSaveStatus("saving");
 
     try {
-      const res = await fetch("http://localhost:5000/settings/business", {
+      const res = await fetch(`${API_BASE_URL}/settings/business`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -72,7 +76,7 @@ export default function GeneralTab({
     formData.append("logo", file);
 
     try {
-      const res = await fetch("http://localhost:5000/settings/business", {
+      const res = await fetch(`${API_BASE_URL}/settings/business`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
@@ -99,20 +103,42 @@ export default function GeneralTab({
       <section>
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h2 className="text-base font-semibold text-slate-900">Brand Identity</h2>
-            <p className="text-sm text-slate-500">Your logo and business name will appear on digital receipts.</p>
+            <h2 className="text-base font-semibold text-slate-900">
+              Brand Identity
+            </h2>
+            <p className="text-sm text-slate-500">
+              Your logo and business name will appear on digital receipts.
+            </p>
           </div>
 
           <div className="h-6">
-            {saveStatus === "saving" && <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-500"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</span>}
-            {saveStatus === "saved" && <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600"><CheckCircle2 className="w-3.5 h-3.5" /> Saved</span>}
-            {saveStatus === "error" && <span className="flex items-center gap-1.5 text-xs font-semibold text-rose-600"><AlertCircle className="w-3.5 h-3.5" /> Error saving</span>}
+            {saveStatus === "saving" && (
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...
+              </span>
+            )}
+            {saveStatus === "saved" && (
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Saved
+              </span>
+            )}
+            {saveStatus === "error" && (
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-rose-600">
+                <AlertCircle className="w-3.5 h-3.5" /> Error saving
+              </span>
+            )}
           </div>
         </div>
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row gap-8 items-start">
           <div className="flex flex-col items-center gap-3">
-            <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              ref={fileInputRef}
+              onChange={handleImageUpload}
+            />
             <div
               onClick={() => fileInputRef.current?.click()}
               className="w-20 h-20 rounded-xl bg-slate-50 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:border-blue-400 hover:text-blue-500 transition-colors cursor-pointer group shadow-sm relative overflow-hidden"
@@ -120,17 +146,25 @@ export default function GeneralTab({
               {isUploading ? (
                 <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
               ) : logoUrl ? (
-                <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                <img
+                  src={logoUrl}
+                  alt="Logo"
+                  className="w-full h-full object-cover"
+                />
               ) : (
                 <UploadCloud className="w-6 h-6 group-hover:scale-110 transition-transform" />
               )}
             </div>
-            <span className="text-xs font-medium text-slate-500">{isUploading ? "Uploading..." : "Upload Logo"}</span>
+            <span className="text-xs font-medium text-slate-500">
+              {isUploading ? "Uploading..." : "Upload Logo"}
+            </span>
           </div>
 
           <div className="flex-1 w-full space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Business / Shop Name</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                Business / Shop Name
+              </label>
               <input
                 type="text"
                 value={name}
@@ -149,7 +183,9 @@ export default function GeneralTab({
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5 space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Business Phone</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                Business Phone
+              </label>
               <input
                 type="text"
                 value={phone}
@@ -159,7 +195,9 @@ export default function GeneralTab({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Support Email</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                Support Email
+              </label>
               <input
                 type="email"
                 value={email}
@@ -169,7 +207,9 @@ export default function GeneralTab({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Base Currency</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                Base Currency
+              </label>
               <select
                 value={currency}
                 onChange={(e) => {
@@ -184,7 +224,9 @@ export default function GeneralTab({
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">Physical Shop Address</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              Physical Shop Address
+            </label>
             <textarea
               rows={3}
               value={address}

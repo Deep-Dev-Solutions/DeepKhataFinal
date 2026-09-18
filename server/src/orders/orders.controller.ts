@@ -17,6 +17,11 @@ import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { CreateOrderDto } from './dto/create-order.dto';
+import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { SettleMemoDto } from './dto/settle-memo.dto';
+import { RecordPaymentDto } from './dto/record-payment.dto';
+import { ReturnOrderDto } from './dto/return-order.dto';
 
 @Controller('order')
 @UseGuards(ThrottlerGuard)
@@ -26,7 +31,7 @@ export class OrdersController {
   @Post('neworder')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('create:order')
-  async newOrder(@Req() req: any, @Body() body: any) {
+  async newOrder(@Req() req: any, @Body() body: CreateOrderDto) {
     return this.ordersService.newOrder(req.user.id, body);
   }
 
@@ -50,7 +55,7 @@ export class OrdersController {
   async updateOrderStatusPatch(
     @Req() req: any,
     @Param('id') id: string,
-    @Body() body: any,
+    @Body() body: UpdateOrderStatusDto,
   ) {
     return this.ordersService.updateOrderStatus(req.user.id, id, body);
   }
@@ -61,7 +66,7 @@ export class OrdersController {
   async updateOrderStatus(
     @Req() req: any,
     @Param('id') id: string,
-    @Body() body: any,
+    @Body() body: UpdateOrderStatusDto,
   ) {
     return this.ordersService.updateOrderStatus(req.user.id, id, body);
   }
@@ -73,7 +78,7 @@ export class OrdersController {
   async settleMemo(
     @Req() req: any,
     @Param('id') id: string,
-    @Body() body: any,
+    @Body() body: SettleMemoDto,
   ) {
     return this.ordersService.settleMemo(req.user.id, id, body);
   }
@@ -81,14 +86,7 @@ export class OrdersController {
   @Post('recordpayment')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('update:order')
-  async recordPaymentRoute(@Req() req: any, @Body() body: any) {
-    return this.ordersService.recordPayment(req.user.id, body);
-  }
-
-  @Post('payment')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('update:order')
-  async recordPayment(@Req() req: any, @Body() body: any) {
+  async recordPaymentRoute(@Req() req: any, @Body() body: RecordPaymentDto) {
     return this.ordersService.recordPayment(req.user.id, body);
   }
 
@@ -104,7 +102,7 @@ export class OrdersController {
   async processReturn(
     @Req() req: any,
     @Param('id') id: string,
-    @Body() body: any,
+    @Body() body: ReturnOrderDto,
   ) {
     return this.ordersService.processReturn(req.user.id, id, body);
   }

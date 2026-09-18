@@ -32,9 +32,11 @@ import { generateWhatsAppReceipt } from "@/lib/utils";
 import RecordPaymentModal from "@/components/modals/RecordPaymentModal";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
 
 export default function OrderDetailsLedger() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const { id } = useParams(); // The secret UUID from the URL
   const router = useRouter();
 
@@ -230,9 +232,10 @@ export default function OrderDetailsLedger() {
       if (!response.ok) {
         throw new Error(data?.message || "Failed to return memo to stock");
       }
+      toast.success("Memo items returned to stock successfully.");
       await refreshOrder();
     } catch (err: any) {
-      alert(err.message || "Failed to return order");
+      toast.error(err.message || "Failed to return order");
     } finally {
       setIsSubmittingStatus(false);
     }
@@ -292,10 +295,22 @@ export default function OrderDetailsLedger() {
           data?.message || `Failed to convert order to ${targetStatus}`,
         );
       }
+      toast.success(`Order successfully converted to ${targetStatus}!`);
       setIsConvertModalOpen(false);
       await refreshOrder();
     } catch (err: any) {
-      alert(err.message || "Failed to convert order");
+      const isNetworkIssue =
+        (typeof navigator !== "undefined" && !navigator.onLine) ||
+        err?.name === "TypeError" ||
+        err?.message?.includes("fetch");
+
+      if (isNetworkIssue) {
+        toast.error(
+          "Network connection dropped. Estimate conversions cannot be processed offline. Please reconnect and retry.",
+        );
+      } else {
+        toast.error(err.message || "Failed to convert order");
+      }
     } finally {
       setIsSubmittingStatus(false);
     }
@@ -329,10 +344,11 @@ export default function OrderDetailsLedger() {
       if (!response.ok) {
         throw new Error(data?.message || "Failed to process return");
       }
+      toast.success("Return processed successfully.");
       setReturnItemModal(null);
       await refreshOrder();
     } catch (err: any) {
-      alert(err.message || "Failed to process return");
+      toast.error(err.message || "Failed to process return");
     } finally {
       setIsSubmittingStatus(false);
     }
@@ -350,9 +366,10 @@ export default function OrderDetailsLedger() {
         const data = await response.json();
         throw new Error(data?.message || "Failed to update status");
       }
+      toast.success("Order marked as completed.");
       await refreshOrder();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -372,9 +389,10 @@ export default function OrderDetailsLedger() {
           const data = await response.json();
           throw new Error(data?.message || "Failed to cancel order");
         }
+        toast.success("Order cancelled and inventory released.");
         await refreshOrder();
       } catch (err: any) {
-        alert(err.message);
+        toast.error(err.message);
       }
     }
   };

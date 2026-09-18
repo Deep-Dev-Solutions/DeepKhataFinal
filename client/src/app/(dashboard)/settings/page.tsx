@@ -9,13 +9,12 @@ import PortalTab from "@/components/settings/PortalTab";
 import NotificationsTab from "@/components/settings/NotificationsTab";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Loader2, AlertCircle } from "lucide-react";
-
-const API_BASE_URL = "http://localhost:5000/settings";
+import { API_BASE_URL } from "@/lib/auth";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("profile");
   const { hasPermission } = usePermissions();
-  
+
   const [userProfile, setUserProfile] = useState<any>(null);
   const [businessData, setBusinessData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,15 +33,15 @@ export default function SettingsPage() {
     const fetchSettingsData = async () => {
       try {
         const token = localStorage.getItem("accessToken");
-        const headers = { 
-          "Content-Type": "application/json", 
-          "Authorization": `Bearer ${token}` 
+        const headers = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         };
 
         // Fetch Profile & Business simultaneously for speed
         const [profileRes, businessRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/profileinfo`, { headers }),
-          fetch(`${API_BASE_URL}/businessinfo`, { headers })
+          fetch(`${API_BASE_URL}/settings/profileinfo`, { headers }),
+          fetch(`${API_BASE_URL}/settings/businessinfo`, { headers }),
         ]);
 
         const profileData = await profileRes.json();
@@ -50,10 +49,9 @@ export default function SettingsPage() {
 
         if (profileData.success) setUserProfile(profileData.profile);
         if (businessJson.success) setBusinessData(businessJson.business);
-        
+
         // If owner, default to general tab. If staff, default to profile.
         if (hasPermission("manage:business")) setActiveTab("general");
-
       } catch (err: any) {
         setError("Failed to load settings data.");
       } finally {
@@ -82,16 +80,21 @@ export default function SettingsPage() {
 
   return (
     <div className="flex w-full flex-col animate-in fade-in duration-500 pb-24 mt-2">
-      
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Settings & Workspace</h1>
-          <p className="text-sm text-slate-500 mt-1">Manage your profile, preferences, and workspace.</p>
+          <h1 className="text-2xl font-bold text-slate-900">
+            Settings & Workspace
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Manage your profile, preferences, and workspace.
+          </p>
         </div>
-        
+
         <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg border border-slate-200">
           <span className="text-xs text-slate-500 font-medium">Role:</span>
-          <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${userProfile.role === 'OWNER' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-700'}`}>
+          <span
+            className={`text-xs font-bold px-2 py-0.5 rounded-md ${userProfile.role === "OWNER" ? "bg-indigo-100 text-indigo-700" : "bg-slate-200 text-slate-700"}`}
+          >
             {userProfile.role}
           </span>
         </div>
@@ -100,12 +103,21 @@ export default function SettingsPage() {
       <SettingsNav activeTab={activeTab} setActiveTab={setActiveTab} />
 
       <div className="w-full flex flex-col gap-8">
-        {activeTab === "profile" && <ProfileTab user={userProfile} onProfileUpdate={updateUserProfile} />}
-        
-        {activeTab === "general" && hasPermission("manage:business") && <GeneralTab business={businessData} onBusinessUpdate={updateBusinessData} />}
+        {activeTab === "profile" && (
+          <ProfileTab user={userProfile} onProfileUpdate={updateUserProfile} />
+        )}
+
+        {activeTab === "general" && hasPermission("manage:business") && (
+          <GeneralTab
+            business={businessData}
+            onBusinessUpdate={updateBusinessData}
+          />
+        )}
         {activeTab === "team" && hasPermission("manage:team") && <TeamTab />}
-        {activeTab === "portal" && hasPermission("manage:business") && <PortalTab user={userProfile} />}
-        
+        {activeTab === "portal" && hasPermission("manage:business") && (
+          <PortalTab user={userProfile} />
+        )}
+
         {activeTab === "notifications" && <NotificationsTab />}
       </div>
     </div>

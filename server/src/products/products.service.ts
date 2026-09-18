@@ -273,6 +273,9 @@ export class ProductsService {
       throw new BadRequestException('Category does not exist');
 
     const parsedPrice = Number(price) || 0;
+    if (parsedPrice <= 0) {
+      throw new BadRequestException('Product price must be greater than 0');
+    }
     const instanceQty = Math.max(1, Number(quantity) || 1);
 
     // Map allowed condition values safely
@@ -426,8 +429,8 @@ export class ProductsService {
       throw new BadRequestException('No business found.');
     }
 
-    if (price < 0) {
-      throw new BadRequestException('Price cannot be negative');
+    if (price <= 0) {
+      throw new BadRequestException('Price must be greater than zero');
     }
 
     const product = await this.prisma.product.update({

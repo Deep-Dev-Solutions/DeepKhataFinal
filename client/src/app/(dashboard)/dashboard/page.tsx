@@ -7,6 +7,7 @@ import StatsCards from "@/components/dashboard/widgets/StatsCards";
 import RevenueChart from "@/components/dashboard/widgets/RevenueChart";
 import PaymentHealth from "@/components/dashboard/widgets/PaymentHealth";
 import RecentOrdersTable from "@/components/dashboard/widgets/RecentOrdersTable";
+import { API_BASE_URL } from "@/lib/auth";
 
 export default function DashboardHomePage() {
   const [dashboardData, setDashboardData] = useState<any>(null);
@@ -18,14 +19,15 @@ export default function DashboardHomePage() {
       try {
         const token = localStorage.getItem("accessToken");
 
-        const res = await fetch("http://localhost:5000/dashboard/dashboarddata", {
+        const res = await fetch(`${API_BASE_URL}/dashboard/dashboarddata`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
 
         const data = await res.json();
-        if (!res.ok) throw new Error(data?.message || "Failed to load dashboard data");
+        if (!res.ok)
+          throw new Error(data?.message || "Failed to load dashboard data");
 
         setDashboardData(data);
       } catch (err: any) {
@@ -58,12 +60,16 @@ export default function DashboardHomePage() {
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Dashboard Overview</h1>
-          <p className="text-sm text-slate-500">Here's what's happening with your business today.</p>
+          <h1 className="text-2xl font-bold text-slate-900">
+            Dashboard Overview
+          </h1>
+          <p className="text-sm text-slate-500">
+            Here's what's happening with your business today.
+          </p>
         </div>
         <div className="flex items-center gap-3">
-          <Link 
-            href="/orders/new" 
+          <Link
+            href="/orders/new"
             className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200"
           >
             <Plus className="w-4 h-4" />

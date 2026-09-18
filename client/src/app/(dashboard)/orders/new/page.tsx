@@ -40,6 +40,7 @@ import OrderSuccessModal, {
 import NewCustomerModal from "@/components/modals/NewCustomerModal";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL } from "@/lib/auth";
+import { useToast } from "@/context/ToastContext";
 
 type Product = {
   id: string;
@@ -72,7 +73,8 @@ function CreateOrderPOSContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isOnline, pendingCount, triggerSync } = useOfflineSync();
-  const { user } = useAuth();
+  const { user, isLoading: isAuthLoading } = useAuth();
+  const { toast } = useToast();
 
   // 🟢 BARCODE SCANNER FOCUS TRAP STATES
   const [scanFeedback, setScanFeedback] = useState<{
@@ -136,7 +138,7 @@ function CreateOrderPOSContent() {
     const fetchCategories = async () => {
       try {
         const token = localStorage.getItem("accessToken");
-        const res = await fetch("http://localhost:5000/product/getcategories", {
+        const res = await fetch(`${API_BASE_URL}/product/getcategories`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();
@@ -197,7 +199,7 @@ function CreateOrderPOSContent() {
         if (activeCategory !== "All") params.append("category", activeCategory);
 
         const res = await fetch(
-          `http://localhost:5000/product/getproducts?${params.toString()}`,
+          `${API_BASE_URL}/product/getproducts?${params.toString()}`,
           {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           },
@@ -237,12 +239,9 @@ function CreateOrderPOSContent() {
       try {
         if (typeof navigator !== "undefined" && !navigator.onLine) return;
         const token = localStorage.getItem("accessToken");
-        const res = await fetch(
-          "http://localhost:5000/customer/getallcustomers",
-          {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          },
-        );
+        const res = await fetch(`${API_BASE_URL}/customer/getallcustomers`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         const data = await res.json();
         if (data.success && Array.isArray(data.customers)) {
           void offlineDb.customers.bulkPut(data.customers);
@@ -283,7 +282,7 @@ function CreateOrderPOSContent() {
 
         const token = localStorage.getItem("accessToken");
         const res = await fetch(
-          `http://localhost:5000/customer/getallcustomers?search=${customerSearch}`,
+          `${API_BASE_URL}/customer/getallcustomers?search=${customerSearch}`,
           {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           },
@@ -322,7 +321,7 @@ function CreateOrderPOSContent() {
       setCustomerMode("existing");
       const token = localStorage.getItem("accessToken");
 
-      fetch(`http://localhost:5000/customer/${urlCustomerId}`, {
+      fetch(`${API_BASE_URL}/customer/${urlCustomerId}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
         .then((res) => res.json())
@@ -338,43 +337,79 @@ function CreateOrderPOSContent() {
     }
   }, [searchParams]);
 
+  // Helper to safely deduct stock in Dexie and React state
+  const deductLocalStock = async (cartItems: CartItem[]) => {
+    for (const ci of cartItems) {
+      if (ci.isService) continue;
+      const cachedProd = await offlineDb.products.get(ci.id);
+      if (cachedProd) {
+        await offlineDb.products.update(ci.id, {
+          stock: Math.max(0, cachedProd.stock - ci.qty),
+        });
+      }
+    }
+
+    setProducts((prev) =>
+      prev.map((p) => {
+        const inCart = cartItems.find((ci) => ci.id === p.id);
+        if (!inCart || inCart.isService) return p;
+        let deducted = 0;
+        const updatedInstances = (p.instances || []).map((inst) => {
+          if (
+            inst.status === "AVAILABLE" &&
+            (!inCart.condition || inst.condition === inCart.condition) &&
+            deducted < inCart.qty
+          ) {
+            deducted++;
+            return { ...inst, status: "SOLD" };
+          }
+          return inst;
+        });
+        return {
+          ...p,
+          stock: Math.max(0, p.stock - inCart.qty),
+          instances: updatedInstances,
+        };
+      }),
+    );
+  };
+
   // ==========================================
   // 🟢 OFFLINE-FIRST POS CHECKOUT LOGIC
   // ==========================================
   const handleCompleteOrder = async (
     statusOverride?: string | React.MouseEvent,
   ) => {
+    if (cart.length === 0) return;
     setIsSubmitting(true);
-    setOfflineSuccessMsg("");
 
     const currentCart = [...cart];
+    const currentDiscount = Number(discount) || 0;
+    const currentPaid = Number(amountPaid) || 0;
     const currentCustomer = selectedCustomer;
-    const currentDiscount = Number(discount);
-    const currentPaid = Number(amountPaid);
     const currentStatus =
       typeof statusOverride === "string" ? statusOverride : orderStatus;
 
     const payload = {
-      customerId:
-        customerMode === "walk-in" ? null : selectedCustomer?.id || null,
+      customerId: selectedCustomer?.id || null,
       walkInName: customerMode === "walk-in" ? walkInName || null : null,
       walkInPhone: customerMode === "walk-in" ? walkInPhone || null : null,
-      items: cart.map((item) => ({
-        productId: item.isService ? null : item.id,
-        quantity: item.qty,
-        price: item.price,
-        condition: item.condition,
-        isService: item.isService,
-        serviceName: item.isService ? item.name : undefined,
-        notes: item.notes,
-      })),
       discount: currentDiscount,
+      status: currentStatus,
       amountPaid: currentPaid,
       paymentMethod,
-      orderStatus: currentStatus, // "MEMO" or "FINAL"
+      items: currentCart.map((item) => ({
+        productId: item.isService ? null : item.id,
+        quantity: item.qty,
+        condition: item.condition,
+        isService: !!item.isService,
+        serviceName: item.isService ? item.name : null,
+        notes: item.notes || null,
+        price: item.price,
+      })),
     };
 
-    // 🟢 1. OFFLINE INTERCEPTION
+    // 🟢 1. EXPLICIT OFFLINE SUBMISSION
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       try {
         const localOrderId = crypto.randomUUID();
@@ -387,42 +422,7 @@ function CreateOrderPOSContent() {
         };
 
         await offlineDb.syncQueue.put(offlineItem);
-
-        // Deduct from local Dexie cached products
-        for (const ci of cart) {
-          if (ci.isService) continue;
-          const cachedProd = await offlineDb.products.get(ci.id);
-          if (cachedProd) {
-            await offlineDb.products.update(ci.id, {
-              stock: Math.max(0, cachedProd.stock - ci.qty),
-            });
-          }
-        }
-
-        // Update local React state (including instances to keep available count in sync)
-        setProducts((prev) =>
-          prev.map((p) => {
-            const inCart = cart.find((ci) => ci.id === p.id);
-            if (!inCart || inCart.isService) return p;
-            let deducted = 0;
-            const updatedInstances = (p.instances || []).map((inst) => {
-              if (
-                inst.status === "AVAILABLE" &&
-                (!inCart.condition || inst.condition === inCart.condition) &&
-                deducted < inCart.qty
-              ) {
-                deducted++;
-                return { ...inst, status: "SOLD" };
-              }
-              return inst;
-            });
-            return {
-              ...p,
-              stock: Math.max(0, p.stock - inCart.qty),
-              instances: updatedInstances,
-            };
-          }),
-        );
+        await deductLocalStock(currentCart);
 
         const subtotalOffline = currentCart.reduce(
           (s, i) => s + i.price * i.qty,
@@ -462,8 +462,8 @@ function CreateOrderPOSContent() {
           createdAt: new Date().toISOString(),
         });
 
-        setOfflineSuccessMsg(
-          `Offline Intercept: ${orderStatus === "MEMO" ? "MEMO (Amanat)" : "FINAL Sale"} Order (#${localOrderId.slice(0, 8)}) safely queued in IndexedDB. Stock reserved. Will auto-sync when network returns.`,
+        toast.info(
+          `Offline Intercept: Order queued in IndexedDB (#${localOrderId.slice(0, 8)}). Stock reserved.`,
         );
         setCart([]);
         setAmountPaid("");
@@ -471,7 +471,7 @@ function CreateOrderPOSContent() {
         return;
       } catch (err: any) {
         console.error("Failed to queue offline order:", err);
-        alert("Failed to queue offline order: " + err?.message);
+        toast.error("Failed to queue offline order: " + err?.message);
         return;
       } finally {
         setIsSubmitting(false);
@@ -481,7 +481,7 @@ function CreateOrderPOSContent() {
     // 🟢 2. ONLINE SUBMISSION WITH NETWORK RESILIENCE CATCH
     try {
       const token = localStorage.getItem("accessToken");
-      const res = await fetch("http://localhost:5000/order/neworder", {
+      const res = await fetch(`${API_BASE_URL}/order/neworder`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -531,11 +531,12 @@ function CreateOrderPOSContent() {
         createdAt: data.order?.createdAt || new Date().toISOString(),
       });
 
+      toast.success("Order created successfully!");
       setCart([]);
       setAmountPaid("");
       setDiscount("");
     } catch (error: any) {
-      // Fallback: If network failed during fetch, queue in Dexie instead of crashing!
+      // Fallback: If network failed during fetch, queue in Dexie AND deduct local stock!
       const isNetworkIssue =
         (typeof navigator !== "undefined" && !navigator.onLine) ||
         error?.name === "TypeError" ||
@@ -551,30 +552,103 @@ function CreateOrderPOSContent() {
           status: "pending",
         };
         await offlineDb.syncQueue.put(offlineItem);
-        setOfflineSuccessMsg(
-          `Network dropped: ${orderStatus} Order queued in IndexedDB (#${localOrderId.slice(0, 8)}). Will sync automatically.`,
+        // CRITICAL FIX: Also deduct local instance cache so double-selling is impossible
+        await deductLocalStock(currentCart);
+
+        const subtotalOffline = currentCart.reduce(
+          (s, i) => s + i.price * i.qty,
+          0,
+        );
+        const netTotalOffline = Math.max(0, subtotalOffline - currentDiscount);
+        const balanceOffline = Math.max(0, netTotalOffline - currentPaid);
+
+        setCompletedOrderData({
+          id: localOrderId,
+          orderNumber: `ORD-${localOrderId.slice(0, 6).toUpperCase()}`,
+          status: currentStatus,
+          customer: currentCustomer || {
+            name:
+              customerMode === "walk-in"
+                ? walkInName || "Walk-in Customer"
+                : "Walk-in Customer",
+            phone: customerMode === "walk-in" ? walkInPhone || null : null,
+          },
+          items: currentCart.map((c) => ({
+            name: c.name,
+            qty: c.qty,
+            price: c.price,
+            total: c.price * c.qty,
+            isService: c.isService,
+          })),
+          financials: {
+            subtotal: subtotalOffline,
+            discount: currentDiscount,
+            total: netTotalOffline,
+            paid: currentPaid,
+            balance: balanceOffline,
+          },
+          paymentMethod,
+          runningBalance: currentCustomer?.metrics?.outstandingBalance,
+          isOffline: true,
+          createdAt: new Date().toISOString(),
+        });
+
+        toast.warning(
+          `Connection dropped mid-flight: Order queued in IndexedDB (#${localOrderId.slice(0, 8)}). Local stock reserved.`,
         );
         setCart([]);
         setAmountPaid("");
         setDiscount("");
       } else {
-        alert(error.message);
+        toast.error(error.message || "Failed to create order");
       }
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Calculate stock limits (Cap services at 99, physical items at available stock)
+  const getMaxAllowedQty = useCallback(
+    (item: { id: string; condition?: string; isService?: boolean }) => {
+      if (item.isService) return 99;
+      const prod = products.find((p) => p.id === item.id);
+      if (!prod) return 999;
+      if (prod.instances && item.condition) {
+        const matchingAvailable = prod.instances.filter(
+          (i) => i.status === "AVAILABLE" && i.condition === item.condition,
+        ).length;
+        return Math.max(1, matchingAvailable);
+      }
+      return Math.max(1, prod.stock);
+    },
+    [products],
+  );
+
   // Cart Functions
   const addToCart = (product: Product, condition: string) => {
+    const maxAllowed = getMaxAllowedQty({
+      id: product.id,
+      condition,
+      isService: false,
+    });
+    const exists = cart.find(
+      (item) => item.id === product.id && item.condition === condition,
+    );
+    if (exists && exists.qty >= maxAllowed) {
+      toast.warning(
+        `Maximum stock limit (${maxAllowed}) reached for "${product.name}".`,
+      );
+      return;
+    }
+
     setCart((prev) => {
-      const exists = prev.find(
+      const itemExists = prev.find(
         (item) => item.id === product.id && item.condition === condition,
       );
-      if (exists) {
+      if (itemExists) {
         return prev.map((item) =>
           item.id === product.id && item.condition === condition
-            ? { ...item, qty: item.qty + 1 }
+            ? { ...item, qty: Math.min(maxAllowed, item.qty + 1) }
             : item,
         );
       }
@@ -650,7 +724,7 @@ function CreateOrderPOSContent() {
         setScanFeedback(null);
       }, 4000);
     },
-    [products],
+    [products, addToCart],
   );
 
   // 🟢 GLOBAL KEYBOARD FOCUS TRAP FOR BARCODE SCANNERS
@@ -705,14 +779,21 @@ function CreateOrderPOSContent() {
   }, [handleBarcodeScan]);
 
   const addServiceToCart = () => {
-    if (!serviceName || !servicePrice)
-      return alert("Service Name and Price are required.");
+    if (!serviceName || !servicePrice) {
+      toast.error("Service Name and Price are required.");
+      return;
+    }
+    const numPrice = Number(servicePrice);
+    if (isNaN(numPrice) || numPrice < 0) {
+      toast.error("Please enter a valid price for the service.");
+      return;
+    }
     setCart((prev) => [
       ...prev,
       {
         id: crypto.randomUUID(),
         name: serviceName,
-        price: Number(servicePrice),
+        price: numPrice,
         qty: 1,
         isService: true,
         notes: serviceNotes,
@@ -722,6 +803,7 @@ function CreateOrderPOSContent() {
     setServiceName("");
     setServicePrice("");
     setServiceNotes("");
+    toast.success(`Added labor "${serviceName}" to invoice.`);
   };
 
   const handleProductClick = (product: Product) => {
@@ -759,8 +841,17 @@ function CreateOrderPOSContent() {
     setCart((prev) =>
       prev.map((item) => {
         if (item.id === id && item.condition === condition) {
-          const newQty = item.qty + delta;
-          return newQty > 0 ? { ...item, qty: newQty } : item;
+          const maxAllowed = getMaxAllowedQty(item);
+          const targetQty = item.qty + delta;
+          if (targetQty > maxAllowed) {
+            toast.warning(
+              item.isService
+                ? "Labor/service items are capped at 99."
+                : `Maximum available stock (${maxAllowed}) reached.`,
+            );
+            return { ...item, qty: maxAllowed };
+          }
+          return targetQty > 0 ? { ...item, qty: targetQty } : item;
         }
         return item;
       }),
@@ -775,7 +866,16 @@ function CreateOrderPOSContent() {
     setCart((prev) =>
       prev.map((item) => {
         if (item.id === id && item.condition === condition) {
-          const safeQty = Math.max(1, isNaN(qty) ? 1 : qty);
+          const maxAllowed = getMaxAllowedQty(item);
+          let safeQty = Math.max(1, isNaN(qty) ? 1 : qty);
+          if (safeQty > maxAllowed) {
+            toast.warning(
+              item.isService
+                ? "Labor/service items are capped at 99."
+                : `Quantity adjusted to available stock limit (${maxAllowed}).`,
+            );
+            safeQty = maxAllowed;
+          }
           return { ...item, qty: safeQty };
         }
         return item;
@@ -932,7 +1032,7 @@ function CreateOrderPOSContent() {
           {!isOnline ? (
             <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm animate-pulse">
               <WifiOff className="w-4 h-4 text-amber-600" />
-              <span>Offline Mode (Hafeez Centre)</span>
+              <span>Offline Mode</span>
               {pendingCount > 0 && (
                 <span className="bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded text-[10px]">
                   {pendingCount} Queued
@@ -943,16 +1043,16 @@ function CreateOrderPOSContent() {
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1.5 rounded-xl">
                 <Wifi className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Online</span>
+                <span className="hidden sm:inline">Online</span>
               </div>
               {pendingCount > 0 && (
                 <button
-                  type="button"
-                  onClick={() => void triggerSync()}
-                  className="flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl hover:bg-blue-100 transition-all shadow-sm cursor-pointer"
+                  onClick={() => triggerSync()}
+                  className="flex items-center gap-1.5 text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-2.5 py-1.5 rounded-xl transition-colors cursor-pointer"
+                  title="Click to sync offline items"
                 >
-                  <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Sync {pendingCount} Pending</span>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Sync ({pendingCount})</span>
                 </button>
               )}
             </div>
@@ -990,7 +1090,7 @@ function CreateOrderPOSContent() {
           </div>
           <button
             onClick={() => setScanFeedback(null)}
-            className="text-slate-400 hover:text-slate-700 px-1"
+            className="text-slate-400 hover:text-slate-700 px-1 cursor-pointer"
           >
             ✕
           </button>
@@ -998,15 +1098,16 @@ function CreateOrderPOSContent() {
       )}
 
       {/* ==================================================
-          THREE-COLUMN RESIZABLE LAYOUT WITH HORIZONTAL SCROLL
-          Side-by-side columns: Catalog | Cart | Checkout
+          THREE-COLUMN RESPONSIVE LAYOUT
+          Desktop: Side-by-side columns: Catalog | Cart | Checkout
+          Mobile: Vertical stacked cards
       ==================================================== */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden mt-3 min-h-0 pb-1.5 pos-horizontal-scroll">
-        <div className="flex flex-row items-stretch h-full gap-1 min-w-max">
+      <div className="flex-1 overflow-x-auto overflow-y-auto xl:overflow-y-hidden mt-3 min-h-0 pb-1.5 pos-horizontal-scroll">
+        <div className="flex flex-col xl:flex-row items-stretch h-auto xl:h-full gap-4 xl:gap-1 w-full xl:min-w-max">
           {/* ───────── LEFT COLUMN: PRODUCT CATALOG ───────── */}
           <div
             style={{ width: `${colWidths.col1}px` }}
-            className="flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm min-h-0 shrink-0 min-w-[280px]"
+            className="w-full xl:w-auto flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm min-h-[480px] xl:min-h-0 shrink-0 xl:min-w-[280px]"
           >
             <div className="p-3.5 border-b border-slate-100 shrink-0 bg-slate-50/50 space-y-2">
               <div className="flex items-center justify-between gap-2">
@@ -1347,7 +1448,7 @@ function CreateOrderPOSContent() {
             onMouseDown={(e) => handleMouseDown("col1", e)}
             onDoubleClick={resetColWidths}
             style={{ cursor: "col-resize" }}
-            className={`relative w-4 -mx-2 flex flex-col items-center justify-center select-none z-20 shrink-0 group ${
+            className={`hidden xl:flex relative w-4 -mx-2 flex-col items-center justify-center select-none z-20 shrink-0 group ${
               activeResizeCol === "col1"
                 ? "bg-blue-100/40"
                 : "hover:bg-blue-50/50"
@@ -1379,7 +1480,7 @@ function CreateOrderPOSContent() {
           {/* ───────── CENTER COLUMN: UNIFIED CART ───────── */}
           <div
             style={{ width: `${colWidths.col2}px` }}
-            className="flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm min-h-0 shrink-0 min-w-[280px]"
+            className="w-full xl:w-auto flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm min-h-[360px] xl:min-h-0 shrink-0 xl:min-w-[280px]"
           >
             <div className="p-3.5 border-b border-slate-100 bg-slate-50 shrink-0 flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 min-w-0">
@@ -1488,7 +1589,7 @@ function CreateOrderPOSContent() {
                           </p>
                         )}
                       </div>
-                      {user?.role !== "STAFF" && (
+                      {!isAuthLoading && user && user.role !== "STAFF" && (
                         <button
                           type="button"
                           onClick={() => removeItem(item.id, item.condition)}
@@ -1515,6 +1616,13 @@ function CreateOrderPOSContent() {
                           Part
                         </span>
                       )}
+                      {item.qty >= getMaxAllowedQty(item) && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                          {item.isService
+                            ? "Max limit (99)"
+                            : `Max available (${getMaxAllowedQty(item)})`}
+                        </span>
+                      )}
                     </div>
 
                     {/* Row 3: Typed Stepper & Line Subtotal */}
@@ -1531,6 +1639,7 @@ function CreateOrderPOSContent() {
                         <input
                           type="number"
                           min="1"
+                          max={getMaxAllowedQty(item)}
                           value={item.qty}
                           onFocus={(e) => e.target.select()}
                           onChange={(e) => {
@@ -1543,8 +1652,11 @@ function CreateOrderPOSContent() {
                           }}
                           onBlur={(e) => {
                             const val = parseInt(e.target.value, 10);
+                            const max = getMaxAllowedQty(item);
                             if (isNaN(val) || val < 1) {
                               setDirectQty(item.id, item.condition, 1);
+                            } else if (val > max) {
+                              setDirectQty(item.id, item.condition, max);
                             }
                           }}
                           className="w-11 h-7 text-center text-xs font-black text-slate-900 bg-slate-50/70 border-x border-slate-200 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:bg-white"
@@ -1580,7 +1692,7 @@ function CreateOrderPOSContent() {
             onMouseDown={(e) => handleMouseDown("col2", e)}
             onDoubleClick={resetColWidths}
             style={{ cursor: "col-resize" }}
-            className={`relative w-4 -mx-2 flex flex-col items-center justify-center select-none z-20 shrink-0 group ${
+            className={`hidden xl:flex relative w-4 -mx-2 flex-col items-center justify-center select-none z-20 shrink-0 group ${
               activeResizeCol === "col2"
                 ? "bg-blue-100/40"
                 : "hover:bg-blue-50/50"
@@ -1612,7 +1724,7 @@ function CreateOrderPOSContent() {
           {/* ───────── RIGHT COLUMN: CHECKOUT PANEL ───────── */}
           <div
             style={{ width: `${colWidths.col3}px` }}
-            className="flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm min-h-0 shrink-0 min-w-[340px]"
+            className="w-full xl:w-auto flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm min-h-[420px] xl:min-h-0 shrink-0 xl:min-w-[340px]"
           >
             {/* CUSTOMER SEGMENT */}
             <div className="p-4 border-b border-slate-100 bg-slate-50 shrink-0">
@@ -1757,6 +1869,7 @@ function CreateOrderPOSContent() {
                   <input
                     type="number"
                     min="0"
+                    max={subtotal}
                     value={discount}
                     onFocus={(e) => {
                       if (discount === "0" || Number(discount) === 0)
@@ -1768,7 +1881,20 @@ function CreateOrderPOSContent() {
                       if (val === "") {
                         setDiscount("");
                       } else {
-                        setDiscount(String(Math.max(0, Number(val))));
+                        const num = Math.max(0, Number(val));
+                        const capped = Math.min(subtotal, num);
+                        if (num > subtotal) {
+                          toast.warning(
+                            `Discount cannot exceed subtotal (Rs. ${subtotal.toLocaleString()}).`,
+                          );
+                        }
+                        setDiscount(String(capped));
+                      }
+                    }}
+                    onBlur={() => {
+                      const num = Number(discount) || 0;
+                      if (num > subtotal) {
+                        setDiscount(String(subtotal));
                       }
                     }}
                     className="w-full pl-8 pr-2.5 py-1.5 text-right font-black text-slate-900 bg-white border border-slate-300 rounded-lg text-xs sm:text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-2xs"
@@ -1785,6 +1911,30 @@ function CreateOrderPOSContent() {
                 <span className="text-2xl font-black text-slate-900 tracking-tight leading-none">
                   Rs. {grandTotal.toLocaleString()}
                 </span>
+              </div>
+
+              {/* Explicit Balance Due / Udhaar Indicator */}
+              <div className="p-3 rounded-xl border bg-slate-50 border-slate-200 space-y-1">
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="text-slate-600">Balance Due (Udhaar):</span>
+                  <span
+                    className={
+                      pendingAmount > 0
+                        ? "text-rose-600 font-black text-sm"
+                        : "text-emerald-600 font-black text-sm"
+                    }
+                  >
+                    Rs. {Math.max(0, pendingAmount).toLocaleString()}
+                  </span>
+                </div>
+                {Number(amountPaid) > grandTotal && (
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-700 pt-1 border-t border-slate-200">
+                    <span>Change to Return:</span>
+                    <span>
+                      Rs. {(Number(amountPaid) - grandTotal).toLocaleString()}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <hr className="border-slate-200" />
@@ -1840,7 +1990,7 @@ function CreateOrderPOSContent() {
                 {customerMode === "existing" && (
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Order Status (Dual State Logic)
+                      Order Type / Settlement
                     </label>
                     <div className="flex relative">
                       <button
@@ -1908,7 +2058,7 @@ function CreateOrderPOSContent() {
             onMouseDown={(e) => handleMouseDown("col3", e)}
             onDoubleClick={resetColWidths}
             style={{ cursor: "col-resize" }}
-            className={`relative w-4 -mx-2 flex flex-col items-center justify-center select-none z-20 shrink-0 group ${
+            className={`hidden xl:flex relative w-4 -mx-2 flex-col items-center justify-center select-none z-20 shrink-0 group ${
               activeResizeCol === "col3"
                 ? "bg-blue-100/40"
                 : "hover:bg-blue-50/50"

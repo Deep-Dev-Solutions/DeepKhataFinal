@@ -17,6 +17,8 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { CreateProductDto } from './dto/create-product.dto';
+import { UpdatePriceDto } from './dto/update-price.dto';
 
 @Controller('product')
 @UseGuards(ThrottlerGuard, JwtAuthGuard)
@@ -33,7 +35,7 @@ export class ProductsController {
   @Post('addproduct')
   @UseGuards(PermissionsGuard)
   @RequirePermissions('write:products')
-  async addProduct(@Req() req: any, @Body() body: any) {
+  async addProduct(@Req() req: any, @Body() body: CreateProductDto) {
     return this.productsService.addProduct(req.user.id, body);
   }
 
@@ -45,11 +47,15 @@ export class ProductsController {
   }
 
   @Get('getcategories')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('read:products')
   async getCategories(@Req() req: any) {
     return this.productsService.getCategories(req.user.id);
   }
 
   @Get('getcabinets')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('read:products')
   async getCabinets(@Req() req: any) {
     return this.productsService.getCabinets(req.user.id);
   }
@@ -100,6 +106,8 @@ export class ProductsController {
   }
 
   @Get('getbranches')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('read:products')
   async getBranches(@Req() req: any) {
     return this.productsService.getBranches(req.user.id);
   }
@@ -132,8 +140,8 @@ export class ProductsController {
   async updatePrice(
     @Req() req: any,
     @Param('id') id: string,
-    @Body('price') price: number,
+    @Body() body: UpdatePriceDto,
   ) {
-    return this.productsService.updatePrice(req.user.id, id, price);
+    return this.productsService.updatePrice(req.user.id, id, body.price);
   }
 }

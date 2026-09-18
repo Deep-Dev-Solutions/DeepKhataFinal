@@ -34,6 +34,27 @@ export class OrdersService {
     const parsedDiscount = Number(discount) || 0;
     const parsedAmountPaid = Number(amountPaid) || 0;
 
+    if (parsedDiscount < 0) {
+      throw new BadRequestException('Discount cannot be negative');
+    }
+    if (parsedAmountPaid < 0) {
+      throw new BadRequestException('Amount paid cannot be negative');
+    }
+
+    for (const item of items) {
+      if (!item.quantity || item.quantity <= 0) {
+        throw new BadRequestException(
+          'Item quantity must be greater than zero',
+        );
+      }
+      if (item.isService && item.quantity > 99) {
+        throw new BadRequestException('Service quantity cannot exceed 99');
+      }
+      if (item.isService && Number(item.price) < 0) {
+        throw new BadRequestException('Service price cannot be negative');
+      }
+    }
+
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { businessId: true },
@@ -65,6 +86,12 @@ export class OrdersService {
           }
           secureProducts[item.productId] = product;
           calculatedTotal += product.price * item.quantity;
+        }
+
+        if (parsedDiscount > calculatedTotal) {
+          throw new BadRequestException(
+            `Discount (${parsedDiscount}) cannot exceed total sale amount (${calculatedTotal})`,
+          );
         }
 
         const finalGrandTotal = calculatedTotal - parsedDiscount;
@@ -547,6 +574,10 @@ export class OrdersService {
     const { amountPaid, paymentMethod = 'CASH' } = data;
     const parsedAmountPaid = Number(amountPaid) || 0;
 
+    if (parsedAmountPaid < 0) {
+      throw new BadRequestException('Amount paid cannot be negative');
+    }
+
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { businessId: true },
@@ -564,6 +595,14 @@ export class OrdersService {
     }
 
     const existingPaid = order.payments.reduce((sum, p) => sum + p.amount, 0);
+    const remainingBalance = order.totalAmount - existingPaid;
+
+    if (parsedAmountPaid > remainingBalance) {
+      throw new BadRequestException(
+        `Amount paid (${parsedAmountPaid}) cannot exceed remaining balance (${remainingBalance})`,
+      );
+    }
+
     const totalPaid = existingPaid + parsedAmountPaid;
     const newPaymentStatus =
       totalPaid >= order.totalAmount
@@ -765,6 +804,18 @@ export class OrdersService {
           if (!orderItem) {
             throw new BadRequestException(
               `Product ${returnItem.productId} not found in order`,
+            );
+          }
+
+          if (!returnItem.quantity || returnItem.quantity <= 0) {
+            throw new BadRequestException(
+              `Return quantity must be greater than zero for product ${returnItem.productId}`,
+            );
+          }
+
+          if (returnItem.quantity > orderItem.quantity) {
+            throw new BadRequestException(
+              `Return quantity (${returnItem.quantity}) cannot exceed purchased quantity (${orderItem.quantity}) for product ${returnItem.productId}`,
             );
           }
 

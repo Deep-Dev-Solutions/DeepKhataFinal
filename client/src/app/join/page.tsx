@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Store, User, Lock, Mail, ArrowRight, Loader2 } from "lucide-react";
+import { API_BASE_URL } from "@/lib/auth";
 
 function JoinForm() {
   const router = useRouter();
@@ -12,7 +13,7 @@ function JoinForm() {
   const [email, setEmail] = useState(""); // 🟢 Store fetched email
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
-  
+
   const [isCheckingToken, setIsCheckingToken] = useState(true); // 🟢 Loading state for initial fetch
   const [loading, setLoading] = useState(false); // Loading state for submit
   const [error, setError] = useState("");
@@ -20,7 +21,7 @@ function JoinForm() {
   // 🟢 1. FETCH INVITATION DETAILS ON LOAD
   useEffect(() => {
     if (!token) {
-      setError("Invalid or missing invitation token.");
+      setError("No invitation token found in the link.");
       setIsCheckingToken(false);
       return;
     }
@@ -28,11 +29,13 @@ function JoinForm() {
     const fetchInvitation = async () => {
       try {
         // Calling your new GET controller
-        const res = await fetch(`http://localhost:5000/team/invite/${token}`);
+        const res = await fetch(`${API_BASE_URL}/team/invite/${token}`);
         const data = await res.json();
 
         if (!res.ok || !data.success) {
-          throw new Error(data.message || "Invalid or expired invitation link.");
+          throw new Error(
+            data.message || "Invalid or expired invitation link.",
+          );
         }
 
         // Set the email from the database
@@ -54,7 +57,7 @@ function JoinForm() {
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:5000/team/join", {
+      const res = await fetch(`${API_BASE_URL}/team/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, name, password }),
@@ -92,10 +95,11 @@ function JoinForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      
       {/* 🟢 NEW: DISABLED EMAIL INPUT */}
       <div>
-        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Email Address</label>
+        <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+          Email Address
+        </label>
         <div className="relative">
           <Mail className="w-5 h-5 text-slate-400 absolute left-3 top-2.5" />
           <input
@@ -108,7 +112,9 @@ function JoinForm() {
       </div>
 
       <div>
-        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Full Name</label>
+        <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+          Full Name
+        </label>
         <div className="relative">
           <User className="w-5 h-5 text-slate-400 absolute left-3 top-2.5" />
           <input
@@ -123,7 +129,9 @@ function JoinForm() {
       </div>
 
       <div>
-        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Create Password</label>
+        <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+          Create Password
+        </label>
         <div className="relative">
           <Lock className="w-5 h-5 text-slate-400 absolute left-3 top-2.5" />
           <input
@@ -164,7 +172,9 @@ export default function JoinWorkspacePage() {
           <div className="bg-blue-600 p-2 rounded-xl shadow-sm">
             <Store className="w-6 h-6 text-white" />
           </div>
-          <span className="text-2xl font-bold tracking-tight text-slate-900">BizFlow</span>
+          <span className="text-2xl font-bold tracking-tight text-slate-900">
+            BizFlow
+          </span>
         </div>
         <h2 className="mt-2 text-center text-3xl font-extrabold text-slate-900">
           Accept Invitation
@@ -176,7 +186,11 @@ export default function JoinWorkspacePage() {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-xl shadow-slate-200/50 sm:rounded-2xl sm:px-10 border border-slate-100">
-          <Suspense fallback={<div className="text-center text-slate-500 py-8">Loading...</div>}>
+          <Suspense
+            fallback={
+              <div className="text-center text-slate-500 py-8">Loading...</div>
+            }
+          >
             <JoinForm />
           </Suspense>
         </div>

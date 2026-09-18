@@ -34,8 +34,13 @@ export function useOfflineSync() {
       void refreshPendingCount();
     };
 
+    const handleSyncQueueUpdated = () => {
+      void refreshPendingCount();
+    };
+
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
+    window.addEventListener("sync-queue-updated", handleSyncQueueUpdated);
 
     // Initial sync listener
     const cleanupSync = initOfflineSyncListener();
@@ -43,11 +48,12 @@ export function useOfflineSync() {
 
     const interval = window.setInterval(() => {
       void refreshPendingCount();
-    }, 4000);
+    }, 5000);
 
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("sync-queue-updated", handleSyncQueueUpdated);
       cleanupSync();
       window.clearInterval(interval);
     };

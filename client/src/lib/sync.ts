@@ -1,7 +1,6 @@
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import { offlineDb, type SyncQueueItem } from "./db";
 
-
 let isSyncing = false;
 
 export async function flushSyncQueue(): Promise<{
@@ -55,6 +54,9 @@ export async function flushSyncQueue(): Promise<{
 
       await offlineDb.syncQueue.bulkDelete(syncedIds);
       synced = syncedIds.length;
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("sync-queue-updated"));
+      }
     } else {
       // Mark back to pending or failed
       await Promise.all(
@@ -66,6 +68,9 @@ export async function flushSyncQueue(): Promise<{
         ),
       );
       errors = pendingItems.length;
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("sync-queue-updated"));
+      }
     }
   } catch (err: any) {
     await Promise.all(
@@ -77,6 +82,9 @@ export async function flushSyncQueue(): Promise<{
       ),
     );
     errors = pendingItems.length;
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("sync-queue-updated"));
+    }
   } finally {
     isSyncing = false;
   }
@@ -84,29 +92,47 @@ export async function flushSyncQueue(): Promise<{
   return { synced, errors };
 }
 
+let activeListenerCount = 0;
+let globalCleanup: (() => void) | null = null;
+
 export function initOfflineSyncListener(): () => void {
   if (typeof window === "undefined") return () => {};
 
-  const handleOnline = () => {
-    void flushSyncQueue();
-  };
+  activeListenerCount++;
 
-  window.addEventListener("online", handleOnline);
+  if (activeListenerCount === 1) {
+    const handleOnline = () => {
+      void flushSyncQueue();
+    };
 
-  // Periodic flush every 20 seconds
-  const intervalId = window.setInterval(() => {
+    window.addEventListener("online", handleOnline);
+
+    // Periodic flush every 20 seconds
+    const intervalId = window.setInterval(() => {
+      if (navigator.onLine) {
+        void flushSyncQueue();
+      }
+    }, 20000);
+
+    // Run immediate attempt if online
     if (navigator.onLine) {
       void flushSyncQueue();
     }
-  }, 20000);
 
-  // Run immediate attempt if online
-  if (navigator.onLine) {
-    void flushSyncQueue();
+    globalCleanup = () => {
+      window.removeEventListener("online", handleOnline);
+      window.clearInterval(intervalId);
+    };
   }
 
   return () => {
-    window.removeEventListener("online", handleOnline);
-    window.clearInterval(intervalId);
+    activeListenerCount--;
+    if (activeListenerCount <= 0) {
+      activeListenerCount = 0;
+      if (globalCleanup) {
+        globalCleanup();
+        globalCleanup = null;
+      }
+    }
   };
 }

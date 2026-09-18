@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { User } from "lucide-react";
+import { API_BASE_URL } from "@/lib/auth";
 
 export default function ProfileTab({
   user,
@@ -17,7 +18,9 @@ export default function ProfileTab({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
-  const [passwordStatus, setPasswordStatus] = useState<"idle" | "success" | "error">("idle");
+  const [passwordStatus, setPasswordStatus] = useState<
+    "idle" | "success" | "error"
+  >("idle");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -40,13 +43,15 @@ export default function ProfileTab({
     setStatusMessage("Saving...");
 
     try {
-      const res = await fetch("http://localhost:5000/settings/profile", {
+      const res = await fetch(`${API_BASE_URL}/settings/profile`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
         },
-        body: JSON.stringify({ [field === "phone" ? "phone" : field]: normalizedValue }),
+        body: JSON.stringify({
+          [field === "phone" ? "phone" : field]: normalizedValue,
+        }),
       });
 
       const data = await res.json();
@@ -81,7 +86,7 @@ export default function ProfileTab({
     formData.append("avatar", file);
 
     try {
-      const res = await fetch("http://localhost:5000/settings/profile", {
+      const res = await fetch(`${API_BASE_URL}/settings/profile`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
@@ -127,7 +132,7 @@ export default function ProfileTab({
     setPasswordStatus("idle");
 
     try {
-      const res = await fetch("http://localhost:5000/settings/profile", {
+      const res = await fetch(`${API_BASE_URL}/settings/profile`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -157,11 +162,17 @@ export default function ProfileTab({
       <section>
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold text-slate-900">Personal Information</h2>
-            <p className="text-sm text-slate-500">Update your personal details and how you log in.</p>
+            <h2 className="text-base font-semibold text-slate-900">
+              Personal Information
+            </h2>
+            <p className="text-sm text-slate-500">
+              Update your personal details and how you log in.
+            </p>
           </div>
           {statusMessage ? (
-            <span className={`text-xs font-medium ${statusMessage === "Saved" || statusMessage === "Avatar updated" || statusMessage === "Password updated" ? "text-emerald-600" : "text-slate-500"}`}>
+            <span
+              className={`text-xs font-medium ${statusMessage === "Saved" || statusMessage === "Avatar updated" || statusMessage === "Password updated" ? "text-emerald-600" : "text-slate-500"}`}
+            >
               {statusMessage}
             </span>
           ) : null}
@@ -169,14 +180,24 @@ export default function ProfileTab({
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row gap-8 items-start">
           <div className="flex flex-col items-center gap-3">
-            <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleAvatarUpload} />
+            <input
+              type="file"
+              accept="image/*"
+              ref={fileInputRef}
+              className="hidden"
+              onChange={handleAvatarUpload}
+            />
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               className="w-20 h-20 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-2xl font-bold shadow-sm overflow-hidden"
             >
               {avatarUrl ? (
-                <img src={avatarUrl} alt="Profile avatar" className="w-full h-full object-cover" />
+                <img
+                  src={avatarUrl}
+                  alt="Profile avatar"
+                  className="w-full h-full object-cover"
+                />
               ) : (
                 (user?.name || "U")
                   .split(" ")
@@ -196,7 +217,9 @@ export default function ProfileTab({
           <div className="flex-1 w-full space-y-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Full Name</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Full Name
+                </label>
                 <input
                   type="text"
                   value={name}
@@ -206,7 +229,9 @@ export default function ProfileTab({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Personal Phone</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Personal Phone
+                </label>
                 <input
                   type="text"
                   value={phone}
@@ -218,14 +243,18 @@ export default function ProfileTab({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Login Email</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                Login Email
+              </label>
               <input
                 type="email"
                 value={user?.email || ""}
                 disabled
                 className="w-full border border-slate-200 rounded-lg py-2 px-3 outline-none text-sm bg-slate-100 text-slate-500 cursor-not-allowed"
               />
-              <p className="text-xs text-slate-400 mt-1.5">Your email cannot be changed here. Contact support if needed.</p>
+              <p className="text-xs text-slate-400 mt-1.5">
+                Your email cannot be changed here. Contact support if needed.
+              </p>
             </div>
           </div>
         </div>
@@ -235,13 +264,19 @@ export default function ProfileTab({
 
       <section>
         <div className="mb-4">
-          <h2 className="text-base font-semibold text-slate-900">Change Password</h2>
-          <p className="text-sm text-slate-500">Ensure your account stays secure.</p>
+          <h2 className="text-base font-semibold text-slate-900">
+            Change Password
+          </h2>
+          <p className="text-sm text-slate-500">
+            Ensure your account stays secure.
+          </p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">New Password</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                New Password
+              </label>
               <input
                 type="password"
                 value={newPassword}
@@ -251,7 +286,9 @@ export default function ProfileTab({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Confirm New Password</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                Confirm New Password
+              </label>
               <input
                 type="password"
                 value={confirmPassword}
@@ -274,7 +311,9 @@ export default function ProfileTab({
               <span className="text-sm text-emerald-600">Password updated</span>
             ) : null}
             {passwordStatus === "error" ? (
-              <span className="text-sm text-rose-600">Please confirm your password</span>
+              <span className="text-sm text-rose-600">
+                Please confirm your password
+              </span>
             ) : null}
           </div>
         </div>

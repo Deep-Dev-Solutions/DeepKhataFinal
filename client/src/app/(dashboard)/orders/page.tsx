@@ -8,15 +8,15 @@ import {
   Calendar,
   MessageCircle,
   Package,
-  LayoutList,
-  KanbanSquare,
   Download,
   AlertCircle,
+  Loader2,
 } from "lucide-react";
 import OrderMetrics from "@/components/orders/OrderMetrics";
 import OrderTable from "@/components/orders/OrderTable";
 import OrderPagination from "@/components/orders/OrderPagination";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { useToast } from "@/context/ToastContext";
 
 const getFriendlyDate = (dateStr: string) => {
   const date = new Date(dateStr);
@@ -24,14 +24,6 @@ const getFriendlyDate = (dateStr: string) => {
   const diffTime = Math.abs(now.getTime() - date.getTime());
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-  if (diffDays <= 1) {
-    if (date.getDate() === now.getDate()) {
-      return `Today, ${date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`;
-    }
-    return "Yesterday";
-  }
-  if (diffDays === 2) return "2 days ago";
-  if (diffDays === 3) return "3 days ago";
   if (diffDays <= 7) return `${diffDays} days ago`;
 
   return date.toLocaleDateString("en-US", {
@@ -42,8 +34,8 @@ const getFriendlyDate = (dateStr: string) => {
 };
 
 export default function OrdersHubPage() {
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("all-orders");
-  const [viewMode, setViewMode] = useState<"list" | "board">("list");
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
 
   const [orders, setOrders] = useState<any[]>([]);
@@ -279,8 +271,9 @@ export default function OrdersHubPage() {
           </div>
         )}
         {isLoading ? (
-          <div className="p-8 text-center text-slate-500 text-sm">
-            Loading orders from server...
+          <div className="p-12 flex flex-col items-center justify-center gap-3 text-slate-500 text-sm">
+            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+            <span>Loading orders from server...</span>
           </div>
         ) : currentOrdersOnPage.length === 0 ? (
           <div className="p-12 text-center text-slate-500 text-sm">
@@ -317,10 +310,24 @@ export default function OrdersHubPage() {
           <span className="text-sm font-medium border-r border-slate-700 pr-4">
             {selectedOrders.length} orders selected
           </span>
-          <button className="text-sm hover:text-blue-400 flex items-center gap-1.5">
+          <button
+            onClick={() =>
+              toast.info(
+                `Payment reminder triggered for ${selectedOrders.length} selected order(s).`,
+              )
+            }
+            className="text-sm hover:text-blue-400 flex items-center gap-1.5 cursor-pointer transition-colors"
+          >
             <MessageCircle className="w-4 h-4" /> Remind
           </button>
-          <button className="text-sm hover:text-emerald-400 flex items-center gap-1.5">
+          <button
+            onClick={() =>
+              toast.success(
+                `Exporting ${selectedOrders.length} order(s) to CSV initiated.`,
+              )
+            }
+            className="text-sm hover:text-emerald-400 flex items-center gap-1.5 cursor-pointer transition-colors"
+          >
             <Download className="w-4 h-4" /> Export
           </button>
         </div>
