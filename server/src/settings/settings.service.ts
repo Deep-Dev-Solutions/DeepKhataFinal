@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
+import { sendInviteEmail } from '../utils/mailer';
 
 @Injectable()
 export class SettingsService {
@@ -166,5 +168,111 @@ export class SettingsService {
       message: 'Branch updated successfully',
       branch: updatedBranch,
     };
+  }
+
+  async createBranch(userId: string, data: any) {
+    const { name, phone, address, location } = data;
+    if (!name || !name.trim()) {
+      throw new BadRequestException('Branch name is required.');
+    }
+
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true, role: true },
+    });
+
+    if (!currentUser?.businessId) {
+      throw new BadRequestException('No business found.');
+    }
+
+    if (currentUser.role !== 'OWNER' && currentUser.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException(
+        'Only the workspace owner or super admin can create branches.',
+      );
+    }
+
+    // Tier limit enforcement: Max 2 branches
+    const branchCount = await this.prisma.branch.count({
+      where: { businessId: currentUser.businessId },
+    });
+
+    if (branchCount >= 2 && currentUser.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException(
+        'Base plan limit reached (2 branches). Contact administration to upgrade.',
+      );
+    }
+
+    const loc = address !== undefined ? address : location;
+
+    const branch = await this.prisma.branch.create({
+      data: {
+        name: name.trim(),
+        phone: phone ? phone.trim() : null,
+        location: loc ? loc.trim() : null,
+        businessId: currentUser.businessId,
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Branch created successfully',
+      branch,
+    };
+  }
+
+  async inviteStaff(userId: string, data: any) {
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true, role: true },
+    });
+
+    if (!currentUser?.businessId) {
+      throw new BadRequestException('No business found.');
+    }
+
+    // Tier limit enforcement: Max 5 accounts
+    const userCount = await this.prisma.user.count({
+      where: { businessId: currentUser.businessId },
+    });
+
+    if (userCount >= 5 && currentUser.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException(
+        'Base plan limit reached (5 accounts). Contact administration to upgrade.',
+      );
+    }
+
+    const { email, role } = data;
+    if (!email || !role) {
+      throw new BadRequestException('Missing required fields');
+    }
+
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email },
+    });
+    if (existingUser) {
+      throw new BadRequestException('User is already registered.');
+    }
+
+    const existingInvite = await this.prisma.invitation.findFirst({
+      where: { email, businessId: currentUser.businessId },
+    });
+    if (existingInvite) {
+      throw new BadRequestException('Invitation already sent to this email.');
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+
+    await this.prisma.invitation.create({
+      data: {
+        email,
+        role,
+        businessId: currentUser.businessId,
+        token,
+      },
+    });
+
+    await sendInviteEmail(email, role, token);
+
+    return { success: true, message: 'Invitation sent successfully!' };
   }
 }

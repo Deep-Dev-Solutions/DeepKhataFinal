@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL } from "@/lib/auth";
-import { GitBranch, MapPin, Phone, Pencil, Loader2 } from "lucide-react";
+import { GitBranch, MapPin, Phone, Pencil, Plus, Loader2 } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import {
   Dialog,
@@ -24,14 +24,25 @@ export default function BranchesTab() {
   const [isLoading, setIsLoading] = useState(
     !authBranches || authBranches.length === 0,
   );
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  // Edit Dialog State
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<any>(null);
-  const [formData, setFormData] = useState({
+  const [editFormData, setEditFormData] = useState({
     name: "",
     phone: "",
     address: "",
   });
   const [isSaving, setIsSaving] = useState(false);
+
+  // Add Dialog State
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [addFormData, setAddFormData] = useState({
+    name: "",
+    phone: "",
+    address: "",
+  });
+  const [isAdding, setIsAdding] = useState(false);
 
   const fetchBranches = useCallback(async () => {
     if (!token) return;
@@ -62,14 +73,15 @@ export default function BranchesTab() {
     }
   }, [authBranches, fetchBranches]);
 
+  // Edit Handlers
   const openEditDialog = (branch: any) => {
     setEditingBranch(branch);
-    setFormData({
+    setEditFormData({
       name: branch.name || "",
       phone: branch.phone || "",
       address: branch.location || "",
     });
-    setIsDialogOpen(true);
+    setIsEditDialogOpen(true);
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -87,9 +99,9 @@ export default function BranchesTab() {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            name: formData.name.trim(),
-            phone: formData.phone.trim(),
-            address: formData.address.trim(),
+            name: editFormData.name.trim(),
+            phone: editFormData.phone.trim(),
+            address: editFormData.address.trim(),
           }),
         },
       );
@@ -100,7 +112,7 @@ export default function BranchesTab() {
       }
 
       toast.success("Branch updated successfully");
-      setIsDialogOpen(false);
+      setIsEditDialogOpen(false);
       setEditingBranch(null);
       await fetchBranches();
       if (refreshUser) {
@@ -113,20 +125,96 @@ export default function BranchesTab() {
     }
   };
 
+  // Add Handlers
+  const openAddDialog = () => {
+    setAddFormData({ name: "", phone: "", address: "" });
+    setIsAddDialogOpen(true);
+  };
+
+  const handleAddBranch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+
+    if (!addFormData.name.trim()) {
+      toast.error("Branch name is required");
+      return;
+    }
+
+    setIsAdding(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/settings/branch`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: addFormData.name.trim(),
+          phone: addFormData.phone.trim(),
+          address: addFormData.address.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        // Catch tier limit / payment required error
+        if (
+          res.status === 403 ||
+          data.message?.toLowerCase().includes("limit") ||
+          data.message?.toLowerCase().includes("upgrade")
+        ) {
+          toast.warning(
+            data.message ||
+              "Base plan limit reached (2 branches). Contact administration to upgrade.",
+          );
+          return;
+        }
+        throw new Error(data.message || "Failed to add branch");
+      }
+
+      toast.success("Branch added successfully!");
+      setIsAddDialogOpen(false);
+      setAddFormData({ name: "", phone: "", address: "" });
+      await fetchBranches();
+      if (refreshUser) {
+        await refreshUser();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "An error occurred while creating branch");
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
   const safeBranches = Array.isArray(branches) ? branches : [];
 
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="border-b border-slate-200 bg-slate-50 px-5 pt-4 pb-4">
-          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <GitBranch className="w-5 h-5 text-indigo-600" />
-            Branches & Locations
-          </h2>
-          <p className="text-sm text-slate-500 mt-1">
-            View and manage your provisioned branches. New branches can only be
-            added by DeepKhata administration.
-          </p>
+        <div className="border-b border-slate-200 bg-slate-50 px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <GitBranch className="w-5 h-5 text-indigo-600" />
+                Branches & Locations
+              </h2>
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-200/80 text-slate-700">
+                {safeBranches.length} / 2 Base Plan
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Manage your business branches. Your base plan includes up to 2
+              active locations.
+            </p>
+          </div>
+
+          <button
+            onClick={openAddDialog}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            Add Branch
+          </button>
         </div>
 
         <div className="p-5">
@@ -140,7 +228,7 @@ export default function BranchesTab() {
               <GitBranch className="w-10 h-10 mx-auto text-slate-300 mb-2" />
               <p className="font-semibold text-slate-700">No branches found</p>
               <p className="text-xs text-slate-400 mt-0.5">
-                Contact administration to provision your first branch.
+                Click "Add Branch" above to create your location.
               </p>
             </div>
           ) : (
@@ -207,12 +295,100 @@ export default function BranchesTab() {
         </div>
       </div>
 
-      {/* Standard Shadcn Dialog for Editing Branch */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      {/* ─── ADD BRANCH DIALOG ─── */}
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <GitBranch className="w-5 h-5 text-indigo-600" />
+              <Plus className="w-5 h-5 text-indigo-600" />
+              Add New Branch
+            </DialogTitle>
+            <DialogDescription>
+              Create a new branch location for your store (up to 2 on the Base
+              Plan).
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleAddBranch} className="space-y-4 py-2">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                Branch Name <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={addFormData.name}
+                onChange={(e) =>
+                  setAddFormData({ ...addFormData, name: e.target.value })
+                }
+                className="w-full px-3 h-10 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none shadow-xs"
+                placeholder="e.g. Liberty Branch"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                Phone Number
+              </label>
+              <div className="relative">
+                <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="tel"
+                  value={addFormData.phone}
+                  onChange={(e) =>
+                    setAddFormData({ ...addFormData, phone: e.target.value })
+                  }
+                  className="w-full pl-9 pr-3 h-10 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none shadow-xs font-mono"
+                  placeholder="e.g. +92 300 1234567"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                Address / Location
+              </label>
+              <div className="relative">
+                <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                <textarea
+                  rows={2}
+                  value={addFormData.address}
+                  onChange={(e) =>
+                    setAddFormData({ ...addFormData, address: e.target.value })
+                  }
+                  className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none shadow-xs resize-none"
+                  placeholder="e.g. Shop #12, Liberty Market, Lahore"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="pt-4">
+              <button
+                type="button"
+                onClick={() => setIsAddDialogOpen(false)}
+                className="px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isAdding || !addFormData.name.trim()}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+              >
+                {isAdding && <Loader2 className="w-4 h-4 animate-spin" />}
+                {isAdding ? "Adding..." : "Add Branch"}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── EDIT BRANCH DIALOG ─── */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-indigo-600" />
               Edit Branch
             </DialogTitle>
             <DialogDescription>
@@ -229,9 +405,9 @@ export default function BranchesTab() {
               <input
                 type="text"
                 required
-                value={formData.name}
+                value={editFormData.name}
                 onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
+                  setEditFormData({ ...editFormData, name: e.target.value })
                 }
                 className="w-full px-3 h-10 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none shadow-xs"
                 placeholder="e.g. Main Branch"
@@ -246,9 +422,9 @@ export default function BranchesTab() {
                 <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="tel"
-                  value={formData.phone}
+                  value={editFormData.phone}
                   onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
+                    setEditFormData({ ...editFormData, phone: e.target.value })
                   }
                   className="w-full pl-9 pr-3 h-10 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none shadow-xs font-mono"
                   placeholder="e.g. +92 300 0000000"
@@ -264,9 +440,12 @@ export default function BranchesTab() {
                 <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
                 <textarea
                   rows={2}
-                  value={formData.address}
+                  value={editFormData.address}
                   onChange={(e) =>
-                    setFormData({ ...formData, address: e.target.value })
+                    setEditFormData({
+                      ...editFormData,
+                      address: e.target.value,
+                    })
                   }
                   className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none shadow-xs resize-none"
                   placeholder="e.g. Shop #4, Commercial Market, Lahore"
@@ -277,14 +456,14 @@ export default function BranchesTab() {
             <DialogFooter className="pt-4">
               <button
                 type="button"
-                onClick={() => setIsDialogOpen(false)}
+                onClick={() => setIsEditDialogOpen(false)}
                 className="px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={isSaving || !formData.name.trim()}
+                disabled={isSaving || !editFormData.name.trim()}
                 className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
               >
                 {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}

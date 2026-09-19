@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Put,
   Patch,
   Body,
@@ -83,6 +84,16 @@ export class SettingsController {
     @UploadedFile() file: any,
   ) {
     return this.settingsService.updateBusinessInfo(req.user.id, body, file);
+  }
+
+  @Post('branch')
+  async createBranch(@Req() req: any, @Body() body: any) {
+    return this.settingsService.createBranch(req.user.id, body);
+  }
+
+  @Post('staff')
+  async inviteStaffAlias(@Req() req: any, @Body() body: any) {
+    return this.settingsService.inviteStaff(req.user.id, body);
   }
 
   @Patch('branch/:id')

@@ -22,6 +22,17 @@ export class TeamService {
     if (!email || !role || !businessId)
       throw new BadRequestException('Missing required fields');
 
+    // Enforce base tier limit (Max 5 accounts)
+    const userCount = await this.prisma.user.count({
+      where: { businessId },
+    });
+
+    if (userCount >= 5) {
+      throw new ForbiddenException(
+        'Base plan limit reached (5 accounts). Contact administration to upgrade.',
+      );
+    }
+
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
     });

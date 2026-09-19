@@ -55,6 +55,24 @@ export class OnboardingService {
         },
       });
 
+      // Auto-provision default branch
+      await tx.branch.create({
+        data: {
+          name: 'Main Branch',
+          businessId: newBusiness.id,
+          phone: phone || null,
+          location: address || null,
+        },
+      });
+
+      // Create default category
+      await tx.category.create({
+        data: {
+          name: 'General',
+          businessId: newBusiness.id,
+        },
+      });
+
       return newBusiness;
     });
 
