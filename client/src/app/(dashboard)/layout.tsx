@@ -5,11 +5,12 @@ import Sidebar from "@/components/dashboard/Sidebar";
 import MobileNav from "@/components/dashboard/MobileNav";
 import Header from "@/components/dashboard/Header";
 import { SidebarProvider, useSidebar } from "@/context/SidebarContext";
-import { POSProvider } from "@/context/POSContext";
+import { POSProvider, usePOS } from "@/context/POSContext";
 import { useAuth } from "@/context/AuthContext";
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { isCollapsed } = useSidebar();
+  const { isCheckoutOpen } = usePOS();
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
@@ -23,7 +24,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
         } min-h-screen pb-16 md:pb-0 transition-[padding] duration-300 ease-in-out`}
       >
         {/* 2. Top Header */}
-        <Header />
+        {!isCheckoutOpen && <Header />}
 
         {/* 3. The Page Content */}
         <main className="flex-1 p-3 sm:p-4 lg:p-6 min-h-0 flex flex-col">
@@ -32,7 +33,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* 4. Mobile Bottom Nav */}
-      <MobileNav />
+      {!isCheckoutOpen && <MobileNav />}
     </div>
   );
 }

@@ -64,7 +64,7 @@ const CONDITIONS = [
 ];
 
 export default function RestockPage() {
-  const { user } = useAuth();
+  const { user, activeBranchId } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [activeCategory, setActiveCategory] = useState("All");
@@ -104,11 +104,17 @@ export default function RestockPage() {
         headers: getAuthHeaders(),
       });
       const data = await res.json();
-      if (data.success) setBranches(data.branches);
+      if (data.success) {
+        setBranches(data.branches);
+        // Pre-select the active branch from global context
+        if (activeBranchId) {
+          setSelectedBranchId(activeBranchId);
+        }
+      }
     } catch (err) {
       console.error("Failed to load branches", err);
     }
-  }, []);
+  }, [activeBranchId]);
 
   const loadProducts = useCallback(async () => {
     setIsLoading(true);

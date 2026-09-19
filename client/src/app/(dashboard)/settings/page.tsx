@@ -7,6 +7,7 @@ import ProfileTab from "@/components/settings/ProfileTab";
 import GeneralTab from "@/components/settings/GeneralTab";
 import TeamTab from "@/components/settings/TeamTab";
 import PortalTab from "@/components/settings/PortalTab";
+import BranchesTab from "@/components/settings/BranchesTab";
 import NotificationsTab from "@/components/settings/NotificationsTab";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Loader2, AlertCircle } from "lucide-react";
@@ -129,6 +130,9 @@ function SettingsPageContent() {
           />
         )}
         {activeTab === "team" && hasPermission("manage:team") && <TeamTab />}
+        {activeTab === "branches" && hasPermission("manage:business") && (
+          <BranchesTab />
+        )}
         {activeTab === "portal" && hasPermission("manage:business") && (
           <PortalTab user={userProfile} />
         )}

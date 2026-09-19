@@ -124,4 +124,47 @@ export class SettingsService {
       business: updatedBusiness,
     };
   }
+
+  async updateBranch(branchId: string, userId: string, data: any) {
+    const { name, phone, address } = data; // Note: frontend sends address, which maps to location in DB
+
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true, role: true },
+    });
+
+    if (!currentUser?.businessId)
+      throw new BadRequestException('No business found.');
+    if (currentUser.role !== 'OWNER' && currentUser.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException(
+        'Only the workspace owner or super admin can edit branches.',
+      );
+    }
+
+    // Verify branch belongs to the user's business
+    const branch = await this.prisma.branch.findUnique({
+      where: { id: branchId },
+    });
+
+    if (!branch || branch.businessId !== currentUser.businessId) {
+      throw new NotFoundException('Branch not found or unauthorized');
+    }
+
+    const loc = address !== undefined ? address : data.location;
+
+    const updatedBranch = await this.prisma.branch.update({
+      where: { id: branchId },
+      data: {
+        ...(name && { name }),
+        ...(phone !== undefined && { phone }),
+        ...(loc !== undefined && { location: loc }),
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Branch updated successfully',
+      branch: updatedBranch,
+    };
+  }
 }

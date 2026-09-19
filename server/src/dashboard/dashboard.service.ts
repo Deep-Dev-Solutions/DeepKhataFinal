@@ -27,7 +27,7 @@ export class DashboardService {
     });
   }
 
-  async getDashboardData(userId: string) {
+  async getDashboardData(userId: string, query?: any) {
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { businessId: true, role: true },
@@ -45,6 +45,9 @@ export class DashboardService {
       throw new BadRequestException('User does not belong to a workspace');
     }
 
+    const branchId = query?.branchId;
+    const branchFilter = branchId ? { branchId } : {};
+
     const now = new Date();
     const startOfToday = new Date(now);
     startOfToday.setHours(0, 0, 0, 0);
@@ -61,7 +64,7 @@ export class DashboardService {
       yesterdaysOrders,
     ] = await Promise.all([
       this.prisma.order.findMany({
-        where: { businessId, status: { not: 'CANCELLED' } },
+        where: { businessId, ...branchFilter, status: { not: 'CANCELLED' } },
         include: {
           customer: { select: { name: true } },
           payments: { select: { amount: true } },
@@ -72,6 +75,7 @@ export class DashboardService {
       this.prisma.order.findMany({
         where: {
           businessId,
+          ...branchFilter,
           status: { not: 'CANCELLED' },
           createdAt: { gte: startOfToday },
         },
@@ -86,6 +90,7 @@ export class DashboardService {
       this.prisma.order.findMany({
         where: {
           businessId,
+          ...branchFilter,
           status: { not: 'CANCELLED' },
           paymentStatus: { in: ['UNPAID', 'PARTIAL'] },
         },
@@ -102,7 +107,7 @@ export class DashboardService {
         by: ['method'],
         _sum: { amount: true },
         where: {
-          order: { businessId, createdAt: { gte: startOfSevenDays } },
+          order: { businessId, ...branchFilter, createdAt: { gte: startOfSevenDays } },
         },
       }),
       this.prisma.expense.findMany({
@@ -118,6 +123,7 @@ export class DashboardService {
         return this.prisma.order.findMany({
           where: {
             businessId,
+            ...branchFilter,
             status: { not: 'CANCELLED' },
             createdAt: { gte: startOfYesterday, lt: startOfToday },
           },

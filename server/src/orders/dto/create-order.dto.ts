@@ -84,4 +84,8 @@ export class CreateOrderDto {
   @IsString()
   @IsOptional()
   orderStatus?: string;
+
+  @IsString()
+  @IsOptional()
+  branchId?: string;
 }

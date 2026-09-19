@@ -68,7 +68,7 @@ function CreateOrderPOSContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isOnline, pendingCount, triggerSync } = useOfflineSync();
-  const { user, isLoading: isAuthLoading } = useAuth();
+  const { user, isLoading: isAuthLoading, activeBranchId } = useAuth();
   const { toast } = useToast();
 
   // 🟢 BARCODE SCANNER FOCUS TRAP STATES
@@ -192,6 +192,8 @@ function CreateOrderPOSContent() {
         const params = new URLSearchParams();
         if (searchQuery) params.append("search", searchQuery);
         if (activeCategory !== "All") params.append("category", activeCategory);
+        // 🔒 Branch isolation: only show stock physically in the active branch
+        if (activeBranchId) params.append("branchId", activeBranchId);
 
         const res = await fetch(
           `${API_BASE_URL}/product/getproducts?${params.toString()}`,
@@ -226,7 +228,7 @@ function CreateOrderPOSContent() {
 
     const delayDebounceFn = setTimeout(() => void fetchProducts(), 300);
     return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery, activeCategory]);
+  }, [searchQuery, activeCategory, activeBranchId]);
 
   // Pre-fetch all customers into IndexedDB for offline capability
   useEffect(() => {
@@ -393,6 +395,8 @@ function CreateOrderPOSContent() {
       status: currentStatus,
       amountPaid: currentPaid,
       paymentMethod,
+      // 🔒 Tag the order with the branch where it was created
+      branchId: activeBranchId || null,
       items: currentCart.map((item) => ({
         productId: item.isService ? null : item.id,
         quantity: item.qty,

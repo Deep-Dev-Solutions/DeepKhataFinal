@@ -2,7 +2,9 @@ import {
   Controller,
   Get,
   Put,
+  Patch,
   Body,
+  Param,
   UseGuards,
   Req,
   UploadedFile,
@@ -81,5 +83,14 @@ export class SettingsController {
     @UploadedFile() file: any,
   ) {
     return this.settingsService.updateBusinessInfo(req.user.id, body, file);
+  }
+
+  @Patch('branch/:id')
+  async updateBranch(
+    @Param('id') branchId: string,
+    @Req() req: any,
+    @Body() body: any,
+  ) {
+    return this.settingsService.updateBranch(branchId, req.user.id, body);
   }
 }

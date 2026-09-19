@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   InternalServerErrorException,
+  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
@@ -121,11 +122,41 @@ export class AgencyService {
           },
         },
         _count: {
-          select: { users: true, products: true, orders: true },
+          select: { users: true, products: true, orders: true, branches: true },
+        },
+        branches: {
+          select: { id: true, name: true, location: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
         },
       },
       orderBy: { createdAt: 'desc' },
     });
     return businesses;
+  }
+
+  async addBranchToTenant(businessId: string, data: any) {
+    const { name, location } = data;
+
+    if (!name || !name.trim()) {
+      throw new NotFoundException('Branch name is required');
+    }
+
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+    });
+
+    if (!business) {
+      throw new NotFoundException(`Business with ID ${businessId} not found`);
+    }
+
+    const branch = await this.prisma.branch.create({
+      data: {
+        name: name.trim(),
+        location: location?.trim() || null,
+        businessId,
+      },
+    });
+
+    return { message: 'Branch provisioned successfully', branch };
   }
 }

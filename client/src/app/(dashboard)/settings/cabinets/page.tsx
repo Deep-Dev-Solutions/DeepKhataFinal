@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import AlertDialog from "@/components/ui/alert-dialog";
+import { useAuth } from "@/context/AuthContext";
 
 type CabinetRow = {
   id: string;
@@ -24,6 +25,7 @@ type CabinetRow = {
 };
 
 export default function CabinetsSettingsPage() {
+  const { activeBranchId } = useAuth();
   const [cabinets, setCabinets] = useState<CabinetRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pageError, setPageError] = useState("");
@@ -55,9 +57,13 @@ export default function CabinetsSettingsPage() {
     setIsLoading(true);
     setPageError("");
     try {
-      const response = await fetch(`${API_BASE_URL}/product/getcabinets`, {
-        headers: getAuthHeaders(),
-      });
+      // 🔒 Filter cabinets by active branch so each branch only sees its own storage
+      const params = new URLSearchParams();
+      if (activeBranchId) params.set("branchId", activeBranchId);
+      const response = await fetch(
+        `${API_BASE_URL}/product/getcabinets?${params.toString()}`,
+        { headers: getAuthHeaders() },
+      );
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data?.message || "Failed to load cabinets");
@@ -74,7 +80,8 @@ export default function CabinetsSettingsPage() {
 
   useEffect(() => {
     void refreshCabinets();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBranchId]);
 
   const handleCreateCabinet = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,7 +102,7 @@ export default function CabinetsSettingsPage() {
       const response = await fetch(`${API_BASE_URL}/product/addcabinet`, {
         method: "POST",
         headers: getAuthHeaders(),
-        body: JSON.stringify({ name, rack, shelf, bin }),
+        body: JSON.stringify({ name, rack, shelf, bin, branchId: activeBranchId || undefined }),
       });
       const data = await response.json();
       if (!response.ok) {

@@ -6,7 +6,7 @@ export class ReportsService {
   constructor(private prisma: PrismaService) {}
 
   async getFinancialOverview(userId: string, query: any) {
-    const { days = 7 } = query;
+    const { days = 7, branchId } = query;
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { businessId: true },
@@ -18,9 +18,12 @@ export class ReportsService {
     const dateLimit = new Date();
     dateLimit.setDate(dateLimit.getDate() - parseInt(days as string));
 
+    const branchFilter = branchId ? { branchId } : {};
+
     const orders = await this.prisma.order.findMany({
       where: {
         businessId,
+        ...branchFilter,
         createdAt: { gte: dateLimit },
         status: { not: 'CANCELLED' },
       },
@@ -30,7 +33,7 @@ export class ReportsService {
     const payments = await this.prisma.payment.groupBy({
       by: ['method'],
       _sum: { amount: true },
-      where: { order: { businessId, createdAt: { gte: dateLimit } } },
+      where: { order: { businessId, ...branchFilter, createdAt: { gte: dateLimit } } },
     });
 
     let totalRevenue = 0;

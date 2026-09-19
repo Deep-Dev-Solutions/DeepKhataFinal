@@ -56,8 +56,8 @@ export class ProductsController {
   @Get('getcabinets')
   @UseGuards(PermissionsGuard)
   @RequirePermissions('read:products')
-  async getCabinets(@Req() req: any) {
-    return this.productsService.getCabinets(req.user.id);
+  async getCabinets(@Req() req: any, @Query() query: any) {
+    return this.productsService.getCabinets(req.user.id, query);
   }
 
   @Post('addcabinet')
@@ -110,13 +110,6 @@ export class ProductsController {
   @RequirePermissions('read:products')
   async getBranches(@Req() req: any) {
     return this.productsService.getBranches(req.user.id);
-  }
-
-  @Post('addbranch')
-  @UseGuards(PermissionsGuard)
-  @RequirePermissions('write:products')
-  async addBranch(@Req() req: any, @Body() body: any) {
-    return this.productsService.addBranch(req.user.id, body);
   }
 
   @Post('bulk-restock')

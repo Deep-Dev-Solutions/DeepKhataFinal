@@ -18,9 +18,12 @@ import {
   Banknote,
   Tags,
   LayoutGrid,
+  GitBranch,
+  ChevronDown,
 } from "lucide-react";
 import { useSidebar } from "@/context/SidebarContext";
 import { usePOS } from "@/context/POSContext";
+import { useAuth } from "@/context/AuthContext";
 import { usePathname, useRouter } from "next/navigation";
 
 type SearchEntry = {
@@ -152,13 +155,13 @@ const mockNotifications = [
 export default function Header() {
   const { isCollapsed, toggleSidebar } = useSidebar();
   const { isCheckoutOpen } = usePOS();
+  const { branches, activeBranchId, setActiveBranch } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const hideGlobalSearch = pathname === "/orders/new";
 
-  if (isCheckoutOpen) {
-    return null;
-  }
+  const safeBranches = Array.isArray(branches) ? branches : [];
+
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -271,6 +274,10 @@ export default function Header() {
     (notification) => notification.unread,
   ).length;
 
+  if (isCheckoutOpen) {
+    return null;
+  }
+
   return (
     <header className="h-16 bg-white border-b border-slate-200 sticky top-0 z-50 px-4 sm:px-6 lg:px-8 flex items-center justify-between print:hidden">
       {/* Desktop Sidebar Toggle */}
@@ -369,6 +376,41 @@ export default function Header() {
       )}
 
       <div className="flex items-center gap-4 ml-auto">
+        {/* ── Branch Switcher / Indicator ─────────────────────────────── */}
+        {safeBranches.length > 0 && (
+          <div className="hidden sm:flex items-center">
+            {safeBranches.length === 1 ? (
+              // Static badge for single-branch businesses
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-medium border border-slate-200/80">
+                <GitBranch className="w-3.5 h-3.5 text-slate-500" />
+                <span className="max-w-[120px] truncate">
+                  {safeBranches[0].name}
+                </span>
+              </div>
+            ) : (
+              // Dropdown switcher for multi-branch businesses
+              <div className="relative">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-semibold border border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors">
+                  <GitBranch className="w-3.5 h-3.5 flex-shrink-0" />
+                  <select
+                    value={activeBranchId ?? ""}
+                    onChange={(e) => setActiveBranch(e.target.value)}
+                    className="bg-transparent border-none outline-none text-blue-700 font-semibold text-xs cursor-pointer max-w-[140px] pr-4 appearance-none"
+                    title="Switch active branch"
+                  >
+                    {safeBranches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3 h-3 flex-shrink-0 pointer-events-none" />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="relative" ref={dropdownRef}>
           <button
             type="button"

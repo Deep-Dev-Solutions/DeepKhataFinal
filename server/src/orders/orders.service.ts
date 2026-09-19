@@ -26,6 +26,7 @@ export class OrdersService {
       orderStatus = 'FINAL',
       walkInName,
       walkInPhone,
+      branchId,
     } = data;
 
     if (!items || items.length === 0)
@@ -114,6 +115,7 @@ export class OrdersService {
           data: {
             id: data.id || undefined,
             businessId,
+            branchId: branchId || null,
             customerId: customerId || null,
             walkInName: walkInName || null,
             walkInPhone: walkInPhone || null,

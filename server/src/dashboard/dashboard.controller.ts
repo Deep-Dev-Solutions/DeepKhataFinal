@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Req } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ThrottlerGuard } from '@nestjs/throttler';
@@ -9,12 +9,12 @@ export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('dashboarddata')
-  async getDashboardDataFull(@Req() req: any) {
-    return this.dashboardService.getDashboardData(req.user.id);
+  async getDashboardDataFull(@Req() req: any, @Query() query: any) {
+    return this.dashboardService.getDashboardData(req.user.id, query);
   }
 
   @Get()
-  async getDashboardData(@Req() req: any) {
-    return this.dashboardService.getDashboardData(req.user.id);
+  async getDashboardData(@Req() req: any, @Query() query: any) {
+    return this.dashboardService.getDashboardData(req.user.id, query);
   }
 }

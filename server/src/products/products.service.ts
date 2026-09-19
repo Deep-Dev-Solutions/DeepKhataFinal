@@ -120,7 +120,7 @@ export class ProductsService {
     return { success: true, message: 'Category deleted successfully' };
   }
 
-  async getCabinets(userId: string) {
+  async getCabinets(userId: string, query?: any) {
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { businessId: true },
@@ -128,8 +128,13 @@ export class ProductsService {
     if (!currentUser?.businessId)
       throw new BadRequestException('No business found.');
 
+    const whereClause: any = { businessId: currentUser.businessId };
+    if (query?.branchId) {
+      whereClause.branchId = query.branchId;
+    }
+
     const cabinets = await this.prisma.cabinet.findMany({
-      where: { businessId: currentUser.businessId },
+      where: whereClause,
       include: {
         _count: { select: { instances: true } },
       },
@@ -140,7 +145,7 @@ export class ProductsService {
   }
 
   async addCabinet(userId: string, data: any) {
-    const { name, rack, shelf, bin } = data;
+    const { name, rack, shelf, bin, branchId } = data;
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { businessId: true },
@@ -159,11 +164,20 @@ export class ProductsService {
       name ||
       (locationParts.length ? locationParts.join(' / ') : 'General Cabinet');
 
+    // Validate branchId belongs to this business if provided
+    if (branchId) {
+      const branch = await this.prisma.branch.findFirst({
+        where: { id: branchId, businessId: currentUser.businessId },
+      });
+      if (!branch) throw new BadRequestException('Branch not found');
+    }
+
     const cabinet = await this.prisma.cabinet.create({
       data: {
         name: cabinetName,
         location: locationStr || 'Shop Storage',
         businessId: currentUser.businessId,
+        branchId: branchId || null,
       },
     });
 
@@ -380,7 +394,7 @@ export class ProductsService {
   }
 
   async getProducts(userId: string, query: any) {
-    const { search, category, stock } = query;
+    const { search, category, stock, branchId } = query;
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { businessId: true },
@@ -410,6 +424,12 @@ export class ProductsService {
       include: {
         category: true,
         instances: {
+          where: {
+            status: 'AVAILABLE',
+            ...(branchId
+              ? { cabinet: { branchId } }
+              : {}),
+          },
           include: { cabinet: true },
           orderBy: { createdAt: 'desc' },
         },
@@ -417,7 +437,15 @@ export class ProductsService {
       orderBy: { id: 'desc' },
     });
 
-    return { success: true, products };
+    // When filtering by branch, only return products that have at least 1
+    // available instance in that branch (or are pure service/no-instance products).
+    const filteredProducts = branchId
+      ? products.filter(
+          (p) => p.instances.length > 0 || p.stock === 0,
+        )
+      : products;
+
+    return { success: true, products: filteredProducts };
   }
 
   async updatePrice(userId: string, productId: string, price: number) {
