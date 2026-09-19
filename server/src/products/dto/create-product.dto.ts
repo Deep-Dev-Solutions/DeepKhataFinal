@@ -35,7 +35,7 @@ export class CreateProductDto {
 
   @IsNumber()
   @IsOptional()
-  costPrice?: number;
+  defaultCostPrice?: number;
 
   @IsString()
   @IsOptional()

@@ -53,6 +53,8 @@ type BatchLine = {
   condition: string;
   quantity: number;
   notes?: string;
+  vendorId?: string;
+  unitCost?: number;
 };
 
 const CONDITIONS = [
@@ -81,6 +83,7 @@ export default function RestockPage() {
   const [selectedVendorId, setSelectedVendorId] = useState("");
   const [condition, setCondition] = useState("ORIGINAL_PULL");
   const [quantity, setQuantity] = useState("1");
+  const [unitCost, setUnitCost] = useState("");
   const [notes, setNotes] = useState("");
 
   // Accumulator batch
@@ -175,6 +178,7 @@ export default function RestockPage() {
       return;
     }
     const qty = Math.max(1, Number(quantity) || 1);
+    const cost = unitCost ? Number(unitCost) : undefined;
     const line: BatchLine = {
       productId: selectedProduct.id,
       productName: selectedProduct.name,
@@ -184,11 +188,13 @@ export default function RestockPage() {
       quantity: qty,
       notes: notes.trim() || undefined,
       vendorId: selectedVendorId || undefined,
-    } as BatchLine & { vendorId?: string };
+      unitCost: cost,
+    };
 
     setBatch((prev) => [...prev, line]);
     setErrorMsg("");
     setNotes("");
+    setUnitCost("");
     setSelectedProductId("");
     setSelectedBranchId("");
     setSelectedCabinetId("");
@@ -220,7 +226,8 @@ export default function RestockPage() {
           condition: line.condition,
           quantity: line.quantity,
           notes: line.notes,
-          vendorId: (line as any).vendorId,
+          vendorId: line.vendorId,
+          unitCost: line.unitCost,
         })),
       };
 
@@ -450,6 +457,21 @@ export default function RestockPage() {
                   className="w-full border border-slate-300 rounded-xl py-2 px-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
               </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5">
+                  Unit Cost (Rs.)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={unitCost}
+                  onChange={(e) => setUnitCost(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full border border-slate-300 rounded-xl py-2 px-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+                />
+              </div>
             </div>
 
             <div className="flex gap-3">
@@ -550,6 +572,9 @@ export default function RestockPage() {
                     <th className="py-2 pr-2 font-bold">Product</th>
                     <th className="py-2 pr-2 font-bold">Cabinet</th>
                     <th className="py-2 pr-2 font-bold">Condition</th>
+                    <th className="py-2 pr-2 font-bold text-center">
+                      Unit Cost
+                    </th>
                     <th className="py-2 pr-2 font-bold text-center">Qty</th>
                     <th className="py-2 font-bold text-right">Action</th>
                   </tr>
@@ -582,6 +607,11 @@ export default function RestockPage() {
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
                           {line.condition.replace(/_/g, " ")}
                         </span>
+                      </td>
+                      <td className="py-2.5 pr-2 text-center font-bold text-slate-600">
+                        {line.unitCost !== undefined
+                          ? `Rs. ${line.unitCost}`
+                          : "-"}
                       </td>
                       <td className="py-2.5 pr-2 text-center font-black text-slate-900">
                         {line.quantity}

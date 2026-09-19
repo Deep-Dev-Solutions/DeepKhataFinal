@@ -54,7 +54,7 @@ export class ReportsService {
 
       let orderCost = 0;
       order.items.forEach((item) => {
-        const cost = (item.product?.costPrice || 0) * item.quantity;
+        const cost = (item.product?.defaultCostPrice || 0) * item.quantity;
         orderCost += cost;
       });
       totalCost += orderCost;
@@ -173,7 +173,7 @@ export class ReportsService {
         },
         select: {
           name: true,
-          costPrice: true,
+          defaultCostPrice: true,
           basePrice: true,
           _count: {
             select: { instances: { where: { status: 'AVAILABLE' } } },
@@ -186,7 +186,7 @@ export class ReportsService {
         name: p.name,
         daysUnsold: 30,
         stock: p._count.instances || 0,
-        tiedValue: (p._count.instances || 0) * (p.costPrice || p.basePrice || 0),
+        tiedValue: (p._count.instances || 0) * (p.defaultCostPrice || p.basePrice || 0),
       }));
     } catch (e) {
       deadStock = [];

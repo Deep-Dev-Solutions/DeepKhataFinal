@@ -423,7 +423,7 @@ export default function OrderDetailsLedger() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex items-center justify-center min-h-100">
         <div className="text-slate-500 text-sm animate-pulse">
           Loading order details...
         </div>
@@ -433,7 +433,7 @@ export default function OrderDetailsLedger() {
 
   if (error || !order) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+      <div className="flex flex-col items-center justify-center min-h-100 gap-4">
         <div className="text-rose-600 font-medium flex items-center gap-2">
           <AlertCircle className="w-5 h-5" /> {error || "Order not found"}
         </div>
@@ -585,7 +585,7 @@ export default function OrderDetailsLedger() {
 
       {/* ⚡ PENDING MEMO BANNER */}
       {order.status === "MEMO" && (
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 rounded-2xl p-5 shadow-sm">
+        <div className="bg-linear-to-r from-amber-50 to-orange-50 border border-amber-200/80 rounded-2xl p-5 shadow-sm">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-start gap-3">
               <div className="p-2.5 bg-amber-100 text-amber-800 rounded-xl mt-0.5 border border-amber-200">
@@ -631,7 +631,7 @@ export default function OrderDetailsLedger() {
 
       {/* 📄 ESTIMATE BANNER */}
       {order.status === "ESTIMATE" && (
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 rounded-2xl p-5 shadow-sm">
+        <div className="bg-linear-to-r from-blue-50 to-indigo-50 border border-blue-200/80 rounded-2xl p-5 shadow-sm">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-start gap-3">
               <div className="p-2.5 bg-blue-100 text-blue-800 rounded-xl mt-0.5 border border-blue-200">
@@ -832,7 +832,7 @@ export default function OrderDetailsLedger() {
         </div>
 
         {/* RIGHT COLUMN: CONTEXT & AUDIT */}
-        <div className="w-full lg:w-[380px] space-y-6">
+        <div className="w-full lg:w-95 space-y-6">
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
               <User className="w-4 h-4" /> Customer
@@ -860,7 +860,7 @@ export default function OrderDetailsLedger() {
               {order.timeline.map((log: any, index: number) => (
                 <div key={index} className="relative pl-5">
                   <div
-                    className={`absolute -left-[9px] top-1 w-4 h-4 rounded-full border-2 border-white shadow-sm ${
+                    className={`absolute -left-2.25 top-1 w-4 h-4 rounded-full border-2 border-white shadow-sm ${
                       log.type === "payment"
                         ? "bg-emerald-500"
                         : log.type === "status"

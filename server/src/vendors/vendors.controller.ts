@@ -35,4 +35,9 @@ export class VendorsController {
   recordPurchase(@Req() req: any, @Param('id') id: string, @Body() data: any) {
     return this.vendorsService.recordPurchase(req.user.id, id, data);
   }
+
+  @Post(':id/payment')
+  recordPayment(@Req() req: any, @Param('id') id: string, @Body() data: any) {
+    return this.vendorsService.recordPayment(req.user.id, id, data);
+  }
 }

@@ -23,11 +23,11 @@ export class OrdersService {
       discount = 0,
       amountPaid = 0,
       paymentMethod = 'CASH',
-      orderStatus = 'FINAL',
       walkInName,
       walkInPhone,
       branchId,
     } = data;
+    const orderStatus = data.orderStatus || data.status || 'FINAL';
 
     if (!items || items.length === 0)
       throw new BadRequestException('Cart is empty');
@@ -89,7 +89,11 @@ export class OrdersService {
             );
           }
           secureProducts[item.productId] = product;
-          calculatedTotal += product.basePrice * item.quantity;
+          const unitPrice =
+            item.price !== undefined && item.price !== null
+              ? Number(item.price)
+              : product.basePrice;
+          calculatedTotal += unitPrice * item.quantity;
         }
 
         if (parsedDiscount > calculatedTotal) {
@@ -133,7 +137,9 @@ export class OrdersService {
                 quantity: item.quantity,
                 price: item.isService
                   ? Number(item.price)
-                  : secureProducts[item.productId].basePrice,
+                  : item.price !== undefined && item.price !== null
+                    ? Number(item.price)
+                    : secureProducts[item.productId].basePrice,
                 isService: item.isService || false,
                 serviceName: item.serviceName || null,
                 notes: item.notes || null,
@@ -152,18 +158,38 @@ export class OrdersService {
             const conditionFilter = item.condition
               ? { condition: item.condition }
               : {};
-            const instances = await tx.productInstance.findMany({
-              where: {
-                productId: item.productId,
-                status: 'AVAILABLE',
-                ...conditionFilter,
-              },
-              take: item.quantity,
-            });
+
+            // Prioritize instances in the active branch, falling back across business
+            let instances = branchId
+              ? await tx.productInstance.findMany({
+                  where: {
+                    productId: item.productId,
+                    branchId,
+                    status: 'AVAILABLE',
+                    ...conditionFilter,
+                  },
+                  take: item.quantity,
+                })
+              : [];
+
+            if (instances.length < item.quantity) {
+              const needed = item.quantity - instances.length;
+              const alreadyFoundIds = instances.map((i) => i.id);
+              const fallbackInstances = await tx.productInstance.findMany({
+                where: {
+                  productId: item.productId,
+                  id: { notIn: alreadyFoundIds },
+                  status: 'AVAILABLE',
+                  ...conditionFilter,
+                },
+                take: needed,
+              });
+              instances = [...instances, ...fallbackInstances];
+            }
 
             if (instances.length < item.quantity) {
               throw new BadRequestException(
-                `Not enough available instances for product ${item.productId} with condition ${item.condition || 'any'}.`,
+                `Not enough available instances for product ${secureProducts[item.productId]?.name || item.productId} with condition ${item.condition || 'any'}.`,
               );
             }
 
@@ -476,7 +502,6 @@ export class OrdersService {
       await this.prisma.$transaction(async (tx) => {
         for (const item of order.items) {
           if (!item.productId) continue;
-          
 
           const instances = await tx.productInstance.findMany({
             where: { productId: item.productId, status: 'MEMO_LOCKED' },
@@ -513,7 +538,6 @@ export class OrdersService {
       await this.prisma.$transaction(async (tx) => {
         for (const item of order.items) {
           if (!item.productId) continue;
-          
 
           const instanceStatus =
             order.status === 'MEMO' ? 'MEMO_LOCKED' : 'SOLD';

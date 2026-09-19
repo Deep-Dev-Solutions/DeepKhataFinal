@@ -327,10 +327,10 @@ export default function OrderSuccessModal({
                 </span>
                 <span className="w-10 text-center">{item.qty}</span>
                 <span className="w-16 text-right">
-                  {item.price.toLocaleString()}
+                  {(item.price ?? 0).toLocaleString()}
                 </span>
                 <span className="w-16 text-right font-medium">
-                  {(item.price * item.qty).toLocaleString()}
+                  {((item.price ?? 0) * (item.qty ?? 1)).toLocaleString()}
                 </span>
               </div>
             </div>

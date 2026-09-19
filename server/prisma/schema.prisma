@@ -143,22 +143,22 @@ model Cabinet {
 }
 
 model Product {
-  id        String  @id @default(uuid())
-  name      String
-  sku       String
-  basePrice Float
-  costPrice Float?
-  deletedAt DateTime?
+  id               String  @id @default(uuid())
+  name             String
+  sku              String
+  basePrice        Float
+  defaultCostPrice Float?
+  deletedAt        DateTime?
 
-  categoryId String?
-  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryId       String?
+  category         Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId       String
+  business         Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
-  orderItems OrderItem[]
-  instances  ProductInstance[]
-  movements  InventoryMovement[]
+  orderItems       OrderItem[]
+  instances        ProductInstance[]
+  movements        InventoryMovement[]
 }
 
 model ProductInstance {
@@ -167,6 +167,8 @@ model ProductInstance {
   cabinetId String?
   branchId  String
   vendorId  String?
+
+  unitCost     Float?
 
   condition    ItemCondition  @default(ORIGINAL_PULL)
   status       InstanceStatus @default(AVAILABLE) // For MEMO locks

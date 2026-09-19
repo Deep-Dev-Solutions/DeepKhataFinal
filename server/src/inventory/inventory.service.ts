@@ -44,6 +44,7 @@ export class InventoryService {
           quantity,
           notes,
           vendorId,
+          unitCost,
         } = item;
 
         if (!productId)
@@ -105,6 +106,7 @@ export class InventoryService {
             cabinetId: finalCabinetId,
             branchId,
             vendorId: vendorId || null,
+            unitCost: unitCost ? Number(unitCost) : null,
             condition: sanitizedCondition as any,
             status: 'AVAILABLE' as any,
           })),

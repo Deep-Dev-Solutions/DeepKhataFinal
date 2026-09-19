@@ -33,6 +33,7 @@ type ProductFormValues = {
   sku: string;
   category: string;
   price: number;
+  defaultCostPrice?: number;
   branchId?: string;
   rack: string;
   shelf: string;
@@ -113,6 +114,7 @@ export default function AddProductPage() {
   const [sku, setSku] = useState("");
   const [category, setCategory] = useState("");
   const [price, setPrice] = useState("");
+  const [costPrice, setCostPrice] = useState("");
   const [categories, setCategories] = useState<string[]>([]);
 
   const [branches, setBranches] = useState<Branch[]>(
@@ -248,6 +250,7 @@ export default function AddProductPage() {
         sku: sku.trim() || `PART-${Math.floor(1000 + Math.random() * 9000)}`,
         category,
         price: Number(price),
+        defaultCostPrice: costPrice ? Number(costPrice) : undefined,
         branchId: selectedBranchId || undefined,
         rack: rack.trim(),
         shelf: shelf.trim(),
@@ -416,7 +419,7 @@ export default function AddProductPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className={label}>Selling Price (Rs) *</label>
                   <input
@@ -426,6 +429,17 @@ export default function AddProductPage() {
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                     placeholder="0.00"
+                    className={input}
+                  />
+                </div>
+                <div>
+                  <label className={label}>Cost Price (Rs)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={costPrice}
+                    onChange={(e) => setCostPrice(e.target.value)}
+                    placeholder="0.00 (Optional)"
                     className={input}
                   />
                 </div>

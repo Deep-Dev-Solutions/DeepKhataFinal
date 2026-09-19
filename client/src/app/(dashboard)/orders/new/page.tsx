@@ -41,7 +41,8 @@ type Product = {
   id: string;
   name: string;
   sku: string | null;
-  price: number;
+  basePrice?: number;
+  price?: number;
   stock: number;
   category?: { name: string };
   instances?: Array<{
@@ -65,11 +66,22 @@ type CartItem = {
   notes?: string;
 };
 
+const formatPrice = (val: any): string => {
+  if (val === null || val === undefined) return "0";
+  const num = Number(val);
+  return (isNaN(num) ? 0 : num).toLocaleString();
+};
+
 function CreateOrderPOSContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isOnline, pendingCount, triggerSync } = useOfflineSync();
-  const { user, isLoading: isAuthLoading, activeBranchId } = useAuth();
+  const {
+    user,
+    isLoading: isAuthLoading,
+    activeBranchId,
+    branches,
+  } = useAuth();
   const { toast } = useToast();
 
   // 🟢 BARCODE SCANNER FOCUS TRAP STATES
@@ -184,7 +196,11 @@ function CreateOrderPOSContent() {
               (p) => p.category?.name === activeCategory,
             );
           }
-          setProducts(filtered as Product[]);
+          const normalized = (filtered || []).map((p: any) => ({
+            ...p,
+            price: Number(p.price ?? p.basePrice ?? 0),
+          }));
+          setProducts(normalized as Product[]);
           setIsLoadingProducts(false);
           return;
         }
@@ -205,13 +221,24 @@ function CreateOrderPOSContent() {
         const data = await res.json();
 
         if (data.success) {
-          setProducts(data.products);
+          const normalized = data.products.map((p: any) => ({
+            ...p,
+            price: Number(p.price ?? p.basePrice ?? 0),
+          }));
+          setProducts(normalized);
           // 🟢 Cache into IndexedDB
-          void offlineDb.products.bulkPut(data.products);
+          void offlineDb.products.bulkPut(normalized);
         } else {
           // Fallback to Dexie cache
           const cached = await offlineDb.products.toArray();
-          if (cached.length > 0) setProducts(cached as Product[]);
+          if (cached.length > 0) {
+            setProducts(
+              cached.map((p: any) => ({
+                ...p,
+                price: Number(p.price ?? p.basePrice ?? 0),
+              })),
+            );
+          }
         }
       } catch (error) {
         console.warn(
@@ -220,7 +247,12 @@ function CreateOrderPOSContent() {
         );
         const cached = await offlineDb.products.toArray();
         if (cached.length > 0) {
-          setProducts(cached as Product[]);
+          setProducts(
+            cached.map((p: any) => ({
+              ...p,
+              price: Number(p.price ?? p.basePrice ?? 0),
+            })),
+          );
         }
       } finally {
         setIsLoadingProducts(false);
@@ -540,8 +572,10 @@ function CreateOrderPOSContent() {
       // Fallback: If network failed during fetch, queue in Dexie AND deduct local stock!
       const isNetworkIssue =
         (typeof navigator !== "undefined" && !navigator.onLine) ||
-        error?.name === "TypeError" ||
-        error?.message?.includes("fetch");
+        (error?.message &&
+          (error.message.includes("Failed to fetch") ||
+            error.message.includes("NetworkError") ||
+            error.message.includes("fetch failed")));
 
       if (isNetworkIssue) {
         const localOrderId = crypto.randomUUID();
@@ -655,7 +689,15 @@ function CreateOrderPOSContent() {
             : item,
         );
       }
-      return [...prev, { ...product, qty: 1, condition }];
+      return [
+        ...prev,
+        {
+          ...product,
+          price: Number(product.price ?? product.basePrice ?? 0),
+          qty: 1,
+          condition,
+        },
+      ];
     });
     setExpandedConditionProduct(null);
 
@@ -823,6 +865,17 @@ function CreateOrderPOSContent() {
       product.instances?.filter((i) => i.status === "AVAILABLE") || [];
 
     if (availableInstances.length === 0) {
+      const activeBranchName =
+        branches?.find((b: any) => b.id === activeBranchId)?.name ||
+        "the active branch";
+      const otherStock = (product as any).otherBranchesWithStock;
+      const otherInfo =
+        otherStock && otherStock.length > 0
+          ? ` (available in ${otherStock.join(", ")})`
+          : "";
+      toast.warning(
+        `"${product.name}" has no available stock in ${activeBranchName}${otherInfo}. Switch branch in the top bar to sell it from there.`,
+      );
       return;
     }
 
@@ -900,7 +953,10 @@ function CreateOrderPOSContent() {
       prev.filter((item) => !(item.id === id && item.condition === condition)),
     );
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const subtotal = cart.reduce(
+    (sum, item) => sum + (item.price ?? 0) * item.qty,
+    0,
+  );
   const grandTotal = Math.max(0, subtotal - (Number(discount) || 0));
   const pendingAmount = grandTotal - (Number(amountPaid) || 0);
 
@@ -1098,7 +1154,7 @@ function CreateOrderPOSContent() {
           {/* ───────── LEFT COLUMN: PRODUCT CATALOG ───────── */}
           <div
             style={{ flexGrow: catalogRatio, flexBasis: 0 }}
-            className="w-full lg:w-auto flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm min-h-[480px] lg:min-h-0 shrink-0 lg:min-w-[280px]"
+            className="w-full lg:w-auto flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm min-h-120 lg:min-h-0 shrink-0 lg:min-w-70"
           >
             <div className="p-3.5 border-b border-slate-100 shrink-0 bg-slate-50/50 space-y-2">
               <div className="flex items-center justify-between gap-2">
@@ -1194,17 +1250,16 @@ function CreateOrderPOSContent() {
                     <div key={product.id} className="relative">
                       <button
                         onClick={() => handleProductClick(product)}
-                        disabled={isOutOfStock}
                         className={`flex flex-col gap-1.5 w-full p-2.5 rounded-xl border transition-all text-left ${
                           isOutOfStock
-                            ? "border-slate-200 bg-slate-100/70 opacity-50 cursor-not-allowed select-none"
+                            ? "border-slate-200 bg-slate-100/70 opacity-60 cursor-pointer select-none"
                             : "bg-white border-slate-200 hover:border-blue-500 hover:shadow-xs shadow-2xs cursor-pointer"
                         } ${isExpanded ? "border-blue-500 ring-1 ring-blue-500/20" : ""}`}
                       >
                         {/* Top Row: Full Product Name & Price */}
                         <div className="flex items-start justify-between gap-2 w-full">
                           <span
-                            className={`font-bold text-xs sm:text-sm line-clamp-1 flex-1 min-w-0 break-words ${
+                            className={`font-bold text-xs sm:text-sm line-clamp-1 flex-1 min-w-0 wrap-break-words ${
                               isOutOfStock ? "text-slate-400" : "text-slate-900"
                             }`}
                           >
@@ -1215,7 +1270,8 @@ function CreateOrderPOSContent() {
                               isOutOfStock ? "text-slate-400" : "text-blue-600"
                             }`}
                           >
-                            Rs. {product.price.toLocaleString()}
+                            Rs.{" "}
+                            {formatPrice(product.price ?? product.basePrice)}
                           </span>
                         </div>
 
@@ -1246,13 +1302,18 @@ function CreateOrderPOSContent() {
                             <span
                               className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
                                 isOutOfStock
-                                  ? "bg-slate-200 text-slate-500"
+                                  ? "bg-slate-200 text-slate-600"
                                   : availableCount <= 3
                                     ? "bg-amber-50 text-amber-600"
                                     : "bg-emerald-50 text-emerald-600"
                               }`}
                             >
-                              {isOutOfStock ? "Out" : `${availableCount} left`}
+                              {isOutOfStock
+                                ? (product as any).otherBranchesWithStock
+                                    ?.length > 0
+                                  ? `In ${(product as any).otherBranchesWithStock[0]}`
+                                  : "Out"
+                                : `${availableCount} left`}
                             </span>
                           </div>
 
@@ -1310,101 +1371,105 @@ function CreateOrderPOSContent() {
                     expandedConditionProduct?.id === product.id;
 
                   return (
-                    <button
-                      key={product.id}
-                      onClick={() => handleProductClick(product)}
-                      disabled={isOutOfStock}
-                      className={`group flex flex-col text-left p-3 rounded-xl border transition-all relative overflow-hidden ${
-                        isOutOfStock
-                          ? "border-slate-200 bg-slate-100/70 opacity-60 cursor-not-allowed select-none"
-                          : "bg-white border-slate-200 hover:border-blue-500 hover:shadow-md active:scale-[0.98] shadow-sm cursor-pointer"
-                      }`}
-                    >
-                      {/* Card Header: Category & Stock Status */}
-                      <div className="flex items-center justify-between gap-1.5 mb-1.5 w-full">
-                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider truncate">
-                          {product.category?.name || "General"}
-                        </span>
-                        {isOutOfStock ? (
-                          <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 shrink-0">
-                            Out of Stock
-                          </span>
-                        ) : (
-                          <span
-                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 border ${
-                              availableCount <= 3
-                                ? "bg-amber-50 text-amber-600 border-amber-200"
-                                : "bg-emerald-50 text-emerald-600 border-emerald-200"
-                            }`}
-                          >
-                            {availableCount} left
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Product Title (2 lines max, never clipped or cut off) */}
-                      <h4
-                        className={`font-bold text-xs sm:text-sm line-clamp-2 leading-snug mb-1.5 break-words ${
+                    <div key={product.id} className="relative flex flex-col">
+                      <button
+                        onClick={() => handleProductClick(product)}
+                        className={`group flex flex-col text-left p-3 rounded-xl border transition-all relative overflow-hidden w-full h-full ${
                           isOutOfStock
-                            ? "text-slate-400"
-                            : "text-slate-900 group-hover:text-blue-600 transition-colors"
-                        }`}
+                            ? "border-slate-200 bg-slate-100/70 opacity-60 cursor-pointer select-none"
+                            : "bg-white border-slate-200 hover:border-blue-500 hover:shadow-md active:scale-[0.98] shadow-sm cursor-pointer"
+                        } ${isExpanded ? "border-blue-500 ring-1 ring-blue-500/20" : ""}`}
                       >
-                        {product.name}
-                      </h4>
-
-                      {/* Condition badges */}
-                      <div className="flex flex-wrap items-center gap-1 mb-2">
-                        {Array.from(
-                          new Set(availableInstances.map((i) => i.condition)),
-                        ).map((cond) => (
-                          <span
-                            key={cond}
-                            className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600"
-                          >
-                            {cond.replace(/_/g, " ")}
+                        {/* Card Header: Category & Stock Status */}
+                        <div className="flex items-center justify-between gap-1.5 mb-1.5 w-full">
+                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider truncate">
+                            {product.category?.name || "General"}
                           </span>
-                        ))}
-                        {availableInstances.length === 0 &&
-                          product.instances?.[0]?.condition && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
-                              {product.instances[0].condition.replace(
-                                /_/g,
-                                " ",
-                              )}
+                          {isOutOfStock ? (
+                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 shrink-0">
+                              {(product as any).otherBranchesWithStock?.length >
+                              0
+                                ? `In ${(product as any).otherBranchesWithStock[0]}`
+                                : "Out of Stock"}
+                            </span>
+                          ) : (
+                            <span
+                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 border ${
+                                availableCount <= 3
+                                  ? "bg-amber-50 text-amber-600 border-amber-200"
+                                  : "bg-emerald-50 text-emerald-600 border-emerald-200"
+                              }`}
+                            >
+                              {availableCount} left
                             </span>
                           )}
+                        </div>
 
-                        {/* Spatial Bin Location */}
-                        {loc && (
-                          <span className="inline-flex items-center gap-0.5 text-[9px] font-medium text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded truncate max-w-28">
-                            <MapPin className="w-2.5 h-2.5 shrink-0" />
-                            <span className="truncate">{loc}</span>
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Bottom: Price & Quick Action */}
-                      <div className="mt-auto pt-2 border-t border-slate-100 flex items-center justify-between gap-1 w-full">
-                        <span
-                          className={`font-black text-xs sm:text-sm ${
-                            isOutOfStock ? "text-slate-400" : "text-blue-600"
+                        {/* Product Title (2 lines max, never clipped or cut off) */}
+                        <h4
+                          className={`font-bold text-xs sm:text-sm line-clamp-2 leading-snug mb-1.5 wrap-break-words ${
+                            isOutOfStock
+                              ? "text-slate-400"
+                              : "text-slate-900 group-hover:text-blue-600 transition-colors"
                           }`}
                         >
-                          Rs. {product.price.toLocaleString()}
-                        </span>
-                        {!isOutOfStock && (
-                          <span className="text-[10px] font-bold text-slate-500 group-hover:text-blue-600 group-hover:underline flex items-center gap-0.5 shrink-0 transition-colors">
-                            <Plus className="w-3 h-3" /> Add
+                          {product.name}
+                        </h4>
+
+                        {/* Condition badges */}
+                        <div className="flex flex-wrap items-center gap-1 mb-2">
+                          {Array.from(
+                            new Set(availableInstances.map((i) => i.condition)),
+                          ).map((cond) => (
+                            <span
+                              key={cond}
+                              className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600"
+                            >
+                              {cond ? cond.replace(/_/g, " ") : ""}
+                            </span>
+                          ))}
+                          {availableInstances.length === 0 &&
+                            product.instances?.[0]?.condition && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
+                                {product.instances[0].condition.replace(
+                                  /_/g,
+                                  " ",
+                                )}
+                              </span>
+                            )}
+
+                          {/* Spatial Bin Location */}
+                          {loc && (
+                            <span className="inline-flex items-center gap-0.5 text-[9px] font-medium text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded truncate max-w-28">
+                              <MapPin className="w-2.5 h-2.5 shrink-0" />
+                              <span className="truncate">{String(loc)}</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Bottom: Price & Quick Action */}
+                        <div className="mt-auto pt-2 border-t border-slate-100 flex items-center justify-between gap-1 w-full">
+                          <span
+                            className={`font-black text-xs sm:text-sm ${
+                              isOutOfStock ? "text-slate-400" : "text-blue-600"
+                            }`}
+                          >
+                            Rs.{" "}
+                            {formatPrice(product.price ?? product.basePrice)}
                           </span>
-                        )}
-                      </div>
+                          {!isOutOfStock && (
+                            <span className="text-[10px] font-bold text-slate-500 group-hover:text-blue-600 group-hover:underline flex items-center gap-0.5 shrink-0 transition-colors">
+                              <Plus className="w-3 h-3" /> Add
+                            </span>
+                          )}
+                        </div>
+                      </button>
 
                       {/* INLINE CONDITION PICKER */}
                       {isExpanded &&
                         expandedConditionProduct?.conditionCounts && (
                           <div
-                            className="mt-2.5 pt-2.5 border-t border-dashed border-slate-200 space-y-1.5 w-full"
+                            className="mt-1.5 p-2 rounded-xl border border-blue-200 bg-blue-50/70 space-y-1.5 w-full shadow-sm"
                             onClick={(e) => e.stopPropagation()}
                           >
                             {Object.entries(
@@ -1415,19 +1480,19 @@ function CreateOrderPOSContent() {
                                 onClick={() =>
                                   addToCart(expandedConditionProduct, cond)
                                 }
-                                className="w-full flex items-center justify-between p-2 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer"
+                                className="w-full flex items-center justify-between p-2 rounded-lg border border-blue-200 bg-white hover:bg-blue-100 transition-colors cursor-pointer"
                               >
                                 <span className="font-bold text-slate-800 text-xs">
-                                  {cond.replace(/_/g, " ")}
+                                  {cond ? cond.replace(/_/g, " ") : ""}
                                 </span>
-                                <span className="text-[10px] font-semibold text-slate-500 bg-white px-1.5 py-0.5 rounded border border-blue-100">
+                                <span className="text-[10px] font-semibold text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-blue-100">
                                   {count as number} avail
                                 </span>
                               </button>
                             ))}
                           </div>
                         )}
-                    </button>
+                    </div>
                   );
                 })
               )}
@@ -1440,14 +1505,12 @@ function CreateOrderPOSContent() {
             onDoubleClick={resetRatio}
             style={{ cursor: "col-resize" }}
             className={`hidden lg:flex relative w-4 -mx-2 flex-col items-center justify-center select-none z-20 shrink-0 group ${
-              isRatioDragging
-                ? "bg-blue-100/40"
-                : "hover:bg-blue-50/50"
+              isRatioDragging ? "bg-blue-100/40" : "hover:bg-blue-50/50"
             } transition-colors`}
           >
             {/* Full-height visible divider track */}
             <div
-              className={`w-[2px] h-full transition-all duration-150 ${
+              className={`w-0.5 h-full transition-all duration-150 ${
                 isRatioDragging
                   ? "bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.6)]"
                   : "bg-slate-200 group-hover:bg-blue-400"
@@ -1471,7 +1534,7 @@ function CreateOrderPOSContent() {
           {/* ───────── RIGHT COLUMN: UNIFIED CART ───────── */}
           <div
             style={{ flexGrow: 1 - catalogRatio, flexBasis: 0 }}
-            className="w-full lg:w-auto flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm min-h-[360px] lg:min-h-0 shrink-0 lg:min-w-[280px]"
+            className="w-full lg:w-auto flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm min-h-90 lg:min-h-0 shrink-0 lg:min-w-70"
           >
             <div className="p-3.5 border-b border-slate-100 bg-slate-50 shrink-0 flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 min-w-0">
@@ -1563,7 +1626,7 @@ function CreateOrderPOSContent() {
                     {/* Row 1: Full Item Name & Remove Action */}
                     <div className="flex items-start justify-between gap-2 w-full">
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-xs sm:text-sm text-slate-900 leading-snug break-words">
+                        <h4 className="font-bold text-xs sm:text-sm text-slate-900 leading-snug wrap-break-words">
                           {item.isService && (
                             <Wrench className="inline w-3.5 h-3.5 text-blue-600 mr-1 shrink-0" />
                           )}
@@ -1595,7 +1658,7 @@ function CreateOrderPOSContent() {
                     {/* Row 2: Unit Price & Condition Tags */}
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-xs font-semibold text-slate-600">
-                        Rs. {item.price.toLocaleString()} each
+                        Rs. {formatPrice(item.price)} each
                       </span>
                       {!item.isService && item.condition && (
                         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
@@ -1668,7 +1731,7 @@ function CreateOrderPOSContent() {
                           Subtotal
                         </span>
                         <span className="text-xs sm:text-sm font-black text-blue-600">
-                          Rs. {(item.price * item.qty).toLocaleString()}
+                          Rs. {formatPrice((item.price ?? 0) * (item.qty ?? 1))}
                         </span>
                       </div>
                     </div>
@@ -1685,7 +1748,7 @@ function CreateOrderPOSContent() {
                     Subtotal
                   </span>
                   <span className="text-sm font-black text-slate-800">
-                    Rs. {subtotal.toLocaleString()}
+                    Rs. {formatPrice(subtotal)}
                   </span>
                 </div>
                 <div className="text-right shrink-0">
@@ -1694,11 +1757,11 @@ function CreateOrderPOSContent() {
                   </span>
                   {Number(discount) > 0 && (
                     <span className="block text-[10px] font-semibold text-rose-500 -mt-0.5">
-                      - Rs. {(Number(discount) || 0).toLocaleString()} discount
+                      - Rs. {formatPrice(discount)} discount
                     </span>
                   )}
                   <span className="text-xl font-black text-blue-600">
-                    Rs. {grandTotal.toLocaleString()}
+                    Rs. {formatPrice(grandTotal)}
                   </span>
                 </div>
               </div>
@@ -1719,7 +1782,6 @@ function CreateOrderPOSContent() {
               )}
             </div>
           </div>
-
         </div>
       </div>
 

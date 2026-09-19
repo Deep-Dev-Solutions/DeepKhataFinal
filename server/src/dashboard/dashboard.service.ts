@@ -82,7 +82,7 @@ export class DashboardService {
         include: {
           items: {
             include: {
-              product: { select: { costPrice: true, basePrice: true } },
+              product: { select: { defaultCostPrice: true, basePrice: true } },
             },
           },
         },
@@ -152,7 +152,7 @@ export class DashboardService {
     for (const order of todaysOrdersWithItems) {
       for (const item of order.items) {
         if (!item.isService) {
-          const unitCost = Number(item.product?.costPrice ?? 0);
+          const unitCost = Number(item.product?.defaultCostPrice ?? 0);
           dailyCOGS += unitCost * item.quantity;
         }
       }

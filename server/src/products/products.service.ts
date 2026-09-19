@@ -125,7 +125,7 @@ export class ProductsService {
       price,
       category,
       sku,
-      costPrice,
+      defaultCostPrice,
       // Spatial Inventory Fields
       branchId,
       cabinetId,
@@ -170,11 +170,9 @@ export class ProductsService {
         data: {
           name: name.trim(),
           basePrice: parsedPrice,
-          costPrice: costPrice ? Number(costPrice) : null,
+          defaultCostPrice: defaultCostPrice ? Number(defaultCostPrice) : null,
           categoryId: categoryExists.id,
-          sku:
-            sku?.trim() ||
-            `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
+          sku: sku?.trim() || `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
           businessId,
         },
       });
@@ -186,6 +184,7 @@ export class ProductsService {
           cabinetId: targetCabinetId,
           branchId: branch,
           vendorId: vendorId || null,
+          unitCost: defaultCostPrice ? Number(defaultCostPrice) : null,
           condition: sanitizedCondition as any,
           status: 'AVAILABLE' as any,
           serialNumber: sku ? `${sku}-${index + 1}` : null,
@@ -212,6 +211,33 @@ export class ProductsService {
           vendorId: vendorId || null,
         },
       });
+
+      if (vendorId && defaultCostPrice) {
+        const totalCost = Number(defaultCostPrice) * instanceQty;
+        if (totalCost > 0) {
+          await tx.transaction.create({
+            data: {
+              businessId,
+              type: 'VENDOR_PURCHASE',
+              description: `Initial stock of ${instanceQty}x ${name.trim()}`,
+              postings: {
+                create: [
+                  {
+                    accountId: 'INVENTORY_ACCOUNT',
+                    accountType: 'INVENTORY',
+                    amount: totalCost,
+                  },
+                  {
+                    accountId: vendorId,
+                    accountType: 'VENDOR_PAYABLE',
+                    amount: -totalCost,
+                  },
+                ],
+              },
+            },
+          });
+        }
+      }
 
       const fullProduct = await tx.product.findUnique({
         where: { id: product.id },
@@ -268,36 +294,71 @@ export class ProductsService {
     // Master catalog records that hold physical units anywhere (for branch
     // filtering we still want to surface globally out-of-stock products).
     const businessWideAvailable = new Set<string>();
+    const branchStockMap = new Map<
+      string,
+      { total: number; branchNames: string[] }
+    >();
+
     if (branchId) {
-      const grouped = await this.prisma.productInstance.groupBy({
-        by: ['productId'],
-        where: { status: 'AVAILABLE' },
-        _count: { _all: true },
+      const allAvailable = await this.prisma.productInstance.findMany({
+        where: {
+          product: { businessId, deletedAt: null },
+          status: 'AVAILABLE',
+        },
+        select: {
+          productId: true,
+          branch: { select: { id: true, name: true } },
+        },
       });
-      grouped.forEach((g) => {
-        if (g._count._all > 0) businessWideAvailable.add(g.productId);
+
+      for (const inst of allAvailable) {
+        businessWideAvailable.add(inst.productId);
+        const entry = branchStockMap.get(inst.productId) || {
+          total: 0,
+          branchNames: [],
+        };
+        entry.total += 1;
+        if (
+          inst.branch?.name &&
+          !entry.branchNames.includes(inst.branch.name)
+        ) {
+          entry.branchNames.push(inst.branch.name);
+        }
+        branchStockMap.set(inst.productId, entry);
+      }
+    }
+
+    let currentBranchName = '';
+    if (branchId) {
+      const b = await this.prisma.branch.findUnique({
+        where: { id: branchId },
+        select: { name: true },
       });
+      if (b) currentBranchName = b.name;
     }
 
     return {
       success: true,
       products: products
-        .map((p) => ({
-          ...p,
-          stock: p.instances.length,
-          hasDeletedBranchStock: p.instances.some(
-            (i) => i.branch?.deletedAt,
-          ),
-        }))
+        .map((p) => {
+          const branchEntry = branchStockMap.get(p.id);
+          const otherBranches = branchEntry
+            ? branchEntry.branchNames.filter(
+                (name) => name !== currentBranchName,
+              )
+            : [];
+          return {
+            ...p,
+            price: p.basePrice ?? 0,
+            stock: p.instances.length,
+            totalBusinessStock: branchEntry?.total ?? p.instances.length,
+            otherBranchesWithStock: otherBranches,
+            hasDeletedBranchStock: p.instances.some((i) => i.branch?.deletedAt),
+          };
+        })
         .filter((p) => {
           if (stock === 'out') return p.stock === 0;
           if (stock === 'low') return p.stock > 0 && p.stock <= 5;
-          if (branchId) {
-            return (
-              p.stock > 0 ||
-              !businessWideAvailable.has(p.id)
-            );
-          }
           return true;
         }),
     };
@@ -317,10 +378,14 @@ export class ProductsService {
 
     const product = await this.prisma.product.update({
       where: { id: productId },
-      data: { basePrice: price },
+      data: { basePrice: Number(price) },
     });
 
-    return { success: true, product };
+    return {
+      success: true,
+      message: 'Product price updated successfully',
+      product,
+    };
   }
 
   async getBranches(userId: string) {
@@ -354,36 +419,53 @@ export class ProductsService {
   }
 
   async bulkRestock(userId: string, data: any) {
-    const { productId, branchId, cabinetId, condition, quantity, vendorId } =
-      data;
+    const {
+      productId,
+      branchId,
+      cabinetId,
+      condition,
+      quantity,
+      vendorId,
+      unitCost,
+    } = data;
     const businessId = await this.requireBusinessId(userId);
 
     const qty = Math.max(1, Number(quantity) || 1);
     const sanitizedCondition = this.sanitizeCondition(condition);
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      const product = await tx.product.findFirst({
-        where: { id: productId, businessId, deletedAt: null },
-      });
-      if (!product) throw new BadRequestException('Product not found');
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, businessId },
+    });
+    if (!product) throw new NotFoundException('Product not found');
 
-      const branch = await this.resolveBranchId(tx, businessId, branchId);
-      const targetCabinetId = await this.resolveCabinetId(
-        tx,
-        businessId,
-        branch,
-        { cabinetId },
-      );
+    const branch = await this.resolveBranchId(
+      this.prisma as any,
+      businessId,
+      branchId,
+    );
+    const targetCabinetId = await this.resolveCabinetId(
+      this.prisma as any,
+      businessId,
+      branch,
+      { cabinetId },
+    );
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const instancesData = Array.from({ length: qty }).map(() => ({
+        productId,
+        cabinetId: targetCabinetId,
+        branchId: branch,
+        vendorId: vendorId || null,
+        unitCost:
+          unitCost !== undefined && unitCost !== null
+            ? Number(unitCost)
+            : (product.defaultCostPrice ?? null),
+        condition: sanitizedCondition as any,
+        status: 'AVAILABLE' as any,
+      }));
 
       await tx.productInstance.createMany({
-        data: Array.from({ length: qty }).map(() => ({
-          productId: product.id,
-          cabinetId: targetCabinetId,
-          branchId: branch,
-          vendorId: vendorId || null,
-          condition: sanitizedCondition as any,
-          status: 'AVAILABLE' as any,
-        })),
+        data: instancesData,
       });
 
       await tx.inventoryMovement.create({
@@ -401,6 +483,38 @@ export class ProductsService {
           vendorId: vendorId || null,
         },
       });
+
+      if (vendorId) {
+        const actualCost =
+          unitCost !== undefined && unitCost !== null
+            ? Number(unitCost)
+            : (product.defaultCostPrice ?? 0);
+
+        const totalCost = actualCost * qty;
+        if (totalCost > 0) {
+          await tx.transaction.create({
+            data: {
+              businessId,
+              type: 'VENDOR_PURCHASE',
+              description: `Bulk restock of ${qty}x ${product.name}`,
+              postings: {
+                create: [
+                  {
+                    accountId: 'INVENTORY_ACCOUNT',
+                    accountType: 'INVENTORY',
+                    amount: totalCost,
+                  },
+                  {
+                    accountId: vendorId,
+                    accountType: 'VENDOR_PAYABLE',
+                    amount: -totalCost,
+                  },
+                ],
+              },
+            },
+          });
+        }
+      }
 
       const fullProduct = await tx.product.findUnique({
         where: { id: product.id },
@@ -458,25 +572,28 @@ export class ProductsService {
           }
         }
 
-        const parsedPrice = Number(item.price || item.Price) || 0;
-        const instanceQty = Math.max(
-          1,
-          Number(item.quantity || item.Quantity) || 1,
-        );
         const sku =
-          item.sku?.trim() ||
-          item.SKU?.trim() ||
+          item.sku ||
+          item.SKU ||
           `SKU-${Math.floor(1000 + Math.random() * 9000)}`;
+        const parsedPrice = Math.max(
+          0,
+          Number(item.basePrice || item.price || 0),
+        );
+        const instanceQty = Math.max(
+          0,
+          Number(item.stock || item.quantity || 0),
+        );
+        const sanitizedCondition = this.sanitizeCondition(
+          item.condition || 'NEW',
+        );
 
-        const inputCondition = item.condition || item.Condition;
-        const sanitizedCondition = this.sanitizeCondition(inputCondition);
-
-        const product = await tx.product.create({
+        const newProd = await tx.product.create({
           data: {
             name: name.trim(),
             basePrice: parsedPrice,
-            costPrice: item.costPrice
-              ? Number(item.costPrice)
+            defaultCostPrice: item.defaultCostPrice
+              ? Number(item.defaultCostPrice)
               : null,
             categoryId,
             sku,
@@ -484,27 +601,53 @@ export class ProductsService {
           },
         });
 
-        await tx.productInstance.createMany({
-          data: Array.from({ length: instanceQty }).map((_, index) => ({
-            productId: product.id,
-            cabinetId: generalCabinet,
-            branchId: branch,
-            vendorId: item.vendorId || null,
-            condition: sanitizedCondition as any,
-            status: 'AVAILABLE' as any,
-            serialNumber: `${sku}-${index + 1}`,
-          })),
-        });
+        if (instanceQty > 0) {
+          const instancesData = Array.from({ length: instanceQty }).map(
+            (_, index) => ({
+              productId: newProd.id,
+              cabinetId: generalCabinet,
+              branchId: branch,
+              vendorId: item.vendorId || null,
+              unitCost: item.defaultCostPrice
+                ? Number(item.defaultCostPrice)
+                : null,
+              condition: sanitizedCondition as any,
+              status: 'AVAILABLE' as any,
+              serialNumber: `${sku}-${index + 1}`,
+            }),
+          );
+
+          await tx.productInstance.createMany({
+            data: instancesData,
+          });
+
+          await tx.inventoryMovement.create({
+            data: {
+              productId: newProd.id,
+              cabinetId: generalCabinet,
+              fromCondition: null,
+              toCondition: sanitizedCondition as any,
+              quantity: instanceQty,
+              direction: 'IN',
+              referenceType: 'INITIAL_STOCK',
+              referenceId: newProd.id,
+              notes: 'Imported product initial stock',
+              userId,
+              businessId,
+            },
+          });
+        }
 
         importedCount++;
       }
-      return importedCount;
+
+      return { importedCount };
     });
 
     return {
       success: true,
-      message: `Successfully imported ${result} products.`,
-      count: result,
+      message: `Successfully imported ${result.importedCount} products`,
+      importedCount: result.importedCount,
     };
   }
 
@@ -516,7 +659,10 @@ export class ProductsService {
     const product = await this.prisma.product.findFirst({
       where: { id: productId, businessId, deletedAt: null },
     });
-    if (!product) throw new NotFoundException('Product not found');
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
 
     await this.prisma.product.update({
       where: { id: productId },
@@ -525,8 +671,149 @@ export class ProductsService {
 
     return {
       success: true,
-      message: 'Product deleted. Its stock instances are preserved across branches.',
+      message:
+        'Product deleted. Its stock instances are preserved across branches.',
       productId,
+    };
+  }
+
+  async getProductDetails(userId: string, productId: string) {
+    const businessId = await this.requireBusinessId(userId);
+
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, businessId, deletedAt: null },
+      include: {
+        category: true,
+      },
+    });
+
+    if (!product) throw new NotFoundException('Product not found');
+
+    const totalStock = await this.prisma.productInstance.count({
+      where: { productId, status: 'AVAILABLE' },
+    });
+
+    // Group available instances by branch, cabinet, and condition
+    const instancesRaw = await this.prisma.productInstance.findMany({
+      where: { productId, status: 'AVAILABLE' },
+      include: {
+        branch: { select: { id: true, name: true } },
+        cabinet: { select: { id: true, name: true } },
+      },
+    });
+
+    // Audit Trail
+    const movements = await this.prisma.inventoryMovement.findMany({
+      where: { productId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        vendor: { select: { businessName: true } },
+        cabinet: { select: { name: true } },
+      },
+      take: 100,
+    });
+
+    // Sales History from orders (matching either by direct productId or by service item name)
+    const orderItems = await this.prisma.orderItem.findMany({
+      where: {
+        OR: [
+          { productId },
+          {
+            AND: [
+              { productId: null },
+              { serviceName: { equals: product.name, mode: 'insensitive' } },
+            ],
+          },
+        ],
+        order: {
+          businessId,
+        },
+      },
+      include: {
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            createdAt: true,
+            status: true,
+            paymentStatus: true,
+            totalAmount: true,
+            walkInName: true,
+            walkInPhone: true,
+            customer: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+              },
+            },
+            branch: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            creator: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        order: {
+          createdAt: 'desc',
+        },
+      },
+      take: 200,
+    });
+
+    const activeOrderItems = orderItems.filter(
+      (item) => item.order.status !== 'CANCELLED',
+    );
+    const totalSold = activeOrderItems.reduce(
+      (sum, item) => sum + item.quantity,
+      0,
+    );
+    const totalRevenue = activeOrderItems.reduce(
+      (sum, item) => sum + item.quantity * (item.price ?? 0),
+      0,
+    );
+
+    const sales = orderItems.map((item) => ({
+      id: item.id,
+      orderId: item.order.id,
+      orderNumber: item.order.orderNumber,
+      createdAt: item.order.createdAt,
+      quantity: item.quantity,
+      price: item.price ?? 0,
+      total: item.quantity * (item.price ?? 0),
+      status: item.order.status,
+      paymentStatus: item.order.paymentStatus,
+      customerName:
+        item.order.customer?.name ||
+        item.order.walkInName ||
+        'Walk-in Customer',
+      customerPhone:
+        item.order.customer?.phone || item.order.walkInPhone || null,
+      branchName: item.order.branch?.name || 'Main Branch',
+      creatorName: item.order.creator?.name || null,
+    }));
+
+    return {
+      success: true,
+      product: {
+        ...product,
+        price: product.basePrice ?? 0,
+        stock: totalStock,
+        totalSold,
+        totalRevenue,
+      },
+      instances: instancesRaw,
+      movements,
+      sales,
     };
   }
 

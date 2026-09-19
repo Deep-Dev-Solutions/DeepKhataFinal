@@ -166,4 +166,11 @@ export class ProductsController {
   async deleteProduct(@Req() req: any, @Param('id') id: string) {
     return this.productsService.deleteProduct(req.user.id, id);
   }
+
+  @Get(':id/details')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('read:products')
+  async getProductDetails(@Req() req: any, @Param('id') id: string) {
+    return this.productsService.getProductDetails(req.user.id, id);
+  }
 }
