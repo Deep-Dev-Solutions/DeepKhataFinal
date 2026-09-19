@@ -5,6 +5,7 @@ import Sidebar from "@/components/dashboard/Sidebar";
 import MobileNav from "@/components/dashboard/MobileNav";
 import Header from "@/components/dashboard/Header";
 import { SidebarProvider, useSidebar } from "@/context/SidebarContext";
+import { POSProvider } from "@/context/POSContext";
 import { useAuth } from "@/context/AuthContext";
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
@@ -60,7 +61,9 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider>
-      <DashboardContent>{children}</DashboardContent>
+      <POSProvider>
+        <DashboardContent>{children}</DashboardContent>
+      </POSProvider>
     </SidebarProvider>
   );
 }

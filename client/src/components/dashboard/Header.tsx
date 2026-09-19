@@ -11,6 +11,8 @@ import {
   PanelLeftOpen,
 } from "lucide-react";
 import { useSidebar } from "@/context/SidebarContext";
+import { usePOS } from "@/context/POSContext";
+import { usePathname } from "next/navigation";
 
 const mockNotifications = [
   {
@@ -41,6 +43,13 @@ const mockNotifications = [
 
 export default function Header() {
   const { isCollapsed, toggleSidebar } = useSidebar();
+  const { isCheckoutOpen } = usePOS();
+  const pathname = usePathname();
+  const hideGlobalSearch = pathname === "/orders/new";
+
+  if (isCheckoutOpen) {
+    return null;
+  }
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -92,18 +101,20 @@ export default function Header() {
         DeepKhata
       </div>
 
-      <div className="hidden md:flex flex-1 max-w-md ml-2">
-        <div className="relative w-full">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-4 w-4 text-slate-400" />
+      {!hideGlobalSearch && (
+        <div className="hidden md:flex flex-1 max-w-md ml-2">
+          <div className="relative w-full">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-slate-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="Search orders, customers..."
+              className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl leading-5 bg-slate-50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 sm:text-sm transition-all"
+            />
           </div>
-          <input
-            type="text"
-            placeholder="Search orders, customers..."
-            className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl leading-5 bg-slate-50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 sm:text-sm transition-all"
-          />
         </div>
-      </div>
+      )}
 
       <div className="flex items-center gap-4 ml-auto">
         <div className="relative" ref={dropdownRef}>

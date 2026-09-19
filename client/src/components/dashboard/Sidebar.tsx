@@ -28,34 +28,34 @@ import { useAuth } from "@/context/AuthContext";
 
 const navGroups = [
   {
-    title: "Daily Sales",
+    title: "Daily Operations",
     items: [
       { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-      { name: "POS / Orders", href: "/orders", icon: ShoppingCart },
+      { name: "Point of Sale", href: "/orders", icon: ShoppingCart },
       { name: "Cash Register", href: "/cash", icon: Banknote },
     ],
   },
   {
-    title: "Catalog & Logistics",
+    title: "Stock & Catalog",
     items: [
       { name: "Products", href: "/products", icon: Package },
-      { name: "Restock & Ledger", href: "/inventory/restock", icon: Warehouse },
-      { name: "Cabinets & Racks", href: "/settings/cabinets", icon: LayoutGrid },
+      { name: "Restock Hub", href: "/inventory/restock", icon: Warehouse },
       { name: "Categories", href: "/settings/categories", icon: Tags },
+      { name: "Cabinets", href: "/settings/cabinets", icon: LayoutGrid },
     ],
   },
   {
-    title: "Accounts & Ledger",
+    title: "Accounts",
     items: [
-      { name: "Customers / Udhar", href: "/customers", icon: Users },
-      { name: "Vendors / Suppliers", href: "/vendors", icon: Truck },
+      { name: "Customers (Udhar)", href: "/customers", icon: Users },
+      { name: "Vendors", href: "/vendors", icon: Truck },
     ],
   },
   {
-    title: "Administration",
+    title: "Management (Owner Only)",
     adminOnly: true,
     items: [
-      { name: "Reports & Analytics", href: "/reports", icon: BarChart3 },
+      { name: "Reports", href: "/reports", icon: BarChart3 },
       { name: "Import Data", href: "/settings/import", icon: Database },
       { name: "Store Settings", href: "/settings", icon: Settings },
     ],
@@ -144,7 +144,7 @@ export default function Sidebar() {
 
           const visibleItems = group.items.filter((item) => {
             if (
-              item.name === "Reports & Analytics" &&
+              item.name === "Reports" &&
               !hasPermission("read:reports")
             ) {
               return false;

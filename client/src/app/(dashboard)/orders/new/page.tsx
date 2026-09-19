@@ -9,14 +9,9 @@ import {
   Plus,
   Minus,
   Trash2,
-  Tag,
-  CheckCircle2,
-  Wallet,
   Receipt,
   Barcode,
   PackageOpen,
-  ChevronDown,
-  AlertCircle,
   Wifi,
   WifiOff,
   RefreshCw,
@@ -24,12 +19,10 @@ import {
   MapPin,
   Wrench,
   X,
-  User,
-  Phone,
-  Store,
   LayoutGrid,
   List,
   GripVertical,
+  ChevronRight,
 } from "lucide-react";
 import { offlineDb, type SyncQueueItem } from "@/lib/db";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
@@ -38,6 +31,8 @@ import OrderSuccessModal, {
   type CompletedOrderData,
 } from "@/components/modals/OrderSuccessModal";
 import NewCustomerModal from "@/components/modals/NewCustomerModal";
+import CheckoutDrawer from "@/components/pos/CheckoutDrawer";
+import { usePOS } from "@/context/POSContext";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL } from "@/lib/auth";
 import { useToast } from "@/context/ToastContext";
@@ -380,7 +375,7 @@ function CreateOrderPOSContent() {
   const handleCompleteOrder = async (
     statusOverride?: string | React.MouseEvent,
   ) => {
-    if (cart.length === 0) return;
+    if (cart.length === 0) return false;
     setIsSubmitting(true);
 
     const currentCart = [...cart];
@@ -468,11 +463,11 @@ function CreateOrderPOSContent() {
         setCart([]);
         setAmountPaid("");
         setDiscount("");
-        return;
+        return true;
       } catch (err: any) {
         console.error("Failed to queue offline order:", err);
         toast.error("Failed to queue offline order: " + err?.message);
-        return;
+        return false;
       } finally {
         setIsSubmitting(false);
       }
@@ -535,6 +530,7 @@ function CreateOrderPOSContent() {
       setCart([]);
       setAmountPaid("");
       setDiscount("");
+      return true;
     } catch (error: any) {
       // Fallback: If network failed during fetch, queue in Dexie AND deduct local stock!
       const isNetworkIssue =
@@ -599,8 +595,10 @@ function CreateOrderPOSContent() {
         setCart([]);
         setAmountPaid("");
         setDiscount("");
+        return true;
       } else {
         toast.error(error.message || "Failed to create order");
+        return false;
       }
     } finally {
       setIsSubmitting(false);
@@ -905,81 +903,59 @@ function CreateOrderPOSContent() {
     return null;
   };
 
-  // 🟢 RESIZABLE COLUMNS WITH LOCALSTORAGE MEMORY
-  const [colWidths, setColWidths] = useState({
-    col1: 390, // Catalog / Products
-    col2: 360, // Unified Cart
-    col3: 380, // Customer & Checkout
-  });
-  const [activeResizeCol, setActiveResizeCol] = useState<
-    "col1" | "col2" | "col3" | null
-  >(null);
-  const isDraggingRef = useRef<"col1" | "col2" | "col3" | null>(null);
-  const dragStartXRef = useRef(0);
-  const dragStartWidthRef = useRef(0);
+  // 🟢 CHECKOUT DRAWER (customer + payment overlay)
+  const { isCheckoutOpen, setIsCheckoutOpen } = usePOS();
+
+  // 🟢 TWO-COLUMN RATIO (default 60/40 Catalog:Cart) WITH LOCALSTORAGE MEMORY
+  const [catalogRatio, setCatalogRatio] = useState(0.6);
+  const [isRatioDragging, setIsRatioDragging] = useState(false);
+  const layoutRef = useRef<HTMLDivElement>(null);
+  const ratioDragRef = useRef<number | null>(null);
+  const ratioStartXRef = useRef(0);
+  const ratioStartRatioRef = useRef(0);
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("deepkhata_pos_widths");
+      const saved = localStorage.getItem("deepkhata_pos_ratio");
       if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.col1 && parsed.col2 && parsed.col3) {
-          setColWidths(parsed);
+        const parsed = Number(saved);
+        if (parsed >= 0.45 && parsed <= 0.75) {
+          setCatalogRatio(parsed);
         }
       }
     } catch {}
   }, []);
 
-  const handleMouseDown = (
-    col: "col1" | "col2" | "col3",
-    e: React.MouseEvent,
-  ) => {
+  const handleRatioDragStart = (e: React.MouseEvent) => {
     e.preventDefault();
-    isDraggingRef.current = col;
-    dragStartXRef.current = e.clientX;
-    dragStartWidthRef.current = colWidths[col];
-    setActiveResizeCol(col);
+    ratioDragRef.current = e.clientX;
+    ratioStartXRef.current = e.clientX;
+    ratioStartRatioRef.current = catalogRatio;
+    setIsRatioDragging(true);
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
   };
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
-      const activeCol = isDraggingRef.current;
-      if (!activeCol) return;
-      const delta = e.clientX - dragStartXRef.current;
-
-      let minW = 280;
-      let maxW = 850;
-      if (activeCol === "col1") {
-        minW = 280;
-        maxW = 850;
-      } else if (activeCol === "col2") {
-        minW = 280;
-        maxW = 800;
-      } else if (activeCol === "col3") {
-        minW = 340;
-        maxW = 650;
-      }
-
-      const newWidth = Math.max(
-        minW,
-        Math.min(maxW, dragStartWidthRef.current + delta),
+      if (ratioDragRef.current === null) return;
+      if (!layoutRef.current) return;
+      const delta = e.clientX - ratioStartXRef.current;
+      const containerWidth = layoutRef.current.clientWidth || 1;
+      const newRatio = Math.max(
+        0.45,
+        Math.min(0.75, ratioStartRatioRef.current + delta / containerWidth),
       );
-
-      setColWidths((prev) => {
-        const updated = { ...prev, [activeCol]: newWidth };
-        try {
-          localStorage.setItem("deepkhata_pos_widths", JSON.stringify(updated));
-        } catch {}
-        return updated;
-      });
+      setCatalogRatio(newRatio);
+      try {
+        localStorage.setItem("deepkhata_pos_ratio", String(newRatio));
+      } catch {}
     };
 
     const onMouseUp = () => {
-      if (isDraggingRef.current) {
-        isDraggingRef.current = null;
-        setActiveResizeCol(null);
+      if (ratioDragRef.current !== null) {
+        ratioDragRef.current = null;
+        setIsRatioDragging(false);
         document.body.style.cursor = "";
         document.body.style.userSelect = "";
       }
@@ -993,16 +969,14 @@ function CreateOrderPOSContent() {
     };
   }, []);
 
-  const resetColWidths = () => {
-    const defaults = { col1: 390, col2: 360, col3: 380 };
-    setColWidths(defaults);
+  const resetRatio = () => {
+    setCatalogRatio(0.6);
     try {
-      localStorage.setItem("deepkhata_pos_widths", JSON.stringify(defaults));
+      localStorage.setItem("deepkhata_pos_ratio", "0.6");
     } catch {}
   };
 
   const disabledReason = getDisabledReason();
-  const isCheckoutDisabled = Boolean(disabledReason) || isSubmitting;
 
   return (
     <div className="flex flex-col h-[calc(100vh-125px)] min-h-0 overflow-hidden font-sans">
@@ -1098,16 +1072,19 @@ function CreateOrderPOSContent() {
       )}
 
       {/* ==================================================
-          THREE-COLUMN RESPONSIVE LAYOUT
-          Desktop: Side-by-side columns: Catalog | Cart | Checkout
+          TWO-COLUMN RESPONSIVE LAYOUT
+          Desktop (lg+): Catalog (60%) | Cart (40%), optional drag resize
           Mobile: Vertical stacked cards
       ==================================================== */}
-      <div className="flex-1 overflow-x-auto overflow-y-auto xl:overflow-y-hidden mt-3 min-h-0 pb-1.5 pos-horizontal-scroll">
-        <div className="flex flex-col xl:flex-row items-stretch h-auto xl:h-full gap-4 xl:gap-1 w-full xl:min-w-max">
+      <div className="flex-1 overflow-x-hidden overflow-y-auto lg:overflow-y-hidden mt-3 min-h-0 pb-1.5">
+        <div
+          ref={layoutRef}
+          className="flex flex-col lg:flex-row items-stretch h-auto lg:h-full gap-4 w-full"
+        >
           {/* ───────── LEFT COLUMN: PRODUCT CATALOG ───────── */}
           <div
-            style={{ width: `${colWidths.col1}px` }}
-            className="w-full xl:w-auto flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm min-h-[480px] xl:min-h-0 shrink-0 xl:min-w-[280px]"
+            style={{ flexGrow: catalogRatio, flexBasis: 0 }}
+            className="w-full lg:w-auto flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm min-h-[480px] lg:min-h-0 shrink-0 lg:min-w-[280px]"
           >
             <div className="p-3.5 border-b border-slate-100 shrink-0 bg-slate-50/50 space-y-2">
               <div className="flex items-center justify-between gap-2">
@@ -1443,13 +1420,13 @@ function CreateOrderPOSContent() {
             </div>
           </div>
 
-          {/* RESIZE HANDLE 1 (Catalog / Cart) */}
+          {/* RESIZE HANDLE (Catalog / Cart ratio) */}
           <div
-            onMouseDown={(e) => handleMouseDown("col1", e)}
-            onDoubleClick={resetColWidths}
+            onMouseDown={handleRatioDragStart}
+            onDoubleClick={resetRatio}
             style={{ cursor: "col-resize" }}
-            className={`hidden xl:flex relative w-4 -mx-2 flex-col items-center justify-center select-none z-20 shrink-0 group ${
-              activeResizeCol === "col1"
+            className={`hidden lg:flex relative w-4 -mx-2 flex-col items-center justify-center select-none z-20 shrink-0 group ${
+              isRatioDragging
                 ? "bg-blue-100/40"
                 : "hover:bg-blue-50/50"
             } transition-colors`}
@@ -1457,7 +1434,7 @@ function CreateOrderPOSContent() {
             {/* Full-height visible divider track */}
             <div
               className={`w-[2px] h-full transition-all duration-150 ${
-                activeResizeCol === "col1"
+                isRatioDragging
                   ? "bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.6)]"
                   : "bg-slate-200 group-hover:bg-blue-400"
               }`}
@@ -1467,7 +1444,7 @@ function CreateOrderPOSContent() {
             {/* Centered tactile grip pill */}
             <div
               className={`absolute top-1/2 -translate-y-1/2 w-4 h-9 rounded-full border flex items-center justify-center transition-all duration-150 shadow-sm pointer-events-none ${
-                activeResizeCol === "col1"
+                isRatioDragging
                   ? "bg-blue-600 border-blue-700 text-white scale-110 shadow-md"
                   : "bg-white border-slate-300 text-slate-400 group-hover:border-blue-400 group-hover:text-blue-600 group-hover:scale-105 group-hover:shadow"
               }`}
@@ -1477,10 +1454,10 @@ function CreateOrderPOSContent() {
             </div>
           </div>
 
-          {/* ───────── CENTER COLUMN: UNIFIED CART ───────── */}
+          {/* ───────── RIGHT COLUMN: UNIFIED CART ───────── */}
           <div
-            style={{ width: `${colWidths.col2}px` }}
-            className="w-full xl:w-auto flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm min-h-[360px] xl:min-h-0 shrink-0 xl:min-w-[280px]"
+            style={{ flexGrow: 1 - catalogRatio, flexBasis: 0 }}
+            className="w-full lg:w-auto flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm min-h-[360px] lg:min-h-0 shrink-0 lg:min-w-[280px]"
           >
             <div className="p-3.5 border-b border-slate-100 bg-slate-50 shrink-0 flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 min-w-0">
@@ -1685,409 +1662,88 @@ function CreateOrderPOSContent() {
                 ))
               )}
             </div>
-          </div>
 
-          {/* RESIZE HANDLE 2 (Cart / Checkout) */}
-          <div
-            onMouseDown={(e) => handleMouseDown("col2", e)}
-            onDoubleClick={resetColWidths}
-            style={{ cursor: "col-resize" }}
-            className={`hidden xl:flex relative w-4 -mx-2 flex-col items-center justify-center select-none z-20 shrink-0 group ${
-              activeResizeCol === "col2"
-                ? "bg-blue-100/40"
-                : "hover:bg-blue-50/50"
-            } transition-colors`}
-          >
-            {/* Full-height visible divider track */}
-            <div
-              className={`w-[2px] h-full transition-all duration-150 ${
-                activeResizeCol === "col2"
-                  ? "bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.6)]"
-                  : "bg-slate-200 group-hover:bg-blue-400"
-              }`}
-              style={{ cursor: "col-resize" }}
-            />
-
-            {/* Centered tactile grip pill */}
-            <div
-              className={`absolute top-1/2 -translate-y-1/2 w-4 h-9 rounded-full border flex items-center justify-center transition-all duration-150 shadow-sm pointer-events-none ${
-                activeResizeCol === "col2"
-                  ? "bg-blue-600 border-blue-700 text-white scale-110 shadow-md"
-                  : "bg-white border-slate-300 text-slate-400 group-hover:border-blue-400 group-hover:text-blue-600 group-hover:scale-105 group-hover:shadow"
-              }`}
-              style={{ cursor: "col-resize" }}
-            >
-              <GripVertical className="w-2.5 h-2.5" />
-            </div>
-          </div>
-
-          {/* ───────── RIGHT COLUMN: CHECKOUT PANEL ───────── */}
-          <div
-            style={{ width: `${colWidths.col3}px` }}
-            className="w-full xl:w-auto flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm min-h-[420px] xl:min-h-0 shrink-0 xl:min-w-[340px]"
-          >
-            {/* CUSTOMER SEGMENT */}
-            <div className="p-4 border-b border-slate-100 bg-slate-50 shrink-0">
-              <h2 className="font-bold text-slate-800 flex items-center gap-2 mb-2.5">
-                <User className="w-4 h-4 text-slate-500" /> Customer
-              </h2>
-              <div className="flex bg-white rounded-lg p-1 border border-slate-200 shadow-sm">
-                <button
-                  onClick={() => {
-                    setCustomerMode("walk-in");
-                    setSelectedCustomer(null);
-                  }}
-                  className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors cursor-pointer ${customerMode === "walk-in" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
-                >
-                  Walk-in
-                </button>
-                <button
-                  onClick={() => setCustomerMode("existing")}
-                  className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors cursor-pointer ${customerMode === "existing" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
-                >
-                  Existing / Search
-                </button>
-              </div>
-
-              {customerMode === "walk-in" && (
-                <div className="mt-3 flex flex-col gap-2">
-                  <div className="relative">
-                    <User className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3 pointer-events-none" />
-                    <input
-                      type="text"
-                      placeholder="Customer Name (Optional)"
-                      value={walkInName}
-                      onChange={(e) => setWalkInName(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs sm:text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-800 font-medium placeholder-slate-400 shadow-2xs"
-                    />
-                  </div>
-                  <div className="relative">
-                    <Phone className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3 pointer-events-none" />
-                    <input
-                      type="text"
-                      placeholder="Phone Number (Optional)"
-                      value={walkInPhone}
-                      onChange={(e) => setWalkInPhone(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs sm:text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-800 font-medium placeholder-slate-400 font-mono shadow-2xs"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {customerMode === "existing" && (
-                <div className="mt-3 relative">
-                  {selectedCustomer ? (
-                    <div className="flex items-center justify-between bg-blue-50 border border-blue-200 p-2.5 rounded-xl">
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-blue-900 truncate flex items-center gap-1">
-                          {selectedCustomer.shopName && (
-                            <Store className="w-3 h-3 text-blue-500 shrink-0" />
-                          )}
-                          {selectedCustomer.name}
-                        </p>
-                        <p className="text-[10px] text-blue-600 truncate">
-                          {selectedCustomer.phone}
-                          {selectedCustomer.shopName
-                            ? ` · ${selectedCustomer.shopName}`
-                            : ""}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setSelectedCustomer(null)}
-                        className="text-xs text-blue-600 hover:text-rose-600 font-bold shrink-0 cursor-pointer"
-                      >
-                        Change
-                      </button>
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="flex gap-1.5">
-                        <div className="relative flex-1">
-                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
-                          <input
-                            type="text"
-                            placeholder="Type name or phone..."
-                            value={customerSearch}
-                            onChange={(e) => setCustomerSearch(e.target.value)}
-                            className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-2xs"
-                          />
-                        </div>
-                        <button
-                          onClick={() => setIsNewCustomerModalOpen(true)}
-                          className="px-3 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors shrink-0 shadow-xs cursor-pointer"
-                          title="Create new customer"
-                        >
-                          + New
-                        </button>
-                      </div>
-                      {isSearchingCustomer && (
-                        <span className="text-[10px] text-slate-400 mt-1 block">
-                          Searching...
-                        </span>
-                      )}
-
-                      {customerResults.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 max-h-40 overflow-y-auto">
-                          {customerResults.map((c) => (
-                            <button
-                              key={c.id}
-                              onClick={() => {
-                                setSelectedCustomer(c);
-                                setCustomerResults([]);
-                                setCustomerSearch("");
-                              }}
-                              className="w-full text-left p-2.5 hover:bg-slate-50 border-b border-slate-50 text-xs flex justify-between cursor-pointer"
-                            >
-                              <span className="font-bold text-slate-800">
-                                {c.name}
-                              </span>
-                              <span className="text-slate-400 font-mono">
-                                {c.phone}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* CHECKOUT SEGMENT */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
-              {/* Discount */}
-              <div className="flex items-center justify-between bg-slate-50/70 p-2.5 rounded-xl border border-slate-200 shadow-2xs">
-                <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-                  <Tag className="w-4 h-4 text-slate-500" />
-                  <span>Discount</span>
-                </label>
-                <div className="relative w-28 sm:w-32">
-                  <span className="text-xs font-bold text-slate-400 absolute left-2.5 top-2 pointer-events-none">
-                    Rs.
+            {/* 🟢 CART FOOTER: RUNNING TOTALS + CHECKOUT TRIGGER */}
+            <div className="p-3.5 border-t border-slate-200 bg-slate-50/70 shrink-0 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Subtotal
                   </span>
-                  <input
-                    type="number"
-                    min="0"
-                    max={subtotal}
-                    value={discount}
-                    onFocus={(e) => {
-                      if (discount === "0" || Number(discount) === 0)
-                        setDiscount("");
-                      e.target.select();
-                    }}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === "") {
-                        setDiscount("");
-                      } else {
-                        const num = Math.max(0, Number(val));
-                        const capped = Math.min(subtotal, num);
-                        if (num > subtotal) {
-                          toast.warning(
-                            `Discount cannot exceed subtotal (Rs. ${subtotal.toLocaleString()}).`,
-                          );
-                        }
-                        setDiscount(String(capped));
-                      }
-                    }}
-                    onBlur={() => {
-                      const num = Number(discount) || 0;
-                      if (num > subtotal) {
-                        setDiscount(String(subtotal));
-                      }
-                    }}
-                    className="w-full pl-8 pr-2.5 py-1.5 text-right font-black text-slate-900 bg-white border border-slate-300 rounded-lg text-xs sm:text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-2xs"
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-
-              {/* Grand Total */}
-              <div className="flex items-end justify-between">
-                <span className="text-slate-500 font-bold uppercase tracking-wider text-xs">
-                  Grand Total
-                </span>
-                <span className="text-2xl font-black text-slate-900 tracking-tight leading-none">
-                  Rs. {grandTotal.toLocaleString()}
-                </span>
-              </div>
-
-              {/* Explicit Balance Due / Udhaar Indicator */}
-              <div className="p-3 rounded-xl border bg-slate-50 border-slate-200 space-y-1">
-                <div className="flex items-center justify-between text-xs font-bold">
-                  <span className="text-slate-600">Balance Due (Udhaar):</span>
-                  <span
-                    className={
-                      pendingAmount > 0
-                        ? "text-rose-600 font-black text-sm"
-                        : "text-emerald-600 font-black text-sm"
-                    }
-                  >
-                    Rs. {Math.max(0, pendingAmount).toLocaleString()}
+                  <span className="text-sm font-black text-slate-800">
+                    Rs. {subtotal.toLocaleString()}
                   </span>
                 </div>
-                {Number(amountPaid) > grandTotal && (
-                  <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-700 pt-1 border-t border-slate-200">
-                    <span>Change to Return:</span>
-                    <span>
-                      Rs. {(Number(amountPaid) - grandTotal).toLocaleString()}
+                <div className="text-right shrink-0">
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Grand Total
+                  </span>
+                  {Number(discount) > 0 && (
+                    <span className="block text-[10px] font-semibold text-rose-500 -mt-0.5">
+                      - Rs. {(Number(discount) || 0).toLocaleString()} discount
                     </span>
-                  </div>
-                )}
+                  )}
+                  <span className="text-xl font-black text-blue-600">
+                    Rs. {grandTotal.toLocaleString()}
+                  </span>
+                </div>
               </div>
 
-              <hr className="border-slate-200" />
+              <button
+                onClick={() => setIsCheckoutOpen(true)}
+                disabled={cart.length === 0}
+                className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-base transition-all shadow-lg shadow-blue-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2 cursor-pointer"
+              >
+                Proceed to Checkout
+                <ChevronRight className="w-5 h-5" />
+              </button>
 
-              {/* Payment */}
-              <div className="flex flex-col gap-3">
-                <div className="flex items-start gap-2.5">
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-bold text-slate-700">
-                        Amount Received
-                      </label>
-                      {pendingAmount > 0 && cart.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setAmountPaid(grandTotal.toString())}
-                          className="text-blue-600 hover:text-blue-800 font-bold text-[11px] hover:underline cursor-pointer"
-                        >
-                          Pay in Full
-                        </button>
-                      )}
-                    </div>
-                    <div className="relative">
-                      <Wallet className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
-                      <input
-                        type="number"
-                        min="0"
-                        value={amountPaid}
-                        onFocus={(e) => e.target.select()}
-                        onChange={(e) => setAmountPaid(e.target.value)}
-                        placeholder="0"
-                        className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm font-bold text-slate-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none shadow-2xs"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="w-32 shrink-0">
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Method
-                    </label>
-                    <select
-                      value={paymentMethod}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm font-bold text-slate-800 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none shadow-2xs cursor-pointer"
-                    >
-                      <option value="CASH">Cash</option>
-                      <option value="BANK">Bank</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* MEMO / FINAL toggle */}
-                {customerMode === "existing" && (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Order Type / Settlement
-                    </label>
-                    <div className="flex relative">
-                      <button
-                        onClick={() => setOrderStatus("FINAL")}
-                        className={`flex-1 py-2 px-2 rounded-l-lg text-xs font-bold transition-colors cursor-pointer ${
-                          orderStatus === "FINAL"
-                            ? "bg-emerald-600 text-white shadow-sm"
-                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                        }`}
-                      >
-                        FINAL Sale
-                      </button>
-                      <button
-                        onClick={() => setOrderStatus("MEMO")}
-                        className={`flex-1 py-2 px-2 rounded-r-lg text-xs font-bold transition-colors cursor-pointer ${
-                          orderStatus === "MEMO"
-                            ? "bg-amber-500 text-white shadow-sm"
-                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                        }`}
-                      >
-                        MEMO / Amanat
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* SUBMIT */}
-            <div className="p-4 border-t border-slate-200 bg-slate-50 shrink-0 space-y-2">
-              {disabledReason && cart.length > 0 && (
-                <div className="flex items-center gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs font-semibold text-amber-800 animate-in fade-in duration-200">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
-                  <span>{disabledReason}</span>
-                </div>
+              {cart.length === 0 && (
+                <p className="text-[11px] text-slate-400 text-center">
+                  Add items to the invoice to enable checkout.
+                </p>
               )}
-
-              <button
-                onClick={() => handleCompleteOrder()}
-                disabled={isCheckoutDisabled}
-                className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-base hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {isSubmitting
-                  ? "Processing..."
-                  : !isOnline
-                    ? `Queue ${orderStatus} Order Offline`
-                    : orderStatus === "FINAL"
-                      ? "Complete Order"
-                      : "Save Pending Order (MEMO)"}
-                {!isSubmitting && <CheckCircle2 className="w-5 h-5" />}
-              </button>
-
-              <button
-                onClick={() => handleCompleteOrder("ESTIMATE")}
-                disabled={isCheckoutDisabled}
-                className="w-full py-3 bg-white text-slate-700 border border-slate-300 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center cursor-pointer"
-              >
-                Save as Estimate
-              </button>
             </div>
           </div>
 
-          {/* RESIZE HANDLE 3 (Checkout width) */}
-          <div
-            onMouseDown={(e) => handleMouseDown("col3", e)}
-            onDoubleClick={resetColWidths}
-            style={{ cursor: "col-resize" }}
-            className={`hidden xl:flex relative w-4 -mx-2 flex-col items-center justify-center select-none z-20 shrink-0 group ${
-              activeResizeCol === "col3"
-                ? "bg-blue-100/40"
-                : "hover:bg-blue-50/50"
-            } transition-colors`}
-          >
-            {/* Full-height visible divider track */}
-            <div
-              className={`w-[2px] h-full transition-all duration-150 ${
-                activeResizeCol === "col3"
-                  ? "bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.6)]"
-                  : "bg-slate-200 group-hover:bg-blue-400"
-              }`}
-              style={{ cursor: "col-resize" }}
-            />
-
-            {/* Centered tactile grip pill */}
-            <div
-              className={`absolute top-1/2 -translate-y-1/2 w-4 h-9 rounded-full border flex items-center justify-center transition-all duration-150 shadow-sm pointer-events-none ${
-                activeResizeCol === "col3"
-                  ? "bg-blue-600 border-blue-700 text-white scale-110 shadow-md"
-                  : "bg-white border-slate-300 text-slate-400 group-hover:border-blue-400 group-hover:text-blue-600 group-hover:scale-105 group-hover:shadow"
-              }`}
-              style={{ cursor: "col-resize" }}
-            >
-              <GripVertical className="w-2.5 h-2.5" />
-            </div>
-          </div>
         </div>
       </div>
+
+      {/* 🟢 CHECKOUT DRAWER — customer, discount & payment overlay */}
+      <CheckoutDrawer
+        isOpen={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
+        onCompleteOrder={handleCompleteOrder}
+        customerMode={customerMode}
+        setCustomerMode={setCustomerMode}
+        walkInName={walkInName}
+        setWalkInName={setWalkInName}
+        walkInPhone={walkInPhone}
+        setWalkInPhone={setWalkInPhone}
+        customerSearch={customerSearch}
+        setCustomerSearch={setCustomerSearch}
+        customerResults={customerResults}
+        setCustomerResults={setCustomerResults}
+        selectedCustomer={selectedCustomer}
+        setSelectedCustomer={setSelectedCustomer}
+        isSearchingCustomer={isSearchingCustomer}
+        onOpenNewCustomer={() => setIsNewCustomerModalOpen(true)}
+        subtotal={subtotal}
+        grandTotal={grandTotal}
+        discount={discount}
+        setDiscount={setDiscount}
+        amountPaid={amountPaid}
+        setAmountPaid={setAmountPaid}
+        pendingAmount={pendingAmount}
+        paymentMethod={paymentMethod}
+        setPaymentMethod={setPaymentMethod}
+        orderStatus={orderStatus}
+        setOrderStatus={setOrderStatus}
+        cartCount={cart.length}
+        isOnline={isOnline}
+        isSubmitting={isSubmitting}
+        disabledReason={disabledReason}
+      />
 
       {/* 🟢 POS ORDER SUCCESS & THERMAL PRINT OVERLAY */}
       <OrderSuccessModal
