@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import SettingsNav from "@/components/settings/SettingsNav";
 import ProfileTab from "@/components/settings/ProfileTab";
 import GeneralTab from "@/components/settings/GeneralTab";
@@ -11,8 +12,10 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { Loader2, AlertCircle } from "lucide-react";
 import { API_BASE_URL } from "@/lib/auth";
 
-export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState("profile");
+function SettingsPageContent() {
+  const searchParams = useSearchParams();
+  const tabFromQuery = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState(tabFromQuery || "profile");
   const { hasPermission } = usePermissions();
 
   const [userProfile, setUserProfile] = useState<any>(null);
@@ -27,6 +30,13 @@ export default function SettingsPage() {
   const updateBusinessData = (updates: any) => {
     setBusinessData((prev: any) => (prev ? { ...prev, ...updates } : prev));
   };
+
+  // Sync tab state whenever URL search param changes
+  useEffect(() => {
+    if (tabFromQuery) {
+      setActiveTab(tabFromQuery);
+    }
+  }, [tabFromQuery]);
 
   // 🟢 FETCH DATA ON MOUNT
   useEffect(() => {
@@ -50,8 +60,13 @@ export default function SettingsPage() {
         if (profileData.success) setUserProfile(profileData.profile);
         if (businessJson.success) setBusinessData(businessJson.business);
 
-        // If owner, default to general tab. If staff, default to profile.
-        if (hasPermission("manage:business")) setActiveTab("general");
+        // If a tab parameter is explicitly present, respect it.
+        // Otherwise, if owner default to general tab; if staff default to profile.
+        if (tabFromQuery) {
+          setActiveTab(tabFromQuery);
+        } else if (hasPermission("manage:business")) {
+          setActiveTab("general");
+        }
       } catch (err: any) {
         setError("Failed to load settings data.");
       } finally {
@@ -60,7 +75,7 @@ export default function SettingsPage() {
     };
 
     fetchSettingsData();
-  }, [hasPermission]);
+  }, [hasPermission, tabFromQuery]);
 
   if (isLoading) {
     return (
@@ -121,5 +136,19 @@ export default function SettingsPage() {
         {activeTab === "notifications" && <NotificationsTab />}
       </div>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        </div>
+      }
+    >
+      <SettingsPageContent />
+    </Suspense>
   );
 }

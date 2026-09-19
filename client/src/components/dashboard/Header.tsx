@@ -4,17 +4,13 @@ import { useState, useRef, useEffect } from "react";
 import {
   Bell,
   Search,
-  UserCircle,
   Package,
   AlertTriangle,
   Wallet,
   PanelLeftClose,
   PanelLeftOpen,
-  LogOut,
-  ShieldCheck,
 } from "lucide-react";
 import { useSidebar } from "@/context/SidebarContext";
-import { useAuth } from "@/context/AuthContext";
 
 const mockNotifications = [
   {
@@ -45,17 +41,8 @@ const mockNotifications = [
 
 export default function Header() {
   const { isCollapsed, toggleSidebar } = useSidebar();
-  const { user, logout } = useAuth();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const initials =
-    (user?.name || "User")
-      .split(" ")
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join("") || "U";
 
   const toggleNotifications = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -209,36 +196,6 @@ export default function Header() {
               </div>
             </div>
           )}
-        </div>
-
-        {/* User Profile & Quick Logout */}
-        <div className="flex items-center gap-2.5 pl-3 border-l border-slate-200">
-          <div className="hidden sm:flex flex-col text-right min-w-0">
-            <span className="text-xs font-bold text-slate-900 leading-tight truncate max-w-[120px]">
-              {user?.name || "User"}
-            </span>
-            <div className="flex items-center justify-end gap-1 text-[10px] text-slate-500 font-medium leading-tight">
-              <ShieldCheck className="w-2.5 h-2.5 text-blue-600" />
-              <span>{(user?.role || "OWNER").toUpperCase()}</span>
-            </div>
-          </div>
-
-          <div
-            className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0 border border-blue-200 shadow-2xs"
-            title={`${user?.name || "User"} (${user?.email || ""})`}
-          >
-            {initials}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => logout()}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-slate-200 cursor-pointer shadow-2xs"
-            title="Log out of DeepKhata"
-          >
-            <LogOut className="w-3.5 h-3.5 text-rose-500" />
-            <span className="hidden md:inline">Logout</span>
-          </button>
         </div>
       </div>
     </header>
