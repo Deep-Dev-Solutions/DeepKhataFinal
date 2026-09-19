@@ -16,6 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import AlertDialog from "@/components/ui/alert-dialog";
 
 type CategoryRow = {
   id: string;
@@ -40,6 +41,10 @@ export default function CategoriesSettingsPage() {
 
   // Delete confirm
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const refreshCategories = async () => {
     setIsLoading(true);
@@ -356,7 +361,9 @@ export default function CategoriesSettingsPage() {
                           <Pencil className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => void handleDelete(cat.id)}
+                          onClick={() =>
+                            setDeleteTarget({ id: cat.id, name: cat.name })
+                          }
                           disabled={deletingId === cat.id}
                           className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
                           title="Delete (products become uncategorized)"
@@ -375,6 +382,22 @@ export default function CategoriesSettingsPage() {
             )}
           </div>
         </div>
+
+        <AlertDialog
+          isOpen={deleteTarget !== null}
+          title="Delete Category?"
+          description={`"${deleteTarget?.name}" will be permanently deleted. Its products will become uncategorized.`}
+          confirmLabel="Delete Category"
+          confirming={deletingId === deleteTarget?.id}
+          onConfirm={() => {
+            const target = deleteTarget;
+            setDeleteTarget(null);
+            if (target) {
+              void handleDelete(target.id);
+            }
+          }}
+          onClose={() => setDeleteTarget(null)}
+        />
       </div>
     </div>
   );

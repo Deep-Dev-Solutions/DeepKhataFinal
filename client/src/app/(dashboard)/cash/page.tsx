@@ -28,6 +28,7 @@ import {
 import CloseRegisterModal from "@/components/modals/CloseRegisterModal";
 import OpenRegisterModal from "@/components/modals/OpenRegisterModal";
 import ZReportModal from "@/components/modals/ZReportModal";
+import AlertDialog from "@/components/ui/alert-dialog";
 
 const EXPENSE_CATEGORIES = [
   {
@@ -89,6 +90,10 @@ export default function CashHubPage() {
   const [isOpenModalOpen, setIsOpenModalOpen] = useState(false);
   const [isZReportModalOpen, setIsZReportModalOpen] = useState(false);
   const [currentZReport, setCurrentZReport] = useState<any>(null);
+  const [messageAlert, setMessageAlert] = useState<{
+    title: string;
+    description: string;
+  } | null>(null);
 
   // Filters
   const [selectedFilterCategory, setSelectedFilterCategory] = useState("ALL");
@@ -176,11 +181,18 @@ export default function CashHubPage() {
         setTimeout(() => setExpenseSuccessMsg(null), 4000);
         await fetchCashData();
       } else {
-        alert(data.message || "Failed to log expense");
+        setMessageAlert({
+          title: "Could Not Log Expense",
+          description: data.message || "Failed to log expense",
+        });
       }
     } catch (err) {
       console.error(err);
-      alert("Error recording expense. Please check your connection.");
+      setMessageAlert({
+        title: "Connection Error",
+        description:
+          "Error recording expense. Please check your connection.",
+      });
     } finally {
       setSubmittingExpense(false);
     }
@@ -205,7 +217,10 @@ export default function CashHubPage() {
     if (result.success) {
       await fetchCashData();
     } else {
-      alert(result.message || "Failed to open register");
+      setMessageAlert({
+        title: "Could Not Open Register",
+        description: result.message || "Failed to open register",
+      });
     }
   };
 
@@ -230,7 +245,10 @@ export default function CashHubPage() {
       // Fetch and display Z-report
       await handleViewZReport(result.session.id);
     } else {
-      alert(result.message || "Failed to close register");
+      setMessageAlert({
+        title: "Could Not Close Register",
+        description: result.message || "Failed to close register",
+      });
     }
   };
 
@@ -247,7 +265,10 @@ export default function CashHubPage() {
         setCurrentZReport(data.report);
         setIsZReportModalOpen(true);
       } else {
-        alert(data.message || "No report available");
+        setMessageAlert({
+          title: "No Z-Report Available",
+          description: data.message || "No report available",
+        });
       }
     } catch (err) {
       console.error(err);
@@ -720,6 +741,15 @@ export default function CashHubPage() {
         isOpen={isZReportModalOpen}
         onClose={() => setIsZReportModalOpen(false)}
         reportData={currentZReport}
+      />
+
+      {/* Message Dialog (replaces native alert) */}
+      <AlertDialog
+        isOpen={messageAlert !== null}
+        title={messageAlert?.title || ""}
+        description={messageAlert?.description || ""}
+        icon={<AlertTriangle className="w-6 h-6" />}
+        onClose={() => setMessageAlert(null)}
       />
     </div>
   );

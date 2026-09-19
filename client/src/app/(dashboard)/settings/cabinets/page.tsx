@@ -14,6 +14,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import AlertDialog from "@/components/ui/alert-dialog";
 
 type CabinetRow = {
   id: string;
@@ -45,6 +46,10 @@ export default function CabinetsSettingsPage() {
 
   // Delete state
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const refreshCabinets = async () => {
     setIsLoading(true);
@@ -441,7 +446,9 @@ export default function CabinetsSettingsPage() {
                         <Pencil className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => void handleDeleteCabinet(cab.id)}
+                        onClick={() =>
+                          setDeleteTarget({ id: cab.id, name: cab.name })
+                        }
                         disabled={deletingId === cab.id}
                         className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
                         title="Delete cabinet (instances detached)"
@@ -459,6 +466,22 @@ export default function CabinetsSettingsPage() {
             )}
           </div>
         </div>
+
+        <AlertDialog
+          isOpen={deleteTarget !== null}
+          title="Delete Cabinet?"
+          description={`"${deleteTarget?.name}" will be permanently deleted. Its part instances and movement history will be detached.`}
+          confirmLabel="Delete Cabinet"
+          confirming={deletingId === deleteTarget?.id}
+          onConfirm={() => {
+            const target = deleteTarget;
+            setDeleteTarget(null);
+            if (target) {
+              void handleDeleteCabinet(target.id);
+            }
+          }}
+          onClose={() => setDeleteTarget(null)}
+        />
       </div>
     </div>
   );

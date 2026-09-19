@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import {
   Bell,
   Search,
@@ -9,10 +9,118 @@ import {
   Wallet,
   PanelLeftClose,
   PanelLeftOpen,
+  LayoutDashboard,
+  ShoppingCart,
+  Users,
+  Warehouse,
+  Truck,
+  BarChart3,
+  Banknote,
+  Tags,
+  LayoutGrid,
 } from "lucide-react";
 import { useSidebar } from "@/context/SidebarContext";
 import { usePOS } from "@/context/POSContext";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+
+type SearchEntry = {
+  keywords: string[];
+  label: string;
+  description: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
+
+const searchIndex: SearchEntry[] = [
+  {
+    keywords: ["galla", "rokarr", "cash", "register", "cash counter"],
+    label: "Galla / Cash Counter",
+    description: "Open & close register, cash expenses",
+    href: "/cash",
+    icon: Banknote,
+  },
+  {
+    keywords: [
+      "khata",
+      "udhar",
+      "wasooli",
+      "baqaya",
+      "customers",
+      "accounts",
+      "ledger",
+      "udhaar",
+    ],
+    label: "Customers (Udhar)",
+    description: "Customer accounts & khata",
+    href: "/customers",
+    icon: Users,
+  },
+  {
+    keywords: [
+      "parchi",
+      "bill",
+      "sauda",
+      "pos",
+      "point of sale",
+      "new order",
+      "invoice",
+      "orders",
+    ],
+    label: "Unified POS",
+    description: "Create a new parchi / bill",
+    href: "/orders/new",
+    icon: ShoppingCart,
+  },
+  {
+    keywords: ["maal", "peti", "stock", "restock", "inventory", "restock hub"],
+    label: "Restock Hub",
+    description: "Stock, reorder & inventory",
+    href: "/inventory/restock",
+    icon: Warehouse,
+  },
+  {
+    keywords: ["supplier", "wholesaler", "vendors", "suppliers"],
+    label: "Vendors",
+    description: "Suppliers & wholesalers",
+    href: "/vendors",
+    icon: Truck,
+  },
+  {
+    keywords: ["nafa", "hisab", "profit", "reports", "analytics", "report"],
+    label: "Reports & Analytics",
+    description: "Profit & hisab reports",
+    href: "/reports",
+    icon: BarChart3,
+  },
+  {
+    keywords: ["dashboard", "home", "overview"],
+    label: "Dashboard",
+    description: "Today's overview",
+    href: "/dashboard",
+    icon: LayoutDashboard,
+  },
+  {
+    keywords: ["products", "items", "catalog"],
+    label: "Products",
+    description: "Item catalog",
+    href: "/products",
+    icon: Package,
+  },
+  {
+    keywords: ["categories", "category"],
+    label: "Categories",
+    description: "Product categories",
+    href: "/settings/categories",
+    icon: Tags,
+  },
+  {
+    keywords: ["cabinets", "racks", "cabinet"],
+    label: "Cabinets",
+    description: "Cabinets & racks",
+    href: "/settings/cabinets",
+    icon: LayoutGrid,
+  },
+];
 
 const mockNotifications = [
   {
@@ -45,6 +153,7 @@ export default function Header() {
   const { isCollapsed, toggleSidebar } = useSidebar();
   const { isCheckoutOpen } = usePOS();
   const pathname = usePathname();
+  const router = useRouter();
   const hideGlobalSearch = pathname === "/orders/new";
 
   if (isCheckoutOpen) {
@@ -52,6 +161,87 @@ export default function Header() {
   }
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const searchResults = useMemo(() => {
+    if (!normalizedQuery) return [];
+    return searchIndex.filter((entry) =>
+      `${entry.label} ${entry.keywords.join(" ")}`
+        .toLowerCase()
+        .includes(normalizedQuery),
+    );
+  }, [normalizedQuery]);
+
+  const selectResult = (entry: SearchEntry) => {
+    router.push(entry.href);
+    setSearchQuery("");
+    setIsSearchOpen(false);
+    setActiveIndex(0);
+    searchInputRef.current?.blur();
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((prev) =>
+        Math.min(prev + 1, Math.max(searchResults.length - 1, 0)),
+      );
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((prev) => Math.max(prev - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (searchResults.length > 0) {
+        const entry =
+          searchResults[Math.min(activeIndex, searchResults.length - 1)];
+        setActiveIndex(0);
+        selectResult(entry);
+      }
+    } else if (e.key === "Escape") {
+      setIsSearchOpen(false);
+      searchInputRef.current?.blur();
+    }
+  };
+
+  // `/` anywhere focuses the search / jump input
+  useEffect(() => {
+    function handleSlash(e: KeyboardEvent) {
+      if (isCheckoutOpen || hideGlobalSearch) return;
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      const tag = target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable)
+        return;
+      if (e.key === "/") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    }
+    document.addEventListener("keydown", handleSlash);
+    return () => document.removeEventListener("keydown", handleSlash);
+  }, [isCheckoutOpen, hideGlobalSearch]);
+
+  // Click outside closes the search dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        searchRef.current &&
+        !searchRef.current.contains(event.target as Node)
+      ) {
+        setIsSearchOpen(false);
+      }
+    }
+    if (isSearchOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isSearchOpen]);
 
   const toggleNotifications = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -103,15 +293,77 @@ export default function Header() {
 
       {!hideGlobalSearch && (
         <div className="hidden md:flex flex-1 max-w-md ml-2">
-          <div className="relative w-full">
+          <div className="relative w-full" ref={searchRef}>
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-slate-400" />
             </div>
             <input
+              ref={searchInputRef}
               type="text"
-              placeholder="Search orders, customers..."
-              className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl leading-5 bg-slate-50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 sm:text-sm transition-all"
+              placeholder="Search or jump (galla, khata, parchi...)"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setActiveIndex(0);
+                setIsSearchOpen(true);
+              }}
+              onKeyDown={handleSearchKeyDown}
+              onFocus={() => setIsSearchOpen(true)}
+              className="block w-full pl-10 pr-14 py-2 border border-slate-200 rounded-xl leading-5 bg-slate-50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 sm:text-sm transition-all"
             />
+            {!searchQuery && (
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 bg-slate-100 border border-slate-200 rounded-md">
+                  /
+                </kbd>
+              </div>
+            )}
+            {isSearchOpen && searchResults.length > 0 && (
+              <div className="absolute top-full mt-2 left-0 right-0 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200 z-50">
+                <div className="p-1.5 max-h-[320px] overflow-y-auto">
+                  {searchResults.map((entry, idx) => {
+                    const Icon = entry.icon;
+                    const isActive = idx === activeIndex;
+                    return (
+                      <button
+                        key={`${entry.href}-${entry.label}`}
+                        type="button"
+                        onMouseEnter={() => setActiveIndex(idx)}
+                        onClick={() => selectResult(entry)}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors cursor-pointer ${
+                          isActive ? "bg-blue-50" : ""
+                        }`}
+                      >
+                        <div
+                          className={`p-2 rounded-lg shrink-0 ${
+                            isActive
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-slate-100 text-slate-500"
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p
+                            className={`text-sm font-bold truncate ${
+                              isActive ? "text-blue-900" : "text-slate-800"
+                            }`}
+                          >
+                            {entry.label}
+                          </p>
+                          <p className="text-xs text-slate-500 truncate">
+                            {entry.description}
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider shrink-0">
+                          {entry.href}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

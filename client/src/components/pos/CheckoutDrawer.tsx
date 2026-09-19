@@ -538,14 +538,6 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                   : "Save Pending Order (MEMO)"}
             {!isSubmitting && <CheckCircle2 className="w-5 h-5" />}
           </button>
-
-          <button
-            onClick={() => handleComplete("ESTIMATE")}
-            disabled={isSubmitDisabled}
-            className="w-full py-2.5 bg-white text-slate-700 border border-slate-300 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center cursor-pointer"
-          >
-            Save as Estimate
-          </button>
         </div>
       </div>
     </div>

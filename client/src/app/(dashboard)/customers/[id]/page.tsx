@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import EditCustomerModal from "@/components/modals/EditCustomerModal";
+import AlertDialog from "@/components/ui/alert-dialog";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
   ArrowLeft,
@@ -51,6 +52,10 @@ export default function CustomerProfilePage() {
   const [isDefaulter, setIsDefaulter] = useState(false);
   const [creditLimit, setCreditLimit] = useState(0);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [messageAlert, setMessageAlert] = useState<{
+    title: string;
+    description: string;
+  } | null>(null);
 
   const fetchCustomerData = useCallback(async () => {
     setIsLoading(true);
@@ -150,11 +155,13 @@ export default function CustomerProfilePage() {
         isDefaulter: data.customer.isDefaulter,
       }));
     } catch (error) {
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to update risk settings",
-      );
+      setMessageAlert({
+        title: "Failed to Update Risk Settings",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to update risk settings",
+      });
       if (customer) {
         setCreditLimit(customer.creditLimit);
         setIsDefaulter(customer.isDefaulter);
@@ -215,11 +222,13 @@ export default function CustomerProfilePage() {
         guarantorPhone: data.customer.guarantorPhone || "",
       }));
     } catch (error) {
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to update customer details",
-      );
+      setMessageAlert({
+        title: "Failed to Update Customer Details",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to update customer details",
+      });
     }
   };
 
@@ -869,6 +878,15 @@ export default function CustomerProfilePage() {
         onClose={() => setIsEditModalOpen(false)}
         customer={customer}
         onSave={handleSaveDetails}
+      />
+
+      {/* Message Dialog (replaces native alert) */}
+      <AlertDialog
+        isOpen={messageAlert !== null}
+        title={messageAlert?.title || ""}
+        description={messageAlert?.description || ""}
+        icon={<AlertCircle className="w-6 h-6" />}
+        onClose={() => setMessageAlert(null)}
       />
     </div>
   );

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import InviteStaffModal from "@/components/modals/InviteStaffModal";
+import AlertDialog from "@/components/ui/alert-dialog";
 
 type ActiveMember = {
   id: string;
@@ -38,6 +39,9 @@ export default function TeamTab() {
     email: string;
     action: "resend" | "cancel";
   } | null>(null);
+  const [cancelInviteEmail, setCancelInviteEmail] = useState<string | null>(
+    null,
+  );
 
   const loadTeamData = async () => {
     setLoading(true);
@@ -137,11 +141,6 @@ export default function TeamTab() {
   };
 
   const handleCancelInvite = async (email: string) => {
-    if (
-      !confirm(`Are you sure you want to cancel the invitation for ${email}?`)
-    ) {
-      return;
-    }
     setError(null);
     setProcessing({ email, action: "cancel" });
     try {
@@ -395,7 +394,7 @@ export default function TeamTab() {
                                 : "Resend"}
                             </button>
                             <button
-                              onClick={() => handleCancelInvite(invite.email)}
+                              onClick={() => setCancelInviteEmail(invite.email)}
                               disabled={processing !== null}
                               className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-600 rounded-md transition-colors text-xs font-semibold border border-transparent hover:border-rose-100 bg-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                             >
@@ -435,6 +434,25 @@ export default function TeamTab() {
         }}
         businessId={currentBusinessId}
         onInviteSuccess={() => void loadTeamData()}
+      />
+
+      <AlertDialog
+        isOpen={cancelInviteEmail !== null}
+        title="Cancel Invitation?"
+        description={`Are you sure you want to cancel the invitation for ${cancelInviteEmail}?`}
+        confirmLabel="Cancel Invitation"
+        confirming={
+          processing?.action === "cancel" &&
+          processing.email === cancelInviteEmail
+        }
+        onConfirm={() => {
+          const email = cancelInviteEmail;
+          setCancelInviteEmail(null);
+          if (email) {
+            void handleCancelInvite(email);
+          }
+        }}
+        onClose={() => setCancelInviteEmail(null)}
       />
     </div>
   );

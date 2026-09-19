@@ -30,6 +30,7 @@ import {
 import { generateWhatsAppReceipt } from "@/lib/utils";
 
 import RecordPaymentModal from "@/components/modals/RecordPaymentModal";
+import AlertDialog from "@/components/ui/alert-dialog";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
@@ -62,6 +63,40 @@ export default function OrderDetailsLedger() {
   // 🟢 Return Modal States
   const [returnItemModal, setReturnItemModal] = useState<any>(null);
   const [returnQty, setReturnQty] = useState<number>(1);
+
+  // 🟢 Confirm Dialog (replaces native window.confirm)
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    description: string;
+    action: "return" | "memo" | "cancel";
+  } | null>(null);
+
+  const openReturnToStockConfirm = () =>
+    setConfirmDialog({
+      title: "Return Memo to Stock?",
+      description:
+        "All reserved instances will be unlocked back to AVAILABLE and this order will be marked as RETURNED.",
+      action: "return",
+    });
+
+  const openCancelOrderConfirm = () =>
+    setConfirmDialog({
+      title: "Cancel this order?",
+      description: "Stock will be returned to inventory.",
+      action: "cancel",
+    });
+
+  const runConfirmAction = async () => {
+    const action = confirmDialog?.action;
+    setConfirmDialog(null);
+    if (action === "return") {
+      await handleReturnToStock();
+    } else if (action === "cancel") {
+      await handleCancelOrder();
+    } else if (action === "memo") {
+      await handleProcessConversion("MEMO");
+    }
+  };
 
   const refreshOrder = useCallback(async () => {
     setIsLoading(true);
@@ -215,11 +250,6 @@ export default function OrderDetailsLedger() {
   }, [refreshOrder]);
 
   const handleReturnToStock = async () => {
-    const confirm = window.confirm(
-      "Are you sure you want to return this Memo to stock? All reserved instances will be unlocked back to AVAILABLE and this order will be marked as RETURNED.",
-    );
-    if (!confirm) return;
-
     setIsSubmittingStatus(true);
     try {
       const response = await fetch(`${API_BASE_URL}/order/${id}/status`, {
@@ -248,13 +278,12 @@ export default function OrderDetailsLedger() {
       setConvertPaymentMethod("CASH");
       setIsConvertModalOpen(true);
     } else {
-      if (
-        window.confirm(
-          "Convert to MEMO (Amanat)? This will lock the inventory instances.",
-        )
-      ) {
-        void handleProcessConversion("MEMO");
-      }
+      setConfirmDialog({
+        title: "Convert to MEMO (Amanat)?",
+        description:
+          "This order will be converted to a MEMO and its inventory instances will be locked (reserved).",
+        action: "memo",
+      });
     }
   };
 
@@ -374,26 +403,21 @@ export default function OrderDetailsLedger() {
   };
 
   const handleCancelOrder = async () => {
-    const confirm = window.confirm(
-      "Are you sure you want to cancel this order? Stock will be returned to inventory.",
-    );
-    if (confirm) {
-      try {
-        const response = await fetch(`${API_BASE_URL}/order/${id}/status`, {
-          method: "PATCH",
-          headers: getAuthHeaders(),
-          body: JSON.stringify({ status: "CANCELLED" }),
-        });
+    try {
+      const response = await fetch(`${API_BASE_URL}/order/${id}/status`, {
+        method: "PATCH",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ status: "CANCELLED" }),
+      });
 
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data?.message || "Failed to cancel order");
-        }
-        toast.success("Order cancelled and inventory released.");
-        await refreshOrder();
-      } catch (err: any) {
-        toast.error(err.message);
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data?.message || "Failed to cancel order");
       }
+      toast.success("Order cancelled and inventory released.");
+      await refreshOrder();
+    } catch (err: any) {
+      toast.error(err.message);
     }
   };
 
@@ -489,7 +513,7 @@ export default function OrderDetailsLedger() {
           {order.status === "MEMO" && (
             <>
               <button
-                onClick={handleReturnToStock}
+                onClick={openReturnToStockConfirm}
                 disabled={isSubmittingStatus}
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 text-rose-700 border border-rose-200 rounded-xl text-xs sm:text-sm font-semibold hover:bg-rose-100 transition-colors shadow-sm disabled:opacity-50"
               >
@@ -587,7 +611,7 @@ export default function OrderDetailsLedger() {
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <button
-                onClick={handleReturnToStock}
+                onClick={openReturnToStockConfirm}
                 disabled={isSubmittingStatus}
                 className="flex items-center gap-2 px-4 py-2.5 bg-white text-rose-600 border border-rose-200 rounded-xl text-sm font-bold hover:bg-rose-50 transition-colors shadow-sm disabled:opacity-50"
               >
@@ -863,7 +887,7 @@ export default function OrderDetailsLedger() {
                 must be processed manually.
               </p>
               <button
-                onClick={handleCancelOrder}
+                onClick={openCancelOrderConfirm}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl text-sm font-bold hover:bg-rose-100 transition-colors"
               >
                 <XCircle className="w-4 h-4" /> Cancel Order
@@ -1088,6 +1112,17 @@ export default function OrderDetailsLedger() {
           setIsPaymentModalOpen(false);
           refreshOrder(); // Refresh the page to show the new payment!
         }}
+      />
+
+      {/* 🟢 CONFIRM ACTION DIALOG (replaces window.confirm) */}
+      <AlertDialog
+        isOpen={confirmDialog !== null}
+        title={confirmDialog?.title || ""}
+        description={confirmDialog?.description || ""}
+        confirmLabel="Yes, Continue"
+        confirming={isSubmittingStatus}
+        onConfirm={() => void runConfirmAction()}
+        onClose={() => setConfirmDialog(null)}
       />
     </div>
   );
