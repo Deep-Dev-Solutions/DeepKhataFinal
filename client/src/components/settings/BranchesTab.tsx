@@ -3,7 +3,19 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL } from "@/lib/auth";
-import { GitBranch, MapPin, Phone, Pencil, Plus, Loader2 } from "lucide-react";
+import {
+  GitBranch,
+  MapPin,
+  Phone,
+  Pencil,
+  Plus,
+  Loader2,
+  Lock,
+  AlertTriangle,
+  AlertCircle,
+  Sparkles,
+  ExternalLink,
+} from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import {
   Dialog,
@@ -15,7 +27,7 @@ import {
 } from "@/components/ui/dialog";
 
 export default function BranchesTab() {
-  const { branches: authBranches, token, refreshUser } = useAuth();
+  const { role, branches: authBranches, token, refreshUser } = useAuth();
   const { toast } = useToast();
 
   const [branches, setBranches] = useState<any[]>(
@@ -43,6 +55,10 @@ export default function BranchesTab() {
     address: "",
   });
   const [isAdding, setIsAdding] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+
+  // Upgrade Dialog State
+  const [isUpgradeDialogOpen, setIsUpgradeDialogOpen] = useState(false);
 
   const fetchBranches = useCallback(async () => {
     if (!token) return;
@@ -125,8 +141,16 @@ export default function BranchesTab() {
     }
   };
 
+  const safeBranches = Array.isArray(branches) ? branches : [];
+  const isLimitReached = safeBranches.length >= 2 && role !== "SUPER_ADMIN";
+
   // Add Handlers
   const openAddDialog = () => {
+    if (isLimitReached) {
+      setIsUpgradeDialogOpen(true);
+      return;
+    }
+    setModalError(null);
     setAddFormData({ name: "", phone: "", address: "" });
     setIsAddDialogOpen(true);
   };
@@ -135,12 +159,22 @@ export default function BranchesTab() {
     e.preventDefault();
     if (!token) return;
 
+    if (isLimitReached) {
+      setModalError(
+        "Base plan limit reached (2 branches). Contact administration to upgrade.",
+      );
+      setIsAddDialogOpen(false);
+      setIsUpgradeDialogOpen(true);
+      return;
+    }
+
     if (!addFormData.name.trim()) {
-      toast.error("Branch name is required");
+      setModalError("Branch name is required");
       return;
     }
 
     setIsAdding(true);
+    setModalError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/settings/branch`, {
         method: "POST",
@@ -157,36 +191,40 @@ export default function BranchesTab() {
 
       const data = await res.json();
       if (!res.ok) {
+        const errorMsg =
+          data.message ||
+          "Base plan limit reached (2 branches). Contact administration to upgrade.";
+        setModalError(errorMsg);
+
         // Catch tier limit / payment required error
         if (
           res.status === 403 ||
           data.message?.toLowerCase().includes("limit") ||
           data.message?.toLowerCase().includes("upgrade")
         ) {
-          toast.warning(
-            data.message ||
-              "Base plan limit reached (2 branches). Contact administration to upgrade.",
-          );
-          return;
+          toast.warning(errorMsg);
+        } else {
+          toast.error(errorMsg);
         }
-        throw new Error(data.message || "Failed to add branch");
+        return;
       }
 
       toast.success("Branch added successfully!");
       setIsAddDialogOpen(false);
       setAddFormData({ name: "", phone: "", address: "" });
+      setModalError(null);
       await fetchBranches();
       if (refreshUser) {
         await refreshUser();
       }
     } catch (err: any) {
-      toast.error(err.message || "An error occurred while creating branch");
+      const errorMsg = err.message || "An error occurred while creating branch";
+      setModalError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setIsAdding(false);
     }
   };
-
-  const safeBranches = Array.isArray(branches) ? branches : [];
 
   return (
     <div className="space-y-6">
@@ -198,7 +236,13 @@ export default function BranchesTab() {
                 <GitBranch className="w-5 h-5 text-indigo-600" />
                 Branches & Locations
               </h2>
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-200/80 text-slate-700">
+              <span
+                className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                  isLimitReached
+                    ? "bg-amber-100 text-amber-800 border border-amber-200"
+                    : "bg-slate-200/80 text-slate-700"
+                }`}
+              >
                 {safeBranches.length} / 2 Base Plan
               </span>
             </div>
@@ -208,14 +252,51 @@ export default function BranchesTab() {
             </p>
           </div>
 
-          <button
-            onClick={openAddDialog}
-            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            Add Branch
-          </button>
+          {isLimitReached ? (
+            <button
+              onClick={() => setIsUpgradeDialogOpen(true)}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 cursor-pointer"
+              title="Base plan limit reached (2 branches). Click to upgrade."
+            >
+              <Lock className="w-3.5 h-3.5 text-amber-600" />
+              Limit Reached (2/2)
+            </button>
+          ) : (
+            <button
+              onClick={openAddDialog}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              Add Branch
+            </button>
+          )}
         </div>
+
+        {/* Tier Limit Notice Banner when 2 branches reached */}
+        {isLimitReached && (
+          <div className="mx-5 mt-4 p-4 rounded-xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-950">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="p-2 bg-amber-100 rounded-lg text-amber-700 shrink-0 mt-0.5 sm:mt-0">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="font-bold text-sm text-amber-950">
+                  Base Plan Limit Reached (2/2 Locations Active)
+                </p>
+                <p className="text-xs text-amber-800 mt-0.5">
+                  Your current Base Plan includes up to 2 branch locations.
+                  Upgrade your subscription to provision additional branches.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsUpgradeDialogOpen(true)}
+              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors shrink-0 cursor-pointer"
+            >
+              Upgrade Plan
+            </button>
+          </div>
+        )}
 
         <div className="p-5">
           {isLoading ? (
@@ -296,7 +377,13 @@ export default function BranchesTab() {
       </div>
 
       {/* ─── ADD BRANCH DIALOG ─── */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+      <Dialog
+        open={isAddDialogOpen}
+        onOpenChange={(open) => {
+          setIsAddDialogOpen(open);
+          if (!open) setModalError(null);
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -309,6 +396,18 @@ export default function BranchesTab() {
             </DialogDescription>
           </DialogHeader>
 
+          {modalError && (
+            <div className="mt-1 p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 flex items-start gap-3 text-xs shadow-xs">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-bold text-amber-950 text-sm">Action Blocked</p>
+                <p className="text-amber-900 mt-0.5 leading-relaxed font-medium">
+                  {modalError}
+                </p>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleAddBranch} className="space-y-4 py-2">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
@@ -318,9 +417,10 @@ export default function BranchesTab() {
                 type="text"
                 required
                 value={addFormData.name}
-                onChange={(e) =>
-                  setAddFormData({ ...addFormData, name: e.target.value })
-                }
+                onChange={(e) => {
+                  setModalError(null);
+                  setAddFormData({ ...addFormData, name: e.target.value });
+                }}
                 className="w-full px-3 h-10 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none shadow-xs"
                 placeholder="e.g. Liberty Branch"
               />
@@ -335,9 +435,10 @@ export default function BranchesTab() {
                 <input
                   type="tel"
                   value={addFormData.phone}
-                  onChange={(e) =>
-                    setAddFormData({ ...addFormData, phone: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setModalError(null);
+                    setAddFormData({ ...addFormData, phone: e.target.value });
+                  }}
                   className="w-full pl-9 pr-3 h-10 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none shadow-xs font-mono"
                   placeholder="e.g. +92 300 1234567"
                 />
@@ -353,9 +454,13 @@ export default function BranchesTab() {
                 <textarea
                   rows={2}
                   value={addFormData.address}
-                  onChange={(e) =>
-                    setAddFormData({ ...addFormData, address: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setModalError(null);
+                    setAddFormData({
+                      ...addFormData,
+                      address: e.target.value,
+                    });
+                  }}
                   className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none shadow-xs resize-none"
                   placeholder="e.g. Shop #12, Liberty Market, Lahore"
                 />
@@ -380,6 +485,69 @@ export default function BranchesTab() {
               </button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── UPGRADE / LIMIT REACHED DIALOG ─── */}
+      <Dialog open={isUpgradeDialogOpen} onOpenChange={setIsUpgradeDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center mx-auto mb-2 text-amber-600">
+              <Lock className="w-6 h-6" />
+            </div>
+            <DialogTitle className="text-center text-lg font-bold text-slate-900">
+              Base Plan Limit Reached
+            </DialogTitle>
+            <DialogDescription className="text-center text-slate-600 text-xs mt-1">
+              Your current subscription includes up to 2 branch locations and 5
+              user accounts.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-500 font-medium">
+                  Current Branches
+                </span>
+                <span className="font-bold text-slate-900">
+                  {safeBranches.length} / 2 Used
+                </span>
+              </div>
+              <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                <div className="bg-amber-500 h-full w-full rounded-full" />
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/80 text-amber-900 text-xs space-y-1.5">
+              <p className="font-bold flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-amber-600" />
+                Unlock Multi-Branch Expansion
+              </p>
+              <p className="text-amber-800 leading-relaxed">
+                Need more branches or team members? Contact administration to
+                upgrade your plan for isolated branch inventory, advanced
+                reporting, and additional locations.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-2 sm:justify-between flex-col-reverse sm:flex-row gap-2">
+            <button
+              type="button"
+              onClick={() => setIsUpgradeDialogOpen(false)}
+              className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+            <a
+              href="mailto:support@bizflow.com?subject=Upgrade%20Tier%20Request%20-%20Additional%20Branches"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-colors shadow-sm cursor-pointer"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Contact Administration
+            </a>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
