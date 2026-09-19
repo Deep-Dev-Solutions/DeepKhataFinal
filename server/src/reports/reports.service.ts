@@ -128,14 +128,20 @@ export class ReportsService {
         if (!item.productId) continue;
         const prod = await this.prisma.product.findUnique({
           where: { id: item.productId },
-          select: { name: true, stock: true, price: true },
+          select: {
+            name: true,
+            basePrice: true,
+            _count: {
+              select: { instances: { where: { status: 'AVAILABLE' } } },
+            },
+          },
         });
         if (prod) {
           topProducts.push({
             name: prod.name,
             sold: item._sum.quantity || 0,
             revenue: item._sum.price || 0,
-            stock: prod.stock || 0,
+            stock: prod._count.instances || 0,
           });
         }
       }
@@ -161,18 +167,25 @@ export class ReportsService {
       const deadStockItems = await this.prisma.product.findMany({
         where: {
           businessId,
-          stock: { gt: 0 },
+          instances: { some: { status: 'AVAILABLE' } },
           id: { notIn: activeIdsArray.length ? activeIdsArray : ['__none__'] },
         },
-        select: { name: true, stock: true, costPrice: true, price: true },
+        select: {
+          name: true,
+          costPrice: true,
+          basePrice: true,
+          _count: {
+            select: { instances: { where: { status: 'AVAILABLE' } } },
+          },
+        },
         take: 5,
       });
 
       deadStock = deadStockItems.map((p) => ({
         name: p.name,
         daysUnsold: 30,
-        stock: p.stock || 0,
-        tiedValue: (p.stock || 0) * (p.costPrice || p.price || 0),
+        stock: p._count.instances || 0,
+        tiedValue: (p._count.instances || 0) * (p.costPrice || p.basePrice || 0),
       }));
     } catch (e) {
       deadStock = [];

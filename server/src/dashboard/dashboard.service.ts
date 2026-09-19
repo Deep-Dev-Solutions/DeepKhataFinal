@@ -82,7 +82,7 @@ export class DashboardService {
         include: {
           items: {
             include: {
-              product: { select: { costPrice: true, price: true } },
+              product: { select: { costPrice: true, basePrice: true } },
             },
           },
         },

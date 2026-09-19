@@ -20,6 +20,8 @@ import { InventoryModule } from './inventory/inventory.module';
 import { VendorsModule } from './vendors/vendors.module.js';
 import { BusinessModule } from './business/business.module';
 import { AgencyModule } from './agency/agency.module';
+import { CategoryModule } from './category/category.module';
+import { CabinetModule } from './cabinet/cabinet.module';
 
 @Module({
   imports: [
@@ -46,6 +48,8 @@ import { AgencyModule } from './agency/agency.module';
     VendorsModule,
     BusinessModule,
     AgencyModule,
+    CategoryModule,
+    CabinetModule,
   ],
   controllers: [AppController],
   providers: [AppService],

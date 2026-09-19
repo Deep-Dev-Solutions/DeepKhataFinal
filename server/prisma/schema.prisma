@@ -53,6 +53,7 @@ model Branch {
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   cabinets         Cabinet[]
+  productInstances ProductInstance[]
   expenses         Expense[]
   registerSessions CashRegisterSession[]
   orders           Order[]
@@ -122,13 +123,16 @@ model Customer {
 model Cabinet {
   id       String  @id @default(uuid())
   name     String
-  location String? // e.g., Shop Location -> Rack -> Shelf -> Bin
+  rack     String?
+  shelf    String?
+  bin      String?
+  location String? // e.g., Rack -> Shelf -> Bin
 
   businessId String
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
-  branchId String?
-  branch   Branch? @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
   instances ProductInstance[]
   createdAt DateTime          @default(now())
@@ -139,13 +143,12 @@ model Cabinet {
 model Product {
   id        String  @id @default(uuid())
   name      String
-  sku       String?
-  price     Float
+  sku       String
+  basePrice Float
   costPrice Float?
-  stock     Int     @default(0)
 
-  categoryId String?
-  category   Category? @relation(fields: [categoryId], references: [id])
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
 
   businessId String
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
@@ -158,7 +161,8 @@ model Product {
 model ProductInstance {
   id        String  @id @default(uuid())
   productId String
-  cabinetId String?
+  cabinetId String
+  branchId  String
   vendorId  String?
 
   condition    ItemCondition  @default(ORIGINAL_PULL)
@@ -166,8 +170,9 @@ model ProductInstance {
   serialNumber String?
 
   product Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  cabinet Cabinet? @relation(fields: [cabinetId], references: [id])
-  vendor  Vendor?  @relation(fields: [vendorId], references: [id])
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+  branch  Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  vendor  Vendor? @relation(fields: [vendorId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

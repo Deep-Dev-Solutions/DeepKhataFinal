@@ -80,13 +80,16 @@ export class OrdersService {
             where: { id: item.productId },
           });
           if (!product) throw new BadRequestException(`Product not found`);
-          if (product.stock < item.quantity) {
+          const available = await tx.productInstance.count({
+            where: { productId: product.id, status: 'AVAILABLE' },
+          });
+          if (available < item.quantity) {
             throw new BadRequestException(
-              `Not enough stock for ${product.name}. Only ${product.stock} left.`,
+              `Not enough stock for ${product.name}. Only ${available} left.`,
             );
           }
           secureProducts[item.productId] = product;
-          calculatedTotal += product.price * item.quantity;
+          calculatedTotal += product.basePrice * item.quantity;
         }
 
         if (parsedDiscount > calculatedTotal) {
@@ -130,7 +133,7 @@ export class OrdersService {
                 quantity: item.quantity,
                 price: item.isService
                   ? Number(item.price)
-                  : secureProducts[item.productId].price,
+                  : secureProducts[item.productId].basePrice,
                 isService: item.isService || false,
                 serviceName: item.serviceName || null,
                 notes: item.notes || null,
@@ -145,11 +148,6 @@ export class OrdersService {
         if (orderStatus !== 'ESTIMATE') {
           for (const item of items) {
             if (item.isService) continue;
-
-            await tx.product.update({
-              where: { id: item.productId },
-              data: { stock: { decrement: item.quantity } },
-            });
 
             const conditionFilter = item.condition
               ? { condition: item.condition }
@@ -405,11 +403,6 @@ export class OrdersService {
         for (const item of order.items) {
           if (!item.productId) continue;
 
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { stock: { decrement: item.quantity } },
-          });
-
           const instances = await tx.productInstance.findMany({
             where: { productId: item.productId, status: 'AVAILABLE' },
             take: item.quantity,
@@ -483,10 +476,7 @@ export class OrdersService {
       await this.prisma.$transaction(async (tx) => {
         for (const item of order.items) {
           if (!item.productId) continue;
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { stock: { increment: item.quantity } },
-          });
+          
 
           const instances = await tx.productInstance.findMany({
             where: { productId: item.productId, status: 'MEMO_LOCKED' },
@@ -523,10 +513,7 @@ export class OrdersService {
       await this.prisma.$transaction(async (tx) => {
         for (const item of order.items) {
           if (!item.productId) continue;
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { stock: { increment: item.quantity } },
-          });
+          
 
           const instanceStatus =
             order.status === 'MEMO' ? 'MEMO_LOCKED' : 'SOLD';
@@ -827,13 +814,6 @@ export class OrdersService {
             returnItem.returnCondition === 'DEFECTIVE'
               ? 'DEFECTIVE'
               : 'AVAILABLE';
-
-          if (targetStatus === 'AVAILABLE') {
-            await tx.product.update({
-              where: { id: returnItem.productId },
-              data: { stock: { increment: returnItem.quantity } },
-            });
-          }
 
           const instanceStatus =
             order.status === 'MEMO' ? 'MEMO_LOCKED' : 'SOLD';

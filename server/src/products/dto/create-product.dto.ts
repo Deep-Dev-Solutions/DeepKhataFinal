@@ -31,6 +31,14 @@ export class CreateProductDto {
 
   @IsString()
   @IsOptional()
+  branchId?: string;
+
+  @IsNumber()
+  @IsOptional()
+  costPrice?: number;
+
+  @IsString()
+  @IsOptional()
   rack?: string;
 
   @IsString()

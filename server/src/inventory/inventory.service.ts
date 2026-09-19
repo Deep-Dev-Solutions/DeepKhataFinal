@@ -56,38 +56,58 @@ export class InventoryService {
         });
         if (!product) throw new BadRequestException('Product not found');
 
+        // Every physical unit must be tied to a branch.
+        if (!branchId)
+          throw new BadRequestException(
+            `Restock line for ${product.name} requires a branchId`,
+          );
+        const branch = await tx.branch.findFirst({
+          where: { id: branchId, businessId },
+        });
+        if (!branch) throw new BadRequestException('Branch not found');
+
+        // Resolve the spatial cabinet: explicit cabinet (must be in branch) or
+        // shared 'General' cabinet for the branch.
+        let finalCabinetId = cabinetId;
+        if (finalCabinetId) {
+          const cabinet = await tx.cabinet.findFirst({
+            where: { id: finalCabinetId, businessId, branchId },
+          });
+          if (!cabinet)
+            throw new BadRequestException(
+              'Cabinet not found in the selected branch',
+            );
+        } else {
+          let general = await tx.cabinet.findFirst({
+            where: { branchId, name: 'General' },
+            select: { id: true },
+          });
+          if (!general) {
+            general = await tx.cabinet.create({
+              data: {
+                name: 'General',
+                location: 'General Storage',
+                businessId,
+                branchId,
+              },
+            });
+          }
+          finalCabinetId = general.id;
+        }
+
         const sanitizedCondition = VALID_CONDITIONS.includes(condition)
           ? condition
           : 'ORIGINAL_PULL';
-
-        let finalCabinetId = cabinetId || null;
-        if (finalCabinetId) {
-          const cabinet = await tx.cabinet.findFirst({
-            where: { id: finalCabinetId, businessId },
-          });
-          if (!cabinet) throw new BadRequestException('Cabinet not found');
-        }
-
-        if (branchId) {
-          const branch = await tx.branch.findFirst({
-            where: { id: branchId, businessId },
-          });
-          if (!branch) throw new BadRequestException('Branch not found');
-        }
 
         await tx.productInstance.createMany({
           data: Array.from({ length: qty }).map(() => ({
             productId: product.id,
             cabinetId: finalCabinetId,
+            branchId,
             vendorId: vendorId || null,
             condition: sanitizedCondition as any,
             status: 'AVAILABLE' as any,
           })),
-        });
-
-        await tx.product.update({
-          where: { id: product.id },
-          data: { stock: { increment: qty } },
         });
 
         const movement = await tx.inventoryMovement.create({

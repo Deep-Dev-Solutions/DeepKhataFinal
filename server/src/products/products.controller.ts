@@ -10,6 +10,8 @@ import {
   Param,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
+import { CategoryService } from '../category/category.service';
+import { CabinetService } from '../cabinet/cabinet.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
@@ -23,13 +25,17 @@ import { UpdatePriceDto } from './dto/update-price.dto';
 @Controller('product')
 @UseGuards(ThrottlerGuard, JwtAuthGuard)
 export class ProductsController {
-  constructor(private readonly productsService: ProductsService) {}
+  constructor(
+    private readonly productsService: ProductsService,
+    private readonly categoryService: CategoryService,
+    private readonly cabinetService: CabinetService,
+  ) {}
 
   @Post('addcategory')
   @UseGuards(PermissionsGuard)
   @RequirePermissions('write:products')
   async addCategory(@Req() req: any, @Body() body: any) {
-    return this.productsService.addCategory(req.user.id, body);
+    return this.categoryService.addCategory(req.user.id, body);
   }
 
   @Post('addproduct')
@@ -50,21 +56,21 @@ export class ProductsController {
   @UseGuards(PermissionsGuard)
   @RequirePermissions('read:products')
   async getCategories(@Req() req: any) {
-    return this.productsService.getCategories(req.user.id);
+    return this.categoryService.getCategories(req.user.id);
   }
 
   @Get('getcabinets')
   @UseGuards(PermissionsGuard)
   @RequirePermissions('read:products')
   async getCabinets(@Req() req: any, @Query() query: any) {
-    return this.productsService.getCabinets(req.user.id, query);
+    return this.cabinetService.getCabinets(req.user.id, query);
   }
 
   @Post('addcabinet')
   @UseGuards(PermissionsGuard)
   @RequirePermissions('write:products')
   async addCabinet(@Req() req: any, @Body() body: any) {
-    return this.productsService.addCabinet(req.user.id, body);
+    return this.cabinetService.addCabinet(req.user.id, body);
   }
 
   @Patch('category/:id')
@@ -75,7 +81,7 @@ export class ProductsController {
     @Param('id') id: string,
     @Body() body: any,
   ) {
-    return this.productsService.updateCategory(req.user.id, id, body);
+    return this.categoryService.updateCategory(req.user.id, id, body);
   }
 
   @Patch('cabinet/:id')
@@ -86,7 +92,7 @@ export class ProductsController {
     @Param('id') id: string,
     @Body() body: any,
   ) {
-    return this.productsService.updateCabinet(req.user.id, id, body);
+    return this.cabinetService.updateCabinet(req.user.id, id, body);
   }
 
   @Post('category/:id/delete')
@@ -94,7 +100,7 @@ export class ProductsController {
   @RequirePermissions('write:products')
   @Roles(Role.OWNER, Role.SUPER_ADMIN)
   async deleteCategory(@Req() req: any, @Param('id') id: string) {
-    return this.productsService.deleteCategory(req.user.id, id);
+    return this.categoryService.deleteCategory(req.user.id, id);
   }
 
   @Post('cabinet/:id/delete')
@@ -102,7 +108,7 @@ export class ProductsController {
   @RequirePermissions('write:products')
   @Roles(Role.OWNER, Role.SUPER_ADMIN)
   async deleteCabinet(@Req() req: any, @Param('id') id: string) {
-    return this.productsService.deleteCabinet(req.user.id, id);
+    return this.cabinetService.deleteCabinet(req.user.id, id);
   }
 
   @Get('getbranches')

@@ -1,256 +1,122 @@
 import {
   Injectable,
   BadRequestException,
-  ConflictException,
+  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+
+const VALID_CONDITIONS = [
+  'ORIGINAL_PULL',
+  'COPY',
+  'MINOR_SCRATCHES',
+  'WORKING',
+  'DEAD_DONOR',
+  'DEFECTIVE',
+];
 
 @Injectable()
 export class ProductsService {
   constructor(private prisma: PrismaService) {}
 
-  async addCategory(userId: string, data: any) {
-    const { name } = data;
-    const currentUser = await this.prisma.user.findUnique({
+  private async requireBusinessId(userId: string): Promise<string> {
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { businessId: true },
+      select: { businessId: true, role: true },
     });
-    if (!currentUser?.businessId)
+    if (!user?.businessId)
       throw new BadRequestException(
         'User does not have an associated business',
       );
-
-    if (!name || !name.trim())
-      throw new BadRequestException('Category name is required');
-    const categoryName = name.trim();
-
-    const existingCategory = await this.prisma.category.findFirst({
-      where: {
-        businessId: currentUser.businessId,
-        name: { equals: categoryName, mode: 'insensitive' },
-      },
-    });
-    if (existingCategory)
-      throw new ConflictException('Category already exists');
-
-    const category = await this.prisma.category.create({
-      data: { name: categoryName, businessId: currentUser.businessId },
-    });
-
-    return { message: 'Category Created Successfully', category };
+    return user.businessId;
   }
 
-  async getCategories(userId: string) {
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { businessId: true },
-    });
-    if (!currentUser?.businessId)
-      throw new BadRequestException('No business found.');
-
-    const categories = await this.prisma.category.findMany({
-      where: { businessId: currentUser.businessId },
-      include: {
-        _count: { select: { products: true } },
-      },
-      orderBy: { name: 'asc' },
-    });
-
-    return { success: true, categories };
+  private sanitizeCondition(condition: string): string {
+    return VALID_CONDITIONS.includes(condition) ? condition : 'ORIGINAL_PULL';
   }
 
-  async updateCategory(userId: string, id: string, data: any) {
-    const { name } = data;
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { businessId: true },
-    });
-    if (!currentUser?.businessId)
-      throw new BadRequestException('No business found.');
-
-    const category = await this.prisma.category.findFirst({
-      where: { id, businessId: currentUser.businessId },
-    });
-    if (!category) throw new BadRequestException('Category not found');
-
-    const newName = (name?.trim && name.trim()) || category.name;
-
-    const duplicate = await this.prisma.category.findFirst({
-      where: {
-        businessId: currentUser.businessId,
-        name: { equals: newName, mode: 'insensitive' },
-        id: { not: id },
-      },
-    });
-    if (duplicate) throw new ConflictException('Category already exists');
-
-    const updated = await this.prisma.category.update({
-      where: { id },
-      data: { name: newName },
-    });
-
-    return {
-      success: true,
-      message: 'Category updated successfully',
-      category: updated,
-    };
-  }
-
-  async deleteCategory(userId: string, id: string) {
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { businessId: true },
-    });
-    if (!currentUser?.businessId)
-      throw new BadRequestException('No business found.');
-
-    const category = await this.prisma.category.findFirst({
-      where: { id, businessId: currentUser.businessId },
-    });
-    if (!category) throw new BadRequestException('Category not found');
-
-    await this.prisma.$transaction([
-      this.prisma.product.updateMany({
-        where: { categoryId: id },
-        data: { categoryId: null },
-      }),
-      this.prisma.category.delete({ where: { id } }),
-    ]);
-
-    return { success: true, message: 'Category deleted successfully' };
-  }
-
-  async getCabinets(userId: string, query?: any) {
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { businessId: true },
-    });
-    if (!currentUser?.businessId)
-      throw new BadRequestException('No business found.');
-
-    const whereClause: any = { businessId: currentUser.businessId };
-    if (query?.branchId) {
-      whereClause.branchId = query.branchId;
-    }
-
-    const cabinets = await this.prisma.cabinet.findMany({
-      where: whereClause,
-      include: {
-        _count: { select: { instances: true } },
-      },
-      orderBy: { name: 'asc' },
-    });
-
-    return { success: true, cabinets };
-  }
-
-  async addCabinet(userId: string, data: any) {
-    const { name, rack, shelf, bin, branchId } = data;
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { businessId: true },
-    });
-    if (!currentUser?.businessId)
-      throw new BadRequestException('No business found.');
-
-    const locationParts = [
-      rack ? `Rack ${rack}` : null,
-      shelf ? `Shelf ${shelf}` : null,
-      bin ? `Bin ${bin}` : null,
-    ].filter(Boolean);
-
-    const locationStr = locationParts.join(' -> ');
-    const cabinetName =
-      name ||
-      (locationParts.length ? locationParts.join(' / ') : 'General Cabinet');
-
-    // Validate branchId belongs to this business if provided
+  // Resolve the branch a physical unit should live in: explicit branchId,
+  // otherwise the business default (main) branch.
+  private async resolveBranchId(
+    tx: any,
+    businessId: string,
+    branchId?: string,
+  ): Promise<string> {
     if (branchId) {
-      const branch = await this.prisma.branch.findFirst({
-        where: { id: branchId, businessId: currentUser.businessId },
+      const branch = await tx.branch.findFirst({
+        where: { id: branchId, businessId },
+        select: { id: true },
       });
       if (!branch) throw new BadRequestException('Branch not found');
+      return branch.id;
+    }
+    const branch = await tx.branch.findFirst({
+      where: { businessId },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+    if (!branch)
+      throw new BadRequestException(
+        'Business has no branch. Create a branch before adding inventory.',
+      );
+    return branch.id;
+  }
+
+  // Resolve or create a cabinet for a given branch.
+  private async resolveCabinetId(
+    tx: any,
+    businessId: string,
+    branchId: string,
+    data: any,
+  ): Promise<string> {
+    if (data.cabinetId) {
+      const cabinet = await tx.cabinet.findFirst({
+        where: { id: data.cabinetId, businessId, branchId },
+        select: { id: true },
+      });
+      if (!cabinet)
+        throw new BadRequestException(
+          'Cabinet not found in the selected branch',
+        );
+      return cabinet.id;
     }
 
-    const cabinet = await this.prisma.cabinet.create({
-      data: {
-        name: cabinetName,
-        location: locationStr || 'Shop Storage',
-        businessId: currentUser.businessId,
-        branchId: branchId || null,
-      },
-    });
-
-    return { success: true, cabinet };
-  }
-
-  async updateCabinet(userId: string, id: string, data: any) {
-    const { name, rack, shelf, bin } = data;
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { businessId: true },
-    });
-    if (!currentUser?.businessId)
-      throw new BadRequestException('No business found.');
-
-    const cabinet = await this.prisma.cabinet.findFirst({
-      where: { id, businessId: currentUser.businessId },
-    });
-    if (!cabinet) throw new BadRequestException('Cabinet not found');
-
-    const locationParts = [
-      rack ? `Rack ${rack}` : null,
-      shelf ? `Shelf ${shelf}` : null,
-      bin ? `Bin ${bin}` : null,
+    const parts = [
+      data.rack ? `Rack ${data.rack}` : null,
+      data.shelf ? `Shelf ${data.shelf}` : null,
+      data.bin ? `Bin ${data.bin}` : null,
     ].filter(Boolean);
-    const locationStr = locationParts.length
-      ? locationParts.join(' -> ')
-      : cabinet.location;
-    const newName =
-      (name?.trim && name.trim()) ||
-      (locationParts.length ? locationParts.join(' / ') : cabinet.name);
 
-    const updated = await this.prisma.cabinet.update({
-      where: { id },
-      data: {
-        name: newName,
-        location: locationStr || 'Shop Storage',
-      },
+    if (parts.length) {
+      const cabinet = await tx.cabinet.create({
+        data: {
+          name: parts.join(' / '),
+          location: parts.join(' -> '),
+          rack: data.rack?.trim() || null,
+          shelf: data.shelf?.trim() || null,
+          bin: data.bin?.trim() || null,
+          businessId,
+          branchId,
+        },
+      });
+      return cabinet.id;
+    }
+
+    // Fall back to a shared 'General' cabinet for the branch.
+    let general = await tx.cabinet.findFirst({
+      where: { branchId, name: 'General' },
+      select: { id: true },
     });
-
-    return {
-      success: true,
-      message: 'Cabinet updated successfully',
-      cabinet: updated,
-    };
-  }
-
-  async deleteCabinet(userId: string, id: string) {
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { businessId: true },
-    });
-    if (!currentUser?.businessId)
-      throw new BadRequestException('No business found.');
-
-    const cabinet = await this.prisma.cabinet.findFirst({
-      where: { id, businessId: currentUser.businessId },
-    });
-    if (!cabinet) throw new BadRequestException('Cabinet not found');
-
-    await this.prisma.$transaction([
-      this.prisma.productInstance.updateMany({
-        where: { cabinetId: id },
-        data: { cabinetId: null },
-      }),
-      this.prisma.inventoryMovement.updateMany({
-        where: { cabinetId: id },
-        data: { cabinetId: null },
-      }),
-      this.prisma.cabinet.delete({ where: { id } }),
-    ]);
-
-    return { success: true, message: 'Cabinet deleted successfully' };
+    if (!general) {
+      general = await tx.cabinet.create({
+        data: {
+          name: 'General',
+          location: 'General Storage',
+          businessId,
+          branchId,
+        },
+      });
+    }
+    return general.id;
   }
 
   async addProduct(userId: string, data: any) {
@@ -259,7 +125,9 @@ export class ProductsService {
       price,
       category,
       sku,
+      costPrice,
       // Spatial Inventory Fields
+      branchId,
       cabinetId,
       rack,
       shelf,
@@ -269,20 +137,15 @@ export class ProductsService {
       vendorId,
     } = data;
 
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { businessId: true },
-    });
-    if (!currentUser?.businessId)
-      throw new BadRequestException(
-        'User does not have an associated business',
-      );
+    const businessId = await this.requireBusinessId(userId);
+
+    if (!name || !name.trim())
+      throw new BadRequestException('Product name is required');
 
     const categoryExists = await this.prisma.category.findFirst({
-      where: { name: category, businessId: currentUser.businessId },
+      where: { name: category, businessId },
       select: { id: true },
     });
-
     if (!categoryExists)
       throw new BadRequestException('Category does not exist');
 
@@ -291,59 +154,37 @@ export class ProductsService {
       throw new BadRequestException('Product price must be greater than 0');
     }
     const instanceQty = Math.max(1, Number(quantity) || 1);
-
-    // Map allowed condition values safely
-    const validConditions = [
-      'ORIGINAL_PULL',
-      'COPY',
-      'MINOR_SCRATCHES',
-      'WORKING',
-      'DEAD_DONOR',
-      'DEFECTIVE',
-    ];
-    const sanitizedCondition = validConditions.includes(condition)
-      ? condition
-      : 'ORIGINAL_PULL';
+    const sanitizedCondition = this.sanitizeCondition(condition);
 
     const result = await this.prisma.$transaction(async (tx) => {
-      // 1. Resolve or create Spatial Cabinet
-      let targetCabinetId = cabinetId;
-      if (!targetCabinetId && (rack || shelf || bin)) {
-        const locationParts = [
-          rack ? `Rack ${rack}` : null,
-          shelf ? `Shelf ${shelf}` : null,
-          bin ? `Bin ${bin}` : null,
-        ].filter(Boolean);
-        const locationStr = locationParts.join(' -> ');
-        const cabName = locationParts.join(' / ') || 'Cabinet Location';
+      const branch = await this.resolveBranchId(tx, businessId, branchId);
+      const targetCabinetId = await this.resolveCabinetId(
+        tx,
+        businessId,
+        branch,
+        { cabinetId, rack, shelf, bin },
+      );
 
-        const newCabinet = await tx.cabinet.create({
-          data: {
-            name: cabName,
-            location: locationStr,
-            businessId: currentUser.businessId,
-          },
-        });
-        targetCabinetId = newCabinet.id;
-      }
-
-      // 2. Create the master Product record with stock synced to instance count
+      // Master catalog entry. No branch / condition / physical stock lives here.
       const product = await tx.product.create({
         data: {
-          name,
-          price: parsedPrice,
+          name: name.trim(),
+          basePrice: parsedPrice,
+          costPrice: costPrice ? Number(costPrice) : null,
           categoryId: categoryExists.id,
-          stock: instanceQty,
-          sku: sku || `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
-          businessId: currentUser.businessId,
+          sku:
+            sku?.trim() ||
+            `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
+          businessId,
         },
       });
 
-      // 3. Create discrete ProductInstance records tied to the physical Cabinet
+      // Discrete physical units placed in a spatial cabinet under a branch.
       const instancesData = Array.from({ length: instanceQty }).map(
         (_, index) => ({
           productId: product.id,
-          cabinetId: targetCabinetId || null,
+          cabinetId: targetCabinetId,
+          branchId: branch,
           vendorId: vendorId || null,
           condition: sanitizedCondition as any,
           status: 'AVAILABLE' as any,
@@ -355,32 +196,28 @@ export class ProductsService {
         data: instancesData,
       });
 
-      if (instanceQty > 0) {
-        await tx.inventoryMovement.create({
-          data: {
-            productId: product.id,
-            cabinetId: targetCabinetId || null,
-            fromCondition: null,
-            toCondition: sanitizedCondition as any,
-            quantity: instanceQty,
-            direction: 'IN',
-            referenceType: 'INITIAL_STOCK',
-            referenceId: product.id,
-            notes: 'Initial stock during product creation',
-            userId,
-            businessId: currentUser.businessId,
-            vendorId: vendorId || null,
-          },
-        });
-      }
+      await tx.inventoryMovement.create({
+        data: {
+          productId: product.id,
+          cabinetId: targetCabinetId,
+          fromCondition: null,
+          toCondition: sanitizedCondition as any,
+          quantity: instanceQty,
+          direction: 'IN',
+          referenceType: 'INITIAL_STOCK',
+          referenceId: product.id,
+          notes: 'Initial stock during product creation',
+          userId,
+          businessId,
+          vendorId: vendorId || null,
+        },
+      });
 
       const fullProduct = await tx.product.findUnique({
         where: { id: product.id },
         include: {
           category: true,
-          instances: {
-            include: { cabinet: true },
-          },
+          instances: { include: { cabinet: true } },
         },
       });
 
@@ -395,14 +232,9 @@ export class ProductsService {
 
   async getProducts(userId: string, query: any) {
     const { search, category, stock, branchId } = query;
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { businessId: true },
-    });
-    if (!currentUser?.businessId)
-      throw new BadRequestException('No business found.');
+    const businessId = await this.requireBusinessId(userId);
 
-    let queryConditions: any = { businessId: currentUser.businessId };
+    const queryConditions: any = { businessId };
 
     if (search) {
       queryConditions.OR = [
@@ -413,11 +245,6 @@ export class ProductsService {
     if (category && category !== 'All') {
       queryConditions.category = { name: category };
     }
-    if (stock === 'out') {
-      queryConditions.stock = 0;
-    } else if (stock === 'low') {
-      queryConditions.stock = { gt: 0, lte: 5 };
-    }
 
     const products = await this.prisma.product.findMany({
       where: queryConditions,
@@ -426,9 +253,7 @@ export class ProductsService {
         instances: {
           where: {
             status: 'AVAILABLE',
-            ...(branchId
-              ? { cabinet: { branchId } }
-              : {}),
+            ...(branchId ? { branchId } : {}),
           },
           include: { cabinet: true },
           orderBy: { createdAt: 'desc' },
@@ -437,47 +262,63 @@ export class ProductsService {
       orderBy: { id: 'desc' },
     });
 
-    // When filtering by branch, only return products that have at least 1
-    // available instance in that branch (or are pure service/no-instance products).
-    const filteredProducts = branchId
-      ? products.filter(
-          (p) => p.instances.length > 0 || p.stock === 0,
-        )
-      : products;
+    // Master catalog records that hold physical units anywhere (for branch
+    // filtering we still want to surface globally out-of-stock products).
+    const businessWideAvailable = new Set<string>();
+    if (branchId) {
+      const grouped = await this.prisma.productInstance.groupBy({
+        by: ['productId'],
+        where: { status: 'AVAILABLE' },
+        _count: { _all: true },
+      });
+      grouped.forEach((g) => {
+        if (g._count._all > 0) businessWideAvailable.add(g.productId);
+      });
+    }
 
-    return { success: true, products: filteredProducts };
+    return {
+      success: true,
+      products: products
+        .map((p) => ({ ...p, stock: p.instances.length }))
+        .filter((p) => {
+          if (stock === 'out') return p.stock === 0;
+          if (stock === 'low') return p.stock > 0 && p.stock <= 5;
+          if (branchId) {
+            return (
+              p.stock > 0 ||
+              !businessWideAvailable.has(p.id)
+            );
+          }
+          return true;
+        }),
+    };
   }
 
   async updatePrice(userId: string, productId: string, price: number) {
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { businessId: true },
-    });
-    if (!currentUser?.businessId) {
-      throw new BadRequestException('No business found.');
-    }
+    const businessId = await this.requireBusinessId(userId);
 
     if (price <= 0) {
       throw new BadRequestException('Price must be greater than zero');
     }
 
+    const existing = await this.prisma.product.findFirst({
+      where: { id: productId, businessId },
+    });
+    if (!existing) throw new NotFoundException('Product not found');
+
     const product = await this.prisma.product.update({
-      where: { id: productId, businessId: currentUser.businessId },
-      data: { price },
+      where: { id: productId },
+      data: { basePrice: price },
     });
 
     return { success: true, product };
   }
+
   async getBranches(userId: string) {
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { businessId: true },
-    });
-    if (!currentUser?.businessId)
-      throw new BadRequestException('No business found.');
+    const businessId = await this.requireBusinessId(userId);
 
     const branches = await this.prisma.branch.findMany({
-      where: { businessId: currentUser.businessId },
+      where: { businessId },
       include: { cabinets: true },
       orderBy: { name: 'asc' },
     });
@@ -487,18 +328,16 @@ export class ProductsService {
 
   async addBranch(userId: string, data: any) {
     const { name, location } = data;
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { businessId: true },
-    });
-    if (!currentUser?.businessId)
-      throw new BadRequestException('No business found.');
+    const businessId = await this.requireBusinessId(userId);
+
+    if (!name || !name.trim())
+      throw new BadRequestException('Branch name is required');
 
     const branch = await this.prisma.branch.create({
       data: {
-        name,
-        location,
-        businessId: currentUser.businessId,
+        name: name.trim(),
+        location: location?.trim() || null,
+        businessId,
       },
     });
 
@@ -506,62 +345,42 @@ export class ProductsService {
   }
 
   async bulkRestock(userId: string, data: any) {
-    const { productId, branchId, cabinetId, condition, quantity } = data;
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { businessId: true },
-    });
-    if (!currentUser?.businessId)
-      throw new BadRequestException('No business found.');
+    const { productId, branchId, cabinetId, condition, quantity, vendorId } =
+      data;
+    const businessId = await this.requireBusinessId(userId);
 
     const qty = Math.max(1, Number(quantity) || 1);
-
-    const validConditions = [
-      'ORIGINAL_PULL',
-      'COPY',
-      'MINOR_SCRATCHES',
-      'WORKING',
-      'DEAD_DONOR',
-      'DEFECTIVE',
-    ];
-    const sanitizedCondition = validConditions.includes(condition)
-      ? condition
-      : 'ORIGINAL_PULL';
+    const sanitizedCondition = this.sanitizeCondition(condition);
 
     const result = await this.prisma.$transaction(async (tx) => {
       const product = await tx.product.findFirst({
-        where: { id: productId, businessId: currentUser.businessId },
+        where: { id: productId, businessId },
       });
       if (!product) throw new BadRequestException('Product not found');
 
-      let finalCabinetId = cabinetId;
-      if (finalCabinetId) {
-        const cab = await tx.cabinet.findFirst({
-          where: { id: finalCabinetId, businessId: currentUser.businessId },
-        });
-        if (!cab) throw new BadRequestException('Cabinet not found');
-      }
-
-      const instancesData = Array.from({ length: qty }).map(() => ({
-        productId: product.id,
-        cabinetId: finalCabinetId || null,
-        condition: sanitizedCondition as any,
-        status: 'AVAILABLE' as any,
-      }));
+      const branch = await this.resolveBranchId(tx, businessId, branchId);
+      const targetCabinetId = await this.resolveCabinetId(
+        tx,
+        businessId,
+        branch,
+        { cabinetId },
+      );
 
       await tx.productInstance.createMany({
-        data: instancesData,
-      });
-
-      const updatedProduct = await tx.product.update({
-        where: { id: product.id },
-        data: { stock: { increment: qty } },
+        data: Array.from({ length: qty }).map(() => ({
+          productId: product.id,
+          cabinetId: targetCabinetId,
+          branchId: branch,
+          vendorId: vendorId || null,
+          condition: sanitizedCondition as any,
+          status: 'AVAILABLE' as any,
+        })),
       });
 
       await tx.inventoryMovement.create({
         data: {
           productId: product.id,
-          cabinetId: finalCabinetId || null,
+          cabinetId: targetCabinetId,
           fromCondition: null,
           toCondition: sanitizedCondition as any,
           quantity: qty,
@@ -569,26 +388,23 @@ export class ProductsService {
           referenceType: 'RESTOCK',
           notes: 'Bulk restock',
           userId,
-          businessId: currentUser.businessId,
+          businessId,
+          vendorId: vendorId || null,
         },
       });
 
-      return updatedProduct;
+      const fullProduct = await tx.product.findUnique({
+        where: { id: product.id },
+        include: { category: true },
+      });
+      return fullProduct;
     });
 
     return { success: true, product: result };
   }
 
   async importProducts(userId: string, productsData: any[]) {
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { businessId: true },
-    });
-    if (!currentUser?.businessId) {
-      throw new BadRequestException(
-        'User does not have an associated business',
-      );
-    }
+    const businessId = await this.requireBusinessId(userId);
 
     if (!Array.isArray(productsData) || productsData.length === 0) {
       throw new BadRequestException('No products provided for import');
@@ -597,20 +413,26 @@ export class ProductsService {
     const result = await this.prisma.$transaction(async (tx) => {
       let importedCount = 0;
 
-      // Cache categories
       const categoriesCache = new Map<string, string>();
       const existingCategories = await tx.category.findMany({
-        where: { businessId: currentUser.businessId },
+        where: { businessId },
       });
       existingCategories.forEach((c) =>
         categoriesCache.set(c.name.toLowerCase(), c.id),
+      );
+
+      const branch = await this.resolveBranchId(tx, businessId);
+      const generalCabinet = await this.resolveCabinetId(
+        tx,
+        businessId,
+        branch,
+        {},
       );
 
       for (const item of productsData) {
         const name = item.name || item.Name;
         if (!name || !name.trim()) continue;
 
-        // Resolve or create Category
         let categoryId;
         const catName =
           (item.category || item.Category)?.trim() || 'Uncategorized';
@@ -620,7 +442,7 @@ export class ProductsService {
           categoryId = categoriesCache.get(catKey);
         } else {
           const newCat = await tx.category.create({
-            data: { name: catName, businessId: currentUser.businessId },
+            data: { name: catName, businessId },
           });
           categoryId = newCat.id;
           categoriesCache.set(catKey, newCat.id);
@@ -632,46 +454,36 @@ export class ProductsService {
           Number(item.quantity || item.Quantity) || 1,
         );
         const sku =
-          item.sku ||
-          item.SKU ||
+          item.sku?.trim() ||
+          item.SKU?.trim() ||
           `SKU-${Math.floor(1000 + Math.random() * 9000)}`;
 
-        const validConditions = [
-          'ORIGINAL_PULL',
-          'COPY',
-          'MINOR_SCRATCHES',
-          'WORKING',
-          'DEAD_DONOR',
-          'DEFECTIVE',
-        ];
         const inputCondition = item.condition || item.Condition;
-        const sanitizedCondition = validConditions.includes(inputCondition)
-          ? inputCondition
-          : 'ORIGINAL_PULL';
+        const sanitizedCondition = this.sanitizeCondition(inputCondition);
 
         const product = await tx.product.create({
           data: {
             name: name.trim(),
-            price: parsedPrice,
-            categoryId: categoryId,
-            stock: instanceQty,
-            sku: sku,
-            businessId: currentUser.businessId,
+            basePrice: parsedPrice,
+            costPrice: item.costPrice
+              ? Number(item.costPrice)
+              : null,
+            categoryId,
+            sku,
+            businessId,
           },
         });
 
-        const instancesData = Array.from({ length: instanceQty }).map(
-          (_, index) => ({
+        await tx.productInstance.createMany({
+          data: Array.from({ length: instanceQty }).map((_, index) => ({
             productId: product.id,
-            cabinetId: null,
+            cabinetId: generalCabinet,
+            branchId: branch,
+            vendorId: item.vendorId || null,
             condition: sanitizedCondition as any,
             status: 'AVAILABLE' as any,
-            serialNumber: sku ? `${sku}-${index + 1}` : null,
-          }),
-        );
-
-        await tx.productInstance.createMany({
-          data: instancesData,
+            serialNumber: `${sku}-${index + 1}`,
+          })),
         });
 
         importedCount++;
