@@ -40,7 +40,8 @@ type Product = {
   id: string;
   name: string;
   sku?: string | null;
-  price: number;
+  basePrice?: number | null;
+  price?: number | null;
   stock: number;
 };
 
@@ -502,7 +503,7 @@ export default function RestockPage() {
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-                        Rs. {p.price.toLocaleString()}
+                        Rs. {(p.basePrice ?? p.price ?? 0).toLocaleString()}
                       </span>
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded ${

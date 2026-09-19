@@ -140,23 +140,27 @@ export class CabinetService {
     });
     if (!cabinet) throw new NotFoundException('Cabinet not found');
 
-    const instanceCount = await this.prisma.productInstance.count({
-      where: { cabinetId: id },
-    });
-    if (instanceCount > 0) {
-      throw new BadRequestException(
-        'Cannot delete a cabinet that still contains inventory. Move the items to another cabinet first.',
-      );
-    }
-
-    await this.prisma.$transaction([
-      this.prisma.inventoryMovement.updateMany({
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Detach movement history so it survives the cabinet deletion.
+      const movementsDetached = await tx.inventoryMovement.updateMany({
         where: { cabinetId: id },
         data: { cabinetId: null },
-      }),
-      this.prisma.cabinet.delete({ where: { id } }),
-    ]);
+      });
 
-    return { success: true, message: 'Cabinet deleted successfully' };
+      // Cascade: destroying a cabinet permanently destroys the stock inside it.
+      const instancesDestroyed = await tx.productInstance.deleteMany({
+        where: { cabinetId: id },
+      });
+
+      await tx.cabinet.delete({ where: { id } });
+
+      return { instancesDestroyed: instancesDestroyed.count, movementsDetached: movementsDetached.count };
+    });
+
+    return {
+      success: true,
+      message: 'Cabinet deleted successfully',
+      instancesDestroyed: result.instancesDestroyed,
+    };
   }
 }

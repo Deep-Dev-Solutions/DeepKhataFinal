@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -53,6 +54,14 @@ export class CabinetController {
   @RequirePermissions('write:products')
   @Roles(Role.OWNER, Role.SUPER_ADMIN)
   async deleteCabinet(@Req() req: any, @Param('id') id: string) {
+    return this.cabinetService.deleteCabinet(req.user.id, id);
+  }
+
+  @Delete(':id')
+  @UseGuards(PermissionsGuard, RolesGuard)
+  @RequirePermissions('write:products')
+  @Roles(Role.OWNER, Role.SUPER_ADMIN)
+  async deleteCabinetHttp(@Req() req: any, @Param('id') id: string) {
     return this.cabinetService.deleteCabinet(req.user.id, id);
   }
 }

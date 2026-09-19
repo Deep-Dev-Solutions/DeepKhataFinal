@@ -43,14 +43,14 @@ export class ProductsService {
   ): Promise<string> {
     if (branchId) {
       const branch = await tx.branch.findFirst({
-        where: { id: branchId, businessId },
+        where: { id: branchId, businessId, deletedAt: null },
         select: { id: true },
       });
       if (!branch) throw new BadRequestException('Branch not found');
       return branch.id;
     }
     const branch = await tx.branch.findFirst({
-      where: { businessId },
+      where: { businessId, deletedAt: null },
       orderBy: { createdAt: 'asc' },
       select: { id: true },
     });
@@ -234,7 +234,7 @@ export class ProductsService {
     const { search, category, stock, branchId } = query;
     const businessId = await this.requireBusinessId(userId);
 
-    const queryConditions: any = { businessId };
+    const queryConditions: any = { businessId, deletedAt: null };
 
     if (search) {
       queryConditions.OR = [
@@ -255,7 +255,10 @@ export class ProductsService {
             status: 'AVAILABLE',
             ...(branchId ? { branchId } : {}),
           },
-          include: { cabinet: true },
+          include: {
+            cabinet: true,
+            branch: { select: { id: true, name: true, deletedAt: true } },
+          },
           orderBy: { createdAt: 'desc' },
         },
       },
@@ -279,7 +282,13 @@ export class ProductsService {
     return {
       success: true,
       products: products
-        .map((p) => ({ ...p, stock: p.instances.length }))
+        .map((p) => ({
+          ...p,
+          stock: p.instances.length,
+          hasDeletedBranchStock: p.instances.some(
+            (i) => i.branch?.deletedAt,
+          ),
+        }))
         .filter((p) => {
           if (stock === 'out') return p.stock === 0;
           if (stock === 'low') return p.stock > 0 && p.stock <= 5;
@@ -318,7 +327,7 @@ export class ProductsService {
     const businessId = await this.requireBusinessId(userId);
 
     const branches = await this.prisma.branch.findMany({
-      where: { businessId },
+      where: { businessId, deletedAt: null },
       include: { cabinets: true },
       orderBy: { name: 'asc' },
     });
@@ -354,7 +363,7 @@ export class ProductsService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       const product = await tx.product.findFirst({
-        where: { id: productId, businessId },
+        where: { id: productId, businessId, deletedAt: null },
       });
       if (!product) throw new BadRequestException('Product not found');
 
@@ -433,19 +442,20 @@ export class ProductsService {
         const name = item.name || item.Name;
         if (!name || !name.trim()) continue;
 
-        let categoryId;
-        const catName =
-          (item.category || item.Category)?.trim() || 'Uncategorized';
-        const catKey = catName.toLowerCase();
+        let categoryId: string | null = null;
+        const catName = (item.category || item.Category)?.trim();
+        if (catName) {
+          const catKey = catName.toLowerCase();
 
-        if (categoriesCache.has(catKey)) {
-          categoryId = categoriesCache.get(catKey);
-        } else {
-          const newCat = await tx.category.create({
-            data: { name: catName, businessId },
-          });
-          categoryId = newCat.id;
-          categoriesCache.set(catKey, newCat.id);
+          if (categoriesCache.has(catKey)) {
+            categoryId = categoriesCache.get(catKey)!;
+          } else {
+            const newCat = await tx.category.create({
+              data: { name: catName, businessId },
+            });
+            categoryId = newCat.id;
+            categoriesCache.set(catKey, newCat.id);
+          }
         }
 
         const parsedPrice = Number(item.price || item.Price) || 0;
@@ -495,6 +505,82 @@ export class ProductsService {
       success: true,
       message: `Successfully imported ${result} products.`,
       count: result,
+    };
+  }
+
+  // Soft-delete: the master product is hidden from the catalog but its
+  // instances and movement history are preserved.
+  async deleteProduct(userId: string, productId: string) {
+    const businessId = await this.requireBusinessId(userId);
+
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, businessId, deletedAt: null },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+
+    await this.prisma.product.update({
+      where: { id: productId },
+      data: { deletedAt: new Date() },
+    });
+
+    return {
+      success: true,
+      message: 'Product deleted. Its stock instances are preserved across branches.',
+      productId,
+    };
+  }
+
+  // Move physical stock that belongs to soft-deleted branches into a live
+  // branch, re-attaching it to a cabinet in that branch.
+  async moveStockFromDeletedBranches(
+    userId: string,
+    productId: string,
+    targetBranchId?: string,
+  ) {
+    const businessId = await this.requireBusinessId(userId);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const product = await tx.product.findFirst({
+        where: { id: productId, businessId, deletedAt: null },
+      });
+      if (!product) throw new NotFoundException('Product not found');
+
+      const targetBranch = targetBranchId
+        ? await tx.branch.findFirst({
+            where: { id: targetBranchId, businessId, deletedAt: null },
+            select: { id: true },
+          })
+        : await tx.branch.findFirst({
+            where: { businessId, deletedAt: null },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true },
+          });
+      if (!targetBranch)
+        throw new BadRequestException('No active branch to move stock into');
+
+      const targetCabinetId = await this.resolveCabinetId(
+        tx,
+        businessId,
+        targetBranch.id,
+        {},
+      );
+
+      const moved = await tx.productInstance.updateMany({
+        where: {
+          productId,
+          branch: { deletedAt: { not: null } },
+        },
+        data: { branchId: targetBranch.id, cabinetId: targetCabinetId },
+      });
+
+      return { movedCount: moved.count, productId };
+    });
+
+    return {
+      success: true,
+      message: `Moved ${result.movedCount} instance(s) of this product to the active branch.`,
+      movedCount: result.movedCount,
+      productId,
     };
   }
 }

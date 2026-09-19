@@ -49,6 +49,8 @@ model Branch {
   location String?
   phone    String?
 
+  deletedAt DateTime?
+
   businessId String
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
@@ -146,9 +148,10 @@ model Product {
   sku       String
   basePrice Float
   costPrice Float?
+  deletedAt DateTime?
 
-  categoryId String
-  category   Category @relation(fields: [categoryId], references: [id])
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   businessId String
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
@@ -161,7 +164,7 @@ model Product {
 model ProductInstance {
   id        String  @id @default(uuid())
   productId String
-  cabinetId String
+  cabinetId String?
   branchId  String
   vendorId  String?
 
@@ -170,7 +173,7 @@ model ProductInstance {
   serialNumber String?
 
   product Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+  cabinet Cabinet? @relation(fields: [cabinetId], references: [id])
   branch  Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
   vendor  Vendor? @relation(fields: [vendorId], references: [id])
 

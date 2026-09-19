@@ -16,8 +16,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePermissions } from "@/hooks/usePermissions";
-import { MapPin } from "lucide-react";
+import { MapPin, Loader2 } from "lucide-react";
 import AddProductModal from "@/components/modals/AddProductModal";
+import ConfirmDialog from "@/components/ui/confirm-dialog";
 
 type StockFilter = "all" | "low" | "out";
 
@@ -25,8 +26,10 @@ type ProductRecord = {
   id: string;
   name: string;
   sku: string;
-  price: number;
+  basePrice?: number;
+  price?: number;
   stock: number;
+  hasDeletedBranchStock?: boolean;
   category?: {
     name?: string | null;
   } | null;
@@ -50,6 +53,7 @@ type ProductRow = {
   stock: number;
   location: string;
   conditions: string[];
+  hasDeletedBranchStock: boolean;
 };
 
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
@@ -68,10 +72,11 @@ const normalizeProduct = (product: ProductRecord): ProductRow => {
     name: product.name,
     sku: product.sku,
     category: product.category?.name ?? "Uncategorized",
-    price: Number(product.price ?? 0),
+    price: Number(product.basePrice ?? product.price ?? 0),
     stock: Number(product.stock ?? 0),
     location,
     conditions: uniqueConditions.length ? uniqueConditions : ["ORIGINAL_PULL"],
+    hasDeletedBranchStock: Boolean(product.hasDeletedBranchStock),
   };
 };
 
@@ -94,6 +99,10 @@ function ProductsPageContent() {
   const [categories, setCategories] = useState<string[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [pageError, setPageError] = useState("");
+  const [actionMsg, setActionMsg] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<ProductRow | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [movingId, setMovingId] = useState<string | null>(null);
 
   // 🟢 STATES
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -218,8 +227,57 @@ function ProductsPageContent() {
     void refreshProducts();
   }, [refreshProducts]);
 
-  const deleteProduct = (id: string) => {
-    setProducts(products.filter((p) => p.id !== id));
+  const handleDeleteProduct = async (id: string) => {
+    setIsDeleting(true);
+    setPageError("");
+    setActionMsg("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/product/${id}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.message || data?.error || "Failed to delete product");
+      }
+      setDeleteTarget(null);
+      setActionMsg(data?.message || "Product deleted.");
+      await refreshProducts();
+    } catch (error) {
+      setDeleteTarget(null);
+      setPageError(
+        error instanceof Error ? error.message : "Failed to delete product",
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleMoveStock = async (productId: string, productName: string) => {
+    setMovingId(productId);
+    setPageError("");
+    setActionMsg("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/product/move-stock`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ productId }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.message || data?.error || "Failed to move stock");
+      }
+      setActionMsg(
+        `"${productName}" — ${data?.message || "Stock moved to the active branch."}`,
+      );
+      await refreshProducts();
+    } catch (error) {
+      setPageError(
+        error instanceof Error ? error.message : "Failed to move stock",
+      );
+    } finally {
+      setMovingId(null);
+    }
   };
 
   // --- MATH & FILTERS ---
@@ -408,6 +466,12 @@ function ProductsPageContent() {
             {pageError}
           </div>
         )}
+        {actionMsg && (
+          <div className="border-b border-emerald-100 bg-emerald-50 px-6 py-3 text-sm text-emerald-700 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            {actionMsg}
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
@@ -471,6 +535,12 @@ function ProductsPageContent() {
                           {product.location}
                         </span>
                       </div>
+                      {product.hasDeletedBranchStock && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 mt-1.5">
+                          <AlertCircle className="w-3 h-3" />
+                          Includes stock from a deleted branch
+                        </span>
+                      )}
                     </td>
 
                     <td className="px-6 py-4">
@@ -502,10 +572,28 @@ function ProductsPageContent() {
                     </td>
 
                     <td className="px-6 py-4 text-right">
+                      {hasPermission("write:products") &&
+                        product.hasDeletedBranchStock && (
+                          <button
+                            onClick={() =>
+                              void handleMoveStock(product.id, product.name)
+                            }
+                            disabled={movingId === product.id}
+                            className="p-2 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Move stock from deleted branch to the active branch"
+                          >
+                            {movingId === product.id ? (
+                              <Loader2 className="w-4.5 h-4.5 animate-spin" />
+                            ) : (
+                              <MapPin className="w-4.5 h-4.5" />
+                            )}
+                          </button>
+                        )}
                       {hasPermission("delete:products") && (
                         <button
-                          onClick={() => deleteProduct(product.id)}
+                          onClick={() => setDeleteTarget(product)}
                           className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                          title="Delete product"
                         >
                           <Trash2 className="w-4.5 h-4.5" />
                         </button>
@@ -522,6 +610,33 @@ function ProductsPageContent() {
       {/* ==========================================
           🟢 RENDER MODALS HERE
       ========================================== */}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete this product?"
+        description={
+          <>
+            <span className="font-bold text-slate-800">
+              &quot;{deleteTarget?.name}&quot;
+            </span>{" "}
+            will be deleted from the master catalog. It will no longer be
+            visible, sellable, or restockable in any branch, though its sales
+            and movement history is preserved for reports. This cannot be
+            undone.
+          </>
+        }
+        confirmLabel="Delete Product"
+        loading={isDeleting}
+        onConfirm={() => {
+          const target = deleteTarget;
+          if (target) {
+            void handleDeleteProduct(target.id);
+          }
+        }}
+        onCancel={() => {
+          if (!isDeleting) setDeleteTarget(null);
+        }}
+      />
 
       {/* Add Category Modal (Inline for now) */}
       {isCategoryModalOpen && (

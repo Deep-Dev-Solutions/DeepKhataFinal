@@ -76,8 +76,8 @@ export class OrdersService {
             continue;
           }
 
-          const product = await tx.product.findUnique({
-            where: { id: item.productId },
+          const product = await tx.product.findFirst({
+            where: { id: item.productId, deletedAt: null },
           });
           if (!product) throw new BadRequestException(`Product not found`);
           const available = await tx.productInstance.count({

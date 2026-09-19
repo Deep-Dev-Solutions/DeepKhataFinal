@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Patch,
+  Delete,
   Param,
   Body,
   Req,
@@ -52,6 +53,14 @@ export class CategoryController {
   @RequirePermissions('write:products')
   @Roles(Role.OWNER, Role.SUPER_ADMIN)
   async deleteCategory(@Req() req: any, @Param('id') id: string) {
+    return this.categoryService.deleteCategory(req.user.id, id);
+  }
+
+  @Delete(':id')
+  @UseGuards(PermissionsGuard, RolesGuard)
+  @RequirePermissions('write:products')
+  @Roles(Role.OWNER, Role.SUPER_ADMIN)
+  async deleteCategoryHttp(@Req() req: any, @Param('id') id: string) {
     return this.categoryService.deleteCategory(req.user.id, id);
   }
 }

@@ -27,7 +27,9 @@ export class CategoryService {
     const categories = await this.prisma.category.findMany({
       where: { businessId },
       include: {
-        _count: { select: { products: true } },
+        _count: {
+          select: { products: { where: { deletedAt: null } } },
+        },
       },
       orderBy: { name: 'asc' },
     });
@@ -94,18 +96,10 @@ export class CategoryService {
     if (!category) throw new BadRequestException('Category not found');
 
     await this.prisma.$transaction(async (tx) => {
-      // Unassign products to the business 'General' category (category is mandatory on products).
-      let general = await tx.category.findFirst({
-        where: { businessId, name: 'General' },
-      });
-      if (!general) {
-        general = await tx.category.create({
-          data: { name: 'General', businessId },
-        });
-      }
+      // Products linked to this category simply become 'Uncategorized'.
       await tx.product.updateMany({
         where: { categoryId: id },
-        data: { categoryId: general.id },
+        data: { categoryId: null },
       });
       await tx.category.delete({ where: { id } });
     });

@@ -59,7 +59,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={{ showToast, toast }}>
       {children}
       {/* Toast Container */}
-      <div className="fixed bottom-4 right-4 z-[9999] flex flex-col gap-2 max-w-md w-full px-4 pointer-events-none sm:px-0">
+      <div
+        className="fixed bottom-4 right-4 flex flex-col gap-2 max-w-md w-full px-4 pointer-events-none sm:px-0"
+        style={{ zIndex: 9999 }}
+      >
         {toasts.map((t) => {
           let bgClass = "bg-slate-900 text-white border-slate-800 shadow-2xl";
           let icon = <Info className="w-5 h-5 text-blue-400 shrink-0" />;

@@ -18,6 +18,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { useAuth, type Branch } from "@/context/AuthContext";
 
 type ItemConditionType =
   | "ORIGINAL_PULL"
@@ -32,6 +33,7 @@ type ProductFormValues = {
   sku: string;
   category: string;
   price: number;
+  branchId?: string;
   rack: string;
   shelf: string;
   bin: string;
@@ -50,6 +52,13 @@ interface CabinetOption {
   id: string;
   name: string;
   location?: string | null;
+  rack?: string | null;
+  shelf?: string | null;
+  bin?: string | null;
+  branch?: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 const CONDITION_OPTIONS: {
@@ -98,6 +107,7 @@ const CONDITION_OPTIONS: {
 
 export default function AddProductPage() {
   const router = useRouter();
+  const { activeBranchId, branches: authBranches } = useAuth();
 
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
@@ -105,6 +115,12 @@ export default function AddProductPage() {
   const [price, setPrice] = useState("");
   const [categories, setCategories] = useState<string[]>([]);
 
+  const [branches, setBranches] = useState<Branch[]>(
+    Array.isArray(authBranches) ? authBranches : [],
+  );
+  const [selectedBranchId, setSelectedBranchId] = useState(
+    activeBranchId || "",
+  );
   const [cabinets, setCabinets] = useState<CabinetOption[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [selectedCabinetId, setSelectedCabinetId] = useState("");
@@ -118,6 +134,38 @@ export default function AddProductPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pageError, setPageError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+
+  useEffect(() => {
+    if (Array.isArray(authBranches) && authBranches.length > 0) {
+      setBranches(authBranches);
+    }
+  }, [authBranches]);
+
+  // Default the instance branch to the active branch once it resolves.
+  useEffect(() => {
+    if (activeBranchId) {
+      setSelectedBranchId((prev) => prev || activeBranchId);
+    }
+  }, [activeBranchId]);
+
+  // Fallback: fetch branches from the backend in case AuthContext has none yet.
+  useEffect(() => {
+    const loadBranches = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/product/getbranches`, {
+          headers: getAuthHeaders(),
+        });
+        const data = await response.json();
+        if (response.ok && data.success && Array.isArray(data.branches)) {
+          setBranches(data.branches);
+          setSelectedBranchId((prev) => prev || data.branches[0]?.id || "");
+        }
+      } catch {
+        /* AuthContext branches are used instead */
+      }
+    };
+    void loadBranches();
+  }, []);
 
   useEffect(() => {
     const loadMeta = async () => {
@@ -154,9 +202,41 @@ export default function AddProductPage() {
     void loadMeta();
   }, []);
 
+  const onCabinetSelect = (cabId: string) => {
+    setSelectedCabinetId(cabId);
+    const cab = cabinets.find((c) => c.id === cabId);
+    if (cab) {
+      setRack(cab.rack || "");
+      setShelf(cab.shelf || "");
+      setBin(cab.bin || "");
+      if (cab.branch?.id) setSelectedBranchId(cab.branch.id);
+    }
+  };
+
+  const branchCabinets = selectedBranchId
+    ? cabinets.filter((c) => c.branch?.id === selectedBranchId)
+    : cabinets;
+
+  const cabinetLabel = (cab: CabinetOption) => {
+    const segs = [
+      cab.rack ? `Rack ${cab.rack}` : null,
+      cab.shelf ? `Shelf ${cab.shelf}` : null,
+      cab.bin ? `Bin ${cab.bin}` : null,
+    ].filter(Boolean);
+    const where = segs.length ? segs.join(" · ") : cab.location || "General";
+    return `${cab.name} — ${where} (${cab.branch?.name || "No branch"})`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !price || !category) return;
+    if (!name || !price || !category || !selectedBranchId) {
+      setPageError(
+        !selectedBranchId
+          ? "Select a branch for the physical stock."
+          : "Fill in the required fields first.",
+      );
+      return;
+    }
 
     setIsSubmitting(true);
     setPageError("");
@@ -168,6 +248,7 @@ export default function AddProductPage() {
         sku: sku.trim() || `PART-${Math.floor(1000 + Math.random() * 9000)}`,
         category,
         price: Number(price),
+        branchId: selectedBranchId || undefined,
         rack: rack.trim(),
         shelf: shelf.trim(),
         bin: bin.trim(),
@@ -382,16 +463,48 @@ export default function AddProductPage() {
 
             <div className="p-5 space-y-4">
               <div>
-                <label className={label}>Assign to Cabinet (Optional)</label>
+                <label className={label}>Branch (for physical stock) *</label>
                 <select
-                  value={selectedCabinetId}
-                  onChange={(e) => setSelectedCabinetId(e.target.value)}
+                  value={selectedBranchId}
+                  onChange={(e) => {
+                    setSelectedBranchId(e.target.value);
+                    setSelectedCabinetId("");
+                  }}
                   className={`${input} cursor-pointer`}
                 >
-                  <option value="">-- Choose an existing cabinet --</option>
-                  {cabinets.map((cab) => (
+                  <option value="" disabled>
+                    Select a branch...
+                  </option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
+                  <Layers className="w-3 h-3" />
+                  The master product stays global — only its physical units are
+                  placed in this branch.
+                </p>
+              </div>
+
+              <div>
+                <label className={label}>
+                  Existing Rack / Shelf / Bin (from Cabinets)
+                </label>
+                <select
+                  value={selectedCabinetId}
+                  onChange={(e) => onCabinetSelect(e.target.value)}
+                  className={`${input} cursor-pointer`}
+                >
+                  <option value="">
+                    {branchCabinets.length
+                      ? "-- Choose an existing spatial cabinet --"
+                      : "-- No cabinets set up in this branch yet --"}
+                  </option>
+                  {branchCabinets.map((cab) => (
                     <option key={cab.id} value={cab.id}>
-                      {cab.name} ({cab.location || "General"})
+                      {cabinetLabel(cab)}
                     </option>
                   ))}
                 </select>
@@ -425,7 +538,10 @@ export default function AddProductPage() {
 
               <div>
                 <label className={label}>
-                  New Rack / Shelf / Bin (auto-creates a cabinet)
+                  Rack / Shelf / Bin
+                  {selectedCabinetId
+                    ? " (prefilled from selected cabinet)"
+                    : " (auto-creates a cabinet if blank)"}
                 </label>
                 <div className="grid grid-cols-3 gap-3">
                   <input

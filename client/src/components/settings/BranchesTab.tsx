@@ -9,6 +9,7 @@ import {
   Phone,
   Pencil,
   Plus,
+  Trash2,
   Loader2,
   Lock,
   AlertTriangle,
@@ -17,6 +18,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
+import ConfirmDialog from "@/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -56,6 +58,10 @@ export default function BranchesTab() {
   });
   const [isAdding, setIsAdding] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
+
+  // Delete Dialog State
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Upgrade Dialog State
   const [isUpgradeDialogOpen, setIsUpgradeDialogOpen] = useState(false);
@@ -138,6 +144,39 @@ export default function BranchesTab() {
       toast.error(err.message || "An error occurred");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDeleteBranch = async () => {
+    if (!token || !deleteTarget) return;
+
+    setIsDeleting(true);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/settings/branch/${deleteTarget.id}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to delete branch");
+      }
+
+      toast.success("Branch deleted. Stock preserved and detached.");
+      setDeleteTarget(null);
+      await fetchBranches();
+      if (refreshUser) {
+        await refreshUser();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "An error occurred");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -337,6 +376,17 @@ export default function BranchesTab() {
                         <Pencil className="w-3.5 h-3.5" />
                         Edit
                       </button>
+                      {safeBranches.length > 1 && (
+                        <button
+                          onClick={() => setDeleteTarget(b)}
+                          disabled={isDeleting}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                          title="Delete Branch"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Delete
+                        </button>
+                      )}
                     </div>
 
                     <div className="space-y-2 text-sm text-slate-600 mt-3 pt-3 border-t border-slate-100">
@@ -375,6 +425,28 @@ export default function BranchesTab() {
           )}
         </div>
       </div>
+
+      {/* ─── DELETE BRANCH CONFIRM DIALOG ─── */}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete this branch?"
+        description={
+          <>
+            <span className="font-bold text-slate-800">
+              &quot;{deleteTarget?.name}&quot;
+            </span>{" "}
+            will be permanently removed, along with all cabinets inside it.
+            Physical stock is preserved but detached, and can be moved to
+            another branch afterwards. This cannot be undone.
+          </>
+        }
+        confirmLabel="Delete Branch"
+        loading={isDeleting}
+        onConfirm={() => void handleDeleteBranch()}
+        onCancel={() => {
+          if (!isDeleting) setDeleteTarget(null);
+        }}
+      />
 
       {/* ─── ADD BRANCH DIALOG ─── */}
       <Dialog

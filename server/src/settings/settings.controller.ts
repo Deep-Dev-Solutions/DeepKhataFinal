@@ -4,6 +4,7 @@ import {
   Post,
   Put,
   Patch,
+  Delete,
   Body,
   Param,
   UseGuards,
@@ -103,5 +104,10 @@ export class SettingsController {
     @Body() body: any,
   ) {
     return this.settingsService.updateBranch(branchId, req.user.id, body);
+  }
+
+  @Delete('branch/:id')
+  async deleteBranch(@Param('id') branchId: string, @Req() req: any) {
+    return this.settingsService.deleteBranch(branchId, req.user.id);
   }
 }

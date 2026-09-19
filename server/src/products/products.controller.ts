@@ -8,6 +8,7 @@ import {
   Req,
   Patch,
   Param,
+  Delete,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CategoryService } from '../category/category.service';
@@ -142,5 +143,27 @@ export class ProductsController {
     @Body() body: UpdatePriceDto,
   ) {
     return this.productsService.updatePrice(req.user.id, id, body.price);
+  }
+
+  @Post('move-stock')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('write:products')
+  async moveStock(
+    @Req() req: any,
+    @Body() body: { productId: string; targetBranchId?: string },
+  ) {
+    return this.productsService.moveStockFromDeletedBranches(
+      req.user.id,
+      body.productId,
+      body.targetBranchId,
+    );
+  }
+
+  @Delete(':id')
+  @UseGuards(PermissionsGuard, RolesGuard)
+  @RequirePermissions('delete:products')
+  @Roles(Role.OWNER, Role.SUPER_ADMIN)
+  async deleteProduct(@Req() req: any, @Param('id') id: string) {
+    return this.productsService.deleteProduct(req.user.id, id);
   }
 }

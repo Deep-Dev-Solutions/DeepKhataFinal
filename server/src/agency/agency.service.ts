@@ -85,14 +85,6 @@ export class AgencyService {
           },
         });
 
-        // Create default category
-        await tx.category.create({
-          data: {
-            name: 'General',
-            businessId: business.id,
-          },
-        });
-
         return { user, business, branch };
       });
 

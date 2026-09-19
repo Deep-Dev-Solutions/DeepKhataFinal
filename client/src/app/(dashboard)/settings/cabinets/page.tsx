@@ -12,20 +12,28 @@ import {
   Check,
   X,
   Loader2,
+  GitBranch,
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
-import AlertDialog from "@/components/ui/alert-dialog";
-import { useAuth } from "@/context/AuthContext";
+import ConfirmDialog from "@/components/ui/confirm-dialog";
+import { useAuth, type Branch } from "@/context/AuthContext";
 
 type CabinetRow = {
   id: string;
   name: string;
   location: string | null;
+  branch?: {
+    id: string;
+    name: string;
+  } | null;
   _count: { instances: number };
 };
 
 export default function CabinetsSettingsPage() {
-  const { activeBranchId } = useAuth();
+  const { activeBranchId, branches: authBranches } = useAuth();
+  const [branches, setBranches] = useState<Branch[]>(
+    Array.isArray(authBranches) ? authBranches : [],
+  );
   const [cabinets, setCabinets] = useState<CabinetRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pageError, setPageError] = useState("");
@@ -33,6 +41,7 @@ export default function CabinetsSettingsPage() {
 
   // Create form state
   const [newName, setNewName] = useState("");
+  const [newBranchId, setNewBranchId] = useState(activeBranchId || "");
   const [newRack, setNewRack] = useState("");
   const [newShelf, setNewShelf] = useState("");
   const [newBin, setNewBin] = useState("");
@@ -57,13 +66,9 @@ export default function CabinetsSettingsPage() {
     setIsLoading(true);
     setPageError("");
     try {
-      // 🔒 Filter cabinets by active branch so each branch only sees its own storage
-      const params = new URLSearchParams();
-      if (activeBranchId) params.set("branchId", activeBranchId);
-      const response = await fetch(
-        `${API_BASE_URL}/product/getcabinets?${params.toString()}`,
-        { headers: getAuthHeaders() },
-      );
+      const response = await fetch(`${API_BASE_URL}/product/getcabinets`, {
+        headers: getAuthHeaders(),
+      });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data?.message || "Failed to load cabinets");
@@ -78,10 +83,42 @@ export default function CabinetsSettingsPage() {
     }
   };
 
+  // Keep the branch dropdown in sync with AuthContext branches as they load.
+  useEffect(() => {
+    if (Array.isArray(authBranches) && authBranches.length > 0) {
+      setBranches(authBranches);
+    }
+  }, [authBranches]);
+
+  // Default the selection to the active branch once it resolves.
+  useEffect(() => {
+    if (activeBranchId) {
+      setNewBranchId((prev) => prev || activeBranchId);
+    }
+  }, [activeBranchId]);
+
+  // Fallback: fetch branches from the backend if AuthContext has none yet.
+  useEffect(() => {
+    const loadBranches = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/product/getbranches`, {
+          headers: getAuthHeaders(),
+        });
+        const data = await response.json();
+        if (response.ok && data.success && Array.isArray(data.branches)) {
+          setBranches(data.branches);
+        }
+      } catch {
+        /* AuthContext branches will be used instead */
+      }
+    };
+    void loadBranches();
+  }, []);
+
   useEffect(() => {
     void refreshCabinets();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBranchId]);
+  }, []);
 
   const handleCreateCabinet = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,14 +132,19 @@ export default function CabinetsSettingsPage() {
       return;
     }
 
+    if (!newBranchId) {
+      setPageError("Select a branch for this cabinet.");
+      return;
+    }
+
     setIsSaving(true);
     setPageError("");
     setSuccessMsg("");
     try {
-      const response = await fetch(`${API_BASE_URL}/product/addcabinet`, {
+      const response = await fetch(`${API_BASE_URL}/cabinet`, {
         method: "POST",
         headers: getAuthHeaders(),
-        body: JSON.stringify({ name, rack, shelf, bin, branchId: activeBranchId || undefined }),
+        body: JSON.stringify({ name, rack, shelf, bin, branchId: newBranchId }),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -156,7 +198,7 @@ export default function CabinetsSettingsPage() {
     setPageError("");
     setSuccessMsg("");
     try {
-      const response = await fetch(`${API_BASE_URL}/product/cabinet/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/cabinet/${id}`, {
         method: "PATCH",
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -187,19 +229,17 @@ export default function CabinetsSettingsPage() {
     setPageError("");
     setSuccessMsg("");
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/product/cabinet/${id}/delete`,
-        {
-          method: "POST",
-          headers: getAuthHeaders(),
-        },
-      );
+      const response = await fetch(`${API_BASE_URL}/cabinet/${id}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data?.message || "Failed to delete cabinet");
       }
       setSuccessMsg(
-        "Cabinet deleted. Its part instances and movements were detached.",
+        data?.message ||
+          `Cabinet deleted. All ${data?.instancesDestroyed ?? 0} stock instances inside it were destroyed.`,
       );
       await refreshCabinets();
     } catch (error) {
@@ -271,6 +311,32 @@ export default function CabinetsSettingsPage() {
               placeholder="e.g. Display Rack"
               className="w-full border border-slate-300 rounded-xl py-2.5 px-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+              Branch <span className="text-rose-500">*</span>
+            </label>
+            <select
+              value={newBranchId}
+              onChange={(e) => setNewBranchId(e.target.value)}
+              required
+              className="w-full border border-slate-300 rounded-xl py-2.5 px-3 text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+            >
+              <option value="" disabled>
+                Select a branch...
+              </option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+            {branches.length === 0 && (
+              <p className="text-[11px] text-amber-600 mt-1">
+                No branches available — create one under Settings &gt; Branches.
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-3 gap-3">
@@ -439,6 +505,12 @@ export default function CabinetsSettingsPage() {
                           <MapPin className="w-3 h-3 shrink-0" />
                           {cab.location || "Shop Storage"}
                         </p>
+                        {cab.branch?.name && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 mt-1">
+                            <GitBranch className="w-3 h-3" />
+                            {cab.branch.name}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
@@ -458,7 +530,7 @@ export default function CabinetsSettingsPage() {
                         }
                         disabled={deletingId === cab.id}
                         className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
-                        title="Delete cabinet (instances detached)"
+                        title="Delete cabinet (destroys stock inside)"
                       >
                         {deletingId === cab.id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -474,12 +546,20 @@ export default function CabinetsSettingsPage() {
           </div>
         </div>
 
-        <AlertDialog
-          isOpen={deleteTarget !== null}
-          title="Delete Cabinet?"
-          description={`"${deleteTarget?.name}" will be permanently deleted. Its part instances and movement history will be detached.`}
+        <ConfirmDialog
+          open={deleteTarget !== null}
+          title="Delete this cabinet?"
+          description={
+            <>
+              <span className="font-bold text-slate-800">
+                &quot;{deleteTarget?.name}&quot;
+              </span>{" "}
+              contains physical inventory. Deleting it will permanently destroy
+              all stock inside it. This cannot be undone.
+            </>
+          }
           confirmLabel="Delete Cabinet"
-          confirming={deletingId === deleteTarget?.id}
+          loading={deletingId === deleteTarget?.id}
           onConfirm={() => {
             const target = deleteTarget;
             setDeleteTarget(null);
@@ -487,7 +567,7 @@ export default function CabinetsSettingsPage() {
               void handleDeleteCabinet(target.id);
             }
           }}
-          onClose={() => setDeleteTarget(null)}
+          onCancel={() => setDeleteTarget(null)}
         />
       </div>
     </div>

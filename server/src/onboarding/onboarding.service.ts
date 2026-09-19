@@ -65,14 +65,6 @@ export class OnboardingService {
         },
       });
 
-      // Create default category
-      await tx.category.create({
-        data: {
-          name: 'General',
-          businessId: newBusiness.id,
-        },
-      });
-
       return newBusiness;
     });
 

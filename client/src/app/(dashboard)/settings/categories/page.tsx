@@ -16,7 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
-import AlertDialog from "@/components/ui/alert-dialog";
+import ConfirmDialog from "@/components/ui/confirm-dialog";
 
 type CategoryRow = {
   id: string;
@@ -127,7 +127,7 @@ export default function CategoriesSettingsPage() {
     setSuccessMsg("");
     try {
       const response = await fetch(
-        `${API_BASE_URL}/product/category/${id}`,
+        `${API_BASE_URL}/category/${id}`,
         {
           method: "PATCH",
           headers: getAuthHeaders(),
@@ -156,9 +156,9 @@ export default function CategoriesSettingsPage() {
     setSuccessMsg("");
     try {
       const response = await fetch(
-        `${API_BASE_URL}/product/category/${id}/delete`,
+        `${API_BASE_URL}/category/${id}`,
         {
-          method: "POST",
+          method: "DELETE",
           headers: getAuthHeaders(),
         },
       );
@@ -167,7 +167,8 @@ export default function CategoriesSettingsPage() {
         throw new Error(data?.message || "Failed to delete category");
       }
       setSuccessMsg(
-        "Category deleted. Its products are now uncategorized.",
+        data?.message ||
+          "Category deleted. Its products are now uncategorized.",
       );
       await refreshCategories();
     } catch (error) {
@@ -383,12 +384,21 @@ export default function CategoriesSettingsPage() {
           </div>
         </div>
 
-        <AlertDialog
-          isOpen={deleteTarget !== null}
-          title="Delete Category?"
-          description={`"${deleteTarget?.name}" will be permanently deleted. Its products will become uncategorized.`}
+        <ConfirmDialog
+          open={deleteTarget !== null}
+          title="Delete category?"
+          description={
+            <>
+              <span className="font-bold text-slate-800">
+                &quot;{deleteTarget?.name}&quot;
+              </span>{" "}
+              will be permanently deleted. Products using it will become{" "}
+              <span className="font-bold text-slate-800">Uncategorized</span>.
+              This cannot be undone.
+            </>
+          }
           confirmLabel="Delete Category"
-          confirming={deletingId === deleteTarget?.id}
+          loading={deletingId === deleteTarget?.id}
           onConfirm={() => {
             const target = deleteTarget;
             setDeleteTarget(null);
@@ -396,7 +406,7 @@ export default function CategoriesSettingsPage() {
               void handleDelete(target.id);
             }
           }}
-          onClose={() => setDeleteTarget(null)}
+          onCancel={() => setDeleteTarget(null)}
         />
       </div>
     </div>

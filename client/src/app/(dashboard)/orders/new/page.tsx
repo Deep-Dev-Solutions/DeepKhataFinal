@@ -49,6 +49,7 @@ type Product = {
     condition: string;
     status: string;
     cabinet?: { name?: string | null; location?: string | null } | null;
+    branch?: { id: string; name: string; deletedAt: string | null } | null;
   }>;
 };
 
@@ -657,6 +658,15 @@ function CreateOrderPOSContent() {
       return [...prev, { ...product, qty: 1, condition }];
     });
     setExpandedConditionProduct(null);
+
+    const fromDeletedBranch = product.instances?.some(
+      (i) => i.branch?.deletedAt,
+    );
+    if (fromDeletedBranch) {
+      toast.warning(
+        `"${product.name}" has stock from a deleted branch. Move it to an active branch from the Products page before selling.`,
+      );
+    }
   };
 
   // 🟢 BARCODE SCANNER FOCUS TRAP HANDLER

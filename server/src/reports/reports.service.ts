@@ -126,8 +126,8 @@ export class ReportsService {
 
       for (const item of topSelling) {
         if (!item.productId) continue;
-        const prod = await this.prisma.product.findUnique({
-          where: { id: item.productId },
+        const prod = await this.prisma.product.findFirst({
+          where: { id: item.productId, deletedAt: null },
           select: {
             name: true,
             basePrice: true,
@@ -167,6 +167,7 @@ export class ReportsService {
       const deadStockItems = await this.prisma.product.findMany({
         where: {
           businessId,
+          deletedAt: null,
           instances: { some: { status: 'AVAILABLE' } },
           id: { notIn: activeIdsArray.length ? activeIdsArray : ['__none__'] },
         },

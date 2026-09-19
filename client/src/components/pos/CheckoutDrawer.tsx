@@ -130,7 +130,8 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
   return (
     <div
       inert={!isOpen}
-      className={`fixed inset-0 z-[60] ${isOpen ? "" : "pointer-events-none"}`}
+      className={`fixed inset-0 ${isOpen ? "" : "pointer-events-none"}`}
+      style={{ zIndex: 60 }}
       aria-hidden={!isOpen}
     >
       {/* Backdrop */}

@@ -52,7 +52,7 @@ export class InventoryService {
         const qty = Math.max(1, Number(quantity) || 1);
 
         const product = await tx.product.findFirst({
-          where: { id: productId, businessId },
+          where: { id: productId, businessId, deletedAt: null },
         });
         if (!product) throw new BadRequestException('Product not found');
 
@@ -62,7 +62,7 @@ export class InventoryService {
             `Restock line for ${product.name} requires a branchId`,
           );
         const branch = await tx.branch.findFirst({
-          where: { id: branchId, businessId },
+          where: { id: branchId, businessId, deletedAt: null },
         });
         if (!branch) throw new BadRequestException('Branch not found');
 

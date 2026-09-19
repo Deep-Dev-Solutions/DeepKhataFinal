@@ -193,7 +193,7 @@ export class SettingsService {
 
     // Tier limit enforcement: Max 2 branches
     const branchCount = await this.prisma.branch.count({
-      where: { businessId: currentUser.businessId },
+      where: { businessId: currentUser.businessId, deletedAt: null },
     });
 
     if (branchCount >= 2 && currentUser.role !== 'SUPER_ADMIN') {
@@ -217,6 +217,71 @@ export class SettingsService {
       success: true,
       message: 'Branch created successfully',
       branch,
+    };
+  }
+
+  async deleteBranch(branchId: string, userId: string) {
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true, role: true },
+    });
+
+    if (!currentUser?.businessId)
+      throw new BadRequestException('No business found.');
+    if (currentUser.role !== 'OWNER' && currentUser.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException(
+        'Only the workspace owner or super admin can delete branches.',
+      );
+    }
+
+    // Verify the branch belongs to the user's business
+    const branch = await this.prisma.branch.findUnique({
+      where: { id: branchId },
+    });
+    if (!branch || branch.businessId !== currentUser.businessId) {
+      throw new NotFoundException('Branch not found or unauthorized');
+    }
+
+    // Rule 1: never delete the only remaining (active) branch
+    const activeCount = await this.prisma.branch.count({
+      where: { businessId: currentUser.businessId, deletedAt: null },
+    });
+    if (activeCount <= 1) {
+      throw new BadRequestException('Cannot delete the only remaining branch');
+    }
+
+    // Rule 2: soft-delete the branch. Its cabinets are destroyed, but the
+    // physical instances are preserved (untagged from cabinets, still tagged
+    // to the soft-deleted branch) so they can be moved to another branch.
+    await this.prisma.$transaction(async (tx) => {
+      const cabinets = await tx.cabinet.findMany({
+        where: { branchId },
+        select: { id: true },
+      });
+      const cabinetIds = cabinets.map((c) => c.id);
+
+      if (cabinetIds.length) {
+        await tx.inventoryMovement.updateMany({
+          where: { cabinetId: { in: cabinetIds } },
+          data: { cabinetId: null },
+        });
+        await tx.productInstance.updateMany({
+          where: { branchId },
+          data: { cabinetId: null },
+        });
+        await tx.cabinet.deleteMany({ where: { branchId } });
+      }
+
+      await tx.branch.update({
+        where: { id: branchId },
+        data: { deletedAt: new Date() },
+      });
+    });
+
+    return {
+      success: true,
+      message: 'Branch deleted. Its physical inventory is preserved and can be moved to another branch.',
+      deletedBranchId: branchId,
     };
   }
 
