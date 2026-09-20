@@ -261,6 +261,7 @@ export class AuthService {
     res.cookie('jwt', refreshtoken, {
       httpOnly: true,
       secure: true,
+      sameSite: 'none',
     });
 
     const { password: _, ...userWithoutPassword } = existinguser;
@@ -331,6 +332,7 @@ export class AuthService {
     res.cookie('jwt', refreshtoken, {
       httpOnly: true,
       secure: true,
+      sameSite: 'none',
     });
 
     const { password: _, ...userWithoutPassword } = existinguser;

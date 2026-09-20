@@ -27,7 +27,7 @@ function decodeToken(token: string | undefined | null): any | null {
   }
 }
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Retrieve token from cookies (checking common key names) or Authorization header
