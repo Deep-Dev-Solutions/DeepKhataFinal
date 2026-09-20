@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Store, Mail, Lock, ArrowRight } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { API_BASE_URL } from "@/lib/auth";
+import { API_BASE_URL, AGENCY_APP_URL } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -50,7 +50,7 @@ export default function LoginPage() {
 
       // 2. 🟢 SMART ROUTING LOGIC
       if (data?.user?.role === "SUPER_ADMIN") {
-        router.push("/agency-admin");
+        window.location.href = AGENCY_APP_URL;
       } else if (data?.user?.businessId) {
         // Business exists -> Go to main app
         router.push("/dashboard");
@@ -204,7 +204,7 @@ export default function LoginPage() {
             </p>
             <div>
               <Link
-                href="/agency-admin/login"
+                href={`${AGENCY_APP_URL}/login`}
                 className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
               >
                 Agency Master Portal →

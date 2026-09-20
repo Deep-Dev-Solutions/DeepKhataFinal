@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { User } from "lucide-react";
 import { API_BASE_URL } from "@/lib/auth";
+import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 
 export default function ProfileTab({
   user,
@@ -11,6 +12,7 @@ export default function ProfileTab({
   user: any;
   onProfileUpdate?: (updates: any) => void;
 }) {
+  const readOnly = useIsReadOnly();
   const [name, setName] = useState(user?.name || "");
   const [phone, setPhone] = useState(user?.phone || "");
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || "");
@@ -34,6 +36,7 @@ export default function ProfileTab({
   };
 
   const handleAutoSave = async (field: string, value: string) => {
+    if (readOnly) return;
     const normalizedValue = value.trim();
     if (!normalizedValue) return;
     if (field === "name" && normalizedValue === user?.name) return;
@@ -76,6 +79,7 @@ export default function ProfileTab({
   };
 
   const handleAvatarUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    if (readOnly) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -190,7 +194,17 @@ export default function ProfileTab({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-20 h-20 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-2xl font-bold shadow-sm overflow-hidden"
+              disabled={readOnly}
+              title={
+                readOnly
+                  ? "Subscription expired. System is in read-only mode."
+                  : undefined
+              }
+              className={`w-20 h-20 rounded-full to-indigo-600 text-white flex items-center justify-center text-2xl font-bold shadow-sm overflow-hidden transition-all disabled:opacity-60 ${
+                readOnly
+                  ? "bg-slate-300 cursor-not-allowed"
+                  : "bg-gradient-to-tr from-blue-600 cursor-pointer"
+              }`}
             >
               {avatarUrl ? (
                 <img
@@ -208,7 +222,8 @@ export default function ProfileTab({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="text-xs font-medium text-blue-600 hover:underline"
+              disabled={readOnly}
+              className="text-xs font-medium text-blue-600 hover:underline disabled:cursor-not-allowed disabled:text-slate-400"
             >
               Change Avatar
             </button>
@@ -302,8 +317,17 @@ export default function ProfileTab({
             <button
               type="button"
               onClick={handlePasswordUpdate}
-              disabled={isSaving}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
+              disabled={isSaving || readOnly}
+              title={
+                readOnly
+                  ? "Subscription expired. System is in read-only mode."
+                  : undefined
+              }
+              className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition disabled:cursor-not-allowed ${
+                readOnly
+                  ? "bg-slate-400"
+                  : "bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400"
+              }`}
             >
               {isSaving ? "Updating..." : "Update Password"}
             </button>

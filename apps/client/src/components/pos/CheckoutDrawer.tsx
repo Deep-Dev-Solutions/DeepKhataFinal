@@ -11,8 +11,10 @@ import {
   Wallet,
   AlertCircle,
   CheckCircle2,
+  Lock,
 } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
+import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 
 type CheckoutDrawerProps = {
   isOpen: boolean;
@@ -90,6 +92,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
     disabledReason,
   } = props;
   const { toast } = useToast();
+  const readOnly = useIsReadOnly();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -265,10 +268,25 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                     </div>
                     <button
                       onClick={onOpenNewCustomer}
-                      className="px-4 h-10 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors shrink-0 shadow-xs cursor-pointer"
-                      title="Create new customer"
+                      disabled={readOnly}
+                      title={
+                        readOnly
+                          ? "Subscription expired. System is in read-only mode."
+                          : "Create new customer"
+                      }
+                      className={`px-4 h-10 rounded-xl text-white text-xs font-bold transition-colors shrink-0 shadow-xs ${
+                        readOnly
+                          ? "bg-slate-400 cursor-not-allowed"
+                          : "bg-blue-600 hover:bg-blue-700 cursor-pointer"
+                      }`}
                     >
-                      + New
+                      {readOnly ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Lock className="w-3.5 h-3.5" /> Read-only
+                        </span>
+                      ) : (
+                        `+ New`
+                      )}
                     </button>
                   </div>
                   {isSearchingCustomer && (
@@ -502,15 +520,29 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
 
           <button
             onClick={() => handleComplete("FINAL")}
-            disabled={isSubmitDisabled}
-            className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-base transition-all shadow-md shadow-slate-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2 cursor-pointer"
+            disabled={isSubmitDisabled || readOnly}
+            title={
+              readOnly
+                ? "Subscription expired. System is in read-only mode."
+                : undefined
+            }
+            className={`w-full py-3 text-white rounded-xl font-bold text-base transition-all shadow-md shadow-slate-200 disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2 ${
+              readOnly
+                ? "cursor-not-allowed bg-slate-400"
+                : "bg-slate-900 hover:bg-slate-800 cursor-pointer disabled:cursor-not-allowed"
+            }`}
           >
+            {readOnly && <Lock className="w-5 h-5" />}
             {isSubmitting
               ? "Processing..."
-              : !isOnline
-                ? `Queue Order Offline`
-                : "Complete Order"}
-            {!isSubmitting && <CheckCircle2 className="w-5 h-5" />}
+              : readOnly
+                ? "Read-only — Subscription expired"
+                : !isOnline
+                  ? `Queue Order Offline`
+                  : "Complete Order"}
+            {!isSubmitting && !readOnly && (
+              <CheckCircle2 className="w-5 h-5" />
+            )}
           </button>
         </div>
       </div>

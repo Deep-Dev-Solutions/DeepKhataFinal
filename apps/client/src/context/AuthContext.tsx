@@ -10,6 +10,7 @@ import React, {
 } from "react";
 import {
   API_BASE_URL,
+  AGENCY_APP_URL,
   getAuthToken,
   setAuthToken,
   clearAuthToken,
@@ -56,6 +57,8 @@ interface AuthContextType {
   isLoading: boolean;
   // Subscription / billing state for the tenant's business
   businessSubscription: BusinessSubscription | null;
+  // True when the tenant business is read-only (READ_ONLY / SUSPENDED / expired)
+  isReadOnly: boolean;
   // Branch context
   branches: Branch[];
   activeBranchId: string | null;
@@ -287,7 +290,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Force hard redirect to appropriate login
       window.location.href =
-        customRedirect || (isSuperAdmin ? "/agency-admin/login" : "/login");
+        customRedirect || (isSuperAdmin ? `${AGENCY_APP_URL}/login` : "/login");
     },
     [token, user],
   );
@@ -305,6 +308,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [token, user],
   );
 
+  const isReadOnly = useMemo(() => {
+    if (!businessSubscription) return false;
+    const status = (businessSubscription.status || "").toUpperCase();
+    if (status === "READ_ONLY" || status === "SUSPENDED") return true;
+    if (businessSubscription.subscriptionExpiresAt) {
+      const exp = new Date(businessSubscription.subscriptionExpiresAt);
+      if (!Number.isNaN(exp.getTime()) && exp.getTime() < Date.now()) {
+        return true;
+      }
+    }
+    return false;
+  }, [businessSubscription]);
+
   const contextValue = useMemo<AuthContextType>(
     () => ({
       user,
@@ -313,6 +329,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated,
       isLoading,
       businessSubscription,
+      isReadOnly,
       branches,
       activeBranchId,
       setActiveBranch,
@@ -327,6 +344,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated,
       isLoading,
       businessSubscription,
+      isReadOnly,
       branches,
       activeBranchId,
       setActiveBranch,

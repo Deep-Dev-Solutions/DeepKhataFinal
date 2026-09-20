@@ -8,6 +8,7 @@ import {
   UploadCloud,
   AlertCircle,
 } from "lucide-react";
+import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 import { API_BASE_URL } from "@/lib/auth";
 
 export default function ProfileTab({ user }: { user: any }) {
@@ -20,9 +21,11 @@ export default function ProfileTab({ user }: { user: any }) {
   >("idle");
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const readOnly = useIsReadOnly();
 
   // 🟢 AUTO-SAVE TEXT FIELDS (Runs onBlur)
   const handleAutoSave = async (field: string, value: string) => {
+    if (readOnly) return;
     if (value === user[field]) return; // Don't save if nothing changed
     setSaveStatus("saving");
 

@@ -16,8 +16,16 @@ async function bootstrap() {
     }),
   );
 
+  const corsOrigins = (
+    process.env.CORS_ORIGIN ||
+    'http://localhost:3000,http://localhost:3001'
+  )
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
   app.enableCors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin: corsOrigins,
     credentials: true,
   });
 

@@ -1,6 +1,9 @@
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
+export const AGENCY_APP_URL =
+  process.env.NEXT_PUBLIC_AGENCY_URL || "http://localhost:3001";
+
 export function getCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
   const match = document.cookie.match(

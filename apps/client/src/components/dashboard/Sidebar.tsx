@@ -23,6 +23,7 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
+import { AGENCY_APP_URL } from "@/lib/auth";
 import { useSidebar } from "@/context/SidebarContext";
 import { useAuth } from "@/context/AuthContext";
 
@@ -287,7 +288,7 @@ export default function Sidebar() {
               </Link>
               {user?.role === "SUPER_ADMIN" && (
                 <Link
-                  href="/agency-admin"
+                  href={AGENCY_APP_URL}
                   className="font-semibold text-indigo-600 hover:text-indigo-800"
                 >
                   Agency Portal →

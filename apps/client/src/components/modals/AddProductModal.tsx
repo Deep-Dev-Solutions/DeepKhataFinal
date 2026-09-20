@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Barcode, Layers, Archive, Tag, Check, MapPin } from "lucide-react";
+import { X, Barcode, Layers, Archive, Tag, Check, MapPin, Lock } from "lucide-react";
 import { API_BASE_URL } from "@/lib/auth";
+import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 
 export type ItemConditionType =
   | "ORIGINAL_PULL"
@@ -82,6 +83,7 @@ export default function AddProductModal({
   onAdd,
   categories,
 }: AddProductModalProps) {
+  const readOnly = useIsReadOnly();
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
   const [category, setCategory] = useState("");
@@ -447,12 +449,27 @@ export default function AddProductModal({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="px-6 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-all shadow-md shadow-blue-200 disabled:opacity-50 flex items-center gap-2"
+              disabled={isSubmitting || readOnly}
+              title={
+                readOnly
+                  ? "Subscription expired. System is in read-only mode."
+                  : undefined
+              }
+              className={`px-6 py-2.5 text-white text-sm font-bold rounded-xl transition-all shadow-md shadow-blue-200 disabled:opacity-50 flex items-center gap-2 ${
+                readOnly
+                  ? "bg-slate-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700 cursor-pointer"
+              }`}
             >
-              {isSubmitting
-                ? "Creating Instances..."
-                : "Save Product & Location"}
+              {isSubmitting ? (
+                "Creating Instances..."
+              ) : readOnly ? (
+                <>
+                  <Lock className="w-4 h-4" /> Read-only
+                </>
+              ) : (
+                "Save Product & Location"
+              )}
             </button>
           </div>
         </form>

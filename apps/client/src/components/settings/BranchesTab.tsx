@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL } from "@/lib/auth";
+import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 import {
   GitBranch,
   MapPin,
@@ -31,6 +32,7 @@ import {
 export default function BranchesTab() {
   const { role, branches: authBranches, token, refreshUser } = useAuth();
   const { toast } = useToast();
+  const readOnly = useIsReadOnly();
 
   const [branches, setBranches] = useState<any[]>(
     Array.isArray(authBranches) ? authBranches : [],
@@ -303,10 +305,20 @@ export default function BranchesTab() {
           ) : (
             <button
               onClick={openAddDialog}
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 cursor-pointer"
+              disabled={readOnly}
+              title={
+                readOnly
+                  ? "Subscription expired. System is in read-only mode."
+                  : undefined
+              }
+              className={`inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 ${
+                readOnly
+                  ? "bg-slate-300 text-white cursor-not-allowed"
+                  : "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer"
+              }`}
             >
               <Plus className="w-4 h-4" />
-              Add Branch
+              {readOnly ? "Read-only" : "Add Branch"}
             </button>
           )}
         </div>
@@ -370,8 +382,17 @@ export default function BranchesTab() {
                       </div>
                       <button
                         onClick={() => openEditDialog(b)}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors cursor-pointer shrink-0"
-                        title="Edit Branch"
+                        disabled={readOnly}
+                        title={
+                          readOnly
+                            ? "Subscription expired. System is in read-only mode."
+                            : "Edit Branch"
+                        }
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
+                          readOnly
+                            ? "text-slate-400 bg-slate-100 border border-slate-200"
+                            : "text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 cursor-pointer"
+                        }`}
                       >
                         <Pencil className="w-3.5 h-3.5" />
                         Edit
@@ -549,11 +570,20 @@ export default function BranchesTab() {
               </button>
               <button
                 type="submit"
-                disabled={isAdding || !addFormData.name.trim()}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                disabled={isAdding || !addFormData.name.trim() || readOnly}
+                title={
+                  readOnly
+                    ? "Subscription expired. System is in read-only mode."
+                    : undefined
+                }
+                className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl transition-colors shadow-sm disabled:opacity-50 ${
+                  readOnly
+                    ? "bg-slate-400 text-white cursor-not-allowed"
+                    : "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer"
+                }`}
               >
                 {isAdding && <Loader2 className="w-4 h-4 animate-spin" />}
-                {isAdding ? "Adding..." : "Add Branch"}
+                {isAdding ? "Adding..." : readOnly ? "Read-only" : "Add Branch"}
               </button>
             </DialogFooter>
           </form>
@@ -703,11 +733,20 @@ export default function BranchesTab() {
               </button>
               <button
                 type="submit"
-                disabled={isSaving || !editFormData.name.trim()}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                disabled={isSaving || !editFormData.name.trim() || readOnly}
+                title={
+                  readOnly
+                    ? "Subscription expired. System is in read-only mode."
+                    : undefined
+                }
+                className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl transition-colors shadow-sm disabled:opacity-50 ${
+                  readOnly
+                    ? "bg-slate-400 text-white cursor-not-allowed"
+                    : "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer"
+                }`}
               >
                 {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
-                {isSaving ? "Saving..." : "Save Changes"}
+                {isSaving ? "Saving..." : readOnly ? "Read-only" : "Save Changes"}
               </button>
             </DialogFooter>
           </form>

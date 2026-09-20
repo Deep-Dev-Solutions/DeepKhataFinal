@@ -55,36 +55,12 @@ export function middleware(request: NextRequest) {
   const hasValidToken = !!payload;
   const role = payload?.role;
 
-  // 2. Agency login page handling
-  if (pathname === "/agency-admin/login") {
-    if (hasValidToken && role === "SUPER_ADMIN") {
-      return NextResponse.redirect(new URL("/agency-admin", request.url));
-    }
-    if (hasValidToken && role !== "SUPER_ADMIN") {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
-    }
-    return NextResponse.next();
-  }
-
-  // 3. Merchant login page: redirect already authenticated users to /dashboard
+  // 1. Merchant login page: redirect already authenticated users to /dashboard
   if (hasValidToken && pathname === "/login") {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  // 4. Agency protected routes
-  const isAgencyRoute =
-    pathname === "/agency-admin" || pathname.startsWith("/agency-admin/");
-  if (isAgencyRoute) {
-    if (!hasValidToken) {
-      return NextResponse.redirect(new URL("/agency-admin/login", request.url));
-    }
-    if (role !== "SUPER_ADMIN") {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
-    }
-    return NextResponse.next();
-  }
-
-  // 5. Merchant shop protected routes (Accessible to ALL authenticated roles, including SUPER_ADMIN)
+  // 2. Merchant shop protected routes (Accessible to ALL authenticated roles, including SUPER_ADMIN)
   const isProtected = PROTECTED_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
@@ -97,7 +73,7 @@ export function middleware(request: NextRequest) {
       }
       return NextResponse.redirect(loginUrl);
     }
-    // 5a. Block STAFF from reports and settings routes
+    // 2a. Block STAFF from reports and settings routes
     if (role === "STAFF") {
       const isStaffRestricted =
         pathname === "/reports" ||
@@ -129,6 +105,5 @@ export const config = {
     "/reports/:path*",
     "/settings/:path*",
     "/vendors/:path*",
-    "/agency-admin/:path*",
   ],
 };

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { UploadCloud, AlertCircle, Loader2, CheckCircle2 } from "lucide-react";
 import { API_BASE_URL } from "@/lib/auth";
+import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 
 export default function GeneralTab({
   business,
@@ -24,6 +25,7 @@ export default function GeneralTab({
     "idle" | "saving" | "saved" | "error"
   >("idle");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const readOnly = useIsReadOnly();
 
   useEffect(() => {
     setName(business?.name || "");
@@ -35,6 +37,7 @@ export default function GeneralTab({
   }, [business]);
 
   const handleAutoSave = async (field: string, value: string) => {
+    if (readOnly) return;
     if (value === business?.[field]) return;
     setSaveStatus("saving");
 

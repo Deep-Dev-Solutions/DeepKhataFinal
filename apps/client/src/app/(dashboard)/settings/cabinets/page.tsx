@@ -13,10 +13,12 @@ import {
   X,
   Loader2,
   GitBranch,
+  Lock,
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
 import { useAuth, type Branch } from "@/context/AuthContext";
+import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 
 type CabinetRow = {
   id: string;
@@ -31,6 +33,7 @@ type CabinetRow = {
 
 export default function CabinetsSettingsPage() {
   const { activeBranchId, branches: authBranches } = useAuth();
+  const readOnly = useIsReadOnly();
   const [branches, setBranches] = useState<Branch[]>(
     Array.isArray(authBranches) ? authBranches : [],
   );
@@ -386,10 +389,23 @@ export default function CabinetsSettingsPage() {
           <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
             <button
               type="submit"
-              disabled={isSaving}
-              className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-md shadow-indigo-200 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+              disabled={isSaving || readOnly}
+              title={
+                readOnly
+                  ? "Subscription expired. System is in read-only mode."
+                  : undefined
+              }
+              className={`px-5 py-2.5 text-white text-sm font-bold rounded-xl transition-all shadow-md shadow-indigo-200 disabled:opacity-50 flex items-center gap-2 ${
+                readOnly
+                  ? "bg-slate-400 cursor-not-allowed"
+                  : "bg-indigo-600 hover:bg-indigo-700 cursor-pointer"
+              }`}
             >
-              {isSaving ? "Creating..." : "Create Cabinet"}
+              {isSaving
+                ? "Creating..."
+                : readOnly
+                  ? "Read-only"
+                  : "Create Cabinet"}
             </button>
           </div>
         </form>
@@ -469,9 +485,17 @@ export default function CabinetsSettingsPage() {
                     <div className="flex items-center justify-end gap-2 mt-2">
                       <button
                         onClick={() => void handleUpdateCabinet(cab.id)}
-                        disabled={isSavingEdit}
-                        className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 cursor-pointer"
-                        title="Save"
+                        disabled={isSavingEdit || readOnly}
+                        title={
+                          readOnly
+                            ? "Subscription expired. System is in read-only mode."
+                            : "Save"
+                        }
+                        className={`p-2 rounded-lg disabled:opacity-50 ${
+                          readOnly
+                            ? "bg-slate-300 text-white cursor-not-allowed"
+                            : "bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"
+                        }`}
                       >
                         {isSavingEdit ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -519,8 +543,17 @@ export default function CabinetsSettingsPage() {
                       </span>
                       <button
                         onClick={() => startEdit(cab)}
-                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
-                        title="Edit cabinet"
+                        disabled={readOnly}
+                        title={
+                          readOnly
+                            ? "Subscription expired. System is in read-only mode."
+                            : "Edit cabinet"
+                        }
+                        className={`p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                          readOnly
+                            ? "text-slate-300"
+                            : "text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 cursor-pointer"
+                        }`}
                       >
                         <Pencil className="w-4 h-4" />
                       </button>

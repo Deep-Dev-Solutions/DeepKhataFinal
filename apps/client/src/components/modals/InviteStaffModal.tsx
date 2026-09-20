@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { X, Mail, Shield, Send } from "lucide-react";
 import { API_BASE_URL } from "@/lib/auth";
+import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 
 interface InviteStaffModalProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export default function InviteStaffModal({
   businessId,
 }: InviteStaffModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const readOnly = useIsReadOnly();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("STAFF");
   const [error, setError] = useState<string | null>(null);
@@ -202,11 +204,20 @@ export default function InviteStaffModal({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-70"
+              disabled={isSubmitting || readOnly}
+              title={
+                readOnly
+                  ? "Subscription expired. System is in read-only mode."
+                  : undefined
+              }
+              className={`flex items-center gap-2 px-5 py-2 text-white text-sm font-bold rounded-lg transition-colors shadow-sm disabled:opacity-70 ${
+                readOnly
+                  ? "bg-slate-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700 cursor-pointer"
+              }`}
             >
-              {isSubmitting ? "Sending..." : "Send Invite"}
-              {!isSubmitting && <Send className="w-4 h-4" />}
+              {isSubmitting ? "Sending..." : readOnly ? "Read-only" : "Send Invite"}
+              {!isSubmitting && !readOnly && <Send className="w-4 h-4" />}
             </button>
           </div>
         </form>

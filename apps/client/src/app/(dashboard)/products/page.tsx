@@ -18,9 +18,11 @@ import {
   X,
   MapPin,
   Eye,
+  Lock,
 } from "lucide-react";
 import Link from "next/link";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 import AddProductModal from "@/components/modals/AddProductModal";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
 
@@ -94,6 +96,7 @@ function ProductsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { hasPermission } = usePermissions();
+  const readOnly = useIsReadOnly();
 
   const [searchQuery, setSearchQuery] = useState(
     searchParams.get("search") || "",
@@ -334,12 +337,21 @@ function ProductsPageContent() {
 
         {hasPermission("write:products") && (
           <div className="flex items-center gap-2">
-            <Link
-              href="/products/new"
-              className="flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200"
-            >
-              <Plus className="w-4 h-4" /> Add Product
-            </Link>
+            {readOnly ? (
+              <span
+                title="Subscription expired. System is in read-only mode."
+                className="inline-flex items-center justify-center gap-2 bg-slate-400 text-white px-5 py-2.5 rounded-xl text-sm font-bold cursor-not-allowed"
+              >
+                <Lock className="w-4 h-4" /> Read-only
+              </span>
+            ) : (
+              <Link
+                href="/products/new"
+                className="flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200"
+              >
+                <Plus className="w-4 h-4" /> Add Product
+              </Link>
+            )}
           </div>
         )}
       </div>
@@ -401,9 +413,19 @@ function ProductsPageContent() {
           {hasPermission("write:products") && (
             <button
               onClick={() => setIsCategoryModalOpen(true)}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium text-blue-600 hover:bg-blue-50 border border-dashed border-blue-200 whitespace-nowrap transition-colors flex items-center gap-1 ml-auto"
+              disabled={readOnly}
+              title={
+                readOnly
+                  ? "Subscription expired. System is in read-only mode."
+                  : undefined
+              }
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border whitespace-nowrap transition-colors flex items-center gap-1 ml-auto ${
+                readOnly
+                  ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                  : "text-blue-600 hover:bg-blue-50 border-dashed border-blue-200 cursor-pointer"
+              }`}
             >
-              <Plus className="w-3.5 h-3.5" /> New Category
+              <Plus className="w-3.5 h-3.5" /> {readOnly ? "Read-only" : "New Category"}
             </button>
           )}
         </div>
@@ -600,9 +622,17 @@ function ProductsPageContent() {
                             onClick={() =>
                               void handleMoveStock(product.id, product.name)
                             }
-                            disabled={movingId === product.id}
-                            className="p-2 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-colors disabled:opacity-50"
-                            title="Move stock from deleted branch to the active branch"
+                            disabled={movingId === product.id || readOnly}
+                            title={
+                              readOnly
+                                ? "Subscription expired. System is in read-only mode."
+                                : "Move stock from deleted branch to the active branch"
+                            }
+                            className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
+                              readOnly
+                                ? "text-slate-300 bg-slate-50 cursor-not-allowed"
+                                : "text-amber-600 hover:text-amber-800 hover:bg-amber-50"
+                            }`}
                           >
                             {movingId === product.id ? (
                               <Loader2 className="w-4.5 h-4.5 animate-spin" />
@@ -695,7 +725,17 @@ function ProductsPageContent() {
                 onClick={() => {
                   void handleAddCategory();
                 }}
-                className="px-4 py-2 text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 rounded-lg"
+                disabled={readOnly}
+                title={
+                  readOnly
+                    ? "Subscription expired. System is in read-only mode."
+                    : undefined
+                }
+                className={`px-4 py-2 text-sm font-bold rounded-lg ${
+                  readOnly
+                    ? "bg-slate-400 text-white cursor-not-allowed"
+                    : "bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
+                }`}
               >
                 Save Category
               </button>

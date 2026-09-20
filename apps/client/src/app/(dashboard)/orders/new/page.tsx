@@ -36,6 +36,7 @@ import { usePOS } from "@/context/POSContext";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL } from "@/lib/auth";
 import { useToast } from "@/context/ToastContext";
+import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 
 type Product = {
   id: string;
@@ -1047,6 +1048,7 @@ function CreateOrderPOSContent() {
   };
 
   const disabledReason = getDisabledReason();
+  const readOnly = useIsReadOnly();
 
   return (
     <div className="flex flex-col h-[calc(100vh-125px)] min-h-0 overflow-hidden font-sans">
@@ -1768,11 +1770,22 @@ function CreateOrderPOSContent() {
 
               <button
                 onClick={() => setIsCheckoutOpen(true)}
-                disabled={cart.length === 0}
-                className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-base transition-all shadow-lg shadow-blue-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2 cursor-pointer"
+                disabled={cart.length === 0 || readOnly}
+                title={
+                  readOnly
+                    ? "Subscription expired. System is in read-only mode."
+                    : undefined
+                }
+                className={`w-full py-3.5 text-white rounded-xl font-bold text-base transition-all shadow-lg shadow-blue-200 disabled:opacity-40 disabled:shadow-none flex items-center justify-center gap-2 ${
+                  readOnly
+                    ? "cursor-not-allowed bg-slate-400"
+                    : "bg-blue-600 hover:bg-blue-700 cursor-pointer disabled:cursor-not-allowed"
+                }`}
               >
-                Proceed to Checkout
-                <ChevronRight className="w-5 h-5" />
+                {readOnly
+                  ? "Read-only — Subscription expired"
+                  : "Proceed to Checkout"}
+                {!readOnly && <ChevronRight className="w-5 h-5" />}
               </button>
 
               {cart.length === 0 && (

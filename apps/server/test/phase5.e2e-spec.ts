@@ -129,14 +129,14 @@ describe('Phase 5 — Agency Billing Engine & Tenant Kill Switch (e2e)', () => {
     );
   });
 
-  it('blocks login entirely for a SUSPENDED tenant with 403', async () => {
+  it('blocks login entirely for a SUSPENDED tenant with 401', async () => {
     const tenant = await createTenant({
       tag: 'suspended',
       status: BusinessStatus.SUSPENDED,
     });
 
     const res = await login(tenant.email, tenant.password);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     expect(res.body.message).toBe(
       'Account suspended. Contact DeepKhata administration.',
     );

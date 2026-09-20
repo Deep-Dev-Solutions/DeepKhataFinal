@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import { useAuth } from "@/context/AuthContext";
+import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 
 type Branch = {
   id: string;
@@ -68,6 +69,7 @@ const CONDITIONS = [
 
 export default function RestockPage() {
   const { user, activeBranchId } = useAuth();
+  const readOnly = useIsReadOnly();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [activeCategory, setActiveCategory] = useState("All");
@@ -645,12 +647,23 @@ export default function RestockPage() {
             </div>
             <button
               onClick={handleConfirmRestock}
-              disabled={batch.length === 0 || isSubmitting}
-              className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-base hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              disabled={batch.length === 0 || isSubmitting || readOnly}
+              title={
+                readOnly
+                  ? "Subscription expired. System is in read-only mode."
+                  : undefined
+              }
+              className={`w-full py-4 rounded-xl font-bold text-base transition-all shadow-lg shadow-slate-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                readOnly
+                  ? "bg-slate-400 cursor-not-allowed"
+                  : "bg-slate-900 hover:bg-slate-800 cursor-pointer"
+              }`}
             >
               {isSubmitting
                 ? "Processing Batch..."
-                : `Confirm Restock (${totalUnits} units)`}
+                : readOnly
+                  ? "Read-only — Subscription expired"
+                  : `Confirm Restock (${totalUnits} units)`}
             </button>
           </div>
         </div>

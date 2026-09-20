@@ -16,9 +16,11 @@ import {
   Layers,
   Settings2,
   Loader2,
+  Lock,
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import { useAuth, type Branch } from "@/context/AuthContext";
+import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 
 type ItemConditionType =
   | "ORIGINAL_PULL"
@@ -109,6 +111,7 @@ const CONDITION_OPTIONS: {
 export default function AddProductPage() {
   const router = useRouter();
   const { activeBranchId, branches: authBranches } = useAuth();
+  const readOnly = useIsReadOnly();
 
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
@@ -633,11 +636,24 @@ export default function AddProductPage() {
           </Link>
           <button
             type="submit"
-            disabled={isSubmitting}
-            className="px-6 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-all shadow-md shadow-blue-200 disabled:opacity-70 flex items-center gap-2 cursor-pointer"
+            disabled={isSubmitting || readOnly}
+            title={
+              readOnly
+                ? "Subscription expired. System is in read-only mode."
+                : undefined
+            }
+            className={`px-6 py-2.5 text-white text-sm font-bold rounded-xl transition-all shadow-md shadow-blue-200 disabled:opacity-70 flex items-center gap-2 ${
+              readOnly
+                ? "bg-slate-400 cursor-not-allowed"
+                : "bg-blue-600 hover:bg-blue-700 cursor-pointer"
+            }`}
           >
             {isSubmitting ? (
               <Loader2 className="w-4 h-4 animate-spin" />
+            ) : readOnly ? (
+              <>
+                <Lock className="w-4 h-4" /> Read-only
+              </>
             ) : (
               "Save Product & Location"
             )}

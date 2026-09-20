@@ -1,7 +1,8 @@
 "use client";
 
-import { Loader2, AlertTriangle } from "lucide-react";
+import { Loader2, AlertTriangle, Lock } from "lucide-react";
 import type { ReactNode } from "react";
+import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 
 type ConfirmDialogProps = {
   open: boolean;
@@ -11,6 +12,7 @@ type ConfirmDialogProps = {
   cancelLabel?: string;
   destructive?: boolean;
   loading?: boolean;
+  readOnly?: boolean;
   onConfirm?: () => void | Promise<void>;
   onCancel: () => void;
 };
@@ -23,9 +25,12 @@ export default function ConfirmDialog({
   cancelLabel = "Cancel",
   destructive = true,
   loading = false,
+  readOnly,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const readOnlyState = useIsReadOnly();
+  const activeReadOnly = readOnly ?? readOnlyState;
   if (!open) return null;
 
   return (
@@ -70,15 +75,28 @@ export default function ConfirmDialog({
             <button
               type="button"
               onClick={() => void onConfirm()}
-              disabled={loading}
-              className={`px-5 py-2 text-sm font-bold text-white rounded-xl shadow-sm transition-all disabled:opacity-50 flex items-center gap-2 cursor-pointer ${
-                destructive
-                  ? "bg-rose-600 hover:bg-rose-700"
-                  : "bg-blue-600 hover:bg-blue-700"
+              disabled={loading || activeReadOnly}
+              title={
+                activeReadOnly
+                  ? "Subscription expired. System is in read-only mode."
+                  : undefined
+              }
+              className={`px-5 py-2 text-sm font-bold text-white rounded-xl shadow-sm transition-all disabled:opacity-50 flex items-center gap-2 ${
+                activeReadOnly
+                  ? "cursor-not-allowed bg-slate-400 hover:bg-slate-400"
+                  : "cursor-pointer " +
+                    (destructive
+                      ? "bg-rose-600 hover:bg-rose-700"
+                      : "bg-blue-600 hover:bg-blue-700")
               }`}
             >
+              {activeReadOnly && <Lock className="w-4 h-4" />}
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-              {loading ? "Please wait..." : confirmLabel}
+              {loading
+                ? "Please wait..."
+                : activeReadOnly
+                  ? "Read-only"
+                  : confirmLabel}
             </button>
           )}
         </div>

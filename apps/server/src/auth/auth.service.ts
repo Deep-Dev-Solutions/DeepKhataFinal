@@ -229,7 +229,7 @@ export class AuthService {
 
     // Kill switch: suspended businesses cannot sign in at all.
     if (existinguser.business?.status === 'SUSPENDED') {
-      throw new ForbiddenException(
+      throw new UnauthorizedException(
         'Account suspended. Contact DeepKhata administration.',
       );
     }

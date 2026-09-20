@@ -1,7 +1,8 @@
 "use client";
 
-import { X, AlertTriangle, Info } from "lucide-react";
+import { X, AlertTriangle, Info, Lock } from "lucide-react";
 import type { ReactNode } from "react";
+import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 
 type AlertDialogProps = {
   isOpen: boolean;
@@ -12,6 +13,7 @@ type AlertDialogProps = {
   confirmLabel?: string;
   destructive?: boolean;
   confirming?: boolean;
+  readOnly?: boolean;
   onConfirm?: () => void | Promise<void>;
   onClose: () => void;
 };
@@ -25,9 +27,12 @@ export default function AlertDialog({
   confirmLabel = "Confirm",
   destructive = true,
   confirming = false,
+  readOnly,
   onConfirm,
   onClose,
 }: AlertDialogProps) {
+  const readOnlyState = useIsReadOnly();
+  const activeReadOnly = readOnly ?? readOnlyState;
   if (!isOpen) return null;
 
   const isMessageOnly = !onConfirm;
@@ -90,16 +95,27 @@ export default function AlertDialog({
               <button
                 type="button"
                 onClick={() => void onConfirm()}
-                disabled={confirming}
+                disabled={confirming || activeReadOnly}
+                title={
+                  activeReadOnly
+                    ? "Subscription expired. System is in read-only mode."
+                    : undefined
+                }
                 className={`px-5 py-2 text-sm font-bold text-white rounded-xl shadow-sm transition-all disabled:opacity-50 flex items-center gap-2 ${
-                  destructive
-                    ? "bg-rose-600 hover:bg-rose-700"
-                    : "bg-blue-600 hover:bg-blue-700"
+                  activeReadOnly
+                    ? "cursor-not-allowed bg-slate-400 hover:bg-slate-400"
+                    : "cursor-pointer " +
+                      (destructive
+                        ? "bg-rose-600 hover:bg-rose-700"
+                        : "bg-blue-600 hover:bg-blue-700")
                 }`}
               >
+                {activeReadOnly && <Lock className="w-4 h-4" />}
                 {confirming
                   ? "Please wait..."
-                  : confirmLabel}
+                  : activeReadOnly
+                    ? "Read-only"
+                    : confirmLabel}
               </button>
             </>
           )}

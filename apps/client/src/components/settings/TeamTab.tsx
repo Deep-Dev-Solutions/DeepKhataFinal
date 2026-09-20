@@ -10,6 +10,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 import InviteStaffModal from "@/components/modals/InviteStaffModal";
 import AlertDialog from "@/components/ui/alert-dialog";
 
@@ -42,6 +43,7 @@ export default function TeamTab() {
   const [cancelInviteEmail, setCancelInviteEmail] = useState<string | null>(
     null,
   );
+  const readOnly = useIsReadOnly();
 
   const loadTeamData = async () => {
     setLoading(true);
@@ -120,6 +122,7 @@ export default function TeamTab() {
   }
 
   const handleResendInvite = async (email: string) => {
+    if (readOnly) return;
     setError(null);
     setProcessing({ email, action: "resend" });
     try {
@@ -141,6 +144,7 @@ export default function TeamTab() {
   };
 
   const handleCancelInvite = async (email: string) => {
+    if (readOnly) return;
     setError(null);
     setProcessing({ email, action: "cancel" });
     try {
@@ -178,9 +182,19 @@ export default function TeamTab() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsInviteOpen(true)}
-            className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200"
+            disabled={readOnly}
+            title={
+              readOnly
+                ? "Subscription expired. System is in read-only mode."
+                : undefined
+            }
+            className={`flex items-center justify-center gap-2 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow-sm shadow-blue-200 disabled:opacity-60 ${
+              readOnly
+                ? "bg-slate-400 cursor-not-allowed"
+                : "bg-blue-600 hover:bg-blue-700 cursor-pointer"
+            }`}
           >
-            <UserPlus className="w-4 h-4" /> Invite Staff
+            <UserPlus className="w-4 h-4" /> {readOnly ? "Read-only" : "Invite Staff"}
           </button>
         </div>
       </div>
