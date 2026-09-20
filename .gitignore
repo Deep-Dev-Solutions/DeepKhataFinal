@@ -1,1 +1,19 @@
+# Documentation / scratch (kept out of the repo)
 others/*
+
+# --- npm workspaces (monorepo) ---
+**/node_modules/
+
+# --- environment files (never commit secrets) ---
+**/.env
+**/.env.*
+!**/.env.example
+
+# --- build output ---
+**/dist/
+**/.next/
+**/out/
+**/*.tsbuildinfo
+**/sw.js
+
+tsconfig.build.tsbuildinfo
