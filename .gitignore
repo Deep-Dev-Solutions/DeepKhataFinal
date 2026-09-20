@@ -15,3 +15,5 @@ others/*
 **/out/
 **/*.tsbuildinfo
 **/sw.js
+
+tsconfig.build.tsbuildinfo
