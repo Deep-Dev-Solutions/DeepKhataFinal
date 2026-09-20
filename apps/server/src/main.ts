@@ -16,16 +16,20 @@ async function bootstrap() {
     }),
   );
 
-  const corsOrigins = (
-    process.env.CORS_ORIGIN ||
-    'http://localhost:3000,http://localhost:3001'
-  )
-    .split(',')
-    .map((o) => o.trim())
-    .filter(Boolean);
+  const explicitOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+  ];
+  const envOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean)
+    : [];
+
+  const allowedOrigins = Array.from(
+    new Set([...explicitOrigins, ...envOrigins]),
+  );
 
   app.enableCors({
-    origin: corsOrigins,
+    origin: allowedOrigins,
     credentials: true,
   });
 

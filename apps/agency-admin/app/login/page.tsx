@@ -12,7 +12,8 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { API_BASE_URL, CLIENT_APP_URL } from "@/lib/auth";
+import { api, ApiError } from "@/lib/api";
+import { CLIENT_APP_URL } from "@/lib/auth";
 
 export default function AgencyLoginPage() {
   const router = useRouter();
@@ -30,33 +31,23 @@ export default function AgencyLoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/agency-login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+      const result = await api.post<{
+        accessToken?: string;
+        user?: { id?: string; name?: string; email?: string; role?: string };
+      }>("/auth/agency-login", { email, password });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        const errorMsg = data?.message || "Agency authentication failed";
-        if (
-          res.status === 429 ||
-          errorMsg.toLowerCase().includes("lockout") ||
-          errorMsg.toLowerCase().includes("locked")
-        ) {
-          setIsLockedOut(true);
-        }
-        throw new Error(errorMsg);
-      }
-
-      if (data?.accessToken) {
-        setSession(data.accessToken, data.user);
+      if (result?.accessToken) {
+        setSession(result.accessToken, result.user);
       }
 
       router.push("/");
     } catch (err: any) {
-      setError(err.message || "Failed to authenticate with Agency Portal");
+      const status = err instanceof ApiError ? err.status : 0;
+      const errorMsg = err?.message || "Agency authentication failed";
+      if (status === 429 || /lockout|locked/i.test(errorMsg)) {
+        setIsLockedOut(true);
+      }
+      setError(errorMsg);
       setLoading(false);
     }
   }

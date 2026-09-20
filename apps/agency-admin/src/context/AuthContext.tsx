@@ -8,14 +8,16 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
+import { useRouter } from "next/navigation";
 import {
-  API_BASE_URL,
   getAuthToken,
   setAuthToken,
   clearAuthToken,
   decodeJwt,
   isTokenValid,
 } from "@/lib/auth";
+import { api } from "@/lib/api";
+import { useToast } from "@/context/ToastContext";
 
 export interface UserSession {
   id: string;
@@ -34,6 +36,14 @@ interface JwtPayload {
   exp?: number;
 }
 
+interface MeResponse {
+  id: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  businessId?: string | null;
+}
+
 interface AuthContextType {
   user: UserSession | null;
   token: string | null;
@@ -46,82 +56,85 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const UNAUTHORIZED_MESSAGE =
+  "Your account is not authorized to access the Agency Console.";
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const { showToast } = useToast();
+
   const [token, setTokenState] = useState<string | null>(null);
   const [user, setUser] = useState<UserSession | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // ── Hydrate session on mount ─────────────────────────────────────────────
-  useEffect(() => {
-    const activeToken = getAuthToken();
-
-    if (!activeToken || !isTokenValid(activeToken)) {
-      clearAuthToken();
-      setTokenState(null);
-      setUser(null);
-      setIsLoading(false);
-      return;
+  const goToLogin = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (window.location.pathname !== "/login") {
+      router.replace("/login");
     }
+  }, [router]);
 
-    setTokenState(activeToken);
-    const decoded = decodeJwt<JwtPayload>(activeToken);
-
-    let initialUser: UserSession | null = null;
-    if (decoded?.id) {
-      let cached: any = null;
-      try {
-        const raw = localStorage.getItem("user");
-        if (raw) cached = JSON.parse(raw);
-      } catch {}
-
-      initialUser = {
-        id: decoded.id,
-        name: decoded.name || cached?.name || "User",
-        email: decoded.email || cached?.email || "",
-        role: decoded.role || cached?.role || "",
-        businessId: decoded.businessId || cached?.businessId || null,
-      };
-      setUser(initialUser);
-    }
-
-    setIsLoading(false);
-
-    if (initialUser) {
-      refreshUser(activeToken);
-    }
+  const cancelSession = useCallback(() => {
+    clearAuthToken();
+    setTokenState(null);
+    setUser(null);
   }, []);
 
-  const refreshUser = useCallback(async (activeToken?: string) => {
-    const currentToken = activeToken || getAuthToken();
-    if (!currentToken || !isTokenValid(currentToken)) return;
+  const initAuth = useCallback(async () => {
+    let activeToken: string | null = null;
+
     try {
-      const res = await fetch(`${API_BASE_URL}/user/me`, {
-        headers: { Authorization: `Bearer ${currentToken}` },
-      });
-      if (res.status === 401) {
-        clearAuthToken();
-        setTokenState(null);
-        setUser(null);
+      activeToken = getAuthToken();
+
+      if (!activeToken || !isTokenValid(activeToken)) {
+        cancelSession();
+        goToLogin();
         return;
       }
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.id) {
-          const freshUser: UserSession = {
-            id: data.id,
-            name: data.name,
-            email: data.email,
-            role: data.role,
-            businessId: data.businessId,
-          };
-          setUser(freshUser);
-          localStorage.setItem("user", JSON.stringify(freshUser));
-        }
+
+      const decoded = decodeJwt<JwtPayload>(activeToken);
+      if (!decoded?.id || decoded.role !== "SUPER_ADMIN") {
+        cancelSession();
+        showToast(UNAUTHORIZED_MESSAGE, "error");
+        goToLogin();
+        return;
       }
-    } catch {
-      // Network errors are non-fatal for the agency console.
+
+      setTokenState(activeToken);
+
+      const data = await api.get<MeResponse>("/user/me");
+
+      if (!data?.id || data.role !== "SUPER_ADMIN") {
+        cancelSession();
+        showToast(UNAUTHORIZED_MESSAGE, "error");
+        goToLogin();
+        return;
+      }
+
+      const freshUser: UserSession = {
+        id: data.id,
+        name: data.name || decoded.name || "Super Admin",
+        email: data.email || decoded.email || "",
+        role: data.role,
+        businessId: data.businessId ?? null,
+      };
+
+      setUser(freshUser);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("user", JSON.stringify(freshUser));
+      }
+    } catch (err) {
+      console.error("Session verification failed:", err);
+      cancelSession();
+      goToLogin();
+    } finally {
+      setIsLoading(false);
     }
-  }, []);
+  }, [cancelSession, goToLogin, showToast]);
+
+  useEffect(() => {
+    initAuth();
+  }, [initAuth]);
 
   const setSession = useCallback(
     (newToken: string, userData?: Partial<UserSession>) => {
@@ -131,42 +144,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const decoded = decodeJwt<JwtPayload>(newToken);
       const combinedUser: UserSession = {
         id: userData?.id || decoded?.id || "",
-        name: userData?.name || decoded?.name || "User",
+        name: userData?.name || decoded?.name || "Super Admin",
         email: userData?.email || decoded?.email || "",
-        role: userData?.role || decoded?.role || "",
+        role: userData?.role || decoded?.role || "SUPER_ADMIN",
         businessId: userData?.businessId || decoded?.businessId || null,
       };
 
       setUser(combinedUser);
-      localStorage.setItem("user", JSON.stringify(combinedUser));
-      refreshUser(newToken);
+      setIsLoading(false);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("user", JSON.stringify(combinedUser));
+      }
     },
-    [refreshUser],
+    [],
   );
 
   const logout = useCallback(async () => {
     const activeToken = token || getAuthToken();
 
-    clearAuthToken();
-    setTokenState(null);
-    setUser(null);
-
     try {
       if (activeToken) {
-        await fetch(`${API_BASE_URL}/auth/logout`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${activeToken}` },
-        });
+        await api.post("/auth/logout");
       }
     } catch {
-      // Ignore network errors during logout
+      // Ignore network errors during logout.
     }
 
-    window.location.href = "/login";
-  }, [token]);
+    cancelSession();
+    setIsLoading(false);
+    goToLogin();
+  }, [token, cancelSession, goToLogin]);
+
+  const refreshUser = useCallback(async () => {
+    try {
+      const data = await api.get<MeResponse>("/user/me");
+      if (!data?.id || data.role !== "SUPER_ADMIN") {
+        cancelSession();
+        showToast(UNAUTHORIZED_MESSAGE, "error");
+        goToLogin();
+        return;
+      }
+
+      const freshUser: UserSession = {
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+        businessId: data.businessId ?? null,
+      };
+      setUser(freshUser);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("user", JSON.stringify(freshUser));
+      }
+    } catch (err) {
+      console.error("Session verification failed:", err);
+      cancelSession();
+      goToLogin();
+    }
+  }, [cancelSession, goToLogin, showToast]);
 
   const isAuthenticated = useMemo(
-    () => Boolean(token && isTokenValid(token) && user),
+    () => Boolean(token && isTokenValid(token) && user && user.role === "SUPER_ADMIN"),
     [token, user],
   );
 

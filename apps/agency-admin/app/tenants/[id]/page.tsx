@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { API_BASE_URL } from "@/lib/auth";
+import { api } from "@/lib/api";
 import {
   Building2,
   Users,
@@ -99,7 +99,7 @@ function addMonths(date: Date, months: number): Date {
 export default function TenantDetailPage() {
   const params = useParams<{ id: string }>();
   const tenantId = params?.id;
-  const { token } = useAuth();
+  const { token, isLoading: isAuthLoading } = useAuth();
 
   const [tenant, setTenant] = useState<TenantDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -119,27 +119,27 @@ export default function TenantDetailPage() {
   const [billingSubmitting, setBillingSubmitting] = useState(false);
 
   const fetchTenant = useCallback(async () => {
-    if (!tenantId || !token) return;
+    if (!tenantId || !token) {
+      if (!isAuthLoading) setLoading(false);
+      return;
+    }
     try {
-      const res = await fetch(`${API_BASE_URL}/agency/tenants/${tenantId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.message || "Failed to load tenant");
-      }
-      const data = await res.json();
+      const data = await api.get<TenantDetail>(`/agency/tenants/${tenantId}`);
       setTenant(data);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [tenantId, token]);
+  }, [tenantId, token, isAuthLoading]);
 
   useEffect(() => {
-    if (tenantId && token) fetchTenant();
-  }, [tenantId, token, fetchTenant]);
+    if (tenantId && token) {
+      fetchTenant();
+    } else if (!isAuthLoading) {
+      setLoading(false);
+    }
+  }, [tenantId, token, isAuthLoading, fetchTenant]);
 
   const handleStatusChange = async (
     e: React.ChangeEvent<HTMLSelectElement>,
@@ -148,18 +148,9 @@ export default function TenantDetailPage() {
     if (!tenant || !token || newStatus === tenant.status) return;
     setStatusUpdating(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/agency/tenants/${tenant.id}/status`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status: newStatus }),
+      await api.patch(`/agency/tenants/${tenant.id}/status`, {
+        status: newStatus,
       });
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.message || "Failed to update status");
-      }
       setTenant({ ...tenant, status: newStatus });
     } catch (err: any) {
       setError(err.message);
@@ -176,42 +167,25 @@ export default function TenantDetailPage() {
     setBillingSuccess("");
 
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/agency/tenants/${tenant.id}/billing`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            amount: parseFloat(amount),
-            paymentDate,
-            notes: notes || undefined,
-          }),
-        },
-      );
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.message || "Failed to log payment");
-      }
-      const data = await res.json();
+      const data = await api.post<{
+        billingLog: { amount: number };
+        status: TenantDetail["status"];
+        subscriptionExpiresAt: string | null;
+      }>(`/agency/tenants/${tenant.id}/billing`, {
+        amount: parseFloat(amount),
+        paymentDate,
+        notes: notes || undefined,
+      });
       setAmount("");
       setNotes("");
       setBillingSuccess(
         `Payment of Rs. ${formatAmount(data.billingLog.amount)} logged. Subscription extended to ${formatDate(data.subscriptionExpiresAt)}.`,
       );
       // Refresh tenant state to show new expiry + billing history
-      const tenantRes = await fetch(
-        `${API_BASE_URL}/agency/tenants/${tenant.id}`,
-        { headers: { Authorization: `Bearer ${token}` } },
+      const fresh = await api.get<TenantDetail>(
+        `/agency/tenants/${tenant.id}`,
       );
-      if (tenantRes.ok) {
-        const fresh = await tenantRes.json();
-        setTenant(fresh);
-      } else {
-        setTenant({ ...tenant, status: data.status, subscriptionExpiresAt: data.subscriptionExpiresAt });
-      }
+      setTenant(fresh);
     } catch (err: any) {
       setBillingError(err.message);
     } finally {

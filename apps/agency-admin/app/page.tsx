@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { API_BASE_URL } from "@/lib/auth";
+import { api } from "@/lib/api";
 import {
   Building2,
   Users,
@@ -54,7 +54,7 @@ const STATUS_BADGES: Record<string, string> = {
 };
 
 export default function AgencyAdminPage() {
-  const { token } = useAuth();
+  const { token, isLoading: isAuthLoading } = useAuth();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -80,24 +80,27 @@ export default function AgencyAdminPage() {
   const [branchError, setBranchError] = useState("");
 
   const fetchTenants = async () => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     try {
-      const res = await fetch(`${API_BASE_URL}/agency/tenants`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setTenants(data);
-      }
+      const data = await api.get<Tenant[]>("/agency/tenants");
+      setTenants(data);
     } catch (err) {
-      console.error(err);
+      console.error("Failed to fetch tenants:", err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (token) fetchTenants();
-  }, [token]);
+    if (token) {
+      fetchTenants();
+    } else if (!isAuthLoading) {
+      setLoading(false);
+    }
+  }, [token, isAuthLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,20 +108,7 @@ export default function AgencyAdminPage() {
     setError("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/agency/onboard-tenant`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.message || "Failed to onboard tenant");
-      }
-
+      await api.post("/agency/onboard-tenant", formData);
       await fetchTenants();
       setIsModalOpen(false);
       setFormData({
@@ -143,23 +133,10 @@ export default function AgencyAdminPage() {
     setBranchError("");
 
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/agency/branch/${branchModalFor.id}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ name: branchName, location: branchLocation }),
-        },
-      );
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.message || "Failed to add branch");
-      }
-
+      await api.post(`/agency/branch/${branchModalFor.id}`, {
+        name: branchName,
+        location: branchLocation,
+      });
       await fetchTenants();
       setBranchModalFor(null);
       setBranchName("");

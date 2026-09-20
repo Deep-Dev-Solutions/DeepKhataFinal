@@ -1,9 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { LogOut, ShieldAlert } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { LogOut, Loader2, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { CLIENT_APP_URL } from "@/lib/auth";
 
@@ -12,12 +12,34 @@ export default function AppShell({
 }: {
   children: React.ReactNode;
 }) {
-  const { logout, user } = useAuth();
+  const { logout, user, isAuthenticated, isLoading } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
 
-  // On the agency login page, don't show the dashboard header
-  if (pathname === "/login") {
+  const isLoginPage = pathname === "/login";
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated && !isLoginPage) {
+      router.replace("/login");
+    }
+    if (isLoginPage && isAuthenticated) {
+      router.replace("/");
+    }
+  }, [isLoading, isAuthenticated, isLoginPage, router]);
+
+  if (isLoginPage) {
     return <>{children}</>;
+  }
+
+  if (isLoading || !isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-slate-500">
+          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+          <span className="text-sm font-medium">Verifying agency session...</span>
+        </div>
+      </div>
+    );
   }
 
   return (
