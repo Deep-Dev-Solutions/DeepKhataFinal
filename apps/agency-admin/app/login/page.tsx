@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/lib/api";
-import { CLIENT_APP_URL } from "@/lib/auth";
+import { CLIENT_APP_URL, API_BASE_URL } from "@/lib/auth";
 
 export default function AgencyLoginPage() {
   const router = useRouter();
@@ -23,6 +23,25 @@ export default function AgencyLoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [isLockedOut, setIsLockedOut] = useState(false);
+  const [backendStatus, setBackendStatus] = useState<
+    "checking" | "connected" | "disconnected"
+  >("checking");
+
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/health`, { method: "GET" });
+        if (res.ok) {
+          setBackendStatus("connected");
+        } else {
+          setBackendStatus("disconnected");
+        }
+      } catch {
+        setBackendStatus("disconnected");
+      }
+    };
+    checkBackend();
+  }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

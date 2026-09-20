@@ -11,24 +11,67 @@ import {
   ShieldCheck,
   LayoutDashboard,
 } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { API_BASE_URL } from "@/lib/auth";
 import { useAuth } from "@/context/AuthContext";
 
 export default function Home() {
   const { isAuthenticated, isLoading } = useAuth();
+  const [backendStatus, setBackendStatus] = useState<
+    "checking" | "connected" | "disconnected"
+  >("checking");
+
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/health`, { method: "GET" });
+        if (res.ok) {
+          setBackendStatus("connected");
+        } else {
+          setBackendStatus("disconnected");
+        }
+      } catch {
+        setBackendStatus("disconnected");
+      }
+    };
+    checkBackend();
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
       {/* 🟢 NAVIGATION BAR */}
       <header className="border-b border-slate-200 bg-white sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          {/* Logo */}
-          <div className="flex items-center gap-2">
-            <div className="bg-blue-600 p-1.5 rounded-lg">
-              <Store className="w-5 h-5 text-white" />
+          {/* Logo & Status */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <div className="bg-blue-600 p-1.5 rounded-lg">
+                <Store className="w-5 h-5 text-white" />
+              </div>
+              <span className="text-xl font-bold tracking-tight text-slate-900">
+                DeepKhata
+              </span>
             </div>
-            <span className="text-xl font-bold tracking-tight text-slate-900">
-              DeepKhata
-            </span>
+
+            {/* Temporary Backend Status Tag */}
+            {backendStatus === "checking" && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                Backend: Checking...
+              </span>
+            )}
+            {backendStatus === "connected" && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                Backend: Connected
+              </span>
+            )}
+            {backendStatus === "disconnected" && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                <span className="w-2 h-2 rounded-full bg-rose-500" />
+                Backend: Disconnected
+              </span>
+            )}
           </div>
 
           {/* Auth Links */}

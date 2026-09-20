@@ -42,6 +42,15 @@ server.use((req, res, next) => {
   next();
 });
 
+// Health check and root route
+server.get(['/', '/health'], (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'DeepKhata Backend',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 let isInitialized = false;
 
 async function bootstrap() {
@@ -64,6 +73,25 @@ async function bootstrap() {
 }
 
 export default async function handler(req: any, res: any) {
-  await bootstrap();
-  server(req, res);
+  try {
+    await bootstrap();
+    server(req, res);
+  } catch (err: any) {
+    console.error('Vercel serverless error:', err);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader(
+      'Access-Control-Allow-Methods',
+      'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    );
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Accept, Authorization, Cookie',
+    );
+    res.status(500).json({
+      error: 'SERVERLESS_BOOTSTRAP_FAILED',
+      message: err?.message || String(err),
+      stack: err?.stack,
+    });
+  }
 }
