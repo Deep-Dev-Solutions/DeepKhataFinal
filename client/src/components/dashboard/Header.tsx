@@ -29,6 +29,7 @@ import { useSidebar } from "@/context/SidebarContext";
 import { usePOS } from "@/context/POSContext";
 import { useAuth } from "@/context/AuthContext";
 import { usePathname, useRouter } from "next/navigation";
+import SubscriptionBanner from "./SubscriptionBanner";
 
 type SearchEntry = {
   keywords: string[];
@@ -314,7 +315,9 @@ export default function Header() {
   }
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 sticky top-0 z-50 px-4 sm:px-6 lg:px-8 flex items-center justify-between print:hidden">
+    <div className="sticky top-0 z-[60] print:hidden">
+      <SubscriptionBanner />
+      <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 lg:px-8">
       {/* Desktop Sidebar Toggle */}
       <button
         type="button"
@@ -631,5 +634,6 @@ export default function Header() {
         </div>
       </div>
     </header>
+    </div>
   );
 }

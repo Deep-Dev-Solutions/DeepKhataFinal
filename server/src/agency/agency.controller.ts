@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
 import { AgencyService } from './agency.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -19,6 +27,21 @@ export class AgencyController {
   @Get('tenants')
   async getTenants() {
     return this.agencyService.getTenants();
+  }
+
+  @Get('tenants/:id')
+  async getTenantById(@Param('id') id: string) {
+    return this.agencyService.getTenantById(id);
+  }
+
+  @Patch('tenants/:id/status')
+  async updateTenantStatus(@Param('id') id: string, @Body() data: any) {
+    return this.agencyService.updateTenantStatus(id, data?.status);
+  }
+
+  @Post('tenants/:id/billing')
+  async logPaymentAndExtend(@Param('id') id: string, @Body() data: any) {
+    return this.agencyService.logPaymentAndExtend(id, data);
   }
 
   @Post('branch/:businessId')

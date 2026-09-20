@@ -1,1 +1,4 @@
 others/*
+
+tsconfig.build.tsbuildinfo
+sw.js

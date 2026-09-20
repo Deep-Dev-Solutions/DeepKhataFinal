@@ -1,12 +1,21 @@
 import {
   Injectable,
   ConflictException,
+  BadRequestException,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
-import { Role } from '@prisma/client';
+import { BusinessStatus, Role } from '@prisma/client';
+
+const TRIAL_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
+
+const VALID_STATUSES: BusinessStatus[] = [
+  BusinessStatus.ACTIVE,
+  BusinessStatus.READ_ONLY,
+  BusinessStatus.SUSPENDED,
+];
 
 @Injectable()
 export class AgencyService {
@@ -68,6 +77,7 @@ export class AgencyService {
             phone: phone || null,
             address: address || null,
             ownerId: user.id,
+            subscriptionExpiresAt: new Date(Date.now() + TRIAL_DURATION_MS),
           },
         });
 
@@ -123,7 +133,137 @@ export class AgencyService {
       },
       orderBy: { createdAt: 'desc' },
     });
-    return businesses;
+    return businesses.map(({ status, subscriptionExpiresAt, ...rest }) => ({
+      ...rest,
+      status,
+      subscriptionExpiresAt,
+    }));
+  }
+
+  async getTenantById(businessId: string) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+        _count: {
+          select: {
+            users: true,
+            products: true,
+            orders: true,
+            branches: true,
+          },
+        },
+        branches: {
+          select: { id: true, name: true, location: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
+        },
+        billingLogs: {
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (!business) {
+      throw new NotFoundException(
+        `Business with ID ${businessId} not found`,
+      );
+    }
+
+    const { status, subscriptionExpiresAt, ...rest } = business;
+    return { ...rest, status, subscriptionExpiresAt };
+  }
+
+  async updateTenantStatus(businessId: string, status: string) {
+    if (!VALID_STATUSES.includes(status as BusinessStatus)) {
+      throw new BadRequestException(
+        `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`,
+      );
+    }
+
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true },
+    });
+    if (!business) {
+      throw new NotFoundException(
+        `Business with ID ${businessId} not found`,
+      );
+    }
+
+    await this.prisma.business.update({
+      where: { id: businessId },
+      data: { status: status as BusinessStatus },
+    });
+
+    return {
+      message: `Tenant status updated to ${status}`,
+      businessId,
+      status,
+    };
+  }
+
+  async logPaymentAndExtend(
+    businessId: string,
+    data: { amount?: number; paymentDate?: Date | string; notes?: string },
+  ) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true },
+    });
+    if (!business) {
+      throw new NotFoundException(
+        `Business with ID ${businessId} not found`,
+      );
+    }
+
+    const amount = Number(data?.amount);
+    if (!amount || amount <= 0) {
+      throw new BadRequestException('A valid positive amount is required');
+    }
+
+    const paymentDate = data?.paymentDate ? new Date(data.paymentDate) : null;
+    if (!paymentDate || isNaN(paymentDate.getTime())) {
+      throw new BadRequestException('A valid payment/expiration date is required');
+    }
+
+    const { billingLog, updatedBusiness } = await this.prisma.$transaction(
+      async (tx) => {
+        const billingLog = await tx.agencyBillingLog.create({
+          data: {
+            businessId,
+            amount,
+            paymentDate,
+            notes: data?.notes?.trim() || null,
+          },
+        });
+
+        const updatedBusiness = await tx.business.update({
+          where: { id: businessId },
+          data: {
+            subscriptionExpiresAt: paymentDate,
+            // Renewal reactivates the tenant.
+            status: BusinessStatus.ACTIVE,
+          },
+        });
+
+        return { billingLog, updatedBusiness };
+      },
+    );
+
+    return {
+      message:
+        'Payment logged and subscription extended successfully',
+      billingLog,
+      subscriptionExpiresAt: updatedBusiness.subscriptionExpiresAt,
+      status: updatedBusiness.status,
+    };
   }
 
   async addBranchToTenant(businessId: string, data: any) {

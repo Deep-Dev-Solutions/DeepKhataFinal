@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL } from "@/lib/auth";
 import {
@@ -15,6 +16,7 @@ import {
   MapPin,
   Loader2,
   X,
+  Settings2,
 } from "lucide-react";
 
 interface Branch {
@@ -29,6 +31,8 @@ interface Tenant {
   name: string;
   slug: string;
   createdAt: string;
+  status?: "ACTIVE" | "READ_ONLY" | "SUSPENDED";
+  subscriptionExpiresAt?: string | null;
   owner: {
     name: string;
     email: string;
@@ -42,6 +46,12 @@ interface Tenant {
   };
   branches: Branch[];
 }
+
+const STATUS_BADGES: Record<string, string> = {
+  ACTIVE: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  READ_ONLY: "bg-amber-50 text-amber-700 border-amber-200",
+  SUSPENDED: "bg-rose-50 text-rose-700 border-rose-200",
+};
 
 export default function AgencyAdminPage() {
   const { token } = useAuth();
@@ -229,8 +239,18 @@ export default function AgencyAdminPage() {
                             <div className="font-medium text-slate-900">
                               {t.name}
                             </div>
-                            <div className="text-xs text-slate-500 font-mono">
+                            <div className="text-xs text-slate-500 font-mono flex items-center gap-2">
                               /{t.slug}
+                              {t.status && (
+                                <span
+                                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                    STATUS_BADGES[t.status] ||
+                                    STATUS_BADGES.ACTIVE
+                                  }`}
+                                >
+                                  {t.status}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -272,6 +292,14 @@ export default function AgencyAdminPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
+                          <Link
+                            href={`/agency-admin/${t.id}`}
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200/80 rounded-lg transition-colors"
+                            title="Billing, subscription & access control"
+                          >
+                            <Settings2 size={13} />
+                            Manage
+                          </Link>
                           <button
                             onClick={() => setBranchModalFor(t)}
                             className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"

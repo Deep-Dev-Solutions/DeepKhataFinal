@@ -24,6 +24,10 @@ model Business {
   ownerId  String
   logoUrl  String?
 
+  // Agency Billing / Subscription Tracking
+  status               BusinessStatus @default(ACTIVE)
+  subscriptionExpiresAt DateTime?
+
   owner       User         @relation("BusinessOwner", fields: [ownerId], references: [id])
   users       User[]       @relation("BusinessUsers")
   customers   Customer[]
@@ -39,8 +43,23 @@ model Business {
   expenses           Expense[]
   registerSessions   CashRegisterSession[]
   inventoryMovements InventoryMovement[]
+  billingLogs        AgencyBillingLog[]
 
   createdAt DateTime @default(now())
+}
+
+model AgencyBillingLog {
+  id          String   @id @default(uuid())
+  businessId  String
+  amount      Float
+  paymentDate DateTime
+  notes       String?
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([businessId])
 }
 
 model Branch {
@@ -344,6 +363,12 @@ enum PaymentStatus {
   UNPAID
   PARTIAL
   PAID
+}
+
+enum BusinessStatus {
+  ACTIVE
+  READ_ONLY
+  SUSPENDED
 }
 
 model Expense {

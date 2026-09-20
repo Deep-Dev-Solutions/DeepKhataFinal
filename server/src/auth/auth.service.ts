@@ -210,6 +210,7 @@ export class AuthService {
 
     const existinguser = await this.prisma.user.findUnique({
       where: { email: normalizedEmail },
+      include: { business: { select: { status: true } } },
     });
 
     if (!existinguser) {
@@ -225,6 +226,13 @@ export class AuthService {
 
     // Reset failed attempts upon successful login
     await this.resetFailedAttempts(ip, normalizedEmail);
+
+    // Kill switch: suspended businesses cannot sign in at all.
+    if (existinguser.business?.status === 'SUSPENDED') {
+      throw new ForbiddenException(
+        'Account suspended. Contact DeepKhata administration.',
+      );
+    }
 
     const accesstoken = this.jwtService.sign(
       {
@@ -346,6 +354,13 @@ export class AuthService {
         phone: true,
         avatarUrl: true,
         createdAt: true,
+        business: {
+          select: {
+            id: true,
+            status: true,
+            subscriptionExpiresAt: true,
+          },
+        },
       },
     });
 

@@ -27,6 +27,11 @@ export interface UserSession {
   avatarUrl?: string | null;
 }
 
+export interface BusinessSubscription {
+  status?: string;
+  subscriptionExpiresAt?: string | null;
+}
+
 export interface Branch {
   id: string;
   name: string;
@@ -49,6 +54,8 @@ interface AuthContextType {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  // Subscription / billing state for the tenant's business
+  businessSubscription: BusinessSubscription | null;
   // Branch context
   branches: Branch[];
   activeBranchId: string | null;
@@ -67,6 +74,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [activeBranchId, setActiveBranchId] = useState<string | null>(null);
+  const [businessSubscription, setBusinessSubscription] = useState<
+    BusinessSubscription | null
+  >(null);
 
   // ── Fetch branches for the current user's business ──────────────────────
   const fetchBranches = useCallback(
@@ -110,6 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           clearAuthToken();
           setTokenState(null);
           setUser(null);
+          setBusinessSubscription(null);
           return;
         }
 
@@ -127,6 +138,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             };
             setUser(freshUser);
             localStorage.setItem("user", JSON.stringify(freshUser));
+
+            if (data.business) {
+              const freshSubscription: BusinessSubscription = {
+                status: data.business.status,
+                subscriptionExpiresAt: data.business.subscriptionExpiresAt,
+              };
+              setBusinessSubscription(freshSubscription);
+              localStorage.setItem(
+                "businessSubscription",
+                JSON.stringify(freshSubscription),
+              );
+            } else {
+              setBusinessSubscription(null);
+            }
 
             // Fetch branches once we have a confirmed businessId
             if (data.businessId) {
@@ -176,6 +201,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         avatarUrl: cached?.avatarUrl || null,
       };
       setUser(initialUser);
+
+      // Hydrate cached subscription state immediately (banner shows instantly)
+      try {
+        const rawSub = localStorage.getItem("businessSubscription");
+        if (rawSub) {
+          setBusinessSubscription(JSON.parse(rawSub));
+        }
+      } catch {}
 
       // Restore activeBranchId from localStorage immediately (best-effort)
       if (initialUser.businessId) {
@@ -237,6 +270,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setBranches([]);
       setActiveBranchId(null);
+      setBusinessSubscription(null);
+      localStorage.removeItem("businessSubscription");
 
       // Best-effort notify backend to clear cookie/session
       try {
@@ -277,6 +312,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       token,
       isAuthenticated,
       isLoading,
+      businessSubscription,
       branches,
       activeBranchId,
       setActiveBranch,
@@ -290,6 +326,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       token,
       isAuthenticated,
       isLoading,
+      businessSubscription,
       branches,
       activeBranchId,
       setActiveBranch,
