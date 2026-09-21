@@ -25,13 +25,14 @@
     "vercel-build": "prisma generate && nest build"
   },
   "dependencies": {
-    "@nestjs/common": "^12.0.1",
-    "@nestjs/core": "^12.0.1",
+    "@nestjs/common": "^11.2.5",
+    "@nestjs/core": "^11.2.5",
     "@nestjs/jwt": "^12.0.1",
     "@nestjs/observe": "^0.1.8",
     "@nestjs/passport": "^12.0.0",
-    "@nestjs/platform-express": "^12.0.1",
+    "@nestjs/platform-express": "^11.2.5",
     "@nestjs/throttler": "^6.5.0",
+    "@prisma/client": "^6.19.3",
     "@prisma/engines": "^6.0.0",
     "@types/bcrypt": "^6.0.0",
     "@types/cookie-parser": "^1.4.10",
@@ -54,14 +55,13 @@
     "passport-jwt": "^4.0.1",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1",
-    "@prisma/client": "^6.19.3"
+    "rxjs": "^7.8.1"
   },
   "devDependencies": {
-    "@nestjs/cli": "^12.0.0",
+    "@nestjs/cli": "^11.0.24",
     "@nestjs/mau": "^0.2.6",
-    "@nestjs/schematics": "^12.0.0",
-    "@nestjs/testing": "^12.0.1",
+    "@nestjs/schematics": "^11.1.0",
+    "@nestjs/testing": "^11.2.5",
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
     "@types/supertest": "^7.0.0",
