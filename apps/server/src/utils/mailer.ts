@@ -1,15 +1,36 @@
-import nodemailer from "nodemailer";
+import nodemailer from 'nodemailer';
 
-// Configure Nodemailer to point to local Mailpit
-const transporter = nodemailer.createTransport({
-  host: "127.0.0.1",
-  port: 1025,
-  secure: false, 
-});
+function buildTransporter() {
+  const host =
+    process.env.SMTP_HOST ||
+    (process.env.RESEND_API_KEY ? 'smtp.resend.com' : undefined);
+
+  if (host) {
+    return nodemailer.createTransport({
+      host,
+      port: Number(process.env.SMTP_PORT ?? 587),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user:
+          process.env.SMTP_USER ??
+          (host.includes('resend') ? 'resend' : undefined),
+        pass: process.env.SMTP_PASS ?? process.env.RESEND_API_KEY,
+      },
+    });
+  }
+  // Dev fallback: local Mailpit
+  return nodemailer.createTransport({
+    host: '127.0.0.1',
+    port: 1025,
+    secure: false,
+  });
+}
+
+const transporter = buildTransporter();
 
 export const sendInviteEmail = async (toEmail: any, role: any, token: any) => {
-
-  const inviteLink = `http://localhost:3000/join?token=${token}`;
+  const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
+  const inviteLink = `${frontendUrl}/join?token=${token}`;
 
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
@@ -23,11 +44,17 @@ export const sendInviteEmail = async (toEmail: any, role: any, token: any) => {
     </div>
   `;
 
+  const isResend =
+    process.env.SMTP_HOST?.includes('resend') || !!process.env.RESEND_API_KEY;
+  const defaultFrom = isResend
+    ? '"BizFlow Admin" <onboarding@resend.dev>'
+    : '"BizFlow Admin" <noreply@bizflow.com>';
+  const from = process.env.SMTP_FROM || defaultFrom;
+
   await transporter.sendMail({
-    from: '"BizFlow Admin" <noreply@bizflow.com>',
+    from,
     to: toEmail,
-    subject: "Invitation to join BizFlow Workspace",
+    subject: 'Invitation to join BizFlow Workspace',
     html: htmlContent,
   });
 };
-
