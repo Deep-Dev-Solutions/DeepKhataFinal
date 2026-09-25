@@ -8,12 +8,20 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { sendInviteEmail } from '../utils/mailer';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class SettingsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
 
   async profileInfo(userId: string) {
+    const cacheKey = `profile:${userId}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
     const profile = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -26,7 +34,9 @@ export class SettingsService {
     });
 
     if (!profile) throw new NotFoundException('Profile not found');
-    return { success: true, profile };
+    const result = { success: true, profile };
+    await this.redis.set(cacheKey, result, 3600);
+    return result;
   }
 
   async businessInfo(userId: string) {
@@ -81,6 +91,8 @@ export class SettingsService {
       },
     });
 
+    await this.redis.delete(`profile:${userId}`);
+
     return {
       success: true,
       message: 'Profile updated successfully',
@@ -119,6 +131,8 @@ export class SettingsService {
       where: { id: currentUser.businessId },
       data: updateData,
     });
+
+    await this.redis.delete(`business:${currentUser.businessId}`);
 
     return {
       success: true,

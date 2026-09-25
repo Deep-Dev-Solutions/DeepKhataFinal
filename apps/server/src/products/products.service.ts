@@ -247,22 +247,22 @@ export class ProductsService {
         }
       }
 
-      const fullProduct = await tx.product.findUnique({
-        where: { id: product.id },
-        include: {
-          category: true,
-          instances: { include: { cabinet: true } },
-        },
-      });
+      return product.id;
+    });
 
-      return fullProduct;
+    const fullProduct = await this.prisma.product.findUnique({
+      where: { id: result },
+      include: {
+        category: true,
+        instances: { include: { cabinet: true } },
+      },
     });
 
     await this.invalidateProducts(businessId);
 
     return {
       message: 'Product & Spatial Instances Created Successfully',
-      product: result,
+      product: fullProduct,
     };
   }
 

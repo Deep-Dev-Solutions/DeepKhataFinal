@@ -18,12 +18,23 @@ export class OrdersService {
     private redis: RedisService,
   ) {}
 
-  private async invalidateOrderCaches(businessId: string): Promise<void> {
-    await Promise.all([
+  private async invalidateOrderCaches(
+    businessId: string,
+    orderId?: string,
+  ): Promise<void> {
+    const invalidations = [
       this.redis.deleteByPattern(`orders:${businessId}:*`),
       this.redis.deleteByPattern(`dashboard:${businessId}*`),
       this.redis.deleteByPattern(`reports:*${businessId}*`),
       this.redis.deleteByPattern(`products:${businessId}:*`),
+    ];
+    if (orderId) {
+      invalidations.push(
+        this.redis.delete(`order_details:${businessId}:${orderId}`),
+      );
+    }
+    await Promise.all([
+      ...invalidations,
     ]);
   }
 
@@ -249,7 +260,7 @@ export class OrdersService {
         await this.postDoubleEntrySequence(completeOrder, parsedAmountPaid);
       }
 
-      await this.invalidateOrderCaches(businessId);
+      await this.invalidateOrderCaches(businessId, completeOrder.id);
 
       return {
         success: true,
@@ -333,6 +344,9 @@ export class OrdersService {
     if (!currentUser?.businessId)
       throw new BadRequestException('User does not belong to a workspace');
     const businessId = currentUser.businessId;
+    const cacheKey = `orders:${businessId}:search=${encodeURIComponent(search || '')}:status=${encodeURIComponent(status || 'All')}:paymentStatus=${encodeURIComponent(paymentStatus || 'All')}:days=${encodeURIComponent(days)}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
 
     let queryConditions: any = { businessId: businessId };
 
@@ -380,7 +394,9 @@ export class OrdersService {
       };
     });
 
-    return { success: true, orders: formattedOrders };
+    const result = { success: true, orders: formattedOrders };
+    await this.redis.set(cacheKey, result, 300);
+    return result;
   }
 
   async getOrderById(userId: string, id: string) {
@@ -391,6 +407,10 @@ export class OrdersService {
 
     if (!currentUser?.businessId)
       throw new BadRequestException('User does not belong to a workspace');
+
+    const cacheKey = `order_details:${currentUser.businessId}:${id}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
 
     const order = await this.prisma.order.findFirst({
       where: { id, businessId: currentUser.businessId },
@@ -407,7 +427,9 @@ export class OrdersService {
 
     if (!order) throw new NotFoundException('Order not found');
 
-    return { success: true, order };
+    const result = { success: true, order };
+    await this.redis.set(cacheKey, result, 600);
+    return result;
   }
 
   async updateOrderStatus(userId: string, id: string, data: any) {
@@ -594,7 +616,7 @@ export class OrdersService {
     }
 
     if (currentUser?.businessId) {
-      await this.invalidateOrderCaches(currentUser.businessId);
+      await this.invalidateOrderCaches(currentUser.businessId, id);
     }
 
     return { success: true, message: `Order status updated to ${status}` };
@@ -678,7 +700,7 @@ export class OrdersService {
     await this.postDoubleEntrySequence(order, totalPaid);
 
     if (currentUser?.businessId) {
-      await this.invalidateOrderCaches(currentUser.businessId);
+      await this.invalidateOrderCaches(currentUser.businessId, id);
     }
 
     return {
@@ -764,7 +786,7 @@ export class OrdersService {
       ],
     });
 
-    await this.invalidateOrderCaches(currentUser.businessId);
+    await this.invalidateOrderCaches(currentUser.businessId, order.id);
 
     return { success: true, message: 'Payment recorded successfully' };
   }
@@ -957,7 +979,7 @@ export class OrdersService {
       );
     }
 
-    await this.invalidateOrderCaches(currentUser.businessId);
+    await this.invalidateOrderCaches(currentUser.businessId, id);
 
     return { success: true, message: 'Return processed successfully' };
   }

@@ -4,10 +4,14 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class CategoryService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
 
   private async requireBusinessId(userId: string): Promise<string> {
     const user = await this.prisma.user.findUnique({
@@ -23,6 +27,9 @@ export class CategoryService {
 
   async getCategories(userId: string) {
     const businessId = await this.requireBusinessId(userId);
+    const cacheKey = `categories:${businessId}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
 
     const categories = await this.prisma.category.findMany({
       where: { businessId },
@@ -34,7 +41,9 @@ export class CategoryService {
       orderBy: { name: 'asc' },
     });
 
-    return { success: true, categories };
+    const result = { success: true, categories };
+    await this.redis.set(cacheKey, result, 3600);
+    return result;
   }
 
   async addCategory(userId: string, data: any) {
@@ -51,6 +60,8 @@ export class CategoryService {
     const category = await this.prisma.category.create({
       data: { name, businessId },
     });
+
+    await this.redis.delete(`categories:${businessId}`);
 
     return { success: true, message: 'Category created successfully', category };
   }
@@ -80,6 +91,8 @@ export class CategoryService {
       data: { name },
     });
 
+    await this.redis.delete(`categories:${businessId}`);
+
     return {
       success: true,
       message: 'Category updated successfully',
@@ -103,6 +116,8 @@ export class CategoryService {
       });
       await tx.category.delete({ where: { id } });
     });
+
+    await this.redis.delete(`categories:${businessId}`);
 
     return { success: true, message: 'Category deleted successfully' };
   }
