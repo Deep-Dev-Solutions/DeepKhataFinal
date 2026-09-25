@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 
 const VALID_CONDITIONS = [
   'ORIGINAL_PULL',
@@ -16,7 +17,14 @@ const VALID_CONDITIONS = [
 
 @Injectable()
 export class ProductsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
+
+  private async invalidateProducts(businessId: string): Promise<void> {
+    await this.redis.deleteByPattern(`products:${businessId}:*`);
+  }
 
   private async requireBusinessId(userId: string): Promise<string> {
     const user = await this.prisma.user.findUnique({
@@ -250,6 +258,8 @@ export class ProductsService {
       return fullProduct;
     });
 
+    await this.invalidateProducts(businessId);
+
     return {
       message: 'Product & Spatial Instances Created Successfully',
       product: result,
@@ -259,6 +269,9 @@ export class ProductsService {
   async getProducts(userId: string, query: any) {
     const { search, category, stock, branchId } = query;
     const businessId = await this.requireBusinessId(userId);
+    const cacheKey = `products:${businessId}:search=${encodeURIComponent(search || '')}:category=${encodeURIComponent(category || 'All')}:stock=${encodeURIComponent(stock || 'all')}:branch=${encodeURIComponent(branchId || 'all')}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
 
     const queryConditions: any = { businessId, deletedAt: null };
 
@@ -337,7 +350,7 @@ export class ProductsService {
       if (b) currentBranchName = b.name;
     }
 
-    return {
+    const result = {
       success: true,
       products: products
         .map((p) => {
@@ -362,6 +375,9 @@ export class ProductsService {
           return true;
         }),
     };
+
+      await this.redis.set(cacheKey, result, 3600);
+      return result;
   }
 
   async updatePrice(userId: string, productId: string, price: number) {
@@ -380,6 +396,8 @@ export class ProductsService {
       where: { id: productId },
       data: { basePrice: Number(price) },
     });
+
+    await this.invalidateProducts(businessId);
 
     return {
       success: true,
@@ -523,6 +541,8 @@ export class ProductsService {
       return fullProduct;
     });
 
+    await this.invalidateProducts(businessId);
+
     return { success: true, product: result };
   }
 
@@ -644,6 +664,8 @@ export class ProductsService {
       return { importedCount };
     });
 
+    await this.invalidateProducts(businessId);
+
     return {
       success: true,
       message: `Successfully imported ${result.importedCount} products`,
@@ -668,6 +690,8 @@ export class ProductsService {
       where: { id: productId },
       data: { deletedAt: new Date() },
     });
+
+    await this.invalidateProducts(businessId);
 
     return {
       success: true,

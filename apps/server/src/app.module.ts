@@ -22,6 +22,7 @@ import { BusinessModule } from './business/business.module';
 import { AgencyModule } from './agency/agency.module';
 import { CategoryModule } from './category/category.module';
 import { CabinetModule } from './cabinet/cabinet.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { CabinetModule } from './cabinet/cabinet.module';
     AgencyModule,
     CategoryModule,
     CabinetModule,
+    RedisModule,
   ],
   controllers: [AppController],
   providers: [AppService],

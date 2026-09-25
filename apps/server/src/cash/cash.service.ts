@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../ledger/ledger.service';
+import { RedisService } from '../redis/redis.service';
 import { LogExpenseDto } from './dto/log-expense.dto';
 import { OpenRegisterDto } from './dto/open-register.dto';
 import { CloseRegisterDto } from './dto/close-register.dto';
@@ -10,7 +11,15 @@ export class CashService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ledgerService: LedgerService,
+    private readonly redis: RedisService,
   ) {}
+
+  private async invalidateCashCaches(businessId: string): Promise<void> {
+    await Promise.all([
+      this.redis.deleteByPattern(`dashboard:${businessId}*`),
+      this.redis.deleteByPattern(`reports:*${businessId}*`),
+    ]);
+  }
 
   private async getUserWithBusiness(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -49,7 +58,7 @@ export class CashService {
       orderBy: { openedAt: 'desc' },
     });
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // 1. Create the Expense record
       const expense = await tx.expense.create({
         data: {
@@ -101,6 +110,9 @@ export class CashService {
         expense: updatedExpense,
       };
     });
+
+    await this.invalidateCashCaches(user.businessId);
+    return result;
   }
 
   /**

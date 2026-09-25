@@ -1,9 +1,13 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class ReportsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
 
   async getFinancialOverview(userId: string, query: any) {
     const { days = 7, branchId } = query;
@@ -14,9 +18,13 @@ export class ReportsService {
     if (!currentUser?.businessId)
       throw new BadRequestException('No workspace found.');
     const businessId = currentUser.businessId;
+    const normalizedDays = parseInt(days as string, 10) || 7;
+    const cacheKey = `reports:financial:${businessId}:days=${normalizedDays}:branch=${branchId || 'all'}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
 
     const dateLimit = new Date();
-    dateLimit.setDate(dateLimit.getDate() - parseInt(days as string));
+    dateLimit.setDate(dateLimit.getDate() - normalizedDays);
 
     const branchFilter = branchId ? { branchId } : {};
 
@@ -92,7 +100,7 @@ export class ReportsService {
       });
     }
 
-    return {
+    const result = {
       success: true,
       kpis: {
         totalRevenue,
@@ -103,6 +111,9 @@ export class ReportsService {
       revenueTrend: Object.values(dailyData),
       paymentFlow,
     };
+
+    await this.redis.set(cacheKey, result, 900);
+    return result;
   }
 
   async getInventoryInsights(userId: string) {

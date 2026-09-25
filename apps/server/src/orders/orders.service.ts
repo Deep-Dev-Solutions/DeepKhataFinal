@@ -8,13 +8,24 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../ledger/ledger.service';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class OrdersService {
   constructor(
     private prisma: PrismaService,
     private ledgerService: LedgerService,
+    private redis: RedisService,
   ) {}
+
+  private async invalidateOrderCaches(businessId: string): Promise<void> {
+    await Promise.all([
+      this.redis.deleteByPattern(`orders:${businessId}:*`),
+      this.redis.deleteByPattern(`dashboard:${businessId}*`),
+      this.redis.deleteByPattern(`reports:*${businessId}*`),
+      this.redis.deleteByPattern(`products:${businessId}:*`),
+    ]);
+  }
 
   async newOrder(userId: string, data: any) {
     const {
@@ -237,6 +248,8 @@ export class OrdersService {
       if (completeOrder.status === 'FINAL') {
         await this.postDoubleEntrySequence(completeOrder, parsedAmountPaid);
       }
+
+      await this.invalidateOrderCaches(businessId);
 
       return {
         success: true,
@@ -580,6 +593,10 @@ export class OrdersService {
       });
     }
 
+    if (currentUser?.businessId) {
+      await this.invalidateOrderCaches(currentUser.businessId);
+    }
+
     return { success: true, message: `Order status updated to ${status}` };
   }
 
@@ -659,6 +676,10 @@ export class OrdersService {
     });
 
     await this.postDoubleEntrySequence(order, totalPaid);
+
+    if (currentUser?.businessId) {
+      await this.invalidateOrderCaches(currentUser.businessId);
+    }
 
     return {
       success: true,
@@ -742,6 +763,8 @@ export class OrdersService {
         },
       ],
     });
+
+    await this.invalidateOrderCaches(currentUser.businessId);
 
     return { success: true, message: 'Payment recorded successfully' };
   }
@@ -933,6 +956,8 @@ export class OrdersService {
         'Failed to process return. Please check inventory condition mapping or ledger invariant.',
       );
     }
+
+    await this.invalidateOrderCaches(currentUser.businessId);
 
     return { success: true, message: 'Return processed successfully' };
   }

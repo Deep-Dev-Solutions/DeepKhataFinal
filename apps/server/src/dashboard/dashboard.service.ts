@@ -4,10 +4,14 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class DashboardService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
 
   private formatRelativeTime(dateValue: Date | string) {
     const diffMs = Date.now() - new Date(dateValue).getTime();
@@ -46,6 +50,10 @@ export class DashboardService {
     }
 
     const branchId = query?.branchId;
+    const cacheKey = `dashboard:${businessId}:branch=${branchId || 'all'}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
     const branchFilter = branchId ? { branchId } : {};
 
     const now = new Date();
@@ -239,7 +247,7 @@ export class DashboardService {
 
     const isStaff = currentUser?.role === 'STAFF';
 
-    return {
+    const result = {
       success: true,
       kpis: {
         todayRevenue: dailyGrossSales,
@@ -259,5 +267,8 @@ export class DashboardService {
       paymentHealth,
       recentOrders,
     };
+
+    await this.redis.set(cacheKey, result, 600);
+    return result;
   }
 }

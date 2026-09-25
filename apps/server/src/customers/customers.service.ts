@@ -6,13 +6,21 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 
 // Store-wide default credit line for new Udhar accounts (PKR).
 const DEFAULT_CREDIT_LIMIT = 50000;
 
 @Injectable()
 export class CustomersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
+
+  private async invalidateCustomers(businessId: string): Promise<void> {
+    await this.redis.deleteByPattern(`customers:${businessId}:*`);
+  }
 
   async newCustomer(userId: string, data: any) {
     const { name, phone, shopName, address, email } = data;
@@ -50,6 +58,8 @@ export class CustomersService {
       },
     });
 
+    await this.invalidateCustomers(currentUser.businessId);
+
     return { success: true, customer };
   }
 
@@ -70,6 +80,8 @@ export class CustomersService {
       where: { id },
       data,
     });
+
+    await this.invalidateCustomers(currentUser.businessId);
 
     return {
       success: true,
@@ -104,6 +116,8 @@ export class CustomersService {
       },
     });
 
+    await this.invalidateCustomers(currentUser.businessId);
+
     return {
       success: true,
       message: 'Risk settings updated securely.',
@@ -121,7 +135,12 @@ export class CustomersService {
     if (!currentUser?.businessId)
       throw new BadRequestException('No business found.');
 
-    const queryConditions: any = { businessId: currentUser.businessId };
+    const businessId = currentUser.businessId;
+    const cacheKey = `customers:${businessId}:search=${encodeURIComponent(search || '')}:unpaid=${unpaid || 'false'}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
+    const queryConditions: any = { businessId };
 
     if (search) {
       queryConditions.OR = [
@@ -184,7 +203,9 @@ export class CustomersService {
       formattedCustomers = formattedCustomers.filter((c) => c.balance > 0);
     }
 
-    return { success: true, customers: formattedCustomers };
+    const result = { success: true, customers: formattedCustomers };
+    await this.redis.set(cacheKey, result, 3600);
+    return result;
   }
 
   async getCustomerById(userId: string, id: string) {
