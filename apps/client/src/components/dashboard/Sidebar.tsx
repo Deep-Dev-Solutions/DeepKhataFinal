@@ -19,7 +19,6 @@ import {
   ChevronRight,
   Truck,
   Tags,
-  Database,
   LayoutGrid,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -57,7 +56,6 @@ const navGroups = [
     adminOnly: true,
     items: [
       { name: "Reports", href: "/reports", icon: BarChart3 },
-      { name: "Import Data", href: "/settings/import", icon: Database },
       { name: "Store Settings", href: "/settings", icon: Settings },
     ],
   },

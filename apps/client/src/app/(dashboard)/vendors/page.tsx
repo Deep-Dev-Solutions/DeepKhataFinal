@@ -17,6 +17,7 @@ import {
   Clock,
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import AddVendorModal from "@/components/modals/AddVendorModal";
 
 type VendorRow = {
   id: string;
@@ -38,6 +39,7 @@ function VendorsPageContent() {
   const [vendors, setVendors] = useState<VendorRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pageError, setPageError] = useState("");
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterMode, setFilterMode] = useState<"all" | "payable" | "settled">(
     "all",
@@ -120,7 +122,7 @@ function VendorsPageContent() {
           </p>
         </div>
         <button
-          onClick={() => router.push("/vendors/new")}
+          onClick={() => setIsAddModalOpen(true)}
           className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm shadow-indigo-200 w-full sm:w-auto cursor-pointer"
         >
           <Plus className="w-4 h-4" /> New Vendor
@@ -408,6 +410,12 @@ function VendorsPageContent() {
           </table>
         </div>
       </div>
+
+      <AddVendorModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSuccess={refreshVendors}
+      />
     </div>
   );
 }
