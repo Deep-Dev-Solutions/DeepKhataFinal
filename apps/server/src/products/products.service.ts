@@ -248,6 +248,9 @@ export class ProductsService {
       }
 
       return product.id;
+    }, {
+      maxWait: 10000,
+      timeout: 15000,
     });
 
     const fullProduct = await this.prisma.product.findUnique({

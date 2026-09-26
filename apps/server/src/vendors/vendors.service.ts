@@ -4,10 +4,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { RedisService } from '../redis/redis.service.js';
 
 @Injectable()
 export class VendorsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   async createVendor(userId: string, data: any) {
     const currentUser = await this.prisma.user.findUnique({
@@ -27,6 +31,8 @@ export class VendorsService {
       },
     });
 
+    await this.redis.delete(`vendors:${currentUser.businessId}`);
+
     return { success: true, vendor };
   }
 
@@ -37,6 +43,10 @@ export class VendorsService {
     });
     if (!currentUser?.businessId)
       throw new BadRequestException('No business found.');
+
+    const cacheKey = `vendors:${currentUser.businessId}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
 
     const vendors = await this.prisma.vendor.findMany({
       where: { businessId: currentUser.businessId },
@@ -115,7 +125,9 @@ export class VendorsService {
       };
     });
 
-    return { success: true, vendors: formattedVendors };
+    const result = { success: true, vendors: formattedVendors };
+    await this.redis.set(cacheKey, result, 3600);
+    return result;
   }
 
   async getVendorById(userId: string, id: string) {
@@ -126,8 +138,13 @@ export class VendorsService {
     if (!currentUser?.businessId)
       throw new BadRequestException('No business found.');
 
+    const businessId = currentUser.businessId;
+    const cacheKey = `vendor_details:${businessId}:${id}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
     const vendor = await this.prisma.vendor.findFirst({
-      where: { id, businessId: currentUser.businessId },
+      where: { id, businessId },
     });
     if (!vendor) throw new NotFoundException('Vendor not found');
 
@@ -136,7 +153,7 @@ export class VendorsService {
         where: {
           accountId: id,
           accountType: 'VENDOR_PAYABLE',
-          transaction: { businessId: currentUser.businessId },
+          transaction: { businessId },
         },
         include: {
           transaction: true,
@@ -320,7 +337,7 @@ export class VendorsService {
           : instancesRaw[0]?.createdAt || null,
     };
 
-    return {
+    const result = {
       success: true,
       vendor: {
         ...vendor,
@@ -332,6 +349,9 @@ export class VendorsService {
         metrics,
       },
     };
+
+    await this.redis.set(cacheKey, result, 3600);
+    return result;
   }
 
   async recordPurchase(userId: string, vendorId: string, data: any) {
@@ -374,6 +394,11 @@ export class VendorsService {
         },
       },
     });
+
+    await this.redis.delete(`vendors:${currentUser.businessId}`);
+    await this.redis.delete(
+      `vendor_details:${currentUser.businessId}:${vendorId}`,
+    );
 
     return { success: true, transaction };
   }
@@ -418,6 +443,11 @@ export class VendorsService {
         },
       },
     });
+
+    await this.redis.delete(`vendors:${currentUser.businessId}`);
+    await this.redis.delete(
+      `vendor_details:${currentUser.businessId}:${vendorId}`,
+    );
 
     return { success: true, transaction };
   }
