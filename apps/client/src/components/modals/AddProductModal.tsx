@@ -1,475 +1,284 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { X, Barcode, Layers, Archive, Tag, Check, MapPin, Lock } from "lucide-react";
-import { API_BASE_URL } from "@/lib/auth";
+import { useEffect, useState } from "react";
+import { Archive, Barcode, Layers, Loader2, Lock, MapPin, X } from "lucide-react";
+import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { useAuth, type Branch } from "@/context/AuthContext";
 import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 
-export type ItemConditionType =
-  | "ORIGINAL_PULL"
-  | "COPY"
-  | "MINOR_SCRATCHES"
-  | "WORKING"
-  | "DEAD_DONOR";
-
-export type ProductFormValues = {
-  name: string;
-  sku: string;
-  category: string;
-  price: number;
-  // Spatial Inventory
-  rack: string;
-  shelf: string;
-  bin: string;
-  cabinetId?: string;
-  condition: ItemConditionType;
-  quantity: number;
-};
-
-interface CabinetOption {
+type CabinetOption = {
   id: string;
   name: string;
   location?: string | null;
-}
+  rack?: string | null;
+  shelf?: string | null;
+  bin?: string | null;
+  branch?: { id: string; name: string } | null;
+};
+
+type Vendor = { id: string; businessName: string };
 
 interface AddProductModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (product: ProductFormValues) => void | Promise<void>;
+  onSuccess: () => void | Promise<void>;
   categories: string[];
 }
 
-const CONDITION_OPTIONS: {
-  value: ItemConditionType;
-  label: string;
-  desc: string;
-  badgeColor: string;
-}[] = [
-  {
-    value: "ORIGINAL_PULL",
-    label: "Original Pull",
-    desc: "Genuine OEM pulled from device",
-    badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  },
-  {
-    value: "COPY",
-    label: "Copy / Aftermarket",
-    desc: "Compatible third-party replacement",
-    badgeColor: "bg-blue-50 text-blue-700 border-blue-200",
-  },
-  {
-    value: "MINOR_SCRATCHES",
-    label: "Minor Scratch",
-    desc: "Fully functional, slight aesthetic wear",
-    badgeColor: "bg-amber-50 text-amber-700 border-amber-200",
-  },
-  {
-    value: "WORKING",
-    label: "Working Tested",
-    desc: "Tested standard working condition",
-    badgeColor: "bg-purple-50 text-purple-700 border-purple-200",
-  },
-  {
-    value: "DEAD_DONOR",
-    label: "Dead Donor",
-    desc: "For ICs, connectors, and board scraping",
-    badgeColor: "bg-rose-50 text-rose-700 border-rose-200",
-  },
-];
+const initialForm = {
+  name: "",
+  sku: "",
+  category: "",
+  price: "",
+  costPrice: "",
+  branchId: "",
+  cabinetId: "",
+  vendorId: "",
+  quantity: "1",
+};
 
 export default function AddProductModal({
   isOpen,
   onClose,
-  onAdd,
+  onSuccess,
   categories,
 }: AddProductModalProps) {
+  const { activeBranchId, branches: authBranches } = useAuth();
   const readOnly = useIsReadOnly();
-  const [name, setName] = useState("");
-  const [sku, setSku] = useState("");
-  const [category, setCategory] = useState("");
-  const [price, setPrice] = useState("");
-
-  // Spatial Inventory States
+  const [form, setForm] = useState(initialForm);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [cabinets, setCabinets] = useState<CabinetOption[]>([]);
-  const [selectedCabinetId, setSelectedCabinetId] = useState("");
-  const [rack, setRack] = useState("");
-  const [shelf, setShelf] = useState("");
-  const [bin, setBin] = useState("");
-  const [condition, setCondition] =
-    useState<ItemConditionType>("ORIGINAL_PULL");
-  const [quantity, setQuantity] = useState("1");
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  // Fetch available cabinets
+  useEffect(() => {
+    if (!isOpen) {
+      setForm(initialForm);
+      setError("");
+      setIsSubmitting(false);
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      branchId: current.branchId || activeBranchId || "",
+    }));
+  }, [isOpen, activeBranchId]);
+
   useEffect(() => {
     if (!isOpen) return;
 
-    const fetchCabinets = async () => {
+    const loadMetadata = async () => {
       try {
-        const token = localStorage.getItem("accessToken");
-        const res = await fetch(`${API_BASE_URL}/product/getcabinets`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        const data = await res.json();
-        if (data.success && Array.isArray(data.cabinets)) {
-          setCabinets(data.cabinets);
+        const [branchResponse, cabinetResponse, vendorResponse] =
+          await Promise.all([
+            fetch(`${API_BASE_URL}/product/getbranches`, {
+              headers: getAuthHeaders(),
+            }),
+            fetch(`${API_BASE_URL}/product/getcabinets`, {
+              headers: getAuthHeaders(),
+            }),
+            fetch(`${API_BASE_URL}/vendors`, { headers: getAuthHeaders() }),
+          ]);
+        const branchData = await branchResponse.json();
+        const cabinetData = await cabinetResponse.json();
+        const vendorData = await vendorResponse.json();
+
+        if (Array.isArray(authBranches) && authBranches.length > 0) {
+          setBranches(authBranches);
+        } else if (branchData.success && Array.isArray(branchData.branches)) {
+          setBranches(branchData.branches);
         }
-      } catch (err) {
-        console.error("Failed to load cabinets:", err);
+        if (cabinetData.success && Array.isArray(cabinetData.cabinets)) {
+          setCabinets(cabinetData.cabinets);
+        }
+        if (vendorData.success && Array.isArray(vendorData.vendors)) {
+          setVendors(vendorData.vendors);
+        }
+      } catch {
+        setError("Failed to load branches, cabinets, or vendors.");
       }
     };
 
-    void fetchCabinets();
-  }, [isOpen]);
+    void loadMetadata();
+  }, [isOpen, authBranches]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !price || !category) return;
+  const updateField = (field: keyof typeof initialForm, value: string) => {
+    setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const selectedBranchCabinets = form.branchId
+    ? cabinets.filter((cabinet) => cabinet.branch?.id === form.branchId)
+    : [];
+
+  const cabinetLabel = (cabinet: CabinetOption) => {
+    const parts = [
+      cabinet.rack ? `Rack ${cabinet.rack}` : null,
+      cabinet.shelf ? `Shelf ${cabinet.shelf}` : null,
+      cabinet.bin ? `Bin ${cabinet.bin}` : null,
+    ].filter(Boolean);
+    return `${cabinet.name} - ${parts.join(" / ") || cabinet.location || "General"}`;
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!form.name.trim() || !form.price || !form.category || !form.branchId) {
+      setError("Fill in the required fields and select a branch.");
+      return;
+    }
+    if (!form.cabinetId) {
+      setError("Select an existing cabinet for this product stock.");
+      return;
+    }
 
     setIsSubmitting(true);
+    setError("");
     try {
-      const payload: ProductFormValues = {
-        name: name.trim(),
-        sku: sku.trim() || `PART-${Math.floor(1000 + Math.random() * 9000)}`,
-        category,
-        price: Number(price),
-        rack: rack.trim(),
-        shelf: shelf.trim(),
-        bin: bin.trim(),
-        cabinetId: selectedCabinetId || undefined,
-        condition,
-        quantity: Math.max(1, Number(quantity) || 1),
-      };
+      const response = await fetch(`${API_BASE_URL}/product/addproduct`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          name: form.name.trim(),
+          sku: form.sku.trim() || `PART-${Math.floor(1000 + Math.random() * 9000)}`,
+          category: form.category,
+          price: Number(form.price),
+          defaultCostPrice: form.costPrice ? Number(form.costPrice) : undefined,
+          branchId: form.branchId,
+          cabinetId: form.cabinetId,
+          quantity: Math.max(1, Number(form.quantity) || 1),
+          vendorId: form.vendorId || undefined,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.message || data?.error || "Failed to add product");
+      }
 
-      await onAdd(payload);
-
-      // Reset form
-      setName("");
-      setSku("");
-      setPrice("");
-      setCategory("");
-      setRack("");
-      setShelf("");
-      setBin("");
-      setSelectedCabinetId("");
-      setCondition("ORIGINAL_PULL");
-      setQuantity("1");
+      await onSuccess();
+      onClose();
+    } catch (submissionError) {
+      setError(
+        submissionError instanceof Error
+          ? submissionError.message
+          : "Failed to add product",
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const inputClass =
+    "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500";
+  const labelClass = "mb-1.5 block text-xs font-semibold text-slate-600";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in"
-        onClick={onClose}
+        className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+        onClick={() => !isSubmitting && onClose()}
+        aria-hidden="true"
       />
-
-      {/* Modal Card */}
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95 font-sans">
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/50 sticky top-0 z-10">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-product-title"
+        className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-slate-50/95 p-5 backdrop-blur">
           <div>
-            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <Archive className="w-5 h-5 text-blue-600" />
-              Add Product & Spatial Instance
+            <h2 id="add-product-title" className="flex items-center gap-2 text-lg font-bold text-slate-900">
+              <Archive className="h-5 w-5 text-blue-600" /> Add Product
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Map physical spare part to physical rack location and inspect item
-              condition.
+            <p className="mt-0.5 text-xs text-slate-500">
+              Add a catalog item and place its physical stock in an existing cabinet.
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+            disabled={isSubmitting}
+            aria-label="Close add product dialog"
+            className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
           >
-            <X className="w-5 h-5" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Section 1: Item Basic Info */}
-          <div className="space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Basic Part Specification
-            </h3>
+        <form onSubmit={handleSubmit} className="space-y-5 p-6">
+          {error && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-medium text-rose-700">{error}</div>}
 
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                Product / Part Name *
-              </label>
-              <input
-                type="text"
-                required
-                autoFocus
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. iPhone 13 Pro Max OLED Display"
-                className="w-full border border-slate-300 rounded-xl py-2.5 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-              />
+              <label className={labelClass}>Product / Part Name *</label>
+              <input required autoFocus value={form.name} onChange={(event) => updateField("name", event.target.value)} className={inputClass} placeholder="e.g. iPhone 13 OLED Display" />
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                  Category *
-                </label>
-                <select
-                  required
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl py-2.5 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white cursor-pointer"
-                >
-                  <option value="" disabled>
-                    Select category...
-                  </option>
-                  {categories.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                  Selling Price (Rs) *
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="0"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full border border-slate-300 rounded-xl py-2.5 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-            </div>
-
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                SKU / Part Serial
-              </label>
-              <div className="relative">
-                <Barcode className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                <input
-                  type="text"
-                  value={sku}
-                  onChange={(e) => setSku(e.target.value)}
-                  placeholder="e.g. DSP-IP13PM-001"
-                  className="w-full border border-slate-300 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono"
-                />
-              </div>
-            </div>
-          </div>
-
-          <hr className="border-slate-100" />
-
-          {/* Section 2: Spatial Inventory Location (Rack, Shelf, Bin) */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-indigo-500" />
-                Spatial Inventory (Physical Location)
-              </h3>
-              <span className="text-[11px] text-slate-400 font-medium">
-                Hafeez Centre Physical Mapping
-              </span>
-            </div>
-
-            {cabinets.length > 0 && (
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                  Assign to Existing Cabinet (Optional)
-                </label>
-                <select
-                  value={selectedCabinetId}
-                  onChange={(e) => {
-                    setSelectedCabinetId(e.target.value);
-                  }}
-                  className="w-full border border-slate-300 rounded-xl py-2 px-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white cursor-pointer"
-                >
-                  <option value="">
-                    -- Or enter new Rack / Shelf / Bin below --
-                  </option>
-                  {cabinets.map((cab) => (
-                    <option key={cab.id} value={cab.id}>
-                      {cab.name} ({cab.location || "General"})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Rack
-                </label>
-                <input
-                  type="text"
-                  value={rack}
-                  onChange={(e) => setRack(e.target.value)}
-                  placeholder="e.g. Rack A"
-                  className="w-full border border-slate-300 rounded-xl py-2 px-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-medium"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Shelf
-                </label>
-                <input
-                  type="text"
-                  value={shelf}
-                  onChange={(e) => setShelf(e.target.value)}
-                  placeholder="e.g. Shelf 2"
-                  className="w-full border border-slate-300 rounded-xl py-2 px-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-medium"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Bin
-                </label>
-                <input
-                  type="text"
-                  value={bin}
-                  onChange={(e) => setBin(e.target.value)}
-                  placeholder="e.g. Bin 04"
-                  className="w-full border border-slate-300 rounded-xl py-2 px-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-medium"
-                />
-              </div>
-            </div>
-          </div>
-
-          <hr className="border-slate-100" />
-
-          {/* Section 3: Item Condition Profiling */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5 text-amber-500" />
-                Item Condition Profiling *
-              </h3>
-            </div>
-
-            <div>
-              <label
-                htmlFor="condition-select"
-                className="block text-xs font-semibold text-slate-600 mb-1.5"
-              >
-                Condition Select Dropdown
-              </label>
-              <select
-                id="condition-select"
-                name="condition"
-                value={condition}
-                onChange={(e) =>
-                  setCondition(e.target.value as ItemConditionType)
-                }
-                className="w-full border border-slate-300 rounded-xl py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white cursor-pointer"
-              >
-                {CONDITION_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.value} ({opt.label})
-                  </option>
-                ))}
+              <label className={labelClass}>Category *</label>
+              <select required value={form.category} onChange={(event) => updateField("category", event.target.value)} className={`${inputClass} cursor-pointer`}>
+                <option value="" disabled>Select category...</option>
+                {categories.map((category) => <option key={category} value={category}>{category}</option>)}
               </select>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {CONDITION_OPTIONS.map((opt) => {
-                const isSelected = condition === opt.value;
-                return (
-                  <button
-                    type="button"
-                    key={opt.value}
-                    onClick={() => setCondition(opt.value)}
-                    className={`flex flex-col text-left p-3 rounded-xl border transition-all ${
-                      isSelected
-                        ? "border-blue-600 bg-blue-50/40 ring-2 ring-blue-500/20 shadow-sm"
-                        : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between w-full mb-1">
-                      <span className="text-xs font-bold text-slate-900">
-                        {opt.label}
-                      </span>
-                      {isSelected && (
-                        <Check className="w-3.5 h-3.5 text-blue-600 font-bold" />
-                      )}
-                    </div>
-                    <span className="text-[11px] text-slate-500 leading-tight">
-                      {opt.desc}
-                    </span>
-                  </button>
-                );
-              })}
+            <div>
+              <label className={labelClass}>SKU / Part Serial</label>
+              <div className="relative">
+                <Barcode className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                <input value={form.sku} onChange={(event) => updateField("sku", event.target.value)} className={`${inputClass} pl-9 font-mono`} placeholder="Auto-generated if empty" />
+              </div>
+            </div>
+            <div>
+              <label className={labelClass}>Selling Price (Rs) *</label>
+              <input type="number" min="0" required value={form.price} onChange={(event) => updateField("price", event.target.value)} className={inputClass} placeholder="0.00" />
+            </div>
+            <div>
+              <label className={labelClass}>Cost Price (Rs)</label>
+              <input type="number" min="0" value={form.costPrice} onChange={(event) => updateField("costPrice", event.target.value)} className={inputClass} placeholder="Optional" />
+            </div>
+            <div>
+              <label className={labelClass}>Physical Instances *</label>
+              <input type="number" min="1" required value={form.quantity} onChange={(event) => updateField("quantity", event.target.value)} className={inputClass} />
             </div>
           </div>
 
-          {/* Section 4: Discrete Physical Quantity */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Number of Physical Instances to Deposit *
-            </label>
-            <div className="flex items-center gap-3">
-              <input
-                type="number"
-                min="1"
-                required
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                className="w-32 border border-slate-300 rounded-xl py-2 px-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-              <span className="text-xs text-slate-500 font-medium">
-                Generates {Number(quantity) || 1} distinct physical{" "}
-                <code className="bg-slate-100 px-1 py-0.5 rounded text-blue-600 font-mono">
-                  ProductInstance
-                </code>{" "}
-                records linked to this cabinet.
-              </span>
+          <div className="space-y-4 border-t border-slate-100 pt-5">
+            <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400">
+              <MapPin className="h-3.5 w-3.5 text-indigo-500" /> Physical Stock Location
+            </h3>
+            <div>
+              <label className={labelClass}>Branch (for physical stock) *</label>
+              <select value={form.branchId} onChange={(event) => setForm((current) => ({ ...current, branchId: event.target.value, cabinetId: "" }))} className={`${inputClass} cursor-pointer`}>
+                <option value="" disabled>Select a branch...</option>
+                {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+              </select>
+              <p className="mt-1.5 flex items-center gap-1 text-[11px] text-slate-400">
+                <Layers className="h-3 w-3" /> The master product is global; physical units are placed in this branch.
+              </p>
+            </div>
+            <div>
+              <label className={labelClass}>Existing Rack / Shelf / Bin (from Cabinets) *</label>
+              <select required value={form.cabinetId} onChange={(event) => updateField("cabinetId", event.target.value)} className={`${inputClass} cursor-pointer`}>
+                <option value="">{selectedBranchCabinets.length ? "Choose an existing cabinet..." : "No cabinets in this branch"}</option>
+                {selectedBranchCabinets.map((cabinet) => <option key={cabinet.id} value={cabinet.id}>{cabinetLabel(cabinet)}</option>)}
+              </select>
+              <p className="mt-1.5 text-[11px] text-slate-400">Create cabinets first from Settings &gt; Cabinets.</p>
+            </div>
+            <div>
+              <label className={labelClass}>Select Vendor (Optional)</label>
+              <select value={form.vendorId} onChange={(event) => updateField("vendorId", event.target.value)} className={`${inputClass} cursor-pointer`}>
+                <option value="">No Vendor</option>
+                {vendors.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.businessName}</option>)}
+              </select>
             </div>
           </div>
 
-          {/* Footer Actions */}
-          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting || readOnly}
-              title={
-                readOnly
-                  ? "Subscription expired. System is in read-only mode."
-                  : undefined
-              }
-              className={`px-6 py-2.5 text-white text-sm font-bold rounded-xl transition-all shadow-md shadow-blue-200 disabled:opacity-50 flex items-center gap-2 ${
-                readOnly
-                  ? "bg-slate-400 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-700 cursor-pointer"
-              }`}
-            >
-              {isSubmitting ? (
-                "Creating Instances..."
-              ) : readOnly ? (
-                <>
-                  <Lock className="w-4 h-4" /> Read-only
-                </>
-              ) : (
-                "Save Product & Location"
-              )}
+          <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50">Cancel</button>
+            <button type="submit" disabled={isSubmitting || readOnly} className={`flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-200 disabled:opacity-50 ${readOnly ? "bg-slate-400" : "bg-blue-600 hover:bg-blue-700"}`}>
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : readOnly ? <Lock className="h-4 w-4" /> : null}
+              {isSubmitting ? "Creating..." : readOnly ? "Read-only" : "Create Product"}
             </button>
           </div>
         </form>

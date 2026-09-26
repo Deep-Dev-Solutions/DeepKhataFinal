@@ -116,12 +116,9 @@ function ProductsPageContent() {
   const [deleteTarget, setDeleteTarget] = useState<ProductRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [movingId, setMovingId] = useState<string | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  // 🟢 STATES
-  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
-
-  const [newCategoryName, setNewCategoryName] = useState("");
 
   // Debounce search query to prevent spamming the backend
   useEffect(() => {
@@ -186,28 +183,6 @@ function ProductsPageContent() {
       setIsLoadingProducts(false);
     }
   }, [debouncedSearchQuery, activeCategory, stockFilter]);
-
-  const handleAddCategory = async () => {
-    const trimmedName = newCategoryName.trim();
-
-    if (!trimmedName) return;
-
-    const response = await fetch(`${API_BASE_URL}/product/addcategory`, {
-      method: "POST",
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ name: trimmedName }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data?.message || data?.error || "Failed to add category");
-    }
-
-    await fetchCategories();
-    setIsCategoryModalOpen(false);
-    setNewCategoryName("");
-  };
 
   // Synchronize search query and filter with URL params
   useEffect(() => {
@@ -345,12 +320,13 @@ function ProductsPageContent() {
                 <Lock className="w-4 h-4" /> Read-only
               </span>
             ) : (
-              <Link
-                href="/products/new"
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(true)}
                 className="flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200"
               >
                 <Plus className="w-4 h-4" /> Add Product
-              </Link>
+              </button>
             )}
           </div>
         )}
@@ -410,24 +386,6 @@ function ProductsPageContent() {
               {category}
             </button>
           ))}
-          {hasPermission("write:products") && (
-            <button
-              onClick={() => setIsCategoryModalOpen(true)}
-              disabled={readOnly}
-              title={
-                readOnly
-                  ? "Subscription expired. System is in read-only mode."
-                  : undefined
-              }
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium border whitespace-nowrap transition-colors flex items-center gap-1 ml-auto ${
-                readOnly
-                  ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
-                  : "text-blue-600 hover:bg-blue-50 border-dashed border-blue-200 cursor-pointer"
-              }`}
-            >
-              <Plus className="w-3.5 h-3.5" /> {readOnly ? "Read-only" : "New Category"}
-            </button>
-          )}
         </div>
 
         {/* Search */}
@@ -690,59 +648,12 @@ function ProductsPageContent() {
         }}
       />
 
-      {/* Add Category Modal (Inline for now) */}
-      {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-            onClick={() => setIsCategoryModalOpen(false)}
-          />
-          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm p-6 animate-in zoom-in-95">
-            <h3 className="text-lg font-bold text-slate-900 mb-1">
-              Add New Category
-            </h3>
-            <p className="text-sm text-slate-500 mb-4">
-              Create a new category to organize your products.
-            </p>
-
-            <input
-              type="text"
-              autoFocus
-              value={newCategoryName}
-              onChange={(e) => setNewCategoryName(e.target.value)}
-              placeholder="e.g. Cables & Adapters"
-              className="w-full border border-slate-300 rounded-lg py-2.5 px-3 mb-5 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-            />
-
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setIsCategoryModalOpen(false)}
-                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  void handleAddCategory();
-                }}
-                disabled={readOnly}
-                title={
-                  readOnly
-                    ? "Subscription expired. System is in read-only mode."
-                    : undefined
-                }
-                className={`px-4 py-2 text-sm font-bold rounded-lg ${
-                  readOnly
-                    ? "bg-slate-400 text-white cursor-not-allowed"
-                    : "bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
-                }`}
-              >
-                Save Category
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AddProductModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSuccess={refreshProducts}
+        categories={categories}
+      />
     </div>
   );
 }
