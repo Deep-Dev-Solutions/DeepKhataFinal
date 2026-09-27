@@ -23,6 +23,7 @@ import {
   List,
   GripVertical,
   ChevronRight,
+  Globe2,
 } from "lucide-react";
 import { offlineDb, type SyncQueueItem } from "@/lib/db";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
@@ -31,6 +32,7 @@ import OrderSuccessModal, {
   type CompletedOrderData,
 } from "@/components/modals/OrderSuccessModal";
 import NewCustomerModal from "@/components/modals/NewCustomerModal";
+import GlobalStockLookupModal from "@/components/modals/GlobalStockLookupModal";
 import CheckoutDrawer from "@/components/pos/CheckoutDrawer";
 import { usePOS } from "@/context/POSContext";
 import { useAuth } from "@/context/AuthContext";
@@ -126,6 +128,7 @@ function CreateOrderPOSContent() {
 
   // Interrupt modal — create a customer without losing cart state
   const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false);
+  const [isGlobalStockLookupOpen, setIsGlobalStockLookupOpen] = useState(false);
 
   // 4. DISCOUNT & PAYMENT STATES
   const [discount, setDiscount] = useState<string>("");
@@ -217,6 +220,7 @@ function CreateOrderPOSContent() {
           `${API_BASE_URL}/product/getproducts?${params.toString()}`,
           {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
+            cache: "no-store",
           },
         );
         const data = await res.json();
@@ -261,7 +265,17 @@ function CreateOrderPOSContent() {
     };
 
     const delayDebounceFn = setTimeout(() => void fetchProducts(), 300);
-    return () => clearTimeout(delayDebounceFn);
+    const refreshWhenActive = () => {
+      if (document.visibilityState === "visible") void fetchProducts();
+    };
+    window.addEventListener("focus", refreshWhenActive);
+    document.addEventListener("visibilitychange", refreshWhenActive);
+
+    return () => {
+      clearTimeout(delayDebounceFn);
+      window.removeEventListener("focus", refreshWhenActive);
+      document.removeEventListener("visibilitychange", refreshWhenActive);
+    };
   }, [searchQuery, activeCategory, activeBranchId]);
 
   // Pre-fetch all customers into IndexedDB for offline capability
@@ -1184,6 +1198,15 @@ function CreateOrderPOSContent() {
                   />
                   <Barcode className="h-4 w-4 text-slate-400 absolute right-3 top-2.5" />
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setIsGlobalStockLookupOpen(true)}
+                  title="Check Other Branches"
+                  className="flex shrink-0 items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-2.5 py-2 text-xs font-bold text-indigo-700 transition-colors hover:bg-indigo-100"
+                >
+                  <Globe2 className="h-4 w-4" />
+                  <span className="hidden xl:inline">Other Branches</span>
+                </button>
                 {/* Grid / List toggle */}
                 <div className="flex bg-white rounded-xl border border-slate-200 shadow-sm p-0.5 shrink-0">
                   <button
@@ -1851,6 +1874,11 @@ function CreateOrderPOSContent() {
           setCustomerSearch("");
           setCustomerResults([]);
         }}
+      />
+
+      <GlobalStockLookupModal
+        isOpen={isGlobalStockLookupOpen}
+        onClose={() => setIsGlobalStockLookupOpen(false)}
       />
     </div>
   );

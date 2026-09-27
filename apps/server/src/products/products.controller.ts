@@ -53,6 +53,13 @@ export class ProductsController {
     return this.productsService.getProducts(req.user.id, query);
   }
 
+  @Get('global-stock')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('read:products')
+  async getGlobalStock(@Req() req: any, @Query('search') search = '') {
+    return this.productsService.getGlobalStock(req.user.id, search);
+  }
+
   @Get('getcategories')
   @UseGuards(PermissionsGuard)
   @RequirePermissions('read:products')

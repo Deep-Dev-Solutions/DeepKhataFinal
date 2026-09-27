@@ -383,6 +383,57 @@ export class ProductsService {
       return result;
   }
 
+    async getGlobalStock(userId: string, search: string) {
+      const businessId = await this.requireBusinessId(userId);
+      const normalizedSearch = search?.trim();
+
+      if (!normalizedSearch) {
+        return [];
+      }
+
+      const [products, branches] = await Promise.all([
+        this.prisma.product.findMany({
+          where: {
+            businessId,
+            deletedAt: null,
+            name: { contains: normalizedSearch, mode: 'insensitive' },
+          },
+          select: {
+            id: true,
+            name: true,
+            basePrice: true,
+            instances: {
+              where: { status: 'AVAILABLE' },
+              select: { branchId: true },
+            },
+          },
+          orderBy: { name: 'asc' },
+        }),
+        this.prisma.branch.findMany({
+          where: { businessId, deletedAt: null },
+          select: { id: true, name: true },
+          orderBy: { name: 'asc' },
+        }),
+      ]);
+
+      return products.flatMap((product) => {
+        const stockByBranch = new Map<string, number>();
+        for (const instance of product.instances) {
+          stockByBranch.set(
+            instance.branchId,
+            (stockByBranch.get(instance.branchId) || 0) + 1,
+          );
+        }
+
+        return branches.map((branch) => ({
+          branchName: branch.name,
+          productName: product.name,
+          stock: stockByBranch.get(branch.id) || 0,
+          price: product.basePrice,
+        }));
+      });
+    }
+
   async updatePrice(userId: string, productId: string, price: number) {
     const businessId = await this.requireBusinessId(userId);
 

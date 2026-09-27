@@ -20,6 +20,7 @@ export class OrdersService {
 
   private async invalidateOrderCaches(
     businessId: string,
+    branchId?: string | null,
     orderId?: string,
   ): Promise<void> {
     const invalidations = [
@@ -28,6 +29,12 @@ export class OrdersService {
       this.redis.deleteByPattern(`reports:*${businessId}*`),
       this.redis.deleteByPattern(`products:${businessId}:*`),
     ];
+    if (branchId) {
+      invalidations.push(
+        this.redis.deleteByPattern(`products:${branchId}:*`),
+        this.redis.deleteByPattern(`inventory:${branchId}:*`),
+      );
+    }
     if (orderId) {
       invalidations.push(
         this.redis.delete(`order_details:${businessId}:${orderId}`),
@@ -260,7 +267,11 @@ export class OrdersService {
         await this.postDoubleEntrySequence(completeOrder, parsedAmountPaid);
       }
 
-      await this.invalidateOrderCaches(businessId, completeOrder.id);
+      await this.invalidateOrderCaches(
+        businessId,
+        completeOrder.branchId,
+        completeOrder.id,
+      );
 
       return {
         success: true,
@@ -616,7 +627,11 @@ export class OrdersService {
     }
 
     if (currentUser?.businessId) {
-      await this.invalidateOrderCaches(currentUser.businessId, id);
+      await this.invalidateOrderCaches(
+        currentUser.businessId,
+        order.branchId,
+        id,
+      );
     }
 
     return { success: true, message: `Order status updated to ${status}` };
@@ -700,7 +715,11 @@ export class OrdersService {
     await this.postDoubleEntrySequence(order, totalPaid);
 
     if (currentUser?.businessId) {
-      await this.invalidateOrderCaches(currentUser.businessId, id);
+      await this.invalidateOrderCaches(
+        currentUser.businessId,
+        order.branchId,
+        id,
+      );
     }
 
     return {
@@ -728,6 +747,7 @@ export class OrdersService {
       where: { id: orderId, businessId: currentUser.businessId },
       select: {
         id: true,
+        branchId: true,
         totalAmount: true,
         customerId: true,
         payments: { select: { amount: true } },
@@ -786,7 +806,11 @@ export class OrdersService {
       ],
     });
 
-    await this.invalidateOrderCaches(currentUser.businessId, order.id);
+    await this.invalidateOrderCaches(
+      currentUser.businessId,
+      order.branchId,
+      order.id,
+    );
 
     return { success: true, message: 'Payment recorded successfully' };
   }
@@ -979,7 +1003,11 @@ export class OrdersService {
       );
     }
 
-    await this.invalidateOrderCaches(currentUser.businessId, id);
+    await this.invalidateOrderCaches(
+      currentUser.businessId,
+      order.branchId,
+      id,
+    );
 
     return { success: true, message: 'Return processed successfully' };
   }
