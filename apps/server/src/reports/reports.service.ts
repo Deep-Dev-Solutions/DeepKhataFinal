@@ -26,7 +26,7 @@ export class ReportsService {
     const dateLimit = new Date();
     dateLimit.setDate(dateLimit.getDate() - normalizedDays);
 
-    const branchFilter = branchId ? { branchId } : {};
+    const branchFilter = { branchId };
 
     const orders = await this.prisma.order.findMany({
       where: {
@@ -116,7 +116,7 @@ export class ReportsService {
     return result;
   }
 
-  async getInventoryInsights(userId: string) {
+  async getInventoryInsights(userId: string, branchId: string) {
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { businessId: true },
@@ -130,7 +130,7 @@ export class ReportsService {
       const topSelling = await this.prisma.orderItem.groupBy({
         by: ['productId'],
         _sum: { quantity: true, price: true },
-        where: { order: { businessId, status: { not: 'CANCELLED' } } },
+        where: { order: { businessId, branchId, status: { not: 'CANCELLED' } } },
         orderBy: { _sum: { quantity: 'desc' } },
         take: 5,
       });
@@ -138,12 +138,16 @@ export class ReportsService {
       for (const item of topSelling) {
         if (!item.productId) continue;
         const prod = await this.prisma.product.findFirst({
-          where: { id: item.productId, deletedAt: null },
+          where: {
+            id: item.productId,
+            deletedAt: null,
+            instances: { some: { branchId } },
+          },
           select: {
             name: true,
             basePrice: true,
             _count: {
-              select: { instances: { where: { status: 'AVAILABLE' } } },
+              select: { instances: { where: { status: 'AVAILABLE', branchId } } },
             },
           },
         });
@@ -166,7 +170,9 @@ export class ReportsService {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
       const activeProductIds = await this.prisma.orderItem.findMany({
-        where: { order: { businessId, createdAt: { gte: thirtyDaysAgo } } },
+        where: {
+          order: { businessId, branchId, createdAt: { gte: thirtyDaysAgo } },
+        },
         select: { productId: true },
         distinct: ['productId'],
       });
@@ -179,7 +185,7 @@ export class ReportsService {
         where: {
           businessId,
           deletedAt: null,
-          instances: { some: { status: 'AVAILABLE' } },
+          instances: { some: { status: 'AVAILABLE', branchId } },
           id: { notIn: activeIdsArray.length ? activeIdsArray : ['__none__'] },
         },
         select: {
@@ -187,7 +193,7 @@ export class ReportsService {
           defaultCostPrice: true,
           basePrice: true,
           _count: {
-            select: { instances: { where: { status: 'AVAILABLE' } } },
+            select: { instances: { where: { status: 'AVAILABLE', branchId } } },
           },
         },
         take: 5,
@@ -206,7 +212,7 @@ export class ReportsService {
     return { success: true, topProducts, deadStock };
   }
 
-  async getStaffPerformance(userId: string) {
+  async getStaffPerformance(userId: string, branchId: string) {
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { businessId: true },
@@ -217,7 +223,7 @@ export class ReportsService {
       by: ['createdBy'],
       _sum: { totalAmount: true },
       _count: { id: true },
-      where: { businessId, status: { not: 'CANCELLED' } },
+      where: { businessId, branchId, status: { not: 'CANCELLED' } },
     });
 
     const staffPerformance = [];
@@ -241,7 +247,7 @@ export class ReportsService {
     return { success: true, staffPerformance };
   }
 
-  async getCustomerInsights(userId: string) {
+  async getCustomerInsights(userId: string, branchId: string) {
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { businessId: true },
@@ -254,6 +260,7 @@ export class ReportsService {
       _count: { id: true },
       where: {
         businessId,
+        branchId,
         status: { not: 'CANCELLED' },
         customerId: { not: null },
       },

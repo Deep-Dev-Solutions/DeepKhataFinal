@@ -16,6 +16,8 @@ import {
   Cell,
 } from "recharts";
 import { API_BASE_URL } from "@/lib/auth";
+import { getAuthHeaders } from "@/lib/auth";
+import { useAuth } from "@/context/AuthContext";
 
 type FinancialOverviewTabProps = {
   days: number;
@@ -27,6 +29,7 @@ export default function FinancialOverviewTab({
   const [reportData, setReportData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const { activeBranchId } = useAuth();
 
   useEffect(() => {
     let isActive = true;
@@ -39,9 +42,7 @@ export default function FinancialOverviewTab({
         const res = await fetch(
           `${API_BASE_URL}/reports/financial?days=${days}`,
           {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
-            },
+            headers: getAuthHeaders(activeBranchId),
           },
         );
 
@@ -62,7 +63,7 @@ export default function FinancialOverviewTab({
     return () => {
       isActive = false;
     };
-  }, [days]);
+  }, [days, activeBranchId]);
 
   if (isLoading) {
     return (

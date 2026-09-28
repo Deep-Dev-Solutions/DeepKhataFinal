@@ -7,22 +7,21 @@ import StatsCards from "@/components/dashboard/widgets/StatsCards";
 import RevenueChart from "@/components/dashboard/widgets/RevenueChart";
 import PaymentHealth from "@/components/dashboard/widgets/PaymentHealth";
 import RecentOrdersTable from "@/components/dashboard/widgets/RecentOrdersTable";
-import { API_BASE_URL } from "@/lib/auth";
+import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { useAuth } from "@/context/AuthContext";
 
 export default function DashboardHomePage() {
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const { activeBranchId } = useAuth();
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const token = localStorage.getItem("accessToken");
-
         const res = await fetch(`${API_BASE_URL}/dashboard/dashboarddata`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: getAuthHeaders(activeBranchId),
+          cache: "no-store",
         });
 
         const data = await res.json();
@@ -38,7 +37,7 @@ export default function DashboardHomePage() {
     };
 
     fetchDashboardData();
-  }, []);
+  }, [activeBranchId]);
 
   if (isLoading) {
     return (

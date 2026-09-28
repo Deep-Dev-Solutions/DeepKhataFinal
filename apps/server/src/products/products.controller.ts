@@ -4,6 +4,8 @@ import {
   Get,
   Body,
   Query,
+  Headers,
+  BadRequestException,
   UseGuards,
   Req,
   Patch,
@@ -22,6 +24,7 @@ import { Role } from '@prisma/client';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdatePriceDto } from './dto/update-price.dto';
+import { BranchId } from '../auth/decorators/branch-id.decorator';
 
 @Controller('product')
 @UseGuards(ThrottlerGuard, JwtAuthGuard)
@@ -35,22 +38,40 @@ export class ProductsController {
   @Post('addcategory')
   @UseGuards(PermissionsGuard)
   @RequirePermissions('write:products')
-  async addCategory(@Req() req: any, @Body() body: any) {
-    return this.categoryService.addCategory(req.user.id, body);
+  async addCategory(
+    @Req() req: any,
+    @BranchId() branchId: string,
+    @Body() body: any,
+  ) {
+    return this.categoryService.addCategory(req.user.id, body, branchId);
   }
 
   @Post('addproduct')
   @UseGuards(PermissionsGuard)
   @RequirePermissions('write:products')
-  async addProduct(@Req() req: any, @Body() body: CreateProductDto) {
-    return this.productsService.addProduct(req.user.id, body);
+  async addProduct(
+    @Req() req: any,
+    @BranchId({ required: false }) branchId: string | undefined,
+    @Body() body: CreateProductDto,
+  ) {
+    return this.productsService.addProduct(req.user.id, {
+      ...body,
+      branchId: (body as any).branchId || branchId,
+    });
   }
 
   @Get('getproducts')
   @UseGuards(PermissionsGuard)
   @RequirePermissions('read:products')
-  async getProducts(@Req() req: any, @Query() query: any) {
-    return this.productsService.getProducts(req.user.id, query);
+  async getProducts(
+    @Req() req: any,
+    @BranchId() branchId: string,
+    @Query() query: any,
+  ) {
+    return this.productsService.getProducts(req.user.id, {
+      ...query,
+      branchId,
+    });
   }
 
   @Get('global-stock')
@@ -63,15 +84,25 @@ export class ProductsController {
   @Get('getcategories')
   @UseGuards(PermissionsGuard)
   @RequirePermissions('read:products')
-  async getCategories(@Req() req: any) {
-    return this.categoryService.getCategories(req.user.id);
+  async getCategories(
+    @Req() req: any,
+    @BranchId() branchId: string,
+  ) {
+    return this.categoryService.getCategories(req.user.id, branchId);
   }
 
   @Get('getcabinets')
   @UseGuards(PermissionsGuard)
   @RequirePermissions('read:products')
-  async getCabinets(@Req() req: any, @Query() query: any) {
-    return this.cabinetService.getCabinets(req.user.id, query);
+  async getCabinets(
+    @Req() req: any,
+    @BranchId() branchId: string,
+    @Query() query: any,
+  ) {
+    return this.cabinetService.getCabinets(req.user.id, {
+      ...query,
+      branchId,
+    });
   }
 
   @Post('addcabinet')

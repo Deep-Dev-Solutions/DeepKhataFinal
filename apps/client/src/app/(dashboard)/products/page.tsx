@@ -23,6 +23,7 @@ import {
 import Link from "next/link";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsReadOnly } from "@/hooks/useIsReadOnly";
+import { useAuth } from "@/context/AuthContext";
 import AddProductModal from "@/components/modals/AddProductModal";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
 
@@ -97,6 +98,7 @@ function ProductsPageContent() {
   const router = useRouter();
   const { hasPermission } = usePermissions();
   const readOnly = useIsReadOnly();
+  const { activeBranchId } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState(
     searchParams.get("search") || "",
@@ -130,9 +132,10 @@ function ProductsPageContent() {
   }, [searchQuery]);
 
   const fetchCategories = useCallback(async () => {
+    if (!activeBranchId) return;
     try {
       const response = await fetch(`${API_BASE_URL}/product/getcategories`, {
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(activeBranchId),
       });
       const data = await response.json();
       if (data.success) {
@@ -142,9 +145,13 @@ function ProductsPageContent() {
     } catch (error) {
       console.error("Failed to fetch categories", error);
     }
-  }, []);
+  }, [activeBranchId]);
 
   const refreshProducts = useCallback(async () => {
+    if (!activeBranchId) {
+      setIsLoadingProducts(false);
+      return;
+    }
     setIsLoadingProducts(true);
     setPageError("");
 
@@ -158,7 +165,7 @@ function ProductsPageContent() {
       const response = await fetch(
         `${API_BASE_URL}/product/getproducts?${params.toString()}`,
         {
-          headers: getAuthHeaders(),
+          headers: getAuthHeaders(activeBranchId),
         },
       );
 
@@ -182,7 +189,7 @@ function ProductsPageContent() {
     } finally {
       setIsLoadingProducts(false);
     }
-  }, [debouncedSearchQuery, activeCategory, stockFilter]);
+  }, [debouncedSearchQuery, activeCategory, stockFilter, activeBranchId]);
 
   // Synchronize search query and filter with URL params
   useEffect(() => {
@@ -222,7 +229,7 @@ function ProductsPageContent() {
     try {
       const response = await fetch(`${API_BASE_URL}/product/${id}`, {
         method: "DELETE",
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(activeBranchId),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -250,7 +257,7 @@ function ProductsPageContent() {
     try {
       const response = await fetch(`${API_BASE_URL}/product/move-stock`, {
         method: "POST",
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(activeBranchId),
         body: JSON.stringify({ productId }),
       });
       const data = await response.json();

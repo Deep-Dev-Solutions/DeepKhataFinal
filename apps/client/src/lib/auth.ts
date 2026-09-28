@@ -79,10 +79,22 @@ export function clearAuthToken() {
   deleteCookie("accessToken");
 }
 
-export const getAuthHeaders = () => {
+export const getAuthHeaders = (selectedBranchId?: string | null) => {
   const accessToken = getAuthToken();
+  let branchId = selectedBranchId || null;
+
+  if (!branchId && typeof window !== "undefined") {
+    try {
+      const user = JSON.parse(localStorage.getItem("user") || "null");
+      if (user?.businessId) {
+        branchId = localStorage.getItem(`activeBranch_${user.businessId}`);
+      }
+    } catch {}
+  }
+
   return {
     "Content-Type": "application/json",
     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    ...(branchId ? { "x-branch-id": branchId } : {}),
   };
 };

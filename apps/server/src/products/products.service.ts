@@ -151,7 +151,11 @@ export class ProductsService {
       throw new BadRequestException('Product name is required');
 
     const categoryExists = await this.prisma.category.findFirst({
-      where: { name: category, businessId },
+      where: {
+        name: category,
+        businessId,
+        OR: [{ branchId }, { branchId: null }],
+      },
       select: { id: true },
     });
     if (!categoryExists)
@@ -180,6 +184,7 @@ export class ProductsService {
           basePrice: parsedPrice,
           defaultCostPrice: defaultCostPrice ? Number(defaultCostPrice) : null,
           categoryId: categoryExists.id,
+          branchId: branch,
           sku: sku?.trim() || `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
           businessId,
         },
@@ -276,7 +281,11 @@ export class ProductsService {
     const cached = await this.redis.get<any>(cacheKey);
     if (cached) return cached;
 
-    const queryConditions: any = { businessId, deletedAt: null };
+    const queryConditions: any = {
+      businessId,
+      deletedAt: null,
+      OR: [{ branchId }, { branchId: null }],
+    };
 
     if (search) {
       queryConditions.OR = [

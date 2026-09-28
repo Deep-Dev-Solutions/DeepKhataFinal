@@ -18,6 +18,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { BranchId } from '../auth/decorators/branch-id.decorator';
 
 @Controller('cabinet')
 @UseGuards(ThrottlerGuard, JwtAuthGuard)
@@ -27,15 +28,34 @@ export class CabinetController {
   @Get()
   @UseGuards(PermissionsGuard)
   @RequirePermissions('read:products')
-  async getCabinets(@Req() req: any, @Query() query: any) {
-    return this.cabinetService.getCabinets(req.user.id, query);
+  async getCabinets(
+    @Req() req: any,
+    @BranchId() branchId: string,
+    @Query() query: any,
+  ) {
+    return this.cabinetService.getCabinets(req.user.id, {
+      ...query,
+      branchId,
+    });
   }
 
   @Post()
   @UseGuards(PermissionsGuard)
   @RequirePermissions('write:products')
-  async addCabinet(@Req() req: any, @Body() body: any) {
-    return this.cabinetService.addCabinet(req.user.id, body);
+  async addCabinet(
+    @Req() req: any,
+    @BranchId({ required: false }) branchId: string | undefined,
+    @Body() body: any,
+  ) {
+    return this.cabinetService.addCabinet(req.user.id, {
+      ...body,
+      branchId: body.branchId || branchId,
+    });
+  }
+
+  @Patch('debug-reorder')
+  async debugReorder() {
+    return { success: true };
   }
 
   @Patch(':id')

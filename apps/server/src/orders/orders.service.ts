@@ -33,6 +33,8 @@ export class OrdersService {
       invalidations.push(
         this.redis.deleteByPattern(`products:${branchId}:*`),
         this.redis.deleteByPattern(`inventory:${branchId}:*`),
+        this.redis.deleteByPattern(`dashboard:${businessId}:branch:${branchId}`),
+        this.redis.deleteByPattern(`reports:*${businessId}*branch=${branchId}*`),
       );
     }
     if (orderId) {
@@ -345,7 +347,7 @@ export class OrdersService {
   }
 
   async getAllOrders(userId: string, query: any) {
-    const { search, status, paymentStatus, days = 7 } = query;
+    const { search, status, paymentStatus, days = 7, branchId } = query;
 
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -355,11 +357,11 @@ export class OrdersService {
     if (!currentUser?.businessId)
       throw new BadRequestException('User does not belong to a workspace');
     const businessId = currentUser.businessId;
-    const cacheKey = `orders:${businessId}:search=${encodeURIComponent(search || '')}:status=${encodeURIComponent(status || 'All')}:paymentStatus=${encodeURIComponent(paymentStatus || 'All')}:days=${encodeURIComponent(days)}`;
+    const cacheKey = `orders:${businessId}:branch=${branchId}:search=${encodeURIComponent(search || '')}:status=${encodeURIComponent(status || 'All')}:paymentStatus=${encodeURIComponent(paymentStatus || 'All')}:days=${encodeURIComponent(days)}`;
     const cached = await this.redis.get<any>(cacheKey);
     if (cached) return cached;
 
-    let queryConditions: any = { businessId: businessId };
+    let queryConditions: any = { businessId, branchId };
 
     if (days !== 'all' && !isNaN(parseInt(days as string))) {
       const dateLimit = new Date();

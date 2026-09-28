@@ -25,17 +25,24 @@ export class CategoryService {
     return user.businessId;
   }
 
-  async getCategories(userId: string) {
+  async getCategories(userId: string, branchId: string) {
     const businessId = await this.requireBusinessId(userId);
-    const cacheKey = `categories:${businessId}`;
+    const cacheKey = `categories:${businessId}:branch:${branchId}`;
     const cached = await this.redis.get<any>(cacheKey);
     if (cached) return cached;
 
     const categories = await this.prisma.category.findMany({
-      where: { businessId },
+      where: { businessId, OR: [{ branchId }, { branchId: null }] },
       include: {
         _count: {
-          select: { products: { where: { deletedAt: null } } },
+          select: {
+            products: {
+              where: {
+                deletedAt: null,
+                OR: [{ branchId }, { branchId: null }],
+              },
+            },
+          },
         },
       },
       orderBy: { name: 'asc' },
@@ -46,22 +53,26 @@ export class CategoryService {
     return result;
   }
 
-  async addCategory(userId: string, data: any) {
+  async addCategory(userId: string, data: any, branchId: string) {
     const businessId = await this.requireBusinessId(userId);
 
     const name = data?.name?.trim();
     if (!name) throw new BadRequestException('Category name is required');
 
     const existing = await this.prisma.category.findFirst({
-      where: { businessId, name: { equals: name, mode: 'insensitive' } },
+      where: {
+        businessId,
+        name: { equals: name, mode: 'insensitive' },
+        OR: [{ branchId }, { branchId: null }],
+      },
     });
     if (existing) throw new ConflictException('Category already exists');
 
     const category = await this.prisma.category.create({
-      data: { name, businessId },
+      data: { name, businessId, branchId },
     });
 
-    await this.redis.delete(`categories:${businessId}`);
+    await this.redis.deleteByPattern(`categories:${businessId}:branch:*`);
 
     return { success: true, message: 'Category created successfully', category };
   }
@@ -91,7 +102,7 @@ export class CategoryService {
       data: { name },
     });
 
-    await this.redis.delete(`categories:${businessId}`);
+    await this.redis.deleteByPattern(`categories:${businessId}:branch:*`);
 
     return {
       success: true,
@@ -117,7 +128,7 @@ export class CategoryService {
       await tx.category.delete({ where: { id } });
     });
 
-    await this.redis.delete(`categories:${businessId}`);
+    await this.redis.deleteByPattern(`categories:${businessId}:branch:*`);
 
     return { success: true, message: 'Category deleted successfully' };
   }

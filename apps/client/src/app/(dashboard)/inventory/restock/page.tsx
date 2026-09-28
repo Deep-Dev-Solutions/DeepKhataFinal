@@ -131,7 +131,7 @@ export default function RestockPage() {
 
       const res = await fetch(
         `${API_BASE_URL}/product/getproducts?${params.toString()}`,
-        { headers: getAuthHeaders() },
+        { headers: getAuthHeaders(activeBranchId) },
       );
       const data = await res.json();
       if (data.success) setProducts(data.products);
@@ -140,12 +140,12 @@ export default function RestockPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [activeCategory, searchQuery]);
+  }, [activeCategory, searchQuery, activeBranchId]);
 
   const loadCategories = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/product/getcategories`, {
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(activeBranchId),
       });
       const data = await res.json();
       if (data.success)
@@ -153,7 +153,7 @@ export default function RestockPage() {
     } catch (err) {
       console.error("Failed to load categories", err);
     }
-  }, []);
+  }, [activeBranchId]);
 
   const loadVendors = useCallback(async () => {
     try {

@@ -75,6 +75,8 @@ model Branch {
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   cabinets         Cabinet[]
+  products         Product[]
+  categories       Category[]
   productInstances ProductInstance[]
   expenses         Expense[]
   registerSessions CashRegisterSession[]
@@ -175,10 +177,12 @@ model Product {
 
   businessId       String
   business         Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branchId         String?
+  branch           Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   orderItems       OrderItem[]
   instances        ProductInstance[]
-  movements        InventoryMovement[]
+    movements        InventoryMovement[]
 }
 
 model ProductInstance {
@@ -209,9 +213,11 @@ model Category {
   businessId String
 
   business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branchId   String?
+  branch     Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
   products Product[]
 
-  @@unique([name, businessId])
+  @@unique([name, branchId])
 }
 
 model InventoryMovement {

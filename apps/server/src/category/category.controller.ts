@@ -17,6 +17,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { BranchId } from '../auth/decorators/branch-id.decorator';
 
 @Controller('category')
 @UseGuards(ThrottlerGuard, JwtAuthGuard)
@@ -26,15 +27,19 @@ export class CategoryController {
   @Get()
   @UseGuards(PermissionsGuard)
   @RequirePermissions('read:products')
-  async getCategories(@Req() req: any) {
-    return this.categoryService.getCategories(req.user.id);
+  async getCategories(@Req() req: any, @BranchId() branchId: string) {
+    return this.categoryService.getCategories(req.user.id, branchId);
   }
 
   @Post()
   @UseGuards(PermissionsGuard)
   @RequirePermissions('write:products')
-  async addCategory(@Req() req: any, @Body() body: any) {
-    return this.categoryService.addCategory(req.user.id, body);
+  async addCategory(
+    @Req() req: any,
+    @BranchId() branchId: string,
+    @Body() body: any,
+  ) {
+    return this.categoryService.addCategory(req.user.id, body, branchId);
   }
 
   @Patch(':id')

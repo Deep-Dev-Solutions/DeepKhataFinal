@@ -13,6 +13,7 @@ import {
   Box,
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { useAuth } from "@/context/AuthContext";
 
 type Movement = {
   id: string;
@@ -33,6 +34,7 @@ type Movement = {
 };
 
 export default function InventoryLedgerPage() {
+  const { activeBranchId } = useAuth();
   const [movements, setMovements] = useState<Movement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
@@ -41,7 +43,7 @@ export default function InventoryLedgerPage() {
     setIsLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/inventory/movements?limit=100`, {
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(activeBranchId),
       });
       const data = await res.json();
       if (data.success) {
@@ -55,7 +57,7 @@ export default function InventoryLedgerPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [activeBranchId]);
 
   useEffect(() => {
     void loadMovements();

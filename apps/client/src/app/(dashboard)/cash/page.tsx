@@ -29,6 +29,7 @@ import CloseRegisterModal from "@/components/modals/CloseRegisterModal";
 import OpenRegisterModal from "@/components/modals/OpenRegisterModal";
 import ZReportModal from "@/components/modals/ZReportModal";
 import AlertDialog from "@/components/ui/alert-dialog";
+import { useAuth } from "@/context/AuthContext";
 
 const EXPENSE_CATEGORIES = [
   {
@@ -70,6 +71,7 @@ const EXPENSE_CATEGORIES = [
 ];
 
 export default function CashHubPage() {
+  const { activeBranchId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [registerStatus, setRegisterStatus] = useState<any>(null);
   const [expenses, setExpenses] = useState<any[]>([]);
@@ -99,21 +101,12 @@ export default function CashHubPage() {
   const [selectedFilterCategory, setSelectedFilterCategory] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const getHeaders = () => {
-    const token =
-      typeof window !== "undefined"
-        ? localStorage.getItem("accessToken")
-        : null;
-    return {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-  };
+
 
   const fetchCashData = useCallback(async () => {
     try {
       setLoading(true);
-      const headers = getHeaders();
+      const headers = getAuthHeaders(activeBranchId);
 
       // Fetch Register Status
       const statusRes = await fetch(`${API_BASE_URL}/cash/register/status`, {
@@ -144,7 +137,7 @@ export default function CashHubPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeBranchId]);
 
   useEffect(() => {
     fetchCashData();
@@ -159,7 +152,7 @@ export default function CashHubPage() {
     setSubmittingExpense(true);
     setExpenseSuccessMsg(null);
     try {
-      const headers = getHeaders();
+      const headers = getAuthHeaders(activeBranchId);
       const res = await fetch(`${API_BASE_URL}/cash/expense`, {
         method: "POST",
         headers,
@@ -167,7 +160,7 @@ export default function CashHubPage() {
           amount: numAmount,
           category,
           description: description.trim() || undefined,
-          branchId: branchId || undefined,
+          branchId: branchId || activeBranchId || undefined,
         }),
       });
 
@@ -203,14 +196,14 @@ export default function CashHubPage() {
     openingBalance: number;
     notes?: string;
   }) => {
-    const headers = getHeaders();
+    const headers = getAuthHeaders(activeBranchId);
     const res = await fetch(`${API_BASE_URL}/cash/register/open`, {
       method: "POST",
       headers,
       body: JSON.stringify({
         openingBalance: data.openingBalance,
         notes: data.notes,
-        branchId: branchId || undefined,
+        branchId: branchId || activeBranchId || undefined,
       }),
     });
     const result = await res.json();
@@ -229,14 +222,14 @@ export default function CashHubPage() {
     actualCash: number;
     notes?: string;
   }) => {
-    const headers = getHeaders();
+    const headers = getAuthHeaders(activeBranchId);
     const res = await fetch(`${API_BASE_URL}/cash/register/close`, {
       method: "POST",
       headers,
       body: JSON.stringify({
         actualCash: data.actualCash,
         notes: data.notes,
-        branchId: branchId || undefined,
+        branchId: branchId || activeBranchId || undefined,
       }),
     });
     const result = await res.json();
@@ -255,7 +248,7 @@ export default function CashHubPage() {
   // View Z-Report Handler
   const handleViewZReport = async (sessionId?: string) => {
     try {
-      const headers = getHeaders();
+      const headers = getAuthHeaders(activeBranchId);
       const url = sessionId
         ? `${API_BASE_URL}/cash/register/z-report?sessionId=${sessionId}`
         : `${API_BASE_URL}/cash/register/z-report`;

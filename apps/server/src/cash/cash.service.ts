@@ -14,10 +14,14 @@ export class CashService {
     private readonly redis: RedisService,
   ) {}
 
-  private async invalidateCashCaches(businessId: string): Promise<void> {
+  private async invalidateCashCaches(
+    businessId: string,
+    branchId?: string | null,
+  ): Promise<void> {
+    const branchPattern = branchId ? `branch=${branchId}` : '*';
     await Promise.all([
-      this.redis.deleteByPattern(`dashboard:${businessId}*`),
-      this.redis.deleteByPattern(`reports:*${businessId}*`),
+      this.redis.deleteByPattern(`dashboard:${businessId}:branch:${branchId || '*'}`),
+      this.redis.deleteByPattern(`reports:*${businessId}*${branchPattern}*`),
     ]);
   }
 
@@ -111,7 +115,7 @@ export class CashService {
       };
     });
 
-    await this.invalidateCashCaches(user.businessId);
+    await this.invalidateCashCaches(user.businessId, dto.branchId);
     return result;
   }
 
@@ -192,6 +196,7 @@ export class CashService {
         createdAt: { gte: sinceTime },
         order: {
           businessId: user.businessId,
+          ...(branchId ? { branchId } : {}),
         },
       },
       select: {
@@ -308,6 +313,7 @@ export class CashService {
         },
         order: {
           businessId: user.businessId,
+          ...(activeSession?.branchId ? { branchId: activeSession.branchId } : {}),
         },
       },
       select: { amount: true },
@@ -372,7 +378,7 @@ export class CashService {
   /**
    * Step 2: Generate End of Day Z-Report
    */
-  async getZReport(userId: string, sessionId?: string) {
+  async getZReport(userId: string, branchId: string, sessionId?: string) {
     const user = await this.getUserWithBusiness(userId);
 
     let session: any = null;
@@ -389,7 +395,7 @@ export class CashService {
     } else {
       // Find latest closed session or current open session
       session = await this.prisma.cashRegisterSession.findFirst({
-        where: { businessId: user.businessId },
+        where: { businessId: user.businessId, branchId },
         include: {
           openedBy: { select: { id: true, name: true, email: true } },
           closedBy: { select: { id: true, name: true, email: true } },
@@ -401,6 +407,9 @@ export class CashService {
 
     if (!session) {
       throw new NotFoundException('No register session found.');
+    }
+    if (session.branchId !== branchId) {
+      throw new NotFoundException('Register session not found for this branch.');
     }
 
     const endTime = session.closedAt || new Date();
@@ -415,6 +424,7 @@ export class CashService {
         },
         order: {
           businessId: user.businessId,
+          ...(session.branchId ? { branchId: session.branchId } : {}),
         },
       },
       include: {
@@ -489,11 +499,11 @@ export class CashService {
   /**
    * Get recent register sessions history
    */
-  async getRecentSessions(userId: string, limit = 10) {
+  async getRecentSessions(userId: string, branchId: string, limit = 10) {
     const user = await this.getUserWithBusiness(userId);
 
     const sessions = await this.prisma.cashRegisterSession.findMany({
-      where: { businessId: user.businessId },
+      where: { businessId: user.businessId, branchId },
       include: {
         openedBy: { select: { id: true, name: true, email: true } },
         closedBy: { select: { id: true, name: true, email: true } },

@@ -61,11 +61,12 @@ export default function CabinetsSettingsPage() {
   } | null>(null);
 
   const refreshCabinets = async () => {
+    if (!activeBranchId) return;
     setIsLoading(true);
     setPageError("");
     try {
       const response = await fetch(`${API_BASE_URL}/product/getcabinets`, {
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(activeBranchId),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -84,7 +85,7 @@ export default function CabinetsSettingsPage() {
   useEffect(() => {
     void refreshCabinets();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeBranchId]);
 
   const handleCreateCabinet = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,7 +110,7 @@ export default function CabinetsSettingsPage() {
     try {
       const response = await fetch(`${API_BASE_URL}/cabinet`, {
         method: "POST",
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(activeBranchId),
         body: JSON.stringify({ name, rack, shelf, bin, branchId: activeBranchId }),
       });
       const data = await response.json();
@@ -166,7 +167,7 @@ export default function CabinetsSettingsPage() {
     try {
       const response = await fetch(`${API_BASE_URL}/cabinet/${id}`, {
         method: "PATCH",
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(activeBranchId),
         body: JSON.stringify({
           name: editName.trim(),
           rack: editRack.trim(),
@@ -197,7 +198,7 @@ export default function CabinetsSettingsPage() {
     try {
       const response = await fetch(`${API_BASE_URL}/cabinet/${id}`, {
         method: "DELETE",
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(activeBranchId),
       });
       const data = await response.json();
       if (!response.ok) {

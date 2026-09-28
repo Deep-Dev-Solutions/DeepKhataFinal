@@ -12,9 +12,11 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Loader2 } from "lucide-react";
-import { API_BASE_URL } from "@/lib/auth";
+import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { useAuth } from "@/context/AuthContext";
 
 export default function StaffPerformanceTab() {
+  const { activeBranchId } = useAuth();
   const [staffPerformance, setStaffPerformance] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -28,9 +30,7 @@ export default function StaffPerformanceTab() {
 
       try {
         const res = await fetch(`${API_BASE_URL}/reports/staff`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
-          },
+          headers: getAuthHeaders(activeBranchId),
         });
 
         const json = await res.json();
@@ -50,7 +50,7 @@ export default function StaffPerformanceTab() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [activeBranchId]);
 
   if (isLoading) {
     return (

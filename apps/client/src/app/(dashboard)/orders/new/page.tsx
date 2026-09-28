@@ -36,7 +36,7 @@ import GlobalStockLookupModal from "@/components/modals/GlobalStockLookupModal";
 import CheckoutDrawer from "@/components/pos/CheckoutDrawer";
 import { usePOS } from "@/context/POSContext";
 import { useAuth } from "@/context/AuthContext";
-import { API_BASE_URL } from "@/lib/auth";
+import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import { useToast } from "@/context/ToastContext";
 import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 
@@ -149,9 +149,8 @@ function CreateOrderPOSContent() {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const token = localStorage.getItem("accessToken");
         const res = await fetch(`${API_BASE_URL}/product/getcategories`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: getAuthHeaders(activeBranchId),
         });
         const data = await res.json();
         if (data.success && Array.isArray(data.categories)) {
@@ -209,7 +208,6 @@ function CreateOrderPOSContent() {
           return;
         }
 
-        const token = localStorage.getItem("accessToken");
         const params = new URLSearchParams();
         if (searchQuery) params.append("search", searchQuery);
         if (activeCategory !== "All") params.append("category", activeCategory);
@@ -219,7 +217,7 @@ function CreateOrderPOSContent() {
         const res = await fetch(
           `${API_BASE_URL}/product/getproducts?${params.toString()}`,
           {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            headers: getAuthHeaders(activeBranchId),
             cache: "no-store",
           },
         );
@@ -283,9 +281,8 @@ function CreateOrderPOSContent() {
     const prefetchCustomers = async () => {
       try {
         if (typeof navigator !== "undefined" && !navigator.onLine) return;
-        const token = localStorage.getItem("accessToken");
         const res = await fetch(`${API_BASE_URL}/customer/getallcustomers`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: getAuthHeaders(activeBranchId),
         });
         const data = await res.json();
         if (data.success && Array.isArray(data.customers)) {
@@ -325,11 +322,10 @@ function CreateOrderPOSContent() {
           return;
         }
 
-        const token = localStorage.getItem("accessToken");
         const res = await fetch(
           `${API_BASE_URL}/customer/getallcustomers?search=${customerSearch}`,
           {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            headers: getAuthHeaders(activeBranchId),
           },
         );
         const data = await res.json();
@@ -527,13 +523,9 @@ function CreateOrderPOSContent() {
 
     // 🟢 2. ONLINE SUBMISSION WITH NETWORK RESILIENCE CATCH
     try {
-      const token = localStorage.getItem("accessToken");
       const res = await fetch(`${API_BASE_URL}/order/neworder`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: getAuthHeaders(activeBranchId),
         body: JSON.stringify(payload),
       });
 
@@ -751,11 +743,10 @@ function CreateOrderPOSContent() {
       // 3. Fallback: Query backend by exact SKU/search
       if (!targetProduct) {
         try {
-          const token = localStorage.getItem("accessToken");
           const res = await fetch(
             `${API_BASE_URL}/product/getproducts?search=${encodeURIComponent(cleanSku)}`,
             {
-              headers: token ? { Authorization: `Bearer ${token}` } : {},
+              headers: getAuthHeaders(activeBranchId),
             },
           );
           if (res.ok) {

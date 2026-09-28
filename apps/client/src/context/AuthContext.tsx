@@ -12,6 +12,7 @@ import {
   API_BASE_URL,
   AGENCY_APP_URL,
   getAuthToken,
+  getAuthHeaders,
   setAuthToken,
   clearAuthToken,
   decodeJwt,
@@ -86,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (activeToken: string, businessId: string) => {
       try {
         const res = await fetch(`${API_BASE_URL}/product/getbranches`, {
-          headers: { Authorization: `Bearer ${activeToken}` },
+          headers: getAuthHeaders(),
         });
         if (!res.ok) return;
         const data = await res.json();

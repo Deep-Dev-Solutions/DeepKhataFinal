@@ -31,7 +31,7 @@ export class DashboardService {
     });
   }
 
-  async getDashboardData(userId: string, query?: any) {
+  async getDashboardData(userId: string, branchId: string, query?: any) {
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { businessId: true, role: true },
@@ -49,12 +49,11 @@ export class DashboardService {
       throw new BadRequestException('User does not belong to a workspace');
     }
 
-    const branchId = query?.branchId;
-    const cacheKey = `dashboard:${businessId}:branch=${branchId || 'all'}`;
+    const cacheKey = `dashboard:${businessId}:branch:${branchId}`;
     const cached = await this.redis.get<any>(cacheKey);
     if (cached) return cached;
 
-    const branchFilter = branchId ? { branchId } : {};
+    const branchFilter = { branchId };
 
     const now = new Date();
     const startOfToday = new Date(now);
@@ -121,6 +120,7 @@ export class DashboardService {
       this.prisma.expense.findMany({
         where: {
           businessId,
+          branchId,
           createdAt: { gte: startOfToday },
         },
         select: { amount: true },
@@ -190,7 +190,7 @@ export class DashboardService {
           : 0;
 
     const activeOrders = await this.prisma.order.count({
-      where: { businessId, status: { not: 'CANCELLED' } },
+      where: { businessId, branchId, status: { not: 'CANCELLED' } },
     });
 
     const pendingOrderCount = unpaidOrders.length;

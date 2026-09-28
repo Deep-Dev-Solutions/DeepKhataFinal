@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
-import { API_BASE_URL } from "@/lib/auth";
+import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { useAuth } from "@/context/AuthContext";
 
 export default function InventoryInsightsTab() {
   const [topProducts, setTopProducts] = useState<any[]>([]);
   const [deadStock, setDeadStock] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const { activeBranchId } = useAuth();
 
   useEffect(() => {
     let isActive = true;
@@ -19,9 +21,7 @@ export default function InventoryInsightsTab() {
 
       try {
         const res = await fetch(`${API_BASE_URL}/reports/inventory`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
-          },
+          headers: getAuthHeaders(activeBranchId),
         });
 
         const json = await res.json();
@@ -45,7 +45,7 @@ export default function InventoryInsightsTab() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [activeBranchId]);
 
   if (isLoading) {
     return (
