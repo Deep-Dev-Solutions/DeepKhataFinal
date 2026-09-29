@@ -124,8 +124,16 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
   };
 
   const existingBalance =
-    Number(selectedCustomer?.metrics?.outstandingBalance) || 0;
+    Number(
+      selectedCustomer?.balance ??
+        selectedCustomer?.metrics?.outstandingBalance ??
+        selectedCustomer?.outstandingBalance ??
+        0,
+    ) || 0;
   const creditLimit = Number(selectedCustomer?.creditLimit) || 0;
+  const projectedDebt = existingBalance + Math.max(0, pendingAmount);
+  const exceedsCreditLimit =
+    creditLimit > 0 && projectedDebt > creditLimit;
   const changeToReturn = Number(amountPaid) > grandTotal;
   const isSubmitDisabled =
     Boolean(disabledReason) || isSubmitting || cartCount === 0;
@@ -506,11 +514,36 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                 <option value="BANK">Bank Transfer / Card</option>
               </select>
             </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                Order Status
+              </label>
+              <select
+                value={orderStatus}
+                onChange={(e) => setOrderStatus(e.target.value)}
+                className="w-full px-3 h-10 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none shadow-xs cursor-pointer"
+              >
+                <option value="COMPLETED">Completed (Handed to customer)</option>
+                <option value="PENDING">Pending (Delivery / Pickup later)</option>
+              </select>
+            </div>
           </section>
         </div>
 
         {/* Pinned Footer */}
         <div className="p-3 border-t border-slate-200 bg-slate-50 shrink-0 space-y-2">
+          {exceedsCreditLimit && (
+            <div className="flex items-center gap-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 animate-in fade-in duration-200">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>
+                ⚠️ Warning: Customer exceeds credit limit of Rs.{" "}
+                {creditLimit.toLocaleString()} (Projected Udhaar: Rs.{" "}
+                {projectedDebt.toLocaleString()})
+              </span>
+            </div>
+          )}
+
           {disabledReason && cartCount > 0 && (
             <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-medium text-amber-900 animate-in fade-in duration-200">
               <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
@@ -519,7 +552,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
           )}
 
           <button
-            onClick={() => handleComplete("FINAL")}
+            onClick={() => handleComplete(orderStatus)}
             disabled={isSubmitDisabled || readOnly}
             title={
               readOnly

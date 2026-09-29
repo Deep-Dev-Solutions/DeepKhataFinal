@@ -6,15 +6,6 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 
-const VALID_CONDITIONS = [
-  'ORIGINAL_PULL',
-  'COPY',
-  'MINOR_SCRATCHES',
-  'WORKING',
-  'DEAD_DONOR',
-  'DEFECTIVE',
-];
-
 @Injectable()
 export class ProductsService {
   constructor(
@@ -36,10 +27,6 @@ export class ProductsService {
         'User does not have an associated business',
       );
     return user.businessId;
-  }
-
-  private sanitizeCondition(condition: string): string {
-    return VALID_CONDITIONS.includes(condition) ? condition : 'ORIGINAL_PULL';
   }
 
   // Resolve the branch a physical unit should live in: explicit branchId,
@@ -140,7 +127,6 @@ export class ProductsService {
       rack,
       shelf,
       bin,
-      condition = 'ORIGINAL_PULL',
       quantity = 1,
       vendorId,
     } = data;
@@ -166,7 +152,6 @@ export class ProductsService {
       throw new BadRequestException('Product price must be greater than 0');
     }
     const instanceQty = Math.max(1, Number(quantity) || 1);
-    const sanitizedCondition = this.sanitizeCondition(condition);
 
     const result = await this.prisma.$transaction(async (tx) => {
       const branch = await this.resolveBranchId(tx, businessId, branchId);
@@ -177,7 +162,7 @@ export class ProductsService {
         { cabinetId, rack, shelf, bin },
       );
 
-      // Master catalog entry. No branch / condition / physical stock lives here.
+      // Master catalog entry. No branch / physical stock lives here.
       const product = await tx.product.create({
         data: {
           name: name.trim(),
@@ -198,7 +183,6 @@ export class ProductsService {
           branchId: branch,
           vendorId: vendorId || null,
           unitCost: defaultCostPrice ? Number(defaultCostPrice) : null,
-          condition: sanitizedCondition as any,
           status: 'AVAILABLE' as any,
           serialNumber: sku ? `${sku}-${index + 1}` : null,
         }),
@@ -212,8 +196,6 @@ export class ProductsService {
         data: {
           productId: product.id,
           cabinetId: targetCabinetId,
-          fromCondition: null,
-          toCondition: sanitizedCondition as any,
           quantity: instanceQty,
           direction: 'IN',
           referenceType: 'INITIAL_STOCK',
@@ -533,7 +515,6 @@ export class ProductsService {
       productId,
       branchId,
       cabinetId,
-      condition,
       quantity,
       vendorId,
       unitCost,
@@ -541,7 +522,6 @@ export class ProductsService {
     const businessId = await this.requireBusinessId(userId);
 
     const qty = Math.max(1, Number(quantity) || 1);
-    const sanitizedCondition = this.sanitizeCondition(condition);
 
     const product = await this.prisma.product.findFirst({
       where: { id: productId, businessId },
@@ -570,7 +550,6 @@ export class ProductsService {
           unitCost !== undefined && unitCost !== null
             ? Number(unitCost)
             : (product.defaultCostPrice ?? null),
-        condition: sanitizedCondition as any,
         status: 'AVAILABLE' as any,
       }));
 
@@ -582,8 +561,6 @@ export class ProductsService {
         data: {
           productId: product.id,
           cabinetId: targetCabinetId,
-          fromCondition: null,
-          toCondition: sanitizedCondition as any,
           quantity: qty,
           direction: 'IN',
           referenceType: 'RESTOCK',
@@ -696,9 +673,6 @@ export class ProductsService {
           0,
           Number(item.stock || item.quantity || 0),
         );
-        const sanitizedCondition = this.sanitizeCondition(
-          item.condition || 'NEW',
-        );
 
         const newProd = await tx.product.create({
           data: {
@@ -723,7 +697,6 @@ export class ProductsService {
               unitCost: item.defaultCostPrice
                 ? Number(item.defaultCostPrice)
                 : null,
-              condition: sanitizedCondition as any,
               status: 'AVAILABLE' as any,
               serialNumber: `${sku}-${index + 1}`,
             }),
@@ -737,8 +710,6 @@ export class ProductsService {
             data: {
               productId: newProd.id,
               cabinetId: generalCabinet,
-              fromCondition: null,
-              toCondition: sanitizedCondition as any,
               quantity: instanceQty,
               direction: 'IN',
               referenceType: 'INITIAL_STOCK',
@@ -809,7 +780,7 @@ export class ProductsService {
       where: { productId, status: 'AVAILABLE' },
     });
 
-    // Group available instances by branch, cabinet, and condition
+    // Group available instances by branch and cabinet
     const instancesRaw = await this.prisma.productInstance.findMany({
       where: { productId, status: 'AVAILABLE' },
       include: {

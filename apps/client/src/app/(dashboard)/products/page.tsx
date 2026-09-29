@@ -47,7 +47,6 @@ type ProductRecord = {
   } | null;
   instances?: Array<{
     id: string;
-    condition: string;
     status: string;
     cabinet?: {
       name?: string | null;
@@ -64,7 +63,6 @@ type ProductRow = {
   price: number;
   stock: number;
   location: string;
-  conditions: string[];
   hasDeletedBranchStock: boolean;
 };
 
@@ -75,9 +73,6 @@ const normalizeProduct = (product: ProductRecord): ProductRow => {
   const primaryCabinet = instances[0]?.cabinet;
   const location =
     primaryCabinet?.location || primaryCabinet?.name || "Cabinet (Shop Bin)";
-  const uniqueConditions = Array.from(
-    new Set(instances.map((i) => i.condition).filter(Boolean)),
-  );
 
   return {
     id: product.id,
@@ -87,7 +82,6 @@ const normalizeProduct = (product: ProductRecord): ProductRow => {
     price: Number(product.basePrice ?? product.price ?? 0),
     stock: Number(product.stock ?? 0),
     location,
-    conditions: uniqueConditions.length ? uniqueConditions : ["ORIGINAL_PULL"],
     hasDeletedBranchStock: Boolean(product.hasDeletedBranchStock),
   };
 };
@@ -480,8 +474,8 @@ function ProductsPageContent() {
                 <th className="px-6 py-4 font-semibold w-56">
                   Spatial Location (Cabinet)
                 </th>
-                <th className="px-6 py-4 font-semibold w-52">
-                  Condition & Instances
+                <th className="px-6 py-4 font-semibold w-40">
+                  Available Stock
                 </th>
                 <th className="px-6 py-4 font-semibold w-24 text-right">
                   Actions
@@ -546,31 +540,17 @@ function ProductsPageContent() {
                     </td>
 
                     <td className="px-6 py-4">
-                      <div className="flex flex-col gap-1.5">
-                        <div className="flex flex-wrap gap-1">
-                          {product.conditions.map((cond) => (
-                            <span
-                              key={cond}
-                              className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded border ${
-                                cond === "ORIGINAL_PULL"
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                  : cond === "DEAD_DONOR"
-                                    ? "bg-rose-50 text-rose-700 border-rose-200"
-                                    : cond === "COPY"
-                                      ? "bg-blue-50 text-blue-700 border-blue-200"
-                                      : "bg-amber-50 text-amber-700 border-amber-200"
-                              }`}
-                            >
-                              {cond.replace(/_/g, " ")}
-                            </span>
-                          ))}
-                        </div>
-                        <span className="text-xs font-semibold text-slate-600">
-                          {product.stock > 0
-                            ? `${product.stock} instances available`
-                            : "0 instances (exhausted)"}
-                        </span>
-                      </div>
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                        product.stock > 3
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : product.stock > 0
+                            ? "bg-amber-50 text-amber-700 border border-amber-200"
+                            : "bg-slate-100 text-slate-500 border border-slate-200"
+                      }`}>
+                        {product.stock > 0
+                          ? `${product.stock} units available`
+                          : "Out of Stock"}
+                      </span>
                     </td>
 
                     <td className="px-6 py-4 text-right flex items-center justify-end gap-1">

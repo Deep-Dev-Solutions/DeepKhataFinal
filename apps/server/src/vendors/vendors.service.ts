@@ -229,7 +229,7 @@ export class VendorsService {
       const dateKey = inst.createdAt.toISOString().split('T')[0];
       const cabName = inst.cabinet?.name || 'General';
       const costVal = inst.unitCost ?? 0;
-      const key = `${dateKey}_${inst.productId}_${inst.condition}_${inst.branchId}_${costVal}`;
+      const key = `${dateKey}_${inst.productId}_${inst.branchId}_${costVal}`;
       const existing = suppliedInventory.find((x) => x.key === key);
 
       if (existing) {
@@ -248,7 +248,6 @@ export class VendorsService {
           productName: inst.product.name,
           sku: inst.product.sku,
           category: inst.product.category?.name || 'General',
-          condition: inst.condition,
           quantity: 1,
           availableCount: inst.status === 'AVAILABLE' ? 1 : 0,
           soldCount: inst.status !== 'AVAILABLE' ? 1 : 0,
@@ -279,7 +278,6 @@ export class VendorsService {
           availableQuantity: 0,
           soldQuantity: 0,
           totalCost: 0,
-          conditions: new Set<string>(),
           branches: new Set<string>(),
           lastReceivedDate: inst.createdAt,
         });
@@ -294,7 +292,6 @@ export class VendorsService {
       if (inst.unitCost) {
         prod.totalCost += inst.unitCost;
       }
-      if (inst.condition) prod.conditions.add(inst.condition);
       if (inst.branch?.name) prod.branches.add(inst.branch.name);
       if (inst.createdAt > prod.lastReceivedDate) {
         prod.lastReceivedDate = inst.createdAt;
@@ -305,7 +302,6 @@ export class VendorsService {
       ...p,
       avgUnitCost:
         p.totalQuantity > 0 ? Math.round(p.totalCost / p.totalQuantity) : 0,
-      conditions: Array.from(p.conditions),
       branches: Array.from(p.branches),
     }));
 

@@ -21,10 +21,6 @@ export class ReturnOrderItemDto {
 
   @IsString()
   @IsOptional()
-  condition?: string;
-
-  @IsString()
-  @IsOptional()
   returnCondition?: string;
 }
 

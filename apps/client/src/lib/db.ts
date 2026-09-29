@@ -10,7 +10,6 @@ export interface LocalProduct {
   cabinet?: { id?: string; name?: string | null; location?: string | null } | null;
   instances?: Array<{
     id: string;
-    condition: string;
     status: string;
     cabinet?: { name?: string | null; location?: string | null } | null;
   }>;

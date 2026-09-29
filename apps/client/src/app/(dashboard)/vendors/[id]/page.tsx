@@ -196,8 +196,7 @@ export default function VendorProfilePage() {
     return (
       item.productName.toLowerCase().includes(q) ||
       (item.sku && item.sku.toLowerCase().includes(q)) ||
-      (item.branchName && item.branchName.toLowerCase().includes(q)) ||
-      (item.condition && item.condition.toLowerCase().includes(q))
+      (item.branchName && item.branchName.toLowerCase().includes(q))
     );
   });
 
@@ -706,7 +705,6 @@ export default function VendorProfilePage() {
                     <tr>
                       <th className="px-5 py-3">Received Date</th>
                       <th className="px-5 py-3">Product Name</th>
-                      <th className="px-5 py-3">Condition</th>
                       <th className="px-5 py-3">Branch & Cabinet</th>
                       <th className="px-5 py-3 text-center">Batch Qty</th>
                       <th className="px-5 py-3 text-center">Stock Status</th>
@@ -718,7 +716,7 @@ export default function VendorProfilePage() {
                     {filteredInventory.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={8}
+                          colSpan={7}
                           className="px-5 py-14 text-center text-slate-400"
                         >
                           <Layers className="w-10 h-10 mx-auto mb-2 opacity-25 text-slate-400" />
@@ -756,11 +754,6 @@ export default function VendorProfilePage() {
                                 {item.sku}
                               </span>
                             )}
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
-                              {item.condition?.replace(/_/g, " ")}
-                            </span>
                           </td>
                           <td className="px-5 py-3.5">
                             <div className="text-xs">

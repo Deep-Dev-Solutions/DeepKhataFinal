@@ -143,9 +143,9 @@ export class OrdersService {
           calculatedPaymentStatus = 'PARTIAL';
         }
 
-        if (orderStatus === 'FINAL' && udhaarRequested > 0 && !customerId) {
+        if ((orderStatus === 'FINAL' || orderStatus === 'COMPLETED') && udhaarRequested > 0 && !customerId) {
           throw new Error(
-            'Walk-in customers must pay in full for FINAL sales. Please select or create a customer profile to give Udhaar.',
+            'Walk-in customers must pay in full for completed sales. Please select or create a customer profile to give Udhaar.',
           );
         }
 
@@ -186,10 +186,6 @@ export class OrdersService {
           for (const item of items) {
             if (item.isService) continue;
 
-            const conditionFilter = item.condition
-              ? { condition: item.condition }
-              : {};
-
             // Prioritize instances in the active branch, falling back across business
             let instances = branchId
               ? await tx.productInstance.findMany({
@@ -197,7 +193,6 @@ export class OrdersService {
                     productId: item.productId,
                     branchId,
                     status: 'AVAILABLE',
-                    ...conditionFilter,
                   },
                   take: item.quantity,
                 })
@@ -211,7 +206,6 @@ export class OrdersService {
                   productId: item.productId,
                   id: { notIn: alreadyFoundIds },
                   status: 'AVAILABLE',
-                  ...conditionFilter,
                 },
                 take: needed,
               });
@@ -220,7 +214,7 @@ export class OrdersService {
 
             if (instances.length < item.quantity) {
               throw new BadRequestException(
-                `Not enough available instances for product ${secureProducts[item.productId]?.name || item.productId} with condition ${item.condition || 'any'}.`,
+                `Not enough available instances for product ${secureProducts[item.productId]?.name || item.productId}.`,
               );
             }
 
@@ -237,9 +231,6 @@ export class OrdersService {
               data: {
                 productId: item.productId,
                 cabinetId: instances[0]?.cabinetId || null,
-                fromCondition:
-                  item.condition || instances[0]?.condition || null,
-                toCondition: item.condition || instances[0]?.condition || null,
                 quantity: item.quantity,
                 direction: 'OUT',
                 referenceType: orderStatus === 'MEMO' ? 'MEMO' : 'ORDER',
@@ -265,7 +256,7 @@ export class OrdersService {
         return order;
       });
 
-      if (completeOrder.status === 'FINAL') {
+      if (completeOrder.status === 'FINAL' || completeOrder.status === 'COMPLETED') {
         await this.postDoubleEntrySequence(completeOrder, parsedAmountPaid);
       }
 
@@ -471,7 +462,7 @@ export class OrdersService {
 
     if (
       order.status === 'ESTIMATE' &&
-      (status === 'FINAL' || status === 'MEMO')
+      (status === 'FINAL' || status === 'COMPLETED' || status === 'MEMO' || status === 'PENDING')
     ) {
       await this.prisma.$transaction(async (tx) => {
         for (const item of order.items) {
@@ -488,7 +479,7 @@ export class OrdersService {
             );
           }
 
-          const instanceStatus = status === 'MEMO' ? 'MEMO_LOCKED' : 'SOLD';
+          const instanceStatus = status === 'MEMO' || status === 'PENDING' ? 'MEMO_LOCKED' : 'SOLD';
           await tx.productInstance.updateMany({
             where: { id: { in: instances.map((i) => i.id) } },
             data: { status: instanceStatus },
@@ -498,11 +489,9 @@ export class OrdersService {
             data: {
               productId: item.productId,
               cabinetId: instances[0]?.cabinetId || null,
-              fromCondition: null,
-              toCondition: null,
               quantity: item.quantity,
               direction: 'OUT',
-              referenceType: status === 'MEMO' ? 'MEMO' : 'ORDER',
+              referenceType: status === 'MEMO' || status === 'PENDING' ? 'MEMO' : 'ORDER',
               referenceId: order.id,
               userId,
               businessId: currentUser?.businessId,
@@ -516,7 +505,7 @@ export class OrdersService {
         });
       });
 
-      if (status === 'FINAL') {
+      if (status === 'FINAL' || status === 'COMPLETED') {
         if (parsedAmountPaid > 0) {
           await this.prisma.payment.create({
             data: {
@@ -546,7 +535,7 @@ export class OrdersService {
       throw new BadRequestException(
         'To convert a MEMO to FINAL, use the settle-memo endpoint',
       );
-    } else if (status === 'RETURNED' && order.status === 'MEMO') {
+    } else if (status === 'RETURNED' && (order.status === 'MEMO' || order.status === 'PENDING')) {
       await this.prisma.$transaction(async (tx) => {
         for (const item of order.items) {
           if (!item.productId) continue;
@@ -566,8 +555,6 @@ export class OrdersService {
             data: {
               productId: item.productId,
               cabinetId: instances[0]?.cabinetId || null,
-              fromCondition: null,
-              toCondition: null,
               quantity: item.quantity,
               direction: 'IN',
               referenceType: 'RETURN',
@@ -588,7 +575,7 @@ export class OrdersService {
           if (!item.productId) continue;
 
           const instanceStatus =
-            order.status === 'MEMO' ? 'MEMO_LOCKED' : 'SOLD';
+            order.status === 'MEMO' || order.status === 'PENDING' ? 'MEMO_LOCKED' : 'SOLD';
           const instances = await tx.productInstance.findMany({
             where: { productId: item.productId, status: instanceStatus },
             take: item.quantity,
@@ -604,8 +591,6 @@ export class OrdersService {
             data: {
               productId: item.productId,
               cabinetId: instances[0]?.cabinetId || null,
-              fromCondition: null,
-              toCondition: null,
               quantity: item.quantity,
               direction: 'IN',
               referenceType: 'ADJUSTMENT',
@@ -911,16 +896,12 @@ export class OrdersService {
               : 'AVAILABLE';
 
           const instanceStatus =
-            order.status === 'MEMO' ? 'MEMO_LOCKED' : 'SOLD';
-          const conditionFilter = returnItem.condition
-            ? { condition: returnItem.condition }
-            : {};
+            order.status === 'MEMO' || order.status === 'PENDING' ? 'MEMO_LOCKED' : 'SOLD';
 
           const instances = await tx.productInstance.findMany({
             where: {
               productId: returnItem.productId,
               status: instanceStatus,
-              ...conditionFilter,
             },
             take: returnItem.quantity,
           });
@@ -936,11 +917,6 @@ export class OrdersService {
             data: {
               productId: returnItem.productId,
               cabinetId: instances[0]?.cabinetId || null,
-              fromCondition: returnItem.condition || null,
-              toCondition:
-                returnItem.returnCondition === 'DEFECTIVE'
-                  ? 'DEFECTIVE'
-                  : (returnItem.condition as any) || 'ORIGINAL_PULL',
               quantity: returnItem.quantity,
               direction: 'IN',
               referenceType: 'RETURN',
@@ -956,7 +932,7 @@ export class OrdersService {
           data: { status: 'RETURNED' },
         });
 
-        if (order.status === 'FINAL') {
+        if (order.status === 'FINAL' || order.status === 'COMPLETED') {
           const postings = [];
 
           postings.push({
@@ -1001,7 +977,7 @@ export class OrdersService {
         throw error;
       }
       throw new InternalServerErrorException(
-        'Failed to process return. Please check inventory condition mapping or ledger invariant.',
+        'Failed to process return. Please check inventory mapping or ledger invariant.',
       );
     }
 

@@ -49,10 +49,6 @@ export class CreateProductDto {
   @IsOptional()
   bin?: string;
 
-  @IsString()
-  @IsOptional()
-  condition?: string;
-
   @IsInt()
   @Min(1, { message: 'Initial quantity must be at least 1' })
   @IsOptional()

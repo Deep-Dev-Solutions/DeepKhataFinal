@@ -194,7 +194,6 @@ model ProductInstance {
 
   unitCost     Float?
 
-  condition    ItemCondition  @default(ORIGINAL_PULL)
   status       InstanceStatus @default(AVAILABLE) // For MEMO locks
   serialNumber String?
 
@@ -224,8 +223,6 @@ model InventoryMovement {
   id            String             @id @default(uuid())
   productId     String
   cabinetId     String?
-  fromCondition ItemCondition?
-  toCondition   ItemCondition
   quantity      Int
   direction     InventoryDirection // IN (restock) | OUT (sale/return/adjust)
   referenceType String? // ORDER | RESTOCK | RETURN | ADJUSTMENT
@@ -325,17 +322,10 @@ enum OrderStatus {
   ESTIMATE
   MEMO
   FINAL
+  COMPLETED
+  PENDING
   CANCELLED
   RETURNED
-}
-
-enum ItemCondition {
-  ORIGINAL_PULL
-  COPY
-  MINOR_SCRATCHES
-  WORKING
-  DEAD_DONOR
-  DEFECTIVE
 }
 
 enum InstanceStatus {

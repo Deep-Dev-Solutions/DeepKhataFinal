@@ -52,7 +52,6 @@ type Product = {
   cabinet?: { id?: string; name?: string | null; location?: string | null } | null;
   instances?: Array<{
     id: string;
-    condition: string;
     status: string;
     cabinet?: { name?: string | null; location?: string | null } | null;
     branch?: { id: string; name: string; deletedAt: string | null } | null;
@@ -66,7 +65,6 @@ type CartItem = {
   price: number;
   stock?: number;
   qty: number;
-  condition?: string;
   isService?: boolean;
   notes?: string;
 };
@@ -152,11 +150,6 @@ function CreateOrderPOSContent() {
   const [walkInName, setWalkInName] = useState("");
   const [walkInPhone, setWalkInPhone] = useState("");
 
-  // Inline condition picker (product card expands, not a modal)
-  const [expandedConditionProduct, setExpandedConditionProduct] = useState<
-    (Product & { conditionCounts?: any }) | null
-  >(null);
-
   // Inline service/labor form in the cart (not a modal)
   const [isServiceFormOpen, setIsServiceFormOpen] = useState(false);
   const [serviceName, setServiceName] = useState("");
@@ -170,7 +163,7 @@ function CreateOrderPOSContent() {
   const [discount, setDiscount] = useState<string>("");
   const [amountPaid, setAmountPaid] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
-  const [orderStatus, setOrderStatus] = useState("FINAL");
+  const [orderStatus, setOrderStatus] = useState("COMPLETED");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
@@ -436,7 +429,6 @@ function CreateOrderPOSContent() {
         const updatedInstances = (p.instances || []).map((inst) => {
           if (
             inst.status === "AVAILABLE" &&
-            (!inCart.condition || inst.condition === inCart.condition) &&
             deducted < inCart.qty
           ) {
             deducted++;
@@ -482,7 +474,6 @@ function CreateOrderPOSContent() {
       items: currentCart.map((item) => ({
         productId: item.isService ? null : item.id,
         quantity: item.qty,
-        condition: item.condition,
         isService: !!item.isService,
         serviceName: item.isService ? item.name : null,
         notes: item.notes || null,
@@ -691,23 +682,17 @@ function CreateOrderPOSContent() {
 
   // Calculate stock limits (Cap services at 99, physical items at available stock)
   const getMaxAllowedQty = useCallback(
-    (item: { id: string; condition?: string; isService?: boolean }) => {
+    (item: { id: string; isService?: boolean }) => {
       if (item.isService) return 99;
       const prod = products.find((p) => p.id === item.id);
       if (!prod) return 999;
-      if (prod.instances && item.condition) {
-        const matchingAvailable = prod.instances.filter(
-          (i) => i.status === "AVAILABLE" && i.condition === item.condition,
-        ).length;
-        return Math.max(1, matchingAvailable);
-      }
       return Math.max(1, prod.stock);
     },
     [products],
   );
 
   // Cart Functions
-  const addToCart = (product: Product, condition: string) => {
+  const addToCart = (product: Product) => {
     if (viewingBranchId && activeBranchId && viewingBranchId !== activeBranchId) {
       const viewingBranch = branches.find((b: any) => b.id === viewingBranchId);
       const branchName = viewingBranch?.name || "another branch";
@@ -717,12 +702,9 @@ function CreateOrderPOSContent() {
 
     const maxAllowed = getMaxAllowedQty({
       id: product.id,
-      condition,
       isService: false,
     });
-    const exists = cart.find(
-      (item) => item.id === product.id && item.condition === condition,
-    );
+    const exists = cart.find((item) => item.id === product.id);
     if (exists && exists.qty >= maxAllowed) {
       toast.warning(
         `Maximum stock limit (${maxAllowed}) reached for "${product.name}".`,
@@ -731,12 +713,10 @@ function CreateOrderPOSContent() {
     }
 
     setCart((prev) => {
-      const itemExists = prev.find(
-        (item) => item.id === product.id && item.condition === condition,
-      );
+      const itemExists = prev.find((item) => item.id === product.id);
       if (itemExists) {
         return prev.map((item) =>
-          item.id === product.id && item.condition === condition
+          item.id === product.id
             ? { ...item, qty: Math.min(maxAllowed, item.qty + 1) }
             : item,
         );
@@ -747,11 +727,9 @@ function CreateOrderPOSContent() {
           ...product,
           price: Number(product.price ?? product.basePrice ?? 0),
           qty: 1,
-          condition,
         },
       ];
     });
-    setExpandedConditionProduct(null);
 
     const fromDeletedBranch = product.instances?.some(
       (i) => i.branch?.deletedAt,
@@ -808,12 +786,7 @@ function CreateOrderPOSContent() {
       }
 
       if (targetProduct) {
-        const availableInstances =
-          targetProduct.instances?.filter((i) => i.status === "AVAILABLE") ||
-          [];
-        const condition = availableInstances[0]?.condition || "ORIGINAL_PULL";
-
-        addToCart(targetProduct, condition);
+        addToCart(targetProduct);
         setScanFeedback({
           type: "success",
           message: `Scanned: "${targetProduct.name}" (SKU: ${cleanSku}) added to cart!`,
@@ -939,33 +912,13 @@ function CreateOrderPOSContent() {
       return;
     }
 
-    const conditionCounts = availableInstances.reduce((acc: any, inst: any) => {
-      acc[inst.condition] = (acc[inst.condition] || 0) + 1;
-      return acc;
-    }, {});
-
-    if (Object.keys(conditionCounts).length === 0) {
-      return;
-    } else if (Object.keys(conditionCounts).length === 1) {
-      addToCart(product, Object.keys(conditionCounts)[0]);
-    } else {
-      // Toggle inline condition picker on the card (no modal)
-      setExpandedConditionProduct(
-        expandedConditionProduct?.id === product.id
-          ? null
-          : { ...product, conditionCounts },
-      );
-    }
+    addToCart(product);
   };
 
-  const updateQty = (
-    id: string,
-    condition: string | undefined,
-    delta: number,
-  ) => {
+  const updateQty = (id: string, delta: number) => {
     setCart((prev) =>
       prev.map((item) => {
-        if (item.id === id && item.condition === condition) {
+        if (item.id === id) {
           const maxAllowed = getMaxAllowedQty(item);
           const targetQty = item.qty + delta;
           if (targetQty > maxAllowed) {
@@ -983,14 +936,10 @@ function CreateOrderPOSContent() {
     );
   };
 
-  const setDirectQty = (
-    id: string,
-    condition: string | undefined,
-    qty: number,
-  ) => {
+  const setDirectQty = (id: string, qty: number) => {
     setCart((prev) =>
       prev.map((item) => {
-        if (item.id === id && item.condition === condition) {
+        if (item.id === id) {
           const maxAllowed = getMaxAllowedQty(item);
           let safeQty = Math.max(1, isNaN(qty) ? 1 : qty);
           if (safeQty > maxAllowed) {
@@ -1008,10 +957,8 @@ function CreateOrderPOSContent() {
     );
   };
 
-  const removeItem = (id: string, condition: string | undefined) =>
-    setCart((prev) =>
-      prev.filter((item) => !(item.id === id && item.condition === condition)),
-    );
+  const removeItem = (id: string) =>
+    setCart((prev) => prev.filter((item) => item.id !== id));
 
   const subtotal = cart.reduce(
     (sum, item) => sum + (item.price ?? 0) * item.qty,
@@ -1349,17 +1296,6 @@ function CreateOrderPOSContent() {
                   const availableCount = availableInstances.length;
                   const isOutOfStock = availableCount === 0;
 
-                  const conditions = Array.from(
-                    new Set(
-                      availableInstances.length > 0
-                        ? availableInstances.map((i) => i.condition)
-                        : product.instances?.map((i) => i.condition) || [],
-                    ),
-                  );
-
-                  const isExpanded =
-                    expandedConditionProduct?.id === product.id;
-
                   return (
                     <div key={product.id} className="relative">
                       <button
@@ -1371,7 +1307,7 @@ function CreateOrderPOSContent() {
                             : isOutOfStock
                               ? "border-slate-200 bg-slate-100/70 opacity-60 cursor-pointer select-none"
                               : "bg-white border-slate-200 hover:border-blue-500 hover:shadow-xs shadow-2xs cursor-pointer"
-                        } ${isExpanded ? "border-blue-500 ring-1 ring-blue-500/20" : ""}`}
+                        }`}
                       >
                         {/* Top Row: Full Product Name & Price */}
                         <div className="flex items-start justify-between gap-2 w-full">
@@ -1440,33 +1376,6 @@ function CreateOrderPOSContent() {
                           )}
                         </div>
                       </button>
-
-                      {isExpanded &&
-                        expandedConditionProduct?.conditionCounts && (
-                          <div
-                            className="mt-1 rounded-lg border border-blue-200 bg-white shadow-sm p-1.5 space-y-1"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {Object.entries(
-                              expandedConditionProduct.conditionCounts,
-                            ).map(([cond, count]) => (
-                              <button
-                                key={cond}
-                                onClick={() =>
-                                  addToCart(expandedConditionProduct, cond)
-                                }
-                                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-left bg-blue-50/60 hover:bg-blue-100 transition-colors cursor-pointer"
-                              >
-                                <span className="font-semibold text-slate-800 text-[11px]">
-                                  {cond.replace(/_/g, " ")}
-                                </span>
-                                <span className="text-[10px] font-semibold text-slate-500">
-                                  {count as number} avail
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
                     </div>
                   );
                 })
@@ -1486,9 +1395,6 @@ function CreateOrderPOSContent() {
                     primaryCabinet?.name ||
                     "Cabinet Bin";
 
-                  const isExpanded =
-                    expandedConditionProduct?.id === product.id;
-
                   return (
                     <div key={product.id} className="relative flex flex-col">
                       <button
@@ -1500,7 +1406,7 @@ function CreateOrderPOSContent() {
                             : isOutOfStock
                               ? "border-slate-200 bg-slate-100/70 opacity-60 cursor-pointer select-none"
                               : "bg-white border-slate-200 hover:border-blue-500 hover:shadow-md active:scale-[0.98] shadow-sm cursor-pointer"
-                        } ${isExpanded ? "border-blue-500 ring-1 ring-blue-500/20" : ""}`}
+                        }`}
                       >
                         {/* Card Header: Category & Stock Status */}
                         <div className="flex items-center justify-between gap-1.5 mb-1.5 w-full">
@@ -1585,34 +1491,6 @@ function CreateOrderPOSContent() {
                           ) : null}
                         </div>
                       </button>
-
-                      {/* INLINE CONDITION PICKER */}
-                      {isExpanded &&
-                        expandedConditionProduct?.conditionCounts && (
-                          <div
-                            className="mt-1.5 p-2 rounded-xl border border-blue-200 bg-blue-50/70 space-y-1.5 w-full shadow-sm"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {Object.entries(
-                              expandedConditionProduct.conditionCounts,
-                            ).map(([cond, count]) => (
-                              <button
-                                key={cond}
-                                onClick={() =>
-                                  addToCart(expandedConditionProduct, cond)
-                                }
-                                className="w-full flex items-center justify-between p-2 rounded-lg border border-blue-200 bg-white hover:bg-blue-100 transition-colors cursor-pointer"
-                              >
-                                <span className="font-bold text-slate-800 text-xs">
-                                  {cond ? cond.replace(/_/g, " ") : ""}
-                                </span>
-                                <span className="text-[10px] font-semibold text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-blue-100">
-                                  {count as number} avail
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
                     </div>
                   );
                 })
@@ -1737,7 +1615,7 @@ function CreateOrderPOSContent() {
               ) : (
                 cart.map((item) => (
                   <div
-                    key={`${item.id}-${item.condition}-${item.isService}`}
+                    key={`${item.id}-${item.isService || false}`}
                     className={`p-3 rounded-xl border shadow-2xs space-y-2 transition-all ${
                       item.isService
                         ? "bg-blue-50/40 border-blue-200"
@@ -1767,7 +1645,7 @@ function CreateOrderPOSContent() {
                       {!isAuthLoading && user && user.role !== "STAFF" && (
                         <button
                           type="button"
-                          onClick={() => removeItem(item.id, item.condition)}
+                          onClick={() => removeItem(item.id)}
                           className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors shrink-0"
                           title="Remove item"
                         >
@@ -1776,16 +1654,11 @@ function CreateOrderPOSContent() {
                       )}
                     </div>
 
-                    {/* Row 2: Unit Price & Condition Tags */}
+                    {/* Row 2: Unit Price & Part Tags */}
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-xs font-semibold text-slate-600">
                         Rs. {formatPrice(item.price)} each
                       </span>
-                      {!item.isService && item.condition && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
-                          {item.condition.replace(/_/g, " ")}
-                        </span>
-                      )}
                       {!item.isService && (
                         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-100">
                           Part
@@ -1805,7 +1678,7 @@ function CreateOrderPOSContent() {
                       <div className="flex items-center bg-white rounded-lg border border-slate-300 shadow-2xs focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 overflow-hidden">
                         <button
                           type="button"
-                          onClick={() => updateQty(item.id, item.condition, -1)}
+                          onClick={() => updateQty(item.id, -1)}
                           className="w-7 h-7 flex items-center justify-center text-slate-600 hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer"
                           title="Decrease quantity"
                         >
@@ -1821,7 +1694,6 @@ function CreateOrderPOSContent() {
                             const val = parseInt(e.target.value, 10);
                             setDirectQty(
                               item.id,
-                              item.condition,
                               isNaN(val) ? 1 : val,
                             );
                           }}
@@ -1829,9 +1701,9 @@ function CreateOrderPOSContent() {
                             const val = parseInt(e.target.value, 10);
                             const max = getMaxAllowedQty(item);
                             if (isNaN(val) || val < 1) {
-                              setDirectQty(item.id, item.condition, 1);
+                              setDirectQty(item.id, 1);
                             } else if (val > max) {
-                              setDirectQty(item.id, item.condition, max);
+                              setDirectQty(item.id, max);
                             }
                           }}
                           className="w-11 h-7 text-center text-xs font-black text-slate-900 bg-slate-50/70 border-x border-slate-200 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:bg-white"
@@ -1839,7 +1711,7 @@ function CreateOrderPOSContent() {
                         />
                         <button
                           type="button"
-                          onClick={() => updateQty(item.id, item.condition, 1)}
+                          onClick={() => updateQty(item.id, 1)}
                           className="w-7 h-7 flex items-center justify-center text-slate-600 hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer"
                           title="Increase quantity"
                         >

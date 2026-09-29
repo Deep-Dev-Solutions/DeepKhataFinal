@@ -29,7 +29,6 @@ const formatPrice = (val: any): string => {
 
 type Instance = {
   id: string;
-  condition: string;
   branch: { id: string; name: string };
   cabinet?: { id: string; name: string };
 };
@@ -41,8 +40,6 @@ type Movement = {
   direction: string;
   referenceType: string;
   notes: string;
-  fromCondition: string | null;
-  toCondition: string;
   vendor?: { businessName: string };
   cabinet?: { name: string };
 };
@@ -129,24 +126,17 @@ export default function ProductDetailPage() {
     );
   }
 
-  // Group instances by Branch -> Cabinet -> Condition
-  const locationBreakdown: Record<string, any> = {};
+  // Group instances by Branch -> Cabinet
+  const locationBreakdown: Record<string, Record<string, number>> = {};
   instances.forEach((inst) => {
     const branchName = inst.branch.name;
     const cabinetName = inst.cabinet?.name || "No Cabinet";
-    const condition = inst.condition.replace(/_/g, " ");
 
     if (!locationBreakdown[branchName]) {
       locationBreakdown[branchName] = {};
     }
-    if (!locationBreakdown[branchName][cabinetName]) {
-      locationBreakdown[branchName][cabinetName] = {};
-    }
-    if (!locationBreakdown[branchName][cabinetName][condition]) {
-      locationBreakdown[branchName][cabinetName][condition] = 0;
-    }
-
-    locationBreakdown[branchName][cabinetName][condition] += 1;
+    locationBreakdown[branchName][cabinetName] =
+      (locationBreakdown[branchName][cabinetName] || 0) + 1;
   });
 
   return (
@@ -325,31 +315,17 @@ export default function ProductDetailPage() {
                       </div>
                       <div className="p-4 grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                         {Object.entries(cabinets).map(
-                          ([cabinet, conditions]: [string, any]) => (
+                          ([cabinet, qty]: [string, any]) => (
                             <div
                               key={cabinet}
-                              className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm"
+                              className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex items-center justify-between"
                             >
-                              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-2">
+                              <div className="text-xs font-bold text-slate-700">
                                 {cabinet}
                               </div>
-                              <ul className="space-y-2">
-                                {Object.entries(conditions).map(
-                                  ([cond, qty]: [string, any]) => (
-                                    <li
-                                      key={cond}
-                                      className="flex justify-between items-center text-sm"
-                                    >
-                                      <span className="font-medium text-slate-700">
-                                        {cond}
-                                      </span>
-                                      <span className="font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
-                                        {qty}
-                                      </span>
-                                    </li>
-                                  ),
-                                )}
-                              </ul>
+                              <span className="font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded text-sm">
+                                {qty} units
+                              </span>
                             </div>
                           ),
                         )}
@@ -491,7 +467,6 @@ export default function ProductDetailPage() {
                   <th className="px-4 py-3">Date</th>
                   <th className="px-4 py-3">Type</th>
                   <th className="px-4 py-3 text-center">Qty</th>
-                  <th className="px-4 py-3">Condition (To)</th>
                   <th className="px-4 py-3">Location / Vendor</th>
                   <th className="px-4 py-3">Notes</th>
                 </tr>
@@ -500,7 +475,7 @@ export default function ProductDetailPage() {
                 {movements.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={5}
                       className="px-4 py-8 text-center text-slate-400"
                     >
                       No movement history.
@@ -526,9 +501,6 @@ export default function ProductDetailPage() {
                       <td className="px-4 py-3 text-center font-black text-slate-900">
                         {m.direction === "IN" ? "+" : "-"}
                         {m.quantity}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 text-xs">
-                        {m.toCondition.replace(/_/g, " ")}
                       </td>
                       <td className="px-4 py-3 text-slate-600">
                         {m.referenceType === "RESTOCK"

@@ -51,21 +51,11 @@ type BatchLine = {
   productName: string;
   branchId?: string | null;
   cabinetId?: string | null;
-  condition: string;
   quantity: number;
   notes?: string;
   vendorId?: string;
   unitCost?: number;
 };
-
-const CONDITIONS = [
-  "ORIGINAL_PULL",
-  "COPY",
-  "MINOR_SCRATCHES",
-  "WORKING",
-  "DEAD_DONOR",
-  "DEFECTIVE",
-];
 
 export default function RestockPage() {
   const { user, activeBranchId } = useAuth();
@@ -83,7 +73,6 @@ export default function RestockPage() {
   const [selectedBranchId, setSelectedBranchId] = useState("");
   const [selectedCabinetId, setSelectedCabinetId] = useState("");
   const [selectedVendorId, setSelectedVendorId] = useState("");
-  const [condition, setCondition] = useState("ORIGINAL_PULL");
   const [quantity, setQuantity] = useState("1");
   const [unitCost, setUnitCost] = useState("");
   const [notes, setNotes] = useState("");
@@ -186,7 +175,6 @@ export default function RestockPage() {
       productName: selectedProduct.name,
       branchId: selectedBranchId || null,
       cabinetId: selectedCabinetId || null,
-      condition,
       quantity: qty,
       notes: notes.trim() || undefined,
       vendorId: selectedVendorId || undefined,
@@ -202,7 +190,6 @@ export default function RestockPage() {
     setSelectedCabinetId("");
     setSelectedVendorId("");
     setQuantity("1");
-    setCondition("ORIGINAL_PULL");
   };
 
   const removeLine = (index: number) => {
@@ -225,7 +212,6 @@ export default function RestockPage() {
           productId: line.productId,
           branchId: line.branchId,
           cabinetId: line.cabinetId,
-          condition: line.condition,
           quantity: line.quantity,
           notes: line.notes,
           vendorId: line.vendorId,
@@ -432,23 +418,6 @@ export default function RestockPage() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1.5">
-                  Condition *
-                </label>
-                <select
-                  value={condition}
-                  onChange={(e) => setCondition(e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl py-2 px-3 text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
-                >
-                  {CONDITIONS.map((c) => (
-                    <option key={c} value={c}>
-                      {c.replace(/_/g, " ")}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1.5">
                   Quantity *
                 </label>
                 <input
@@ -573,7 +542,6 @@ export default function RestockPage() {
                   <tr className="border-b border-slate-100">
                     <th className="py-2 pr-2 font-bold">Product</th>
                     <th className="py-2 pr-2 font-bold">Cabinet</th>
-                    <th className="py-2 pr-2 font-bold">Condition</th>
                     <th className="py-2 pr-2 font-bold text-center">
                       Unit Cost
                     </th>
@@ -604,11 +572,6 @@ export default function RestockPage() {
                               ?.name || "Default Cabinet"}
                           </span>
                         </div>
-                      </td>
-                      <td className="py-2.5 pr-2">
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
-                          {line.condition.replace(/_/g, " ")}
-                        </span>
                       </td>
                       <td className="py-2.5 pr-2 text-center font-bold text-slate-600">
                         {line.unitCost !== undefined

@@ -1,15 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
-const VALID_CONDITIONS = [
-  'ORIGINAL_PULL',
-  'COPY',
-  'MINOR_SCRATCHES',
-  'WORKING',
-  'DEAD_DONOR',
-  'DEFECTIVE',
-];
-
 @Injectable()
 export class InventoryService {
   constructor(private prisma: PrismaService) {}
@@ -40,7 +31,6 @@ export class InventoryService {
           productId,
           cabinetId,
           branchId,
-          condition,
           quantity,
           notes,
           vendorId,
@@ -96,10 +86,6 @@ export class InventoryService {
           finalCabinetId = general.id;
         }
 
-        const sanitizedCondition = VALID_CONDITIONS.includes(condition)
-          ? condition
-          : 'ORIGINAL_PULL';
-
         await tx.productInstance.createMany({
           data: Array.from({ length: qty }).map(() => ({
             productId: product.id,
@@ -107,7 +93,6 @@ export class InventoryService {
             branchId,
             vendorId: vendorId || null,
             unitCost: unitCost ? Number(unitCost) : null,
-            condition: sanitizedCondition as any,
             status: 'AVAILABLE' as any,
           })),
         });
@@ -116,8 +101,6 @@ export class InventoryService {
           data: {
             productId: product.id,
             cabinetId: finalCabinetId,
-            fromCondition: null,
-            toCondition: sanitizedCondition as any,
             quantity: qty,
             direction: 'IN',
             referenceType: 'RESTOCK',

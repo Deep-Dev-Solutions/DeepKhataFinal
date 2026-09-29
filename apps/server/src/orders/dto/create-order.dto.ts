@@ -37,10 +37,6 @@ export class OrderItemDto {
 
   @IsString()
   @IsOptional()
-  condition?: string;
-
-  @IsString()
-  @IsOptional()
   notes?: string;
 }
 
