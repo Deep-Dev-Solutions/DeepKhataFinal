@@ -62,27 +62,64 @@ export default function InvoicePage() {
   return (
     // 🟢 PREMIUM BACKGROUND (Dot Grid)
     <div className="min-h-screen bg-slate-50/80 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] py-10 px-4 font-sans text-slate-900 print:bg-white print:bg-none print:py-0 print:px-0">
+      {/* 🟢 A4 INVOICE PRINT STYLES */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 10mm;
+          }
+          html, body {
+            width: 210mm !important;
+            min-width: 210mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .invoice-paper {
+            width: 100% !important;
+            max-width: 100% !important;
+            box-shadow: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          .no-break {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+        }
+      `,
+        }}
+      />
+
       {/* 🟢 ACTION BAR (Hidden when printing) */}
       <div className="max-w-3xl mx-auto mb-6 flex justify-end gap-3 print:hidden">
         <button
           onClick={() => window.print()}
-          className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+          className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 cursor-pointer"
         >
           <Printer className="w-4 h-4" /> Print / Save PDF
         </button>
       </div>
 
       {/* 🟢 THE INVOICE PAPER */}
-      <div className="max-w-3xl mx-auto bg-white shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-3xl print:shadow-none print:rounded-none overflow-hidden border border-slate-100 print:border-none">
+      <div className="invoice-paper max-w-3xl mx-auto bg-white shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-3xl print:shadow-none print:rounded-none overflow-hidden border border-slate-100 print:border-none">
         {/* Top Accent Line */}
         <div
           className="h-3 w-full bg-blue-600 print:bg-blue-600"
           style={{ WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}
         />
 
-        <div className="p-8 sm:p-12">
+        <div className="p-8 sm:p-12 print:p-6">
           {/* ================= HEADER ================= */}
-          <div className="flex flex-col sm:flex-row justify-between items-start gap-8 mb-10">
+          <div className="flex flex-col sm:flex-row justify-between items-start gap-8 mb-10 print:mb-6 no-break">
             {/* Left: Shop Info */}
             <div className="flex items-start gap-4">
               {business.logoUrl ? (
@@ -166,7 +203,7 @@ export default function InvoicePage() {
 
           {/* ================= BILL TO (CUSTOMER CARD) ================= */}
           <div
-            className="bg-slate-50 border border-slate-100 rounded-2xl p-6 mb-10"
+            className="bg-slate-50 border border-slate-100 rounded-2xl p-6 mb-10 print:mb-5 print:p-4 no-break"
             style={{
               WebkitPrintColorAdjust: "exact",
               printColorAdjust: "exact",
@@ -191,20 +228,20 @@ export default function InvoicePage() {
           </div>
 
           {/* ================= ITEMS TABLE ================= */}
-          <div className="mb-10 overflow-x-auto">
+          <div className="mb-10 print:mb-5 overflow-x-auto no-break">
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-slate-200">
-                  <th className="py-3 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <th className="py-3 print:py-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
                     Description
                   </th>
-                  <th className="py-3 text-xs font-bold text-slate-400 uppercase tracking-wider text-center">
+                  <th className="py-3 print:py-2 text-xs font-bold text-slate-400 uppercase tracking-wider text-center">
                     Qty
                   </th>
-                  <th className="py-3 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">
+                  <th className="py-3 print:py-2 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">
                     Price
                   </th>
-                  <th className="py-3 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">
+                  <th className="py-3 print:py-2 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">
                     Total
                   </th>
                 </tr>
@@ -212,18 +249,18 @@ export default function InvoicePage() {
               <tbody className="divide-y divide-slate-100">
                 {items.map((item: any, idx: number) => (
                   <tr key={idx} className="group">
-                    <td className="py-4">
+                    <td className="py-4 print:py-2.5">
                       <p className="font-bold text-slate-900">
                         {item.product?.name || "Item"}
                       </p>
                     </td>
-                    <td className="py-4 text-center font-medium text-slate-600">
+                    <td className="py-4 print:py-2.5 text-center font-medium text-slate-600">
                       {item.quantity}
                     </td>
-                    <td className="py-4 text-right font-medium text-slate-600">
+                    <td className="py-4 print:py-2.5 text-right font-medium text-slate-600">
                       {business.currency} {item.price.toLocaleString()}
                     </td>
-                    <td className="py-4 text-right font-bold text-slate-900">
+                    <td className="py-4 print:py-2.5 text-right font-bold text-slate-900">
                       {business.currency}{" "}
                       {(item.price * item.quantity).toLocaleString()}
                     </td>
@@ -234,7 +271,7 @@ export default function InvoicePage() {
           </div>
 
           {/* ================= FINANCIAL TOTALS ================= */}
-          <div className="flex flex-col sm:flex-row justify-between items-start gap-8 border-t border-slate-200 pt-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start gap-8 print:gap-4 border-t border-slate-200 pt-8 print:pt-4 no-break">
             {/* Notes Section */}
             <div className="w-full sm:w-1/2">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
@@ -248,7 +285,7 @@ export default function InvoicePage() {
             </div>
 
             {/* Math Section */}
-            <div className="w-full sm:w-1/2 space-y-3">
+            <div className="w-full sm:w-1/2 space-y-3 print:space-y-1.5">
               <div className="flex justify-between text-sm font-medium text-slate-600">
                 <span>Subtotal</span>
                 <span>
@@ -267,16 +304,16 @@ export default function InvoicePage() {
               )}
 
               {/* Grand Total */}
-              <div className="flex justify-between items-center text-lg font-black text-slate-900 pt-4 border-t border-slate-200">
+              <div className="flex justify-between items-center text-lg font-black text-slate-900 pt-4 print:pt-2 border-t border-slate-200">
                 <span>Grand Total</span>
-                <span className="text-2xl">
+                <span className="text-2xl print:text-xl">
                   {business.currency} {invoice.totalAmount.toLocaleString()}
                 </span>
               </div>
 
               {/* Payments Ledger */}
               {payments.length > 0 && (
-                <div className="pt-4 pb-2 space-y-2">
+                <div className="pt-4 print:pt-2 pb-2 print:pb-1 space-y-2 print:space-y-1">
                   {payments.map((p: any) => (
                     <div
                       key={p.id}
@@ -296,12 +333,12 @@ export default function InvoicePage() {
 
               {/* Amount Due (Highlighted if they owe money) */}
               <div
-                className={`flex justify-between items-center pt-4 border-t border-slate-200 ${invoice.pendingBalance > 0 ? "text-rose-600" : "text-slate-400"}`}
+                className={`flex justify-between items-center pt-4 print:pt-2 border-t border-slate-200 ${invoice.pendingBalance > 0 ? "text-rose-600" : "text-slate-400"}`}
               >
                 <span className="text-sm font-bold uppercase tracking-wider">
                   Amount Due
                 </span>
-                <span className="text-xl font-black">
+                <span className="text-xl print:text-lg font-black">
                   {business.currency} {invoice.pendingBalance.toLocaleString()}
                 </span>
               </div>
@@ -309,7 +346,7 @@ export default function InvoicePage() {
           </div>
 
           {/* ================= WATERMARK ================= */}
-          <div className="mt-16 text-center print:mt-24">
+          <div className="mt-16 text-center print:mt-6 no-break">
             <p className="text-xs font-bold text-slate-300 tracking-widest uppercase">
               Powered by BizFlow
             </p>
