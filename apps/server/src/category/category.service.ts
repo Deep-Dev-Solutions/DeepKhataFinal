@@ -77,7 +77,12 @@ export class CategoryService {
     return { success: true, message: 'Category created successfully', category };
   }
 
-  async updateCategory(userId: string, id: string, data: any) {
+  async updateCategory(
+    userId: string,
+    id: string,
+    data: any,
+    branchId?: string,
+  ) {
     const businessId = await this.requireBusinessId(userId);
 
     const category = await this.prisma.category.findFirst({
@@ -111,7 +116,7 @@ export class CategoryService {
     };
   }
 
-  async deleteCategory(userId: string, id: string) {
+  async deleteCategory(userId: string, id: string, branchId?: string) {
     const businessId = await this.requireBusinessId(userId);
 
     const category = await this.prisma.category.findFirst({

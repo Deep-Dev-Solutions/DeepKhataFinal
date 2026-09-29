@@ -7,6 +7,7 @@ export interface LocalProduct {
   price: number;
   stock: number;
   category?: { name: string } | null;
+  cabinet?: { id?: string; name?: string | null; location?: string | null } | null;
   instances?: Array<{
     id: string;
     condition: string;

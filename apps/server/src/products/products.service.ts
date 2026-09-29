@@ -277,20 +277,38 @@ export class ProductsService {
   async getProducts(userId: string, query: any) {
     const { search, category, stock, branchId } = query;
     const businessId = await this.requireBusinessId(userId);
-    const cacheKey = `products:${businessId}:search=${encodeURIComponent(search || '')}:category=${encodeURIComponent(category || 'All')}:stock=${encodeURIComponent(stock || 'all')}:branch=${encodeURIComponent(branchId || 'all')}`;
-    const cached = await this.redis.get<any>(cacheKey);
-    if (cached) return cached;
 
+    if (!branchId) {
+      throw new BadRequestException('x-branch-id header is required');
+    }
+
+    // Dynamic cache key strictly scoped to business and branch
+    const cacheKey = `products:${businessId}:branch:${branchId}:search=${encodeURIComponent(search || '')}:category=${encodeURIComponent(category || 'All')}:stock=${encodeURIComponent(stock || 'all')}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (
+      cached &&
+      (!cached.products ||
+        cached.products.length === 0 ||
+        cached.products[0].cabinet !== undefined)
+    ) {
+      return cached;
+    }
+
+    // Strictly filter products by the requested branchId
     const queryConditions: any = {
       businessId,
       deletedAt: null,
-      OR: [{ branchId }, { branchId: null }],
+      branchId,
     };
 
     if (search) {
-      queryConditions.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { sku: { contains: search, mode: 'insensitive' } },
+      queryConditions.AND = [
+        {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { sku: { contains: search, mode: 'insensitive' } },
+          ],
+        },
       ];
     }
     if (category && category !== 'All') {
@@ -304,7 +322,7 @@ export class ProductsService {
         instances: {
           where: {
             status: 'AVAILABLE',
-            ...(branchId ? { branchId } : {}),
+            branchId,
           },
           include: {
             cabinet: true,
@@ -372,8 +390,19 @@ export class ProductsService {
                 (name) => name !== currentBranchName,
               )
             : [];
+          const primaryCabinet = p.instances?.[0]?.cabinet || null;
           return {
             ...p,
+            cabinet: primaryCabinet
+              ? {
+                  id: primaryCabinet.id,
+                  name: primaryCabinet.name,
+                  location: primaryCabinet.location,
+                  rack: primaryCabinet.rack,
+                  shelf: primaryCabinet.shelf,
+                  bin: primaryCabinet.bin,
+                }
+              : null,
             price: p.basePrice ?? 0,
             stock: p.instances.length,
             totalBusinessStock: branchEntry?.total ?? p.instances.length,

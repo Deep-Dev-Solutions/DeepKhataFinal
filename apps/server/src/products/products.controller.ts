@@ -68,9 +68,13 @@ export class ProductsController {
     @BranchId() branchId: string,
     @Query() query: any,
   ) {
+    const activeBranchId =
+      (req.headers['x-branch-id'] as string)?.trim() ||
+      (query.branchId as string)?.trim() ||
+      branchId;
     return this.productsService.getProducts(req.user.id, {
       ...query,
-      branchId,
+      branchId: activeBranchId,
     });
   }
 
@@ -117,10 +121,11 @@ export class ProductsController {
   @RequirePermissions('write:products')
   async updateCategory(
     @Req() req: any,
+    @BranchId() branchId: string,
     @Param('id') id: string,
     @Body() body: any,
   ) {
-    return this.categoryService.updateCategory(req.user.id, id, body);
+    return this.categoryService.updateCategory(req.user.id, id, body, branchId);
   }
 
   @Patch('cabinet/:id')
@@ -138,8 +143,12 @@ export class ProductsController {
   @UseGuards(PermissionsGuard, RolesGuard)
   @RequirePermissions('write:products')
   @Roles(Role.OWNER, Role.SUPER_ADMIN)
-  async deleteCategory(@Req() req: any, @Param('id') id: string) {
-    return this.categoryService.deleteCategory(req.user.id, id);
+  async deleteCategory(
+    @Req() req: any,
+    @BranchId() branchId: string,
+    @Param('id') id: string,
+  ) {
+    return this.categoryService.deleteCategory(req.user.id, id, branchId);
   }
 
   @Post('cabinet/:id/delete')

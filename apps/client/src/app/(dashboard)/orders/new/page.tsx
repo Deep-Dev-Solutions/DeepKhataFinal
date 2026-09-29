@@ -24,6 +24,8 @@ import {
   GripVertical,
   ChevronRight,
   Globe2,
+  AlertCircle,
+  Box,
 } from "lucide-react";
 import { offlineDb, type SyncQueueItem } from "@/lib/db";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
@@ -32,7 +34,6 @@ import OrderSuccessModal, {
   type CompletedOrderData,
 } from "@/components/modals/OrderSuccessModal";
 import NewCustomerModal from "@/components/modals/NewCustomerModal";
-import GlobalStockLookupModal from "@/components/modals/GlobalStockLookupModal";
 import CheckoutDrawer from "@/components/pos/CheckoutDrawer";
 import { usePOS } from "@/context/POSContext";
 import { useAuth } from "@/context/AuthContext";
@@ -48,6 +49,7 @@ type Product = {
   price?: number;
   stock: number;
   category?: { name: string };
+  cabinet?: { id?: string; name?: string | null; location?: string | null } | null;
   instances?: Array<{
     id: string;
     condition: string;
@@ -83,9 +85,44 @@ function CreateOrderPOSContent() {
     user,
     isLoading: isAuthLoading,
     activeBranchId,
-    branches,
+    branches: authBranches,
   } = useAuth();
   const { toast } = useToast();
+
+  const [branches, setBranches] = useState<any[]>([]);
+  const [viewingBranchId, setViewingBranchId] = useState<string>(
+    activeBranchId || "",
+  );
+
+  // Fetch all available branches for current business on component mount
+  useEffect(() => {
+    const fetchBranches = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/product/getbranches`, {
+          headers: getAuthHeaders(activeBranchId),
+          cache: "no-store",
+        });
+        const data = await res.json();
+        if (data.success && Array.isArray(data.branches)) {
+          setBranches(data.branches);
+        } else if (Array.isArray(authBranches) && authBranches.length > 0) {
+          setBranches(authBranches);
+        }
+      } catch {
+        if (Array.isArray(authBranches) && authBranches.length > 0) {
+          setBranches(authBranches);
+        }
+      }
+    };
+    void fetchBranches();
+  }, [authBranches, activeBranchId]);
+
+  // Keep viewingBranchId in sync when the global top-right active branch switches
+  useEffect(() => {
+    if (activeBranchId) {
+      setViewingBranchId(activeBranchId);
+    }
+  }, [activeBranchId]);
 
   // 🟢 BARCODE SCANNER FOCUS TRAP STATES
   const [scanFeedback, setScanFeedback] = useState<{
@@ -128,7 +165,6 @@ function CreateOrderPOSContent() {
 
   // Interrupt modal — create a customer without losing cart state
   const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false);
-  const [isGlobalStockLookupOpen, setIsGlobalStockLookupOpen] = useState(false);
 
   // 4. DISCOUNT & PAYMENT STATES
   const [discount, setDiscount] = useState<string>("");
@@ -149,8 +185,9 @@ function CreateOrderPOSContent() {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
+        const targetBranchId = viewingBranchId || activeBranchId;
         const res = await fetch(`${API_BASE_URL}/product/getcategories`, {
-          headers: getAuthHeaders(activeBranchId),
+          headers: getAuthHeaders(targetBranchId),
         });
         const data = await res.json();
         if (data.success && Array.isArray(data.categories)) {
@@ -173,81 +210,66 @@ function CreateOrderPOSContent() {
       }
     };
     void fetchCategories();
-  }, []);
+  }, [viewingBranchId, activeBranchId]);
 
   // ==========================================
   // 🟢 FETCH & CACHE PRODUCTS IN DEXIE INDEXEDDB
   // ==========================================
-  useEffect(() => {
-    const fetchProducts = async () => {
-      setIsLoadingProducts(true);
-      try {
-        // If navigator is offline, read directly from Dexie
-        if (typeof navigator !== "undefined" && !navigator.onLine) {
-          const cached = await offlineDb.products.toArray();
-          let filtered = cached;
-          if (searchQuery) {
-            const q = searchQuery.toLowerCase();
-            filtered = filtered.filter(
-              (p) =>
-                p.name.toLowerCase().includes(q) ||
-                (p.sku && p.sku.toLowerCase().includes(q)),
-            );
-          }
-          if (activeCategory !== "All") {
-            filtered = filtered.filter(
-              (p) => p.category?.name === activeCategory,
-            );
-          }
-          const normalized = (filtered || []).map((p: any) => ({
-            ...p,
-            price: Number(p.price ?? p.basePrice ?? 0),
-          }));
-          setProducts(normalized as Product[]);
-          setIsLoadingProducts(false);
-          return;
+  const fetchProducts = useCallback(async () => {
+    setIsLoadingProducts(true);
+    try {
+      // If navigator is offline, read directly from Dexie
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const cached = await offlineDb.products.toArray();
+        let filtered = cached;
+        if (searchQuery) {
+          const q = searchQuery.toLowerCase();
+          filtered = filtered.filter(
+            (p) =>
+              p.name.toLowerCase().includes(q) ||
+              (p.sku && p.sku.toLowerCase().includes(q)),
+          );
         }
-
-        const params = new URLSearchParams();
-        if (searchQuery) params.append("search", searchQuery);
-        if (activeCategory !== "All") params.append("category", activeCategory);
-        // 🔒 Branch isolation: only show stock physically in the active branch
-        if (activeBranchId) params.append("branchId", activeBranchId);
-
-        const res = await fetch(
-          `${API_BASE_URL}/product/getproducts?${params.toString()}`,
-          {
-            headers: getAuthHeaders(activeBranchId),
-            cache: "no-store",
-          },
-        );
-        const data = await res.json();
-
-        if (data.success) {
-          const normalized = data.products.map((p: any) => ({
-            ...p,
-            price: Number(p.price ?? p.basePrice ?? 0),
-          }));
-          setProducts(normalized);
-          // 🟢 Cache into IndexedDB
-          void offlineDb.products.bulkPut(normalized);
-        } else {
-          // Fallback to Dexie cache
-          const cached = await offlineDb.products.toArray();
-          if (cached.length > 0) {
-            setProducts(
-              cached.map((p: any) => ({
-                ...p,
-                price: Number(p.price ?? p.basePrice ?? 0),
-              })),
-            );
-          }
+        if (activeCategory !== "All") {
+          filtered = filtered.filter(
+            (p) => p.category?.name === activeCategory,
+          );
         }
-      } catch (error) {
-        console.warn(
-          "Failed to fetch products online, fallback to IndexedDB:",
-          error,
-        );
+        const normalized = (filtered || []).map((p: any) => ({
+          ...p,
+          price: Number(p.price ?? p.basePrice ?? 0),
+        }));
+        setProducts(normalized as Product[]);
+        setIsLoadingProducts(false);
+        return;
+      }
+
+      const targetBranchId = viewingBranchId || activeBranchId;
+      const params = new URLSearchParams();
+      if (searchQuery) params.append("search", searchQuery);
+      if (activeCategory !== "All") params.append("category", activeCategory);
+      if (targetBranchId) params.append("branchId", targetBranchId);
+      params.append("t", Date.now().toString());
+
+      const res = await fetch(
+        `${API_BASE_URL}/product/getproducts?${params.toString()}`,
+        {
+          headers: getAuthHeaders(targetBranchId),
+          cache: "no-store",
+        },
+      );
+      const data = await res.json();
+
+      if (data.success) {
+        const normalized = data.products.map((p: any) => ({
+          ...p,
+          price: Number(p.price ?? p.basePrice ?? 0),
+        }));
+        setProducts(normalized);
+        // 🟢 Cache into IndexedDB
+        void offlineDb.products.bulkPut(normalized);
+      } else {
+        // Fallback to Dexie cache
         const cached = await offlineDb.products.toArray();
         if (cached.length > 0) {
           setProducts(
@@ -257,11 +279,27 @@ function CreateOrderPOSContent() {
             })),
           );
         }
-      } finally {
-        setIsLoadingProducts(false);
       }
-    };
+    } catch (error) {
+      console.warn(
+        "Failed to fetch products online, fallback to IndexedDB:",
+        error,
+      );
+      const cached = await offlineDb.products.toArray();
+      if (cached.length > 0) {
+        setProducts(
+          cached.map((p: any) => ({
+            ...p,
+            price: Number(p.price ?? p.basePrice ?? 0),
+          })),
+        );
+      }
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  }, [searchQuery, activeCategory, viewingBranchId, activeBranchId]);
 
+  useEffect(() => {
     const delayDebounceFn = setTimeout(() => void fetchProducts(), 300);
     const refreshWhenActive = () => {
       if (document.visibilityState === "visible") void fetchProducts();
@@ -274,7 +312,7 @@ function CreateOrderPOSContent() {
       window.removeEventListener("focus", refreshWhenActive);
       document.removeEventListener("visibilitychange", refreshWhenActive);
     };
-  }, [searchQuery, activeCategory, activeBranchId]);
+  }, [fetchProducts]);
 
   // Pre-fetch all customers into IndexedDB for offline capability
   useEffect(() => {
@@ -670,6 +708,13 @@ function CreateOrderPOSContent() {
 
   // Cart Functions
   const addToCart = (product: Product, condition: string) => {
+    if (viewingBranchId && activeBranchId && viewingBranchId !== activeBranchId) {
+      const viewingBranch = branches.find((b: any) => b.id === viewingBranchId);
+      const branchName = viewingBranch?.name || "another branch";
+      toast.warning(`Cannot add remote stock from ${branchName} to cart.`);
+      return;
+    }
+
     const maxAllowed = getMaxAllowedQty({
       id: product.id,
       condition,
@@ -867,6 +912,15 @@ function CreateOrderPOSContent() {
   };
 
   const handleProductClick = (product: Product) => {
+    if (viewingBranchId && activeBranchId && viewingBranchId !== activeBranchId) {
+      const viewingBranch = branches.find((b: any) => b.id === viewingBranchId);
+      const branchName = viewingBranch?.name || "another branch";
+      toast.warning(
+        `Cannot sell items from ${branchName}. Switch to this branch in the top bar to make a sale.`,
+      );
+      return;
+    }
+
     const availableInstances =
       product.instances?.filter((i) => i.status === "AVAILABLE") || [];
 
@@ -1055,6 +1109,22 @@ function CreateOrderPOSContent() {
   const disabledReason = getDisabledReason();
   const readOnly = useIsReadOnly();
 
+  const handleCloseSuccessModal = () => {
+    setCompletedOrderData(null);
+    setCart([]);
+    setAmountPaid("");
+    setDiscount("");
+    setWalkInName("");
+    setWalkInPhone("");
+    void fetchProducts();
+  };
+
+  const isRemoteBranch = Boolean(
+    viewingBranchId && activeBranchId && viewingBranchId !== activeBranchId,
+  );
+  const viewingBranch = branches.find((b: any) => b.id === viewingBranchId);
+  const viewingBranchName = viewingBranch?.name || "Remote Branch";
+
   return (
     <div className="flex flex-col h-[calc(100vh-125px)] min-h-0 overflow-hidden font-sans">
       {/* 🟢 TOP POS HEADER & OFFLINE ENGINE STATUS BAR */}
@@ -1189,15 +1259,6 @@ function CreateOrderPOSContent() {
                   />
                   <Barcode className="h-4 w-4 text-slate-400 absolute right-3 top-2.5" />
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsGlobalStockLookupOpen(true)}
-                  title="Check Other Branches"
-                  className="flex shrink-0 items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-2.5 py-2 text-xs font-bold text-indigo-700 transition-colors hover:bg-indigo-100"
-                >
-                  <Globe2 className="h-4 w-4" />
-                  <span className="hidden xl:inline">Other Branches</span>
-                </button>
                 {/* Grid / List toggle */}
                 <div className="flex bg-white rounded-xl border border-slate-200 shadow-sm p-0.5 shrink-0">
                   <button
@@ -1218,21 +1279,58 @@ function CreateOrderPOSContent() {
               </div>
             </div>
 
-            <div className="px-3.5 pt-2.5 pb-2 flex items-center gap-1.5 overflow-x-auto hide-scrollbar border-b border-slate-100 shrink-0">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setActiveCategory(cat)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${activeCategory === cat ? "bg-slate-900 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
-                >
-                  {cat}
-                </button>
-              ))}
+            <div className="px-3.5 pt-2.5 pb-2 flex items-center justify-between gap-2 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-1.5 overflow-x-auto hide-scrollbar flex-1 min-w-0">
+                {categories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${activeCategory === cat ? "bg-slate-900 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Sleek Branch Selector Dropdown */}
+              {branches.length > 0 && (
+                <div className="flex items-center gap-1.5 shrink-0 pl-2 border-l border-slate-200">
+                  <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <select
+                    value={viewingBranchId}
+                    onChange={(e) => setViewingBranchId(e.target.value)}
+                    className="text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg px-2.5 py-1 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-xs hover:border-slate-300 transition-colors"
+                  >
+                    {branches.map((b: any) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} {b.id === activeBranchId ? "(Current)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             <div
               className={`flex-1 overflow-y-auto p-3 bg-slate-50/50 ${catalogView === "grid" ? "grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-2.5 content-start" : "flex flex-col gap-1.5 content-start"}`}
             >
+              {/* Alert banner if viewing remote branch */}
+              {isRemoteBranch && (
+                <div className="col-span-full mb-1 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-800">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>
+                      Viewing catalog from <strong>{viewingBranchName}</strong>. Remote items cannot be added to local sale cart.
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => activeBranchId && setViewingBranchId(activeBranchId)}
+                    className="text-amber-900 font-bold hover:underline ml-2 whitespace-nowrap cursor-pointer"
+                  >
+                    Return to Current Branch
+                  </button>
+                </div>
+              )}
               {isLoadingProducts ? (
                 <div className="col-span-full h-40 flex items-center justify-center text-slate-400 text-sm">
                   Loading products...
@@ -1266,24 +1364,35 @@ function CreateOrderPOSContent() {
                     <div key={product.id} className="relative">
                       <button
                         onClick={() => handleProductClick(product)}
+                        disabled={isRemoteBranch}
                         className={`flex flex-col gap-1.5 w-full p-2.5 rounded-xl border transition-all text-left ${
-                          isOutOfStock
-                            ? "border-slate-200 bg-slate-100/70 opacity-60 cursor-pointer select-none"
-                            : "bg-white border-slate-200 hover:border-blue-500 hover:shadow-xs shadow-2xs cursor-pointer"
+                          isRemoteBranch
+                            ? "bg-amber-50/40 border-amber-200 cursor-not-allowed opacity-90"
+                            : isOutOfStock
+                              ? "border-slate-200 bg-slate-100/70 opacity-60 cursor-pointer select-none"
+                              : "bg-white border-slate-200 hover:border-blue-500 hover:shadow-xs shadow-2xs cursor-pointer"
                         } ${isExpanded ? "border-blue-500 ring-1 ring-blue-500/20" : ""}`}
                       >
                         {/* Top Row: Full Product Name & Price */}
                         <div className="flex items-start justify-between gap-2 w-full">
                           <span
                             className={`font-bold text-xs sm:text-sm line-clamp-1 flex-1 min-w-0 wrap-break-words ${
-                              isOutOfStock ? "text-slate-400" : "text-slate-900"
+                              isRemoteBranch
+                                ? "text-slate-800"
+                                : isOutOfStock
+                                  ? "text-slate-400"
+                                  : "text-slate-900"
                             }`}
                           >
                             {product.name}
                           </span>
                           <span
                             className={`text-xs font-black shrink-0 ${
-                              isOutOfStock ? "text-slate-400" : "text-blue-600"
+                              isRemoteBranch
+                                ? "text-amber-800"
+                                : isOutOfStock
+                                  ? "text-slate-400"
+                                  : "text-blue-600"
                             }`}
                           >
                             Rs.{" "}
@@ -1291,51 +1400,44 @@ function CreateOrderPOSContent() {
                           </span>
                         </div>
 
-                        {/* Bottom Row: Conditions, Stock & Add Action */}
+                        {/* Bottom Row: Cabinet, Stock & Add Action */}
                         <div className="flex items-center justify-between gap-1.5 w-full">
                           <div className="flex items-center gap-1 flex-wrap min-w-0">
-                            {conditions.slice(0, 2).map((cond) => (
-                              <span
-                                key={cond}
-                                className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded ${
-                                  cond === "DEFECTIVE"
-                                    ? "bg-red-50 text-red-600"
-                                    : cond === "DEAD_DONOR"
-                                      ? "bg-rose-50 text-rose-600"
-                                      : cond === "COPY"
-                                        ? "bg-blue-50 text-blue-600"
-                                        : "bg-slate-100 text-slate-600"
-                                }`}
-                              >
-                                {cond.replace(/_/g, " ")}
+                            <span className="inline-flex items-center gap-1 text-[8.5px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0 truncate max-w-32">
+                              <Box className="w-2.5 h-2.5 shrink-0 text-indigo-600" />
+                              <span className="truncate">
+                                {product.cabinet?.name ||
+                                  product.instances?.[0]?.cabinet?.name ||
+                                  "No Cabinet"}
                               </span>
-                            ))}
-                            {conditions.length > 2 && (
-                              <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
-                                +{conditions.length - 2}
-                              </span>
-                            )}
+                            </span>
                             <span
                               className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                                isOutOfStock
-                                  ? "bg-slate-200 text-slate-600"
-                                  : availableCount <= 3
-                                    ? "bg-amber-50 text-amber-600"
-                                    : "bg-emerald-50 text-emerald-600"
+                                isRemoteBranch
+                                  ? "bg-amber-100 text-amber-800 border border-amber-300"
+                                  : isOutOfStock
+                                    ? "bg-slate-200 text-slate-600"
+                                    : availableCount <= 3
+                                      ? "bg-amber-50 text-amber-600"
+                                      : "bg-emerald-50 text-emerald-600"
                               }`}
                             >
-                              {isOutOfStock
-                                ? (product as any).otherBranchesWithStock
-                                    ?.length > 0
-                                  ? `In ${(product as any).otherBranchesWithStock[0]}`
-                                  : "Out"
-                                : `${availableCount} left`}
+                              {isRemoteBranch
+                                ? `${availableCount} left`
+                                : isOutOfStock
+                                  ? (product as any).otherBranchesWithStock
+                                      ?.length > 0
+                                    ? `In ${(product as any).otherBranchesWithStock[0]}`
+                                    : "Out"
+                                  : `${availableCount} left`}
                             </span>
                           </div>
 
-                          <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-slate-900 text-white hover:bg-blue-600 transition-colors shrink-0">
-                            <Plus className="w-3.5 h-3.5" />
-                          </span>
+                          {!isRemoteBranch && (
+                            <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-slate-900 text-white hover:bg-blue-600 transition-colors shrink-0">
+                              <Plus className="w-3.5 h-3.5" />
+                            </span>
+                          )}
                         </div>
                       </button>
 
@@ -1377,7 +1479,8 @@ function CreateOrderPOSContent() {
                   const availableCount = availableInstances.length;
                   const isOutOfStock = availableCount === 0;
 
-                  const primaryCabinet = product.instances?.[0]?.cabinet;
+                  const primaryCabinet =
+                    product.cabinet || product.instances?.[0]?.cabinet;
                   const loc =
                     primaryCabinet?.location ||
                     primaryCabinet?.name ||
@@ -1390,10 +1493,13 @@ function CreateOrderPOSContent() {
                     <div key={product.id} className="relative flex flex-col">
                       <button
                         onClick={() => handleProductClick(product)}
+                        disabled={isRemoteBranch}
                         className={`group flex flex-col text-left p-3 rounded-xl border transition-all relative overflow-hidden w-full h-full ${
-                          isOutOfStock
-                            ? "border-slate-200 bg-slate-100/70 opacity-60 cursor-pointer select-none"
-                            : "bg-white border-slate-200 hover:border-blue-500 hover:shadow-md active:scale-[0.98] shadow-sm cursor-pointer"
+                          isRemoteBranch
+                            ? "bg-amber-50/30 border-amber-200/80 cursor-not-allowed opacity-90"
+                            : isOutOfStock
+                              ? "border-slate-200 bg-slate-100/70 opacity-60 cursor-pointer select-none"
+                              : "bg-white border-slate-200 hover:border-blue-500 hover:shadow-md active:scale-[0.98] shadow-sm cursor-pointer"
                         } ${isExpanded ? "border-blue-500 ring-1 ring-blue-500/20" : ""}`}
                       >
                         {/* Card Header: Category & Stock Status */}
@@ -1401,7 +1507,11 @@ function CreateOrderPOSContent() {
                           <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider truncate">
                             {product.category?.name || "General"}
                           </span>
-                          {isOutOfStock ? (
+                          {isRemoteBranch ? (
+                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 shrink-0">
+                              Remote Stock
+                            </span>
+                          ) : isOutOfStock ? (
                             <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 shrink-0">
                               {(product as any).otherBranchesWithStock?.length >
                               0
@@ -1424,35 +1534,26 @@ function CreateOrderPOSContent() {
                         {/* Product Title (2 lines max, never clipped or cut off) */}
                         <h4
                           className={`font-bold text-xs sm:text-sm line-clamp-2 leading-snug mb-1.5 wrap-break-words ${
-                            isOutOfStock
-                              ? "text-slate-400"
-                              : "text-slate-900 group-hover:text-blue-600 transition-colors"
+                            isRemoteBranch
+                              ? "text-slate-800"
+                              : isOutOfStock
+                                ? "text-slate-400"
+                                : "text-slate-900 group-hover:text-blue-600 transition-colors"
                           }`}
                         >
                           {product.name}
                         </h4>
 
-                        {/* Condition badges */}
+                        {/* Cabinet & Spatial Bin Location */}
                         <div className="flex flex-wrap items-center gap-1 mb-2">
-                          {Array.from(
-                            new Set(availableInstances.map((i) => i.condition)),
-                          ).map((cond) => (
-                            <span
-                              key={cond}
-                              className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600"
-                            >
-                              {cond ? cond.replace(/_/g, " ") : ""}
+                          <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 truncate max-w-36">
+                            <Box className="w-2.5 h-2.5 shrink-0 text-indigo-600" />
+                            <span className="truncate">
+                              {product.cabinet?.name ||
+                                primaryCabinet?.name ||
+                                "No Cabinet"}
                             </span>
-                          ))}
-                          {availableInstances.length === 0 &&
-                            product.instances?.[0]?.condition && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
-                                {product.instances[0].condition.replace(
-                                  /_/g,
-                                  " ",
-                                )}
-                              </span>
-                            )}
+                          </span>
 
                           {/* Spatial Bin Location */}
                           {loc && (
@@ -1467,17 +1568,21 @@ function CreateOrderPOSContent() {
                         <div className="mt-auto pt-2 border-t border-slate-100 flex items-center justify-between gap-1 w-full">
                           <span
                             className={`font-black text-xs sm:text-sm ${
-                              isOutOfStock ? "text-slate-400" : "text-blue-600"
+                              isRemoteBranch
+                                ? "text-amber-800"
+                                : isOutOfStock
+                                  ? "text-slate-400"
+                                  : "text-blue-600"
                             }`}
                           >
                             Rs.{" "}
                             {formatPrice(product.price ?? product.basePrice)}
                           </span>
-                          {!isOutOfStock && (
+                          {!isRemoteBranch && !isOutOfStock ? (
                             <span className="text-[10px] font-bold text-slate-500 group-hover:text-blue-600 group-hover:underline flex items-center gap-0.5 shrink-0 transition-colors">
                               <Plus className="w-3 h-3" /> Add
                             </span>
-                          )}
+                          ) : null}
                         </div>
                       </button>
 
@@ -1851,7 +1956,7 @@ function CreateOrderPOSContent() {
       {/* 🟢 POS ORDER SUCCESS & THERMAL PRINT OVERLAY */}
       <OrderSuccessModal
         order={completedOrderData}
-        onClose={() => setCompletedOrderData(null)}
+        onClose={handleCloseSuccessModal}
         onViewOrder={(id) => router.push(`/orders/${id}`)}
       />
 
@@ -1865,11 +1970,6 @@ function CreateOrderPOSContent() {
           setCustomerSearch("");
           setCustomerResults([]);
         }}
-      />
-
-      <GlobalStockLookupModal
-        isOpen={isGlobalStockLookupOpen}
-        onClose={() => setIsGlobalStockLookupOpen(false)}
       />
     </div>
   );
