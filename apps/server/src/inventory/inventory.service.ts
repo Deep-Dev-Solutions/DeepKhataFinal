@@ -127,12 +127,28 @@ export class InventoryService {
       };
     });
 
-    // Invalidate caches across Restock, Products, Cabinets, and Dashboard
+    // Invalidate caches for all target branches and global
+    const targetBranchIds = Array.from(
+      new Set(items.map((i: any) => i.branchId).filter(Boolean)),
+    ) as string[];
+
+    const branchInvalidations: Promise<void>[] = [];
+    for (const targetBranchId of targetBranchIds) {
+      branchInvalidations.push(
+        this.redis.deleteByPattern(`products:${targetBranchId}:*`),
+        this.redis.deleteByPattern(`cabinets:${targetBranchId}:*`),
+        this.redis.deleteByPattern(`products:${businessId}:branch:${targetBranchId}:*`),
+        this.redis.deleteByPattern(`cabinets:${businessId}:branch:${targetBranchId}:*`),
+        this.redis.deleteByPattern(`restock:${businessId}:branch:${targetBranchId}:*`),
+      );
+    }
+
     await Promise.all([
       this.redis.deleteByPattern(`restock:${businessId}:*`),
       this.redis.deleteByPattern(`products:${businessId}:*`),
       this.redis.deleteByPattern(`cabinets:${businessId}:*`),
       this.redis.deleteByPattern(`dashboard:${businessId}*`),
+      ...branchInvalidations,
     ]);
 
     return {

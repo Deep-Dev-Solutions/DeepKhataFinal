@@ -61,6 +61,7 @@ export default function RestockPage() {
   const { user, activeBranchId } = useAuth();
   const readOnly = useIsReadOnly();
   const [products, setProducts] = useState<Product[]>([]);
+  const [cabinets, setCabinets] = useState<Cabinet[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [activeCategory, setActiveCategory] = useState("All");
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -70,7 +71,23 @@ export default function RestockPage() {
 
   // Form state for the line being composed
   const [selectedProductId, setSelectedProductId] = useState("");
-  const [selectedBranchId, setSelectedBranchId] = useState("");
+
+  const getInitialBranchId = () => {
+    if (typeof window !== "undefined") {
+      try {
+        const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+        if (storedUser?.businessId) {
+          const stored = localStorage.getItem(`activeBranch_${storedUser.businessId}`);
+          if (stored) return stored;
+        }
+        const generalStored = localStorage.getItem("activeBranchId");
+        if (generalStored) return generalStored;
+      } catch {}
+    }
+    return activeBranchId || "";
+  };
+
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(getInitialBranchId);
   const [selectedCabinetId, setSelectedCabinetId] = useState("");
   const [selectedVendorId, setSelectedVendorId] = useState("");
   const [quantity, setQuantity] = useState("1");
@@ -88,10 +105,17 @@ export default function RestockPage() {
     [products, selectedProductId],
   );
 
+  useEffect(() => {
+    if (activeBranchId && !selectedBranchId) {
+      setSelectedBranchId(activeBranchId);
+    }
+  }, [activeBranchId, selectedBranchId]);
+
   const selectedBranchCabinets = useMemo(() => {
+    if (cabinets.length > 0) return cabinets;
     const branch = branches.find((b) => b.id === selectedBranchId);
     return branch?.cabinets || [];
-  }, [branches, selectedBranchId]);
+  }, [cabinets, branches, selectedBranchId]);
 
   const loadBranches = useCallback(async () => {
     try {
@@ -99,42 +123,85 @@ export default function RestockPage() {
         headers: getAuthHeaders(),
       });
       const data = await res.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.branches)) {
         setBranches(data.branches);
-        // Pre-select the active branch from global context
-        if (activeBranchId) {
-          setSelectedBranchId(activeBranchId);
-        }
+        setSelectedBranchId((prev) => {
+          if (prev && data.branches.some((b: Branch) => b.id === prev)) return prev;
+          if (activeBranchId && data.branches.some((b: Branch) => b.id === activeBranchId)) return activeBranchId;
+          return data.branches[0]?.id || "";
+        });
       }
     } catch (err) {
       console.error("Failed to load branches", err);
     }
   }, [activeBranchId]);
 
-  const loadProducts = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (activeCategory !== "All") params.set("category", activeCategory);
-      if (searchQuery) params.set("search", searchQuery);
+  // PART 2: Fetch products using selectedBranchId
+  const fetchProducts = useCallback(
+    async (branchIdToFetch?: string) => {
+      const targetBranch = branchIdToFetch ?? selectedBranchId;
+      if (!targetBranch) return;
+      setIsLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (activeCategory !== "All") params.set("category", activeCategory);
+        if (searchQuery) params.set("search", searchQuery);
+        params.set("branchId", targetBranch);
+        params.set("t", String(Date.now()));
 
-      const res = await fetch(
-        `${API_BASE_URL}/product/getproducts?${params.toString()}`,
-        { headers: getAuthHeaders(activeBranchId) },
-      );
-      const data = await res.json();
-      if (data.success) setProducts(data.products);
-    } catch (err) {
-      console.error("Failed to load products", err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [activeCategory, searchQuery, activeBranchId]);
+        const res = await fetch(
+          `${API_BASE_URL}/product/getproducts?${params.toString()}`,
+          {
+            headers: getAuthHeaders(targetBranch),
+            cache: "no-store",
+          },
+        );
+        const data = await res.json();
+        if (data.success && Array.isArray(data.products)) {
+          setProducts(data.products);
+        }
+      } catch (err) {
+        console.error("Failed to load products", err);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [activeCategory, searchQuery, selectedBranchId],
+  );
+
+  // PART 2: Fetch cabinets using selectedBranchId
+  const fetchCabinets = useCallback(
+    async (branchIdToFetch?: string) => {
+      const targetBranch = branchIdToFetch ?? selectedBranchId;
+      if (!targetBranch) {
+        setCabinets([]);
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE_URL}/product/getcabinets`, {
+          headers: getAuthHeaders(targetBranch),
+          cache: "no-store",
+        });
+        const data = await res.json();
+        if (data.success && Array.isArray(data.cabinets)) {
+          setCabinets(data.cabinets);
+        } else {
+          const branch = branches.find((b) => b.id === targetBranch);
+          setCabinets(branch?.cabinets || []);
+        }
+      } catch (err) {
+        console.error("Failed to load cabinets", err);
+        const branch = branches.find((b) => b.id === targetBranch);
+        setCabinets(branch?.cabinets || []);
+      }
+    },
+    [selectedBranchId, branches],
+  );
 
   const loadCategories = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/product/getcategories`, {
-        headers: getAuthHeaders(activeBranchId),
+        headers: getAuthHeaders(selectedBranchId || activeBranchId),
       });
       const data = await res.json();
       if (data.success)
@@ -142,7 +209,7 @@ export default function RestockPage() {
     } catch (err) {
       console.error("Failed to load categories", err);
     }
-  }, [activeBranchId]);
+  }, [selectedBranchId, activeBranchId]);
 
   const loadVendors = useCallback(async () => {
     try {
@@ -159,9 +226,16 @@ export default function RestockPage() {
   useEffect(() => {
     void loadBranches();
     void loadCategories();
-    void loadProducts();
     void loadVendors();
-  }, [loadBranches, loadCategories, loadProducts, loadVendors]);
+  }, [loadBranches, loadCategories, loadVendors]);
+
+  // PART 2: selectedBranchId in dependency array triggers dynamic re-fetch and loading state
+  useEffect(() => {
+    if (selectedBranchId) {
+      void fetchProducts(selectedBranchId);
+      void fetchCabinets(selectedBranchId);
+    }
+  }, [selectedBranchId, fetchProducts, fetchCabinets]);
 
   const handleAddToBatch = () => {
     if (!selectedProduct) {
@@ -186,7 +260,6 @@ export default function RestockPage() {
     setNotes("");
     setUnitCost("");
     setSelectedProductId("");
-    setSelectedBranchId("");
     setSelectedCabinetId("");
     setSelectedVendorId("");
     setQuantity("1");
@@ -210,7 +283,7 @@ export default function RestockPage() {
       const payload = {
         items: batch.map((line) => ({
           productId: line.productId,
-          branchId: line.branchId,
+          branchId: line.branchId || selectedBranchId,
           cabinetId: line.cabinetId,
           quantity: line.quantity,
           notes: line.notes,
@@ -221,7 +294,7 @@ export default function RestockPage() {
 
       const res = await fetch(`${API_BASE_URL}/inventory/restock`, {
         method: "POST",
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(selectedBranchId),
         body: JSON.stringify(payload),
       });
 
@@ -234,8 +307,23 @@ export default function RestockPage() {
         data.message ||
           `Restocked ${batch.reduce((s, l) => s + l.quantity, 0)} units.`,
       );
+
+      // PART 3.2: Clear batch array
       setBatch([]);
-      await loadProducts();
+
+      // PART 3.2: Clear form inputs
+      setSelectedProductId("");
+      setSelectedCabinetId("");
+      setSelectedVendorId("");
+      setQuantity("1");
+      setUnitCost("");
+      setNotes("");
+
+      // PART 3.3: Re-fetch products and cabinets immediately to update stock counts
+      await Promise.all([
+        fetchProducts(selectedBranchId),
+        fetchCabinets(selectedBranchId),
+      ]);
     } catch (err: any) {
       setErrorMsg(err?.message || "Failed to restock");
     } finally {
@@ -363,10 +451,13 @@ export default function RestockPage() {
                   onChange={(e) => {
                     setSelectedBranchId(e.target.value);
                     setSelectedCabinetId("");
+                    setSelectedProductId("");
                   }}
                   className="w-full border border-slate-300 rounded-xl py-2 px-3 text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
                 >
-                  <option value="">-- No Branch (Default) --</option>
+                  {branches.length === 0 && (
+                    <option value="">-- No Branch Available --</option>
+                  )}
                   {branches.map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.name}
@@ -616,7 +707,7 @@ export default function RestockPage() {
                   ? "Subscription expired. System is in read-only mode."
                   : undefined
               }
-              className={`w-full py-4 rounded-xl font-bold text-base transition-all shadow-lg shadow-slate-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+              className={`w-full py-4 rounded-xl font-bold text-base text-white transition-all shadow-lg shadow-slate-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
                 readOnly
                   ? "bg-slate-400 cursor-not-allowed"
                   : "bg-slate-900 hover:bg-slate-800 cursor-pointer"
