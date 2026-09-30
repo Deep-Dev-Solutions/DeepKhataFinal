@@ -28,11 +28,16 @@ export class OrdersService {
       this.redis.deleteByPattern(`dashboard:${businessId}*`),
       this.redis.deleteByPattern(`reports:*${businessId}*`),
       this.redis.deleteByPattern(`products:${businessId}:*`),
+      this.redis.deleteByPattern(`cabinets:${businessId}:*`),
+      this.redis.deleteByPattern(`customers:${businessId}:*`),
+      this.redis.deleteByPattern(`restock:${businessId}:*`),
     ];
     if (branchId) {
       invalidations.push(
         this.redis.deleteByPattern(`products:${branchId}:*`),
+        this.redis.deleteByPattern(`cabinets:${branchId}:*`),
         this.redis.deleteByPattern(`inventory:${branchId}:*`),
+        this.redis.deleteByPattern(`restock:${businessId}:branch:${branchId}:*`),
         this.redis.deleteByPattern(`dashboard:${businessId}:branch:${branchId}`),
         this.redis.deleteByPattern(`reports:*${businessId}*branch=${branchId}*`),
       );
@@ -436,33 +441,65 @@ export class OrdersService {
     return result;
   }
 
-  async updateOrderStatus(userId: string, id: string, data: any) {
-    const { status } = data;
+  async updateOrderStatus(
+    orderIdOrUserId: string,
+    statusOrOrderId: string,
+    businessIdOrData: any,
+    currentUserId?: string,
+  ) {
+    let orderId: string;
+    let status: string;
+    let businessId: string | undefined;
+    let actingUserId: string | undefined = currentUserId;
+
+    if (typeof businessIdOrData === 'object' && businessIdOrData !== null) {
+      orderId = statusOrOrderId;
+      status = businessIdOrData.status;
+      actingUserId = orderIdOrUserId;
+    } else {
+      orderId = orderIdOrUserId;
+      status = statusOrOrderId;
+      businessId = businessIdOrData;
+    }
+
     if (!status) throw new BadRequestException('Status is required');
-    const { amountPaid, paymentMethod = 'CASH' } = data;
-    const parsedAmountPaid = Number(amountPaid) || 0;
 
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { businessId: true, role: true },
-    });
-
-    if (status === 'CANCELLED' && currentUser?.role === 'STAFF') {
-      throw new ForbiddenException(
-        'Staff members are not permitted to cancel orders',
-      );
+    let resolvedBusinessId = businessId;
+    if (!resolvedBusinessId) {
+      const existingOrder = await this.prisma.order.findUnique({
+        where: { id: orderId },
+        select: { businessId: true },
+      });
+      if (!existingOrder) throw new NotFoundException('Order not found');
+      resolvedBusinessId = existingOrder.businessId;
     }
 
     const order = await this.prisma.order.findFirst({
-      where: { id, businessId: currentUser?.businessId },
+      where: { id: orderId, businessId: resolvedBusinessId },
       include: { items: true, payments: true },
     });
 
     if (!order) throw new NotFoundException('Order not found');
 
+    const resolvedUserId =
+      actingUserId ||
+      order.createdBy ||
+      (
+        await this.prisma.user.findFirst({
+          where: { businessId: resolvedBusinessId },
+          select: { id: true },
+        })
+      )?.id ||
+      '';
+
+    let updatedOrder: any;
+
     if (
       order.status === 'ESTIMATE' &&
-      (status === 'FINAL' || status === 'COMPLETED' || status === 'MEMO' || status === 'PENDING')
+      (status === 'FINAL' ||
+        status === 'COMPLETED' ||
+        status === 'MEMO' ||
+        status === 'PENDING')
     ) {
       await this.prisma.$transaction(async (tx) => {
         for (const item of order.items) {
@@ -479,7 +516,8 @@ export class OrdersService {
             );
           }
 
-          const instanceStatus = status === 'MEMO' || status === 'PENDING' ? 'MEMO_LOCKED' : 'SOLD';
+          const instanceStatus =
+            status === 'MEMO' || status === 'PENDING' ? 'MEMO_LOCKED' : 'SOLD';
           await tx.productInstance.updateMany({
             where: { id: { in: instances.map((i) => i.id) } },
             data: { status: instanceStatus },
@@ -491,51 +529,24 @@ export class OrdersService {
               cabinetId: instances[0]?.cabinetId || null,
               quantity: item.quantity,
               direction: 'OUT',
-              referenceType: status === 'MEMO' || status === 'PENDING' ? 'MEMO' : 'ORDER',
+              referenceType:
+                status === 'MEMO' || status === 'PENDING' ? 'MEMO' : 'ORDER',
               referenceId: order.id,
-              userId,
-              businessId: currentUser?.businessId,
+              userId: resolvedUserId,
+              businessId: resolvedBusinessId,
             },
           });
         }
 
-        await tx.order.update({
-          where: { id },
+        updatedOrder = await tx.order.update({
+          where: { id: orderId },
           data: { status: status as any },
         });
       });
-
-      if (status === 'FINAL' || status === 'COMPLETED') {
-        if (parsedAmountPaid > 0) {
-          await this.prisma.payment.create({
-            data: {
-              orderId: id,
-              amount: parsedAmountPaid,
-              method: paymentMethod as any,
-              receivedBy: userId,
-            },
-          });
-
-          await this.prisma.order.update({
-            where: { id },
-            data: {
-              paymentStatus:
-                parsedAmountPaid >= order.totalAmount
-                  ? 'PAID'
-                  : ('PARTIAL' as any),
-            },
-          });
-        }
-        const totalPaid =
-          order.payments.reduce((sum, p) => sum + p.amount, 0) +
-          parsedAmountPaid;
-        await this.postDoubleEntrySequence(order, totalPaid);
-      }
-    } else if (order.status === 'MEMO' && status === 'FINAL') {
-      throw new BadRequestException(
-        'To convert a MEMO to FINAL, use the settle-memo endpoint',
-      );
-    } else if (status === 'RETURNED' && (order.status === 'MEMO' || order.status === 'PENDING')) {
+    } else if (
+      status === 'RETURNED' &&
+      (order.status === 'MEMO' || order.status === 'PENDING')
+    ) {
       await this.prisma.$transaction(async (tx) => {
         for (const item of order.items) {
           if (!item.productId) continue;
@@ -559,13 +570,13 @@ export class OrdersService {
               direction: 'IN',
               referenceType: 'RETURN',
               referenceId: order.id,
-              userId,
-              businessId: currentUser?.businessId,
+              userId: resolvedUserId,
+              businessId: resolvedBusinessId,
             },
           });
         }
-        await tx.order.update({
-          where: { id },
+        updatedOrder = await tx.order.update({
+          where: { id: orderId },
           data: { status: 'RETURNED' as any },
         });
       });
@@ -575,7 +586,9 @@ export class OrdersService {
           if (!item.productId) continue;
 
           const instanceStatus =
-            order.status === 'MEMO' || order.status === 'PENDING' ? 'MEMO_LOCKED' : 'SOLD';
+            order.status === 'MEMO' || order.status === 'PENDING'
+              ? 'MEMO_LOCKED'
+              : 'SOLD';
           const instances = await tx.productInstance.findMany({
             where: { productId: item.productId, status: instanceStatus },
             take: item.quantity,
@@ -596,32 +609,43 @@ export class OrdersService {
               referenceType: 'ADJUSTMENT',
               notes: 'Order cancelled',
               referenceId: order.id,
-              userId,
-              businessId: currentUser?.businessId,
+              userId: resolvedUserId,
+              businessId: resolvedBusinessId,
             },
           });
         }
-        await tx.order.update({
-          where: { id },
+
+        // Clean up financial ledger transactions and postings for this cancelled order
+        await tx.transaction.deleteMany({
+          where: {
+            businessId: resolvedBusinessId,
+            referenceId: order.id,
+          },
+        });
+
+        updatedOrder = await tx.order.update({
+          where: { id: orderId },
           data: { status: status as any },
         });
       });
     } else {
-      await this.prisma.order.update({
-        where: { id },
+      updatedOrder = await this.prisma.order.update({
+        where: { id: orderId },
         data: { status: status as any },
       });
     }
 
-    if (currentUser?.businessId) {
-      await this.invalidateOrderCaches(
-        currentUser.businessId,
-        order.branchId,
-        id,
-      );
-    }
+    await this.invalidateOrderCaches(
+      resolvedBusinessId,
+      order.branchId,
+      orderId,
+    );
 
-    return { success: true, message: `Order status updated to ${status}` };
+    return {
+      success: true,
+      message: `Order status updated to ${status}`,
+      order: updatedOrder,
+    };
   }
 
   async settleMemo(userId: string, id: string, data: any) {

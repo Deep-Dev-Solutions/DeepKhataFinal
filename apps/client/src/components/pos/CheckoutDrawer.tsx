@@ -191,6 +191,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                 onClick={() => {
                   setCustomerMode("walk-in");
                   setSelectedCustomer(null);
+                  setOrderStatus("FINAL");
                 }}
                 className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                   customerMode === "walk-in"
@@ -522,10 +523,16 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
               <select
                 value={orderStatus}
                 onChange={(e) => setOrderStatus(e.target.value)}
-                className="w-full px-3 h-10 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none shadow-xs cursor-pointer"
+                disabled={customerMode === "walk-in"}
+                className={`w-full px-3 h-10 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none shadow-xs transition-all ${
+                  customerMode === "walk-in"
+                    ? "opacity-60 cursor-not-allowed bg-slate-100"
+                    : "bg-white cursor-pointer"
+                }`}
               >
-                <option value="COMPLETED">Completed (Handed to customer)</option>
+                <option value="FINAL">Final (Handed to customer)</option>
                 <option value="PENDING">Pending (Delivery / Pickup later)</option>
+                <option value="MEMO">Memo / Amanat (On Approval)</option>
               </select>
             </div>
           </section>
@@ -534,12 +541,10 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
         {/* Pinned Footer */}
         <div className="p-3 border-t border-slate-200 bg-slate-50 shrink-0 space-y-2">
           {exceedsCreditLimit && (
-            <div className="flex items-center gap-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 animate-in fade-in duration-200">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+            <div className="flex items-start gap-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 animate-in fade-in duration-200">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
               <span>
-                ⚠️ Warning: Customer exceeds credit limit of Rs.{" "}
-                {creditLimit.toLocaleString()} (Projected Udhaar: Rs.{" "}
-                {projectedDebt.toLocaleString()})
+                Warning: Existing Debt (Rs. {existingBalance.toLocaleString()}) + New Debt (Rs. {Math.max(0, pendingAmount).toLocaleString()}) = Projected Debt (Rs. {projectedDebt.toLocaleString()}). This exceeds the limit of Rs. {creditLimit.toLocaleString()}.
               </span>
             </div>
           )}
@@ -572,7 +577,13 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                 ? "Read-only — Subscription expired"
                 : !isOnline
                   ? `Queue Order Offline`
-                  : "Complete Order"}
+                  : orderStatus === "FINAL"
+                    ? "Complete Final Sale"
+                    : orderStatus === "PENDING"
+                      ? "Save Pending Order"
+                      : orderStatus === "MEMO"
+                        ? "Create Memo / Amanat"
+                        : "Complete Final Sale"}
             {!isSubmitting && !readOnly && (
               <CheckCircle2 className="w-5 h-5" />
             )}

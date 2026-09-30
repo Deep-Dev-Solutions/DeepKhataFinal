@@ -384,6 +384,7 @@ export default function OrderDetailsLedger() {
   };
 
   const handleMarkAsCompleted = async () => {
+    setIsSubmittingStatus(true);
     try {
       const response = await fetch(`${API_BASE_URL}/order/${id}/status`, {
         method: "PATCH",
@@ -398,7 +399,9 @@ export default function OrderDetailsLedger() {
       toast.success("Order marked as completed.");
       await refreshOrder();
     } catch (err: any) {
-      toast.error(err.message);
+      toast.error(err.message || "Failed to update status");
+    } finally {
+      setIsSubmittingStatus(false);
     }
   };
 
@@ -472,19 +475,24 @@ export default function OrderDetailsLedger() {
 
               <span
                 className={`text-xs font-bold px-2.5 py-1 rounded-md flex items-center gap-1 border ${
-                  order.status === "FINAL" || order.status === "COMPLETED"
+                  order.status === "COMPLETED"
                     ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                    : order.status === "MEMO"
-                      ? "bg-amber-100 text-amber-800 border-amber-300"
-                      : order.status === "RETURNED"
-                        ? "bg-purple-100 text-purple-700 border-purple-200"
-                        : order.status === "CANCELLED"
-                          ? "bg-slate-200 text-slate-600 border-slate-300"
-                          : "bg-blue-100 text-blue-700 border-blue-200"
+                    : order.status === "PENDING"
+                      ? "bg-blue-100 text-blue-700 border-blue-200"
+                      : order.status === "MEMO"
+                        ? "bg-amber-100 text-amber-800 border-amber-300"
+                        : order.status === "RETURNED"
+                          ? "bg-purple-100 text-purple-700 border-purple-200"
+                          : order.status === "CANCELLED"
+                            ? "bg-slate-200 text-slate-600 border-slate-300"
+                            : "bg-slate-100 text-slate-700 border-slate-200"
                 }`}
               >
-                {(order.status === "FINAL" || order.status === "COMPLETED") && (
+                {order.status === "COMPLETED" && (
                   <CheckCircle2 className="w-3.5 h-3.5" />
+                )}
+                {order.status === "PENDING" && (
+                  <Clock className="w-3.5 h-3.5 text-blue-600" />
                 )}
                 {order.status === "ESTIMATE" && (
                   <FileText className="w-3.5 h-3.5 text-blue-600" />
@@ -551,9 +559,10 @@ export default function OrderDetailsLedger() {
           {order.status === "PENDING" && (
             <button
               onClick={handleMarkAsCompleted}
-              className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200"
+              disabled={isSubmittingStatus}
+              className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 disabled:opacity-50 cursor-pointer"
             >
-              <CheckCircle2 className="w-4 h-4" /> Mark as Completed
+              <CheckCircle2 className="w-4 h-4" /> {isSubmittingStatus ? "Updating..." : "Mark as Completed"}
             </button>
           )}
 

@@ -26,7 +26,7 @@ import { SettleMemoDto } from './dto/settle-memo.dto';
 import { RecordPaymentDto } from './dto/record-payment.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
 
-@Controller('order')
+@Controller(['order', 'orders'])
 @UseGuards(ThrottlerGuard)
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
@@ -67,25 +67,37 @@ export class OrdersController {
   }
 
   @Patch(':id/status')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard, RolesGuard)
+  @Roles('OWNER', 'MANAGER', 'STAFF')
   @RequirePermissions('update:order')
   async updateOrderStatusPatch(
     @Req() req: any,
     @Param('id') id: string,
     @Body() body: UpdateOrderStatusDto,
   ) {
-    return this.ordersService.updateOrderStatus(req.user.id, id, body);
+    return this.ordersService.updateOrderStatus(
+      id,
+      body.status,
+      req.user?.businessId,
+      req.user?.id,
+    );
   }
 
   @Put('updatestatus/:id')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard, RolesGuard)
+  @Roles('OWNER', 'MANAGER', 'STAFF')
   @RequirePermissions('update:order')
   async updateOrderStatus(
     @Req() req: any,
     @Param('id') id: string,
     @Body() body: UpdateOrderStatusDto,
   ) {
-    return this.ordersService.updateOrderStatus(req.user.id, id, body);
+    return this.ordersService.updateOrderStatus(
+      id,
+      body.status,
+      req.user?.businessId,
+      req.user?.id,
+    );
   }
 
   @Patch(':id/settle-memo')

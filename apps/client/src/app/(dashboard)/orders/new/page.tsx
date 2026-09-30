@@ -163,7 +163,7 @@ function CreateOrderPOSContent() {
   const [discount, setDiscount] = useState<string>("");
   const [amountPaid, setAmountPaid] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
-  const [orderStatus, setOrderStatus] = useState("COMPLETED");
+  const [orderStatus, setOrderStatus] = useState("FINAL");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
@@ -467,6 +467,7 @@ function CreateOrderPOSContent() {
       walkInPhone: customerMode === "walk-in" ? walkInPhone || null : null,
       discount: currentDiscount,
       status: currentStatus,
+      orderStatus: currentStatus,
       amountPaid: currentPaid,
       paymentMethod,
       // 🔒 Tag the order with the branch where it was created

@@ -610,7 +610,12 @@ export class ProductsService {
       return fullProduct;
     });
 
-    await this.invalidateProducts(businessId);
+    await Promise.all([
+      this.invalidateProducts(businessId),
+      this.redis.deleteByPattern(`restock:${businessId}:*`),
+      this.redis.deleteByPattern(`cabinets:${businessId}:*`),
+      this.redis.deleteByPattern(`dashboard:${businessId}*`),
+    ]);
 
     return { success: true, product: result };
   }

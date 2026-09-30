@@ -160,7 +160,7 @@ export class CustomersService {
         address: true,
         email: true,
         creditLimit: true,
-        _count: { select: { orders: true } },
+        _count: { select: { orders: { where: { status: { not: 'CANCELLED' } } } } },
         orders: {
           where: { status: { not: 'CANCELLED' } },
           select: {
@@ -241,8 +241,21 @@ export class CustomersService {
       orderBy: { createdAt: 'asc' },
     });
 
+    // Exclude postings tied to CANCELLED orders to eliminate "Ghost Udhaar"
+    const cancelledOrderIds = new Set(
+      customer.orders
+        .filter((o) => o.status === 'CANCELLED')
+        .map((o) => o.id),
+    );
+
+    const activePostings = postings.filter(
+      (p) =>
+        !p.transaction.referenceId ||
+        !cancelledOrderIds.has(p.transaction.referenceId),
+    );
+
     let runningBalance = 0;
-    const ledger = postings.map((p) => {
+    const ledger = activePostings.map((p) => {
       const debit = p.amount > 0 ? p.amount : 0;
       const credit = p.amount < 0 ? Math.abs(p.amount) : 0;
       runningBalance += p.amount;
@@ -271,10 +284,12 @@ export class CustomersService {
       let orderPaid = order.payments.reduce((sum, p) => sum + p.amount, 0);
       let orderBalance = orderTotal - orderPaid;
 
-      if (order.status !== 'CANCELLED' && order.status !== 'RETURNED') {
+      if (order.status === 'CANCELLED' || order.status === 'RETURNED') {
+        orderBalance = 0;
+      } else {
         validOrderCount += 1;
         lifetimeSpend += orderTotal;
-        totalOutstanding += orderBalance;
+        totalOutstanding += Math.max(0, orderBalance);
       }
 
       return {
@@ -288,13 +303,13 @@ export class CustomersService {
         total: orderTotal,
         status: order.status,
         payment: order.paymentStatus,
-        balance: orderBalance > 0 ? orderBalance : 0,
+        balance: Math.max(0, orderBalance),
       };
     });
 
     const finalOutstandingBalance =
-      postings.length > 0
-        ? runningBalance
+      activePostings.length > 0
+        ? Math.max(0, runningBalance)
         : totalOutstanding > 0
           ? totalOutstanding
           : 0;
@@ -342,19 +357,36 @@ export class CustomersService {
 
     if (!customer) throw new NotFoundException('Customer not found.');
 
-    const postings = await this.prisma.posting.findMany({
-      where: {
-        accountId: id,
-        transaction: { businessId: currentUser.businessId },
-      },
-      include: {
-        transaction: true,
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+    const [postings, cancelledOrders] = await Promise.all([
+      this.prisma.posting.findMany({
+        where: {
+          accountId: id,
+          transaction: { businessId: currentUser.businessId },
+        },
+        include: {
+          transaction: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.order.findMany({
+        where: {
+          customerId: id,
+          businessId: currentUser.businessId,
+          status: 'CANCELLED',
+        },
+        select: { id: true },
+      }),
+    ]);
+
+    const cancelledOrderIds = new Set(cancelledOrders.map((o) => o.id));
+    const activePostings = postings.filter(
+      (p) =>
+        !p.transaction.referenceId ||
+        !cancelledOrderIds.has(p.transaction.referenceId),
+    );
 
     let runningBalance = 0;
-    const ledger = postings.map((p) => {
+    const ledger = activePostings.map((p) => {
       const debit = p.amount > 0 ? p.amount : 0;
       const credit = p.amount < 0 ? Math.abs(p.amount) : 0;
       runningBalance += p.amount;
@@ -380,7 +412,7 @@ export class CustomersService {
       customerName: customer.name,
       totalDebit: ledger.reduce((sum, item) => sum + item.debit, 0),
       totalCredit: ledger.reduce((sum, item) => sum + item.credit, 0),
-      currentBalance: runningBalance,
+      currentBalance: Math.max(0, runningBalance),
       ledger,
     };
   }
