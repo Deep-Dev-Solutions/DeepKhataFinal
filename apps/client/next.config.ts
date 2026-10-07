@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 import withSerwistInit from "@serwist/next";
 
 const withSerwist = withSerwistInit({
@@ -9,6 +10,13 @@ const withSerwist = withSerwistInit({
 
 const nextConfig: NextConfig = {
   turbopack: {},
+  webpack(config) {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@": path.resolve(__dirname, "src"),
+    };
+    return config;
+  },
   devIndicators: {
     position: "bottom-right",
   },
