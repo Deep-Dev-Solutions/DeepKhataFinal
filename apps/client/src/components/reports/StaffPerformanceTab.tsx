@@ -14,8 +14,14 @@ import {
 import { Loader2 } from "lucide-react";
 import { API_BASE_URL } from "@/lib/auth";
 
+interface StaffMetrics {
+  name: string;
+  revenue?: number;
+  orders?: number;
+}
+
 export default function StaffPerformanceTab() {
-  const [staffPerformance, setStaffPerformance] = useState<any[]>([]);
+  const [staffPerformance, setStaffPerformance] = useState<StaffMetrics[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 

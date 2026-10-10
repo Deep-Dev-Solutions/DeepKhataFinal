@@ -5,12 +5,22 @@ import { UploadCloud, AlertCircle, Loader2, CheckCircle2 } from "lucide-react";
 import { API_BASE_URL } from "@/lib/auth";
 import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 
+interface BusinessInfo {
+  name?: string;
+  phone?: string;
+  email?: string;
+  currency?: string;
+  address?: string;
+  logoUrl?: string;
+  [key: string]: unknown;
+}
+
 export default function GeneralTab({
   business,
   onBusinessUpdate,
 }: {
-  business: any;
-  onBusinessUpdate?: (updates: any) => void;
+  business: BusinessInfo;
+  onBusinessUpdate?: (updates: BusinessInfo) => void;
 }) {
   const [name, setName] = useState(business?.name || "");
   const [phone, setPhone] = useState(business?.phone || "");

@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { Star, Loader2 } from "lucide-react";
 import { API_BASE_URL } from "@/lib/auth";
+import { Customer } from "@/types/api";
 
 export default function CustomerInsightsTab() {
-  const [vipCustomers, setVipCustomers] = useState<any[]>([]);
+  const [vipCustomers, setVipCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 

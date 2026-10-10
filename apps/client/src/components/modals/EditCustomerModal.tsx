@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { X, User, Phone, Mail, MapPin, QrCode, Save } from "lucide-react";
+import { Customer } from "@/types/api";
 
 interface EditCustomerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  customer: any; // We pass the current customer data to pre-fill the form
-  onSave: (updatedData: any) => void;
+  customer: Customer;
+  onSave: (updatedData: Customer) => void;
 }
 
 export default function EditCustomerModal({ isOpen, onClose, customer, onSave }: EditCustomerModalProps) {

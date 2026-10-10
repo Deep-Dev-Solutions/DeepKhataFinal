@@ -1,16 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { User } from "lucide-react";
+import { User as UserIcon } from "lucide-react";
 import { API_BASE_URL } from "@/lib/auth";
 import { useIsReadOnly } from "@/hooks/useIsReadOnly";
+import { User } from "@/types/api";
+
+interface ProfileUpdates {
+  name?: string;
+  phone?: string;
+  avatarUrl?: string;
+}
 
 export default function ProfileTab({
   user,
   onProfileUpdate,
 }: {
-  user: any;
-  onProfileUpdate?: (updates: any) => void;
+  user: User;
+  onProfileUpdate?: (updates: ProfileUpdates) => void;
 }) {
   const readOnly = useIsReadOnly();
   const [name, setName] = useState(user?.name || "");

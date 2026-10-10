@@ -3,10 +3,20 @@
 import { useRouter } from "next/navigation";
 import { CheckSquare, Square, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 
+interface OrderRow {
+  id: string;
+  orderNumber: number;
+  customer: string;
+  date: string;
+  total?: number;
+  status: string;
+  paymentStatus: string;
+}
+
 export default function OrderTable({
   orders, selectedOrders, toggleSelection, toggleAll
 }: {
-  orders: any[], selectedOrders: string[], toggleSelection: (id: string) => void, toggleAll: () => void
+  orders: OrderRow[], selectedOrders: string[], toggleSelection: (id: string) => void, toggleAll: () => void
 }) {
   const router = useRouter();
 

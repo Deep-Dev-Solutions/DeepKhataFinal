@@ -28,7 +28,7 @@ export interface LocalCustomer {
 export interface SyncQueueItem {
   id: string; // Client-generated UUID
   type: "CREATE_ORDER" | "UPDATE_ORDER_STATUS";
-  payload: any;
+  payload: Record<string, unknown>;
   createdAt: string;
   status: "pending" | "syncing" | "failed";
   error?: string;

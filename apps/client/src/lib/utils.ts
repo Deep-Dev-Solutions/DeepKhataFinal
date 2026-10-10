@@ -21,9 +21,46 @@ export function formatPakistaniPhone(phone?: string | null): string {
   return cleaned;
 }
 
+interface OrderItemData {
+  name?: string;
+  isService?: boolean;
+  serviceName?: string;
+  product?: { name?: string };
+  qty?: number;
+  quantity?: number;
+  price?: number;
+  total?: number;
+  notes?: string;
+}
+
+interface OrderData {
+  orderNumber?: number | string;
+  id?: string;
+  status?: string;
+  date?: string;
+  createdAt?: string | Date;
+  items?: OrderItemData[];
+  financials?: {
+    subtotal?: number;
+    discount?: number;
+    total?: number;
+    paid?: number;
+  };
+  totalAmount?: number;
+  amountPaid?: number;
+  discount?: number;
+  payments?: Array<{ amount?: number }>;
+  customer?: { name?: string; phone?: string | null };
+}
+
+interface CustomerData {
+  name?: string;
+  phone?: string | null;
+}
+
 export function generateWhatsAppReceipt(
-  order: any,
-  customer?: any,
+  order: OrderData,
+  customer?: CustomerData,
   runningBalance?: number,
 ): string {
   const cust = customer || order?.customer;
@@ -59,7 +96,7 @@ export function generateWhatsAppReceipt(
           : "FINAL SALE";
 
   // Items
-  const items = (order?.items || []).map((item: any) => {
+  const items = (order?.items || []).map((item: OrderItemData) => {
     const isService = item.isService || false;
     const rawName =
       item.name ||
@@ -75,7 +112,7 @@ export function generateWhatsAppReceipt(
 
   const subtotal = Number(
     order?.financials?.subtotal ??
-      (order?.items || []).reduce((s: number, i: any) => {
+      (order?.items || []).reduce((s: number, i: OrderItemData) => {
         const q = Number(i.qty ?? i.quantity ?? 1);
         const p = Number(i.price ?? 0);
         return s + (i.total ?? p * q);
@@ -93,7 +130,7 @@ export function generateWhatsAppReceipt(
     order?.financials?.paid ??
       order?.amountPaid ??
       (order?.payments || []).reduce(
-        (s: number, p: any) => s + Number(p.amount ?? 0),
+        (s: number, p: { amount?: number }) => s + Number(p.amount ?? 0),
         0,
       ),
   );

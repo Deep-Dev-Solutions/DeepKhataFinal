@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import {
-  User,
+  User as UserIcon,
   CheckCircle2,
   Loader2,
   UploadCloud,
@@ -10,8 +10,9 @@ import {
 } from "lucide-react";
 import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 import { API_BASE_URL } from "@/lib/auth";
+import { User } from "@/types/api";
 
-export default function ProfileTab({ user }: { user: any }) {
+export default function ProfileTab({ user }: { user: User }) {
   const [name, setName] = useState(user.name || "");
   const [phone, setPhone] = useState(user.phone || "");
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl || "");
@@ -137,7 +138,7 @@ export default function ProfileTab({ user }: { user: any }) {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <User className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                <UserIcon className="w-6 h-6 group-hover:scale-110 transition-transform" />
               )}
             </div>
             <span className="text-xs font-medium text-slate-500">

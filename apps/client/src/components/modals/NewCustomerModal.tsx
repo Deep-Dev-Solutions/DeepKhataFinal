@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { X, User, Phone, Store, Tag, Loader2 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { Customer } from "@/types/api";
 
 interface NewCustomerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreated: (customer: any) => void | Promise<void>;
+  onCreated: (customer: Customer) => void | Promise<void>;
   title?: string;
 }
 

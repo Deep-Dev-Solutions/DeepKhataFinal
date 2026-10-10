@@ -16,6 +16,7 @@ import {
   Cell,
 } from "recharts";
 import { API_BASE_URL } from "@/lib/auth";
+import { FinancialReportData, PaymentFlowItem } from "@/types/api";
 
 type FinancialOverviewTabProps = {
   days: number;
@@ -24,7 +25,7 @@ type FinancialOverviewTabProps = {
 export default function FinancialOverviewTab({
   days,
 }: FinancialOverviewTabProps) {
-  const [reportData, setReportData] = useState<any>(null);
+  const [reportData, setReportData] = useState<FinancialReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -194,7 +195,7 @@ export default function FinancialOverviewTab({
                   tickFormatter={(val) => `Rs.${val / 1000}k`}
                 />
                 <Tooltip
-                  formatter={(value: any) =>
+                  formatter={(value) =>
                     `Rs. ${Number(value || 0).toLocaleString()}`
                   }
                   contentStyle={{
@@ -246,7 +247,7 @@ export default function FinancialOverviewTab({
                   dataKey="value"
                   stroke="none"
                 >
-                  {paymentData.map((entry: any, index: number) => (
+                  {paymentData.map((entry: PaymentFlowItem, index: number) => (
                     <Cell
                       key={`cell-${index}`}
                       fill={
@@ -257,7 +258,7 @@ export default function FinancialOverviewTab({
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value: any) =>
+                  formatter={(value) =>
                     `Rs. ${Number(value || 0).toLocaleString()}`
                   }
                 />
@@ -265,7 +266,7 @@ export default function FinancialOverviewTab({
             </ResponsiveContainer>
           </div>
           <div className="mt-2 space-y-2">
-            {paymentData.map((item: any, idx: number) => (
+            {paymentData.map((item: PaymentFlowItem, idx: number) => (
               <div
                 key={idx}
                 className="flex justify-between items-center text-sm"

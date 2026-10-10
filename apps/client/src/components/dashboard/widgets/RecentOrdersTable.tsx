@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CheckCircle2, AlertCircle, Clock } from "lucide-react";
+import React from "react";
 
 type RecentOrdersTableProps = {
   orders?: Array<{
@@ -19,7 +20,7 @@ export default function RecentOrdersTable({ orders = [] }: RecentOrdersTableProp
     PENDING: "bg-slate-100 text-slate-700",
   };
 
-  const paymentIcon: Record<string, any> = {
+  const paymentIcon: Record<string, React.ComponentType<{ className?: string }>> = {
     PAID: CheckCircle2,
     PARTIAL: Clock,
     UNPAID: AlertCircle,
