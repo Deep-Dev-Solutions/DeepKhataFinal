@@ -2,6 +2,7 @@
 others/*
 
 # --- npm workspaces (monorepo) ---
+/node_modules
 **/node_modules/
 
 # --- environment files (never commit secrets) ---
