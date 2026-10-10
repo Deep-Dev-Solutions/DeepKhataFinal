@@ -22,7 +22,7 @@ export function deleteCookie(name: string) {
   document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
 }
 
-export function decodeJwt<T = any>(token: string): T | null {
+export function decodeJwt<T = Record<string, unknown>>(token: string): T | null {
   try {
     const parts = token.split(".");
     if (parts.length !== 3) return null;

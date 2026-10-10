@@ -80,61 +80,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
-  const initAuth = useCallback(async () => {
-    let activeToken: string | null = null;
-
-    try {
-      activeToken = getAuthToken();
-
-      if (!activeToken || !isTokenValid(activeToken)) {
-        cancelSession();
-        goToLogin();
-        return;
-      }
-
-      const decoded = decodeJwt<JwtPayload>(activeToken);
-      if (!decoded?.id || decoded.role !== "SUPER_ADMIN") {
-        cancelSession();
-        showToast(UNAUTHORIZED_MESSAGE, "error");
-        goToLogin();
-        return;
-      }
-
-      setTokenState(activeToken);
-
-      const data = await api.get<MeResponse>("/user/me");
-
-      if (!data?.id || data.role !== "SUPER_ADMIN") {
-        cancelSession();
-        showToast(UNAUTHORIZED_MESSAGE, "error");
-        goToLogin();
-        return;
-      }
-
-      const freshUser: UserSession = {
-        id: data.id,
-        name: data.name || decoded.name || "Super Admin",
-        email: data.email || decoded.email || "",
-        role: data.role,
-        businessId: data.businessId ?? null,
-      };
-
-      setUser(freshUser);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("user", JSON.stringify(freshUser));
-      }
-    } catch (err) {
-      console.error("Session verification failed:", err);
-      cancelSession();
-      goToLogin();
-    } finally {
-      setIsLoading(false);
-    }
-  }, [cancelSession, goToLogin, showToast]);
-
   useEffect(() => {
+    const initAuth = async () => {
+      let activeToken: string | null = null;
+
+      try {
+        activeToken = getAuthToken();
+
+        if (!activeToken || !isTokenValid(activeToken)) {
+          cancelSession();
+          goToLogin();
+          return;
+        }
+
+        const decoded = decodeJwt<JwtPayload>(activeToken);
+        if (!decoded?.id || decoded.role !== "SUPER_ADMIN") {
+          cancelSession();
+          showToast(UNAUTHORIZED_MESSAGE, "error");
+          goToLogin();
+          return;
+        }
+
+        setTokenState(activeToken);
+
+        const data = await api.get<MeResponse>("/user/me");
+
+        if (!data?.id || data.role !== "SUPER_ADMIN") {
+          cancelSession();
+          showToast(UNAUTHORIZED_MESSAGE, "error");
+          goToLogin();
+          return;
+        }
+
+        const freshUser: UserSession = {
+          id: data.id,
+          name: data.name || decoded.name || "Super Admin",
+          email: data.email || decoded.email || "",
+          role: data.role,
+          businessId: data.businessId ?? null,
+        };
+
+        setUser(freshUser);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("user", JSON.stringify(freshUser));
+        }
+      } catch (err) {
+        console.error("Session verification failed:", err);
+        cancelSession();
+        goToLogin();
+      } finally {
+        setIsLoading(false);
+      }
+    };
     initAuth();
-  }, [initAuth]);
+  }, [cancelSession, goToLogin, showToast]);
 
   const setSession = useCallback(
     (newToken: string, userData?: Partial<UserSession>) => {

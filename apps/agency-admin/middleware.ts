@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-function decodeToken(token: string | undefined | null): any | null {
+interface TokenPayload {
+  exp?: number;
+  role?: string;
+  [key: string]: unknown;
+}
+
+function decodeToken(token: string | undefined | null): TokenPayload | null {
   if (!token) return null;
   try {
     const parts = token.split(".");

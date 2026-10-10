@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
@@ -79,7 +79,7 @@ export default function AgencyAdminPage() {
   const [branchSubmitLoading, setBranchSubmitLoading] = useState(false);
   const [branchError, setBranchError] = useState("");
 
-  const fetchTenants = async () => {
+  const fetchTenants = useCallback(async () => {
     if (!token) {
       setLoading(false);
       return;
@@ -92,15 +92,19 @@ export default function AgencyAdminPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
-    if (token) {
-      fetchTenants();
-    } else if (!isAuthLoading) {
-      setLoading(false);
-    }
-  }, [token, isAuthLoading]);
+    const load = async () => {
+      if (token) {
+        await fetchTenants();
+      } else if (!isAuthLoading) {
+        setLoading(false);
+      }
+    };
+
+    load().catch(console.error);
+  }, [token, isAuthLoading, fetchTenants]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,8 +123,8 @@ export default function AgencyAdminPage() {
         phone: "",
         address: "",
       });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to onboard tenant");
     } finally {
       setSubmitLoading(false);
     }
@@ -141,8 +145,8 @@ export default function AgencyAdminPage() {
       setBranchModalFor(null);
       setBranchName("");
       setBranchLocation("");
-    } catch (err: any) {
-      setBranchError(err.message);
+    } catch (err: unknown) {
+      setBranchError(err instanceof Error ? err.message : "Failed to add branch");
     } finally {
       setBranchSubmitLoading(false);
     }
