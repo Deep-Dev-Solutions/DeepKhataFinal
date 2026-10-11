@@ -25,7 +25,7 @@ function relativeTime(iso: string): string {
 
 export default function NotificationBell() {
   const { activeBranchId, token } = useAuth();
-  const toast = useToast();
+  const { toast } = useToast();
   const router = useRouter();
   const [items, setItems] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
