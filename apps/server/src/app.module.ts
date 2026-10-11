@@ -25,11 +25,13 @@ import { CabinetModule } from './cabinet/cabinet.module';
 import { RedisModule } from './redis/redis.module';
 import { TenantModule } from './tenant/tenant.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { KhataEntriesModule } from './khata-entries/khata-entries.module';
 
 @Module({
   imports: [
     TenantModule,
     NotificationsModule,
+    KhataEntriesModule,
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
