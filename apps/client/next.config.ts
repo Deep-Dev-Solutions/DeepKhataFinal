@@ -9,6 +9,8 @@ const withSerwist = withSerwistInit({
 });
 
 const nextConfig: NextConfig = {
+  output: "standalone",
+  outputFileTracingRoot: path.join(__dirname, "../../"),
   turbopack: {},
   webpack(config) {
     config.resolve.alias = {
