@@ -17,6 +17,23 @@ import { useToast } from "@/context/ToastContext";
 import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 import { Customer } from "@/types/api";
 
+/** Today's date in Asia/Karachi plus `days`, formatted YYYY-MM-DD. */
+export function addDaysKarachi(days: number): string {
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi",
+  }).format(new Date());
+  const [y, m, d] = today.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + days));
+  return dt.toISOString().slice(0, 10);
+}
+
+const DUE_CHIPS: Array<{ days: number; label: string }> = [
+  { days: 3, label: "3 din" },
+  { days: 7, label: "1 hafta" },
+  { days: 14, label: "2 hafte" },
+  { days: 30, label: "1 mahina" },
+];
+
 type CheckoutDrawerProps = {
   isOpen: boolean;
   onClose: () => void;
@@ -55,6 +72,10 @@ type CheckoutDrawerProps = {
   isOnline: boolean;
   isSubmitting: boolean;
   disabledReason: string | null;
+
+  dueDate?: string;
+  onDueDateChange?: (d: string) => void;
+  errorMessage?: string | null;
 };
 
 export default function CheckoutDrawer(props: CheckoutDrawerProps) {
@@ -91,6 +112,9 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
     isOnline,
     isSubmitting,
     disabledReason,
+    dueDate,
+    onDueDateChange,
+    errorMessage,
   } = props;
   const { toast } = useToast();
   const readOnly = useIsReadOnly();
@@ -468,6 +492,47 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                   {(Number(amountPaid) - grandTotal).toLocaleString()}
                 </p>
               )}
+              {pendingAmount > 0 &&
+                orderStatus !== "ESTIMATE" &&
+                onDueDateChange && (
+                  <div className="mt-3 pt-3 border-t border-rose-200/70 space-y-2">
+                    <label
+                      htmlFor="checkout-due-date"
+                      className="block text-xs font-bold text-slate-700"
+                    >
+                      Due Date (wapsi ki tareekh)
+                    </label>
+                    <input
+                      id="checkout-due-date"
+                      type="date"
+                      value={dueDate ?? ""}
+                      min={addDaysKarachi(0)}
+                      onChange={(e) => onDueDateChange(e.target.value)}
+                      data-testid="checkout-due-date"
+                      className="w-full px-3 h-10 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none shadow-xs"
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      {DUE_CHIPS.map((chip) => (
+                        <button
+                          key={chip.days}
+                          type="button"
+                          data-testid="checkout-due-chip"
+                          data-days={chip.days}
+                          onClick={() =>
+                            onDueDateChange(addDaysKarachi(chip.days))
+                          }
+                          className={`text-xs font-bold px-2.5 py-1 rounded-md border transition-colors cursor-pointer ${
+                            dueDate === addDaysKarachi(chip.days)
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                          }`}
+                        >
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
             </div>
           </section>
 
@@ -557,6 +622,17 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
               <span>
                 Warning: Existing Debt (Rs. {existingBalance.toLocaleString()}) + New Debt (Rs. {Math.max(0, pendingAmount).toLocaleString()}) = Projected Debt (Rs. {projectedDebt.toLocaleString()}). This exceeds the limit of Rs. {creditLimit.toLocaleString()}.
               </span>
+            </div>
+          )}
+
+          {errorMessage && (
+            <div
+              role="alert"
+              data-testid="checkout-error"
+              className="flex items-start gap-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 animate-in fade-in duration-200"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+              <span>{errorMessage}</span>
             </div>
           )}
 

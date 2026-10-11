@@ -34,7 +34,9 @@ import OrderSuccessModal, {
   type CompletedOrderData,
 } from "@/components/modals/OrderSuccessModal";
 import NewCustomerModal from "@/components/modals/NewCustomerModal";
-import CheckoutDrawer from "@/components/pos/CheckoutDrawer";
+import CheckoutDrawer, {
+  addDaysKarachi,
+} from "@/components/pos/CheckoutDrawer";
 import { usePOS } from "@/context/POSContext";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
@@ -47,6 +49,7 @@ type Product = {
   sku: string | null;
   basePrice?: number;
   price?: number;
+  minSalePrice?: number | null;
   stock: number;
   category?: { name: string };
   cabinet?: { id?: string; name?: string | null; location?: string | null } | null;
@@ -67,6 +70,9 @@ type CartItem = {
   qty: number;
   isService?: boolean;
   notes?: string;
+  minSalePrice?: number | null;
+  reservationId?: string;
+  priceOverrideReason?: string;
 };
 
 const formatPrice = (val: any): string => {
@@ -86,6 +92,8 @@ function CreateOrderPOSContent() {
     branches: authBranches,
   } = useAuth();
   const { toast } = useToast();
+  const userRole = user?.role;
+  const canOverrideMinPrice = userRole === "OWNER" || userRole === "MANAGER";
 
   const [branches, setBranches] = useState<any[]>([]);
   const [viewingBranchId, setViewingBranchId] = useState<string>(
@@ -164,6 +172,8 @@ function CreateOrderPOSContent() {
   const [amountPaid, setAmountPaid] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [orderStatus, setOrderStatus] = useState("FINAL");
+  const [dueDate, setDueDate] = useState<string>("");
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
@@ -409,6 +419,86 @@ function CreateOrderPOSContent() {
     }
   }, [searchParams]);
 
+  // ==========================================
+  // Default due date: Karachi today + customer's payment terms (or 7 days)
+  // ==========================================
+  const customerTerms = Number(
+    (selectedCustomer as { paymentTermsDays?: number | null } | null)
+      ?.paymentTermsDays,
+  );
+  const paymentTermsDays: number = customerTerms > 0 ? customerTerms : 7;
+  const effectiveDueDate = dueDate || addDaysKarachi(paymentTermsDays);
+
+  // ==========================================
+  // Pre-add a product (and optional reservation) from the stock finder
+  // ==========================================
+  const handledAddProductRef = useRef<string | null>(null);
+  useEffect(() => {
+    const addProductId = searchParams.get("addProduct");
+    if (!addProductId) return;
+    const reservationId = searchParams.get("reservationId") || undefined;
+    const key = `${addProductId}:${reservationId ?? ""}`;
+    if (handledAddProductRef.current === key) return;
+    handledAddProductRef.current = key;
+
+    const clearParams = () => {
+      const next = new URLSearchParams(searchParams.toString());
+      next.delete("addProduct");
+      next.delete("reservationId");
+      const qs = next.toString();
+      router.replace(qs ? `/orders/new?${qs}` : "/orders/new");
+    };
+
+    fetch(`${API_BASE_URL}/product/${encodeURIComponent(addProductId)}/details`, {
+      headers: getAuthHeaders(activeBranchId),
+      cache: "no-store",
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok || !data.product) {
+          throw new Error(data?.message || "Product not found");
+        }
+        const p = data.product;
+        const stock = Number(p.stock ?? 0);
+        if (stock <= 0 && !reservationId) {
+          toast.warning(`"${p.name}" has no available stock to sell.`);
+          return;
+        }
+        const price = Number(p.price ?? p.basePrice ?? 0);
+        setCart((prev) => {
+          const existing = prev.find((i) => i.id === p.id && !i.isService);
+          if (existing) {
+            if (!reservationId) return prev;
+            return prev.map((i) =>
+              i === existing ? { ...i, qty: 1, reservationId } : i,
+            );
+          }
+          return [
+            ...prev,
+            {
+              id: p.id,
+              name: p.name,
+              sku: p.sku ?? null,
+              price,
+              stock,
+              qty: 1,
+              minSalePrice:
+                p.minSalePrice != null ? Number(p.minSalePrice) : null,
+              ...(reservationId ? { reservationId } : {}),
+            },
+          ];
+        });
+        toast.success(`Added "${p.name}" to the invoice.`);
+      })
+      .catch((err: unknown) => {
+        toast.error(
+          err instanceof Error ? err.message : "Could not add the product.",
+        );
+      })
+      .finally(clearParams);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   // Helper to safely deduct stock in Dexie and React state
   const deductLocalStock = async (cartItems: CartItem[]) => {
     for (const ci of cartItems) {
@@ -445,6 +535,12 @@ function CreateOrderPOSContent() {
     );
   };
 
+  const isBelowMin = (item: CartItem) =>
+    !item.isService &&
+    item.minSalePrice != null &&
+    Number(item.minSalePrice) > 0 &&
+    item.price < Number(item.minSalePrice);
+
   // ==========================================
   // 🟢 OFFLINE-FIRST POS CHECKOUT LOGIC
   // ==========================================
@@ -460,6 +556,15 @@ function CreateOrderPOSContent() {
     const currentCustomer = selectedCustomer;
     const currentStatus =
       typeof statusOverride === "string" ? statusOverride : orderStatus;
+    setCheckoutError(null);
+    const currentSubtotal = currentCart.reduce(
+      (s, i) => s + i.price * i.qty,
+      0,
+    );
+    const balanceForDue = Math.max(
+      0,
+      Math.max(0, currentSubtotal - currentDiscount) - currentPaid,
+    );
 
     const payload = {
       customerId: selectedCustomer?.id || null,
@@ -472,6 +577,9 @@ function CreateOrderPOSContent() {
       paymentMethod,
       // 🔒 Tag the order with the branch where it was created
       branchId: activeBranchId || null,
+      ...(balanceForDue > 0 && currentStatus !== "ESTIMATE"
+        ? { dueDate: dueDate || addDaysKarachi(paymentTermsDays) }
+        : {}),
       items: currentCart.map((item) => ({
         productId: item.isService ? null : item.id,
         quantity: item.qty,
@@ -479,6 +587,10 @@ function CreateOrderPOSContent() {
         serviceName: item.isService ? item.name : null,
         notes: item.notes || null,
         price: item.price,
+        ...(item.reservationId ? { reservationId: item.reservationId } : {}),
+        ...(item.priceOverrideReason && isBelowMin(item)
+          ? { priceOverrideReason: item.priceOverrideReason.trim() }
+          : {}),
       })),
     };
 
@@ -539,6 +651,7 @@ function CreateOrderPOSContent() {
           `Offline Intercept: Order queued in IndexedDB (#${localOrderId.slice(0, 8)}). Stock reserved.`,
         );
         setCart([]);
+        setDueDate("");
         setAmountPaid("");
         setDiscount("");
         return true;
@@ -560,7 +673,12 @@ function CreateOrderPOSContent() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to create order");
+      if (!res.ok) {
+        const apiMsg = Array.isArray(data.message)
+          ? data.message.join(", ")
+          : data.message;
+        throw new Error(apiMsg || "Failed to create order");
+      }
 
       const subtotal = currentCart.reduce((s, i) => s + i.price * i.qty, 0);
       const totalAmount = Number(
@@ -602,6 +720,7 @@ function CreateOrderPOSContent() {
 
       toast.success("Order created successfully!");
       setCart([]);
+      setDueDate("");
       setAmountPaid("");
       setDiscount("");
       return true;
@@ -669,11 +788,14 @@ function CreateOrderPOSContent() {
           `Connection dropped mid-flight: Order queued in IndexedDB (#${localOrderId.slice(0, 8)}). Local stock reserved.`,
         );
         setCart([]);
+        setDueDate("");
         setAmountPaid("");
         setDiscount("");
         return true;
       } else {
-        toast.error(error.message || "Failed to create order");
+        const msg = error?.message || "Failed to create order";
+        setCheckoutError(msg);
+        toast.error(msg);
         return false;
       }
     } finally {
@@ -706,6 +828,12 @@ function CreateOrderPOSContent() {
       isService: false,
     });
     const exists = cart.find((item) => item.id === product.id);
+    if (exists?.reservationId) {
+      toast.warning(
+        `"${product.name}" is a reserved unit (quantity locked to 1).`,
+      );
+      return;
+    }
     if (exists && exists.qty >= maxAllowed) {
       toast.warning(
         `Maximum stock limit (${maxAllowed}) reached for "${product.name}".`,
@@ -920,6 +1048,7 @@ function CreateOrderPOSContent() {
     setCart((prev) =>
       prev.map((item) => {
         if (item.id === id) {
+          if (item.reservationId) return item;
           const maxAllowed = getMaxAllowedQty(item);
           const targetQty = item.qty + delta;
           if (targetQty > maxAllowed) {
@@ -941,6 +1070,7 @@ function CreateOrderPOSContent() {
     setCart((prev) =>
       prev.map((item) => {
         if (item.id === id) {
+          if (item.reservationId) return item;
           const maxAllowed = getMaxAllowedQty(item);
           let safeQty = Math.max(1, isNaN(qty) ? 1 : qty);
           if (safeQty > maxAllowed) {
@@ -955,6 +1085,24 @@ function CreateOrderPOSContent() {
         }
         return item;
       }),
+    );
+  };
+
+  const updatePrice = (id: string, price: number) => {
+    setCart((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, price: isNaN(price) ? 0 : Math.max(0, price) }
+          : item,
+      ),
+    );
+  };
+
+  const updateOverrideReason = (id: string, reason: string) => {
+    setCart((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, priceOverrideReason: reason } : item,
+      ),
     );
   };
 
@@ -974,6 +1122,12 @@ function CreateOrderPOSContent() {
     }
     if (customerMode === "existing" && !selectedCustomer) {
       return "Select an existing customer to proceed with customer account.";
+    }
+    if (
+      canOverrideMinPrice &&
+      cart.some((i) => isBelowMin(i) && !i.priceOverrideReason?.trim())
+    ) {
+      return "Enter a reason for selling below the minimum price.";
     }
     if (customerMode === "walk-in" && pendingAmount > 0) {
       return "Enter full amount or select an existing customer for Udhar.";
@@ -1060,6 +1214,7 @@ function CreateOrderPOSContent() {
   const handleCloseSuccessModal = () => {
     setCompletedOrderData(null);
     setCart([]);
+    setDueDate("");
     setAmountPaid("");
     setDiscount("");
     setWalkInName("");
@@ -1667,9 +1822,30 @@ function CreateOrderPOSContent() {
 
                     {/* Row 2: Unit Price & Part Tags */}
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-xs font-semibold text-slate-600">
-                        Rs. {formatPrice(item.price)} each
+                      <span className="flex items-center gap-1 text-xs font-semibold text-slate-600">
+                        Rs.
+                        <input
+                          type="number"
+                          min="0"
+                          value={item.price}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) =>
+                            updatePrice(item.id, Number(e.target.value))
+                          }
+                          data-testid="pos-cart-price"
+                          title="Unit price"
+                          className="w-20 h-6 px-1.5 text-xs font-bold text-slate-900 border border-slate-300 rounded-md bg-white focus:border-blue-500 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        each
                       </span>
+                      {item.reservationId && (
+                        <span
+                          data-testid="pos-reserved-badge"
+                          className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 border border-violet-200"
+                        >
+                          Reserved
+                        </span>
+                      )}
                       {!item.isService && (
                         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-100">
                           Part
@@ -1683,6 +1859,35 @@ function CreateOrderPOSContent() {
                         </span>
                       )}
                     </div>
+
+                    {isBelowMin(item) &&
+                      (canOverrideMinPrice ? (
+                        <div className="space-y-1">
+                          <p className="text-[10.5px] font-semibold text-amber-700">
+                            Below minimum price (Rs.{" "}
+                            {formatPrice(item.minSalePrice)}). A reason is
+                            required.
+                          </p>
+                          <input
+                            type="text"
+                            value={item.priceOverrideReason ?? ""}
+                            onChange={(e) =>
+                              updateOverrideReason(item.id, e.target.value)
+                            }
+                            data-testid="pos-override-reason"
+                            placeholder="Reason for selling below minimum"
+                            className="w-full h-8 px-2 text-xs border border-amber-300 rounded-lg bg-amber-50/50 focus:border-amber-500 outline-none"
+                          />
+                        </div>
+                      ) : (
+                        <p
+                          data-testid="pos-below-min"
+                          className="text-[10.5px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-2 py-1"
+                        >
+                          Minimum price is Rs. {formatPrice(item.minSalePrice)}.
+                          Ask the owner or manager to sell below it.
+                        </p>
+                      ))}
 
                     {/* Row 3: Typed Stepper & Line Subtotal */}
                     <div className="flex items-center justify-between pt-2 border-t border-slate-100 gap-2">
@@ -1700,6 +1905,7 @@ function CreateOrderPOSContent() {
                           min="1"
                           max={getMaxAllowedQty(item)}
                           value={item.qty}
+                          disabled={!!item.reservationId}
                           onFocus={(e) => e.target.select()}
                           onChange={(e) => {
                             const val = parseInt(e.target.value, 10);
@@ -1835,6 +2041,11 @@ function CreateOrderPOSContent() {
         isOnline={isOnline}
         isSubmitting={isSubmitting}
         disabledReason={disabledReason}
+        dueDate={effectiveDueDate}
+        onDueDateChange={(d) => {
+          setDueDate(d);
+        }}
+        errorMessage={checkoutError}
       />
 
       {/* 🟢 POS ORDER SUCCESS & THERMAL PRINT OVERLAY */}
