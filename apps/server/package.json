@@ -18,6 +18,7 @@
     "prisma:migrate": "prisma migrate deploy",
     "prisma:migrate:dev": "prisma migrate dev",
     "lint": "oxlint src/ test/",
+    "verify:ledger": "tsx scripts/verify-ledger.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
