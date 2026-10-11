@@ -33,6 +33,7 @@
     "@nestjs/observe": "^0.3.6",
     "@nestjs/passport": "^12.0.0",
     "@nestjs/platform-express": "^12.1.2",
+    "@nestjs/schedule": "^12.0.2",
     "@nestjs/throttler": "^6.7.1",
     "@prisma/client": "^6.19.3",
     "@prisma/engines": "^6.19.3",

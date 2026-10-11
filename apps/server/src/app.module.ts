@@ -24,6 +24,7 @@ import { CategoryModule } from './category/category.module';
 import { CabinetModule } from './cabinet/cabinet.module';
 import { RedisModule } from './redis/redis.module';
 import { TenantModule } from './tenant/tenant.module';
+import { ScheduleModule } from '@nestjs/schedule';
 import { NotificationsModule } from './notifications/notifications.module';
 import { KhataEntriesModule } from './khata-entries/khata-entries.module';
 import { StockFinderModule } from './stock-finder/stock-finder.module';
@@ -31,6 +32,7 @@ import { StockFinderModule } from './stock-finder/stock-finder.module';
 @Module({
   imports: [
     TenantModule,
+    ScheduleModule.forRoot(),
     NotificationsModule,
     KhataEntriesModule,
     StockFinderModule,
