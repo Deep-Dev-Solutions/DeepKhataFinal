@@ -29,6 +29,8 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { KhataEntriesModule } from './khata-entries/khata-entries.module';
 import { StockFinderModule } from './stock-finder/stock-finder.module';
 import { DuesModule } from './dues/dues.module';
+import { ReservationsModule } from './reservations/reservations.module';
+import { StockTransfersModule } from './stock-transfers/stock-transfers.module';
 
 @Module({
   imports: [
@@ -38,6 +40,8 @@ import { DuesModule } from './dues/dues.module';
     KhataEntriesModule,
     StockFinderModule,
     DuesModule,
+    ReservationsModule,
+    StockTransfersModule,
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
