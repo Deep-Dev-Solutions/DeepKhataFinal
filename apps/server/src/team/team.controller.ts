@@ -9,6 +9,7 @@ import {
   Param,
   UseGuards,
   Req,
+  ForbiddenException,
 } from '@nestjs/common';
 import { TeamService } from './team.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -27,7 +28,18 @@ export class TeamController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('manage:team')
   async inviteStaff(@Req() req: any, @Body() body: any) {
-    return this.teamService.inviteStaff(body);
+    let businessId: string | null | undefined = req.user.businessId;
+    if (!businessId) {
+      const dbUser = await this.teamService.getUserBusinessId(req.user.id);
+      businessId = dbUser;
+    }
+    if (!businessId) {
+      throw new ForbiddenException('You do not belong to a business.');
+    }
+    return this.teamService.inviteStaff(
+      { id: req.user.id, role: req.user.role, businessId },
+      { email: body?.email, role: body?.role },
+    );
   }
 
   @Get('invite/:token')

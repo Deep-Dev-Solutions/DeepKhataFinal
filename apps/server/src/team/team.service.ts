@@ -9,6 +9,8 @@ import * as crypto from 'crypto';
 import { sendInviteEmail } from '../utils/mailer.js';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
+import { Role } from '@prisma/client';
+import { getAccessTokenSecret } from '../auth/jwt-secrets';
 import { RedisService } from '../redis/redis.service';
 
 @Injectable()
@@ -19,17 +21,43 @@ export class TeamService {
     private redis: RedisService,
   ) {}
 
-  async inviteStaff(data: any) {
-    const { email, role, businessId } = data;
+  async getUserBusinessId(userId: string): Promise<string | null> {
+    const u = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true },
+    });
+    return u?.businessId ?? null;
+  }
+
+  async inviteStaff(
+    inviter: { id: string; role: Role; businessId: string },
+    data: { email: string; role: Role },
+  ) {
+    const { email, role } = data;
+    const businessId = inviter.businessId;
     if (!email || !role || !businessId)
       throw new BadRequestException('Missing required fields');
 
-    // Enforce base tier limit (Max 5 accounts)
-    const userCount = await this.prisma.user.count({
-      where: { businessId },
-    });
+    // Role rules: OWNER -> MANAGER|STAFF, MANAGER -> STAFF only.
+    const allowedTargets: Role[] =
+      inviter.role === 'OWNER'
+        ? ['MANAGER', 'STAFF']
+        : inviter.role === 'MANAGER'
+          ? ['STAFF']
+          : [];
+    if (!allowedTargets.includes(role)) {
+      throw new ForbiddenException(
+        'You are not allowed to invite users with this role.',
+      );
+    }
 
-    if (userCount >= 5) {
+    // Enforce base tier limit (Max 5 accounts, pending invites count)
+    const [userCount, pendingCount] = await Promise.all([
+      this.prisma.user.count({ where: { businessId } }),
+      this.prisma.invitation.count({ where: { businessId } }),
+    ]);
+
+    if (userCount + pendingCount >= 5) {
       throw new ForbiddenException(
         'Base plan limit reached (5 accounts). Contact administration to upgrade.',
       );
@@ -83,6 +111,16 @@ export class TeamService {
     if (!invitation)
       throw new BadRequestException('Invalid or expired invitation link.');
 
+    // The invitation itself is still in the table, so it is not counted here.
+    const memberCount = await this.prisma.user.count({
+      where: { businessId: invitation.businessId },
+    });
+    if (memberCount >= 5) {
+      throw new BadRequestException(
+        'Base plan limit reached (5 accounts). Contact administration to upgrade.',
+      );
+    }
+
     const result = await this.prisma.$transaction(async (tx) => {
       const hashPassword = await bcrypt.hash(password, 10);
       const newUser = await tx.user.create({
@@ -101,7 +139,7 @@ export class TeamService {
     const accessToken = this.jwtService.sign(
       { id: result.id, role: result.role, businessId: result.businessId },
       {
-        secret: process.env.ACCESS_TOKEN_SECRET,
+        secret: getAccessTokenSecret(),
         expiresIn: (process.env.ACCESS_TOKEN_EXPIRATION || '1h') as any,
       },
     );

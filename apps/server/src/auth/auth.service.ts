@@ -1,3 +1,4 @@
+import { getAccessTokenSecret, getRefreshTokenSecret } from './jwt-secrets';
 import {
   Injectable,
   BadRequestException,
@@ -194,7 +195,7 @@ export class AuthService {
         businessId: NewUser.businessId,
       },
       {
-        secret: process.env.ACCESS_TOKEN_SECRET,
+        secret: getAccessTokenSecret(),
         expiresIn: (process.env.ACCESS_TOKEN_EXPIRATION || '1h') as any,
       },
     );
@@ -243,7 +244,7 @@ export class AuthService {
         businessId: existinguser.businessId,
       },
       {
-        secret: process.env.ACCESS_TOKEN_SECRET,
+        secret: getAccessTokenSecret(),
         expiresIn: (process.env.ACCESS_TOKEN_EXPIRATION || '1h') as any,
       },
     );
@@ -253,7 +254,7 @@ export class AuthService {
         id: existinguser.id,
       },
       {
-        secret: process.env.REFRESH_TOKEN_SECRET,
+        secret: getRefreshTokenSecret(),
         expiresIn: (process.env.REFRESH_TOKEN_EXPIRATION || '7d') as any,
       },
     );
@@ -314,7 +315,7 @@ export class AuthService {
         businessId: existinguser.businessId,
       },
       {
-        secret: process.env.ACCESS_TOKEN_SECRET,
+        secret: getAccessTokenSecret(),
         expiresIn: (process.env.ACCESS_TOKEN_EXPIRATION || '1h') as any,
       },
     );
@@ -324,7 +325,7 @@ export class AuthService {
         id: existinguser.id,
       },
       {
-        secret: process.env.REFRESH_TOKEN_SECRET,
+        secret: getRefreshTokenSecret(),
         expiresIn: (process.env.REFRESH_TOKEN_EXPIRATION || '7d') as any,
       },
     );
