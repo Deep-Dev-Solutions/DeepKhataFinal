@@ -1,10 +1,12 @@
 import {
   IsArray,
   IsBoolean,
+  IsDateString,
   IsInt,
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
   Max,
   ValidateNested,
@@ -39,6 +41,15 @@ export class OrderItemDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsString()
+  @IsOptional()
+  reservationId?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(200)
+  priceOverrideReason?: string;
 }
 
 export class CreateOrderDto {
@@ -85,4 +96,8 @@ export class CreateOrderDto {
   @IsString()
   @IsOptional()
   branchId?: string;
+
+  @IsDateString()
+  @IsOptional()
+  dueDate?: string;
 }

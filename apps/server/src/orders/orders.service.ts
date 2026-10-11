@@ -9,9 +9,11 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import * as M from '../common/money';
+import * as D from '../common/dates';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { RedisService } from '../redis/redis.service';
+import { ReservationsService } from '../reservations/reservations.service';
 
 @Injectable()
 export class OrdersService {
@@ -19,6 +21,7 @@ export class OrdersService {
     private prisma: PrismaService,
     private ledgerService: LedgerService,
     private redis: RedisService,
+    private reservations: ReservationsService,
   ) {}
 
   private async invalidateOrderCaches(
@@ -73,6 +76,26 @@ export class OrdersService {
     if (!branch) throw new ForbiddenException('Invalid branch');
   }
 
+  /**
+   * Moves the given instances between statuses, guarded on the expected source
+   * status so a concurrent change cannot be overwritten.
+   */
+  private async moveInstances(
+    tx: Prisma.TransactionClient,
+    ids: string[],
+    from: 'AVAILABLE' | 'SOLD' | 'MEMO_LOCKED',
+    to: 'AVAILABLE' | 'SOLD' | 'MEMO_LOCKED' | 'DEFECTIVE',
+  ): Promise<void> {
+    if (ids.length === 0) return;
+    const res = await tx.productInstance.updateMany({
+      where: { id: { in: ids }, status: from },
+      data: { status: to },
+    });
+    if (res.count !== ids.length) {
+      throw new ConflictException('Stock changed, please retry');
+    }
+  }
+
   async newOrder(userId: string, data: any) {
     const {
       customerId,
@@ -111,16 +134,22 @@ export class OrdersService {
       if (item.isService && Number(item.price) < 0) {
         throw new BadRequestException('Service price cannot be negative');
       }
+      if (item.reservationId && (item.isService || item.quantity !== 1)) {
+        throw new BadRequestException(
+          'A reserved item must be sold as a single unit',
+        );
+      }
     }
 
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { businessId: true },
+      select: { businessId: true, role: true },
     });
 
     if (!currentUser?.businessId)
       throw new BadRequestException('User does not belong to a workspace');
     const businessId = currentUser.businessId;
+    const isStaff = currentUser.role === 'STAFF';
 
     try {
       const completeOrder = await this.prisma.$transaction(async (tx) => {
@@ -128,8 +157,12 @@ export class OrdersService {
 
         let calculatedTotal: M.Money = M.ZERO;
         const secureProducts: Record<string, any> = {};
+        // Per cart line (by index): the reserved instance being sold, and the
+        // reason recorded when sold below the product's minimum price.
+        const reservedInstanceIds = new Map<number, string>();
+        const overrideReasons = new Map<number, string>();
 
-        for (const item of items) {
+        for (const [index, item] of items.entries()) {
           if (item.isService) {
             calculatedTotal = M.add(
               calculatedTotal,
@@ -145,19 +178,65 @@ export class OrdersService {
             where: { id: item.productId, businessId, deletedAt: null },
           });
           if (!product) throw new BadRequestException(`Product not found`);
-          const available = await tx.productInstance.count({
-            where: { productId: product.id, status: 'AVAILABLE' },
-          });
-          if (available < item.quantity) {
-            throw new BadRequestException(
-              `Not enough stock for ${product.name}. Only ${available} left.`,
-            );
+          if (item.reservationId) {
+            // A reserved unit can only be sold through its own reservation.
+            const reservation = await tx.stockReservation.findFirst({
+              where: {
+                id: String(item.reservationId),
+                businessId,
+                status: 'ACTIVE',
+              },
+              select: { instanceId: true },
+            });
+            if (!reservation) {
+              throw new ConflictException('Reservation is not active');
+            }
+            const reservedInstance = await tx.productInstance.findFirst({
+              where: { id: reservation.instanceId, productId: product.id },
+              select: { id: true },
+            });
+            if (!reservedInstance) {
+              throw new BadRequestException(
+                `Reservation does not match ${product.name}`,
+              );
+            }
+            reservedInstanceIds.set(index, reservedInstance.id);
+          } else {
+            const available = await tx.productInstance.count({
+              where: { productId: product.id, status: 'AVAILABLE' },
+            });
+            if (available < item.quantity) {
+              throw new BadRequestException(
+                `Not enough stock for ${product.name}. Only ${available} left.`,
+              );
+            }
           }
           secureProducts[item.productId] = product;
           const unitPrice: M.Money =
             item.price !== undefined && item.price !== null
               ? M.money(item.price)
               : product.basePrice;
+          if (
+            product.minSalePrice !== null &&
+            product.minSalePrice !== undefined &&
+            M.lt(unitPrice, product.minSalePrice)
+          ) {
+            if (isStaff) {
+              throw new ForbiddenException(
+                `Minimum price for ${product.name} is Rs ${product.minSalePrice.toString()}. Ask the owner or manager.`,
+              );
+            }
+            const reason =
+              typeof item.priceOverrideReason === 'string'
+                ? item.priceOverrideReason.trim()
+                : '';
+            if (!reason) {
+              throw new BadRequestException(
+                'A reason is required to sell below the minimum price',
+              );
+            }
+            overrideReasons.set(index, reason);
+          }
           calculatedTotal = M.add(
             calculatedTotal,
             M.mul(unitPrice, item.quantity),
@@ -190,6 +269,42 @@ export class OrdersService {
           );
         }
 
+        let dueDate: Date | null = null;
+        if (
+          calculatedPaymentStatus !== 'PAID' &&
+          orderStatus !== 'ESTIMATE' &&
+          orderStatus !== 'CANCELLED'
+        ) {
+          const today = D.startOfKarachiDay();
+          if (data.dueDate) {
+            const requested = new Date(data.dueDate);
+            if (Number.isNaN(requested.getTime())) {
+              throw new BadRequestException('Invalid due date');
+            }
+            if (D.startOfKarachiDay(requested) < today) {
+              throw new BadRequestException('Due date cannot be in the past');
+            }
+            dueDate = requested;
+          } else {
+            const [customer, business] = await Promise.all([
+              customerId
+                ? tx.customer.findFirst({
+                    where: { id: customerId, businessId },
+                    select: { paymentTermsDays: true },
+                  })
+                : Promise.resolve(null),
+              tx.business.findUnique({
+                where: { id: businessId },
+                select: { defaultReceivableDays: true },
+              }),
+            ]);
+            dueDate = D.addDays(
+              today,
+              customer?.paymentTermsDays ?? business?.defaultReceivableDays ?? 7,
+            );
+          }
+        }
+
         const order = await tx.order.create({
           data: {
             id: data.id || undefined,
@@ -202,9 +317,10 @@ export class OrdersService {
             discount: parsedDiscount,
             paymentStatus: calculatedPaymentStatus as any,
             status: orderStatus as any,
+            dueDate,
             createdBy: userId,
             items: {
-              create: items.map((item: any) => ({
+              create: items.map((item: any, index: number) => ({
                 productId: item.isService ? null : item.productId,
                 quantity: item.quantity,
                 price: item.isService
@@ -215,6 +331,7 @@ export class OrdersService {
                 isService: item.isService || false,
                 serviceName: item.serviceName || null,
                 notes: item.notes || null,
+                priceOverrideReason: overrideReasons.get(index) ?? null,
               })),
             },
           },
@@ -224,8 +341,47 @@ export class OrdersService {
         });
 
         if (orderStatus !== 'ESTIMATE') {
-          for (const item of items) {
+          for (const [index, item] of items.entries()) {
             if (item.isService) continue;
+
+            const instanceStatus: 'SOLD' | 'MEMO_LOCKED' =
+              orderStatus === 'MEMO' ? 'MEMO_LOCKED' : 'SOLD';
+
+            const reservedId = reservedInstanceIds.get(index);
+            if (reservedId) {
+              // Sell through the reservation: ACTIVE -> CONVERTED, then the
+              // instance moves RESERVED -> sold in the same transaction.
+              await this.reservations.convertInTx(
+                tx,
+                businessId,
+                String(item.reservationId),
+                reservedId,
+              );
+              const claimedReserved = await tx.productInstance.updateMany({
+                where: { id: reservedId, status: 'RESERVED' },
+                data: { status: instanceStatus },
+              });
+              if (claimedReserved.count !== 1) {
+                throw new ConflictException('Reserved item is no longer held');
+              }
+              const reservedRow = await tx.productInstance.findUnique({
+                where: { id: reservedId },
+                select: { cabinetId: true },
+              });
+              await tx.inventoryMovement.create({
+                data: {
+                  productId: item.productId,
+                  cabinetId: reservedRow?.cabinetId || null,
+                  quantity: 1,
+                  direction: 'OUT',
+                  referenceType: orderStatus === 'MEMO' ? 'MEMO' : 'ORDER',
+                  referenceId: order.id,
+                  userId,
+                  businessId,
+                },
+              });
+              continue;
+            }
 
             // Prioritize instances in the active branch, falling back across business
             let instances = branchId
@@ -261,8 +417,6 @@ export class OrdersService {
 
             // Claim the candidates atomically: only rows still AVAILABLE are updated,
             // so a concurrent sale cannot take the same instances.
-            const instanceStatus: 'SOLD' | 'MEMO_LOCKED' =
-              orderStatus === 'MEMO' ? 'MEMO_LOCKED' : 'SOLD';
             const claimIds = instances.map((i) => i.id);
             const claimed = await tx.productInstance.updateMany({
               where: { id: { in: claimIds }, status: 'AVAILABLE' },
@@ -575,10 +729,12 @@ export class OrdersService {
 
           const instanceStatus =
             status === 'MEMO' || status === 'PENDING' ? 'MEMO_LOCKED' : 'SOLD';
-          await tx.productInstance.updateMany({
-            where: { id: { in: instances.map((i) => i.id) } },
-            data: { status: instanceStatus },
-          });
+          await this.moveInstances(
+            tx,
+            instances.map((i) => i.id),
+            'AVAILABLE',
+            instanceStatus,
+          );
 
           await tx.inventoryMovement.create({
             data: {
@@ -612,12 +768,12 @@ export class OrdersService {
             where: { productId: item.productId, status: 'MEMO_LOCKED' },
             take: item.quantity,
           });
-          if (instances.length > 0) {
-            await tx.productInstance.updateMany({
-              where: { id: { in: instances.map((i) => i.id) } },
-              data: { status: 'AVAILABLE' },
-            });
-          }
+          await this.moveInstances(
+            tx,
+            instances.map((i) => i.id),
+            'MEMO_LOCKED',
+            'AVAILABLE',
+          );
 
           await tx.inventoryMovement.create({
             data: {
@@ -650,12 +806,12 @@ export class OrdersService {
             where: { productId: item.productId, status: instanceStatus },
             take: item.quantity,
           });
-          if (instances.length > 0) {
-            await tx.productInstance.updateMany({
-              where: { id: { in: instances.map((i) => i.id) } },
-              data: { status: 'AVAILABLE' },
-            });
-          }
+          await this.moveInstances(
+            tx,
+            instances.map((i) => i.id),
+            instanceStatus,
+            'AVAILABLE',
+          );
 
           await tx.inventoryMovement.create({
             data: {
@@ -751,12 +907,12 @@ export class OrdersService {
           where: { productId: item.productId, status: 'MEMO_LOCKED' },
           take: item.quantity,
         });
-        if (instances.length > 0) {
-          await tx.productInstance.updateMany({
-            where: { id: { in: instances.map((i) => i.id) } },
-            data: { status: 'SOLD' },
-          });
-        }
+        await this.moveInstances(
+          tx,
+          instances.map((i) => i.id),
+          'MEMO_LOCKED',
+          'SOLD',
+        );
       }
 
       if (M.gt(parsedAmountPaid, 0)) {
@@ -995,12 +1151,12 @@ export class OrdersService {
             take: returnItem.quantity,
           });
 
-          if (instances.length > 0) {
-            await tx.productInstance.updateMany({
-              where: { id: { in: instances.map((i) => i.id) } },
-              data: { status: targetStatus },
-            });
-          }
+          await this.moveInstances(
+            tx,
+            instances.map((i) => i.id),
+            instanceStatus,
+            targetStatus,
+          );
 
           await tx.inventoryMovement.create({
             data: {
@@ -1065,7 +1221,10 @@ export class OrdersService {
       });
     } catch (error) {
       console.error('Failed to process return:', error);
-      if (error instanceof BadRequestException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ConflictException
+      ) {
         throw error;
       }
       throw new InternalServerErrorException(
