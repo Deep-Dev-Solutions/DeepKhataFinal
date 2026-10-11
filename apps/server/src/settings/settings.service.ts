@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantCacheService } from '../tenant/tenant-cache.service';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { sendInviteEmail } from '../utils/mailer';
@@ -15,6 +16,7 @@ export class SettingsService {
   constructor(
     private prisma: PrismaService,
     private redis: RedisService,
+    private tenantCache: TenantCacheService,
   ) {}
 
   async profileInfo(userId: string) {
@@ -291,6 +293,8 @@ export class SettingsService {
         data: { deletedAt: new Date() },
       });
     });
+
+    this.tenantCache.invalidateBranches(currentUser.businessId);
 
     return {
       success: true,
