@@ -16,9 +16,9 @@ COPY apps/client/package.json apps/client/package.json
 COPY apps/agency-admin/package.json apps/agency-admin/package.json
 # postinstall runs `prisma generate`, which needs the schema.
 COPY apps/server/prisma apps/server/prisma
-# --force: apps/client/package.json pins @tailwindcss/oxide-linux-x64-gnu (glibc only), which
+#: apps/client/package.json pins @tailwindcss/oxide-linux-x64-gnu (glibc only), which
 # fails the platform check on alpine/musl. The musl binary is installed as an optional dep.
-RUN --mount=type=cache,target=/root/.npm npm ci -w server --include-workspace-root --force
+RUN --mount=type=cache,target=/root/.npm npm ci -w server --include-workspace-root
 
 # ---- build ----
 FROM deps AS build
@@ -32,7 +32,7 @@ COPY package.json package-lock.json ./
 COPY apps/server/package.json apps/server/package.json
 COPY apps/client/package.json apps/client/package.json
 COPY apps/agency-admin/package.json apps/agency-admin/package.json
-RUN --mount=type=cache,target=/root/.npm npm ci -w server --include-workspace-root --omit=dev --ignore-scripts --force \
+RUN --mount=type=cache,target=/root/.npm npm ci -w server --include-workspace-root --omit=dev --ignore-scripts \
  && npm rebuild bcrypt
 # Generated Prisma client (with musl engine) and the prisma CLI for `migrate deploy`.
 COPY --from=deps /repo/node_modules/.prisma node_modules/.prisma

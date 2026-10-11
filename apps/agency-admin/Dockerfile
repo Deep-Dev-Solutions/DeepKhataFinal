@@ -13,8 +13,8 @@ COPY apps/server/package.json apps/server/package.json
 COPY apps/client/package.json apps/client/package.json
 COPY apps/agency-admin/package.json apps/agency-admin/package.json
 # --ignore-scripts: the server's postinstall (prisma generate) is not needed here.
-# --force: apps/client pins @tailwindcss/oxide-linux-x64-gnu (glibc only); skip the platform check on musl.
-RUN --mount=type=cache,target=/root/.npm npm ci -w agency-admin --include-workspace-root --ignore-scripts --force
+#: apps/client pins @tailwindcss/oxide-linux-x64-gnu (glibc only); skip the platform check on musl.
+RUN --mount=type=cache,target=/root/.npm npm ci -w agency-admin --include-workspace-root --ignore-scripts
 
 FROM deps AS build
 # NEXT_PUBLIC_* values are inlined into the bundle at build time.
