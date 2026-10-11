@@ -8,13 +8,14 @@ import {
   Min,
   Max,
   ValidateNested,
+  ValidateIf,
   ArrayMinSize,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class OrderItemDto {
+  @ValidateIf((o: OrderItemDto) => !o.isService)
   @IsString()
-  @IsOptional()
   productId?: string;
 
   @IsInt()

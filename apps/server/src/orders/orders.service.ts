@@ -4,8 +4,11 @@ import {
   NotFoundException,
   UnauthorizedException,
   ForbiddenException,
+  ConflictException,
   InternalServerErrorException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import * as M from '../common/money';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { RedisService } from '../redis/redis.service';
@@ -34,12 +37,18 @@ export class OrdersService {
     ];
     if (branchId) {
       invalidations.push(
-        this.redis.deleteByPattern(`products:${branchId}:*`),
-        this.redis.deleteByPattern(`cabinets:${branchId}:*`),
-        this.redis.deleteByPattern(`inventory:${branchId}:*`),
-        this.redis.deleteByPattern(`restock:${businessId}:branch:${branchId}:*`),
-        this.redis.deleteByPattern(`dashboard:${businessId}:branch:${branchId}`),
-        this.redis.deleteByPattern(`reports:*${businessId}*branch=${branchId}*`),
+        // products:/cabinets: keys are `<prefix>:${businessId}:branch:...` and are
+        // already covered by the businessId wildcards above.
+        this.redis.deleteByPattern(`inventory:${businessId}:*`),
+        this.redis.deleteByPattern(
+          `restock:${businessId}:branch:${branchId}:*`,
+        ),
+        this.redis.deleteByPattern(
+          `dashboard:${businessId}:branch:${branchId}`,
+        ),
+        this.redis.deleteByPattern(
+          `reports:*${businessId}*branch=${branchId}*`,
+        ),
       );
     }
     if (orderId) {
@@ -47,9 +56,21 @@ export class OrdersService {
         this.redis.delete(`order_details:${businessId}:${orderId}`),
       );
     }
-    await Promise.all([
-      ...invalidations,
-    ]);
+    await Promise.all([...invalidations]);
+  }
+
+  /** A branchId from the request is only valid if it belongs to the caller's business. */
+  private async assertBranchInBusiness(
+    client: Prisma.TransactionClient | PrismaService,
+    businessId: string,
+    branchId?: string | null,
+  ): Promise<void> {
+    if (!branchId) return;
+    const branch = await client.branch.findFirst({
+      where: { id: branchId, businessId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!branch) throw new ForbiddenException('Invalid branch');
   }
 
   async newOrder(userId: string, data: any) {
@@ -68,13 +89,13 @@ export class OrdersService {
     if (!items || items.length === 0)
       throw new BadRequestException('Cart is empty');
 
-    const parsedDiscount = Number(discount) || 0;
-    const parsedAmountPaid = Number(amountPaid) || 0;
+    const parsedDiscount = M.money(Number(discount) || 0);
+    const parsedAmountPaid = M.money(Number(amountPaid) || 0);
 
-    if (parsedDiscount < 0) {
+    if (M.lt(parsedDiscount, 0)) {
       throw new BadRequestException('Discount cannot be negative');
     }
-    if (parsedAmountPaid < 0) {
+    if (M.lt(parsedAmountPaid, 0)) {
       throw new BadRequestException('Amount paid cannot be negative');
     }
 
@@ -103,17 +124,25 @@ export class OrdersService {
 
     try {
       const completeOrder = await this.prisma.$transaction(async (tx) => {
-        let calculatedTotal = 0;
+        await this.assertBranchInBusiness(tx, businessId, branchId);
+
+        let calculatedTotal: M.Money = M.ZERO;
         const secureProducts: Record<string, any> = {};
 
         for (const item of items) {
           if (item.isService) {
-            calculatedTotal += Number(item.price) * item.quantity;
+            calculatedTotal = M.add(
+              calculatedTotal,
+              M.mul(item.price, item.quantity),
+            );
             continue;
           }
 
+          if (!item.productId || typeof item.productId !== 'string') {
+            throw new BadRequestException('Product is required');
+          }
           const product = await tx.product.findFirst({
-            where: { id: item.productId, deletedAt: null },
+            where: { id: item.productId, businessId, deletedAt: null },
           });
           if (!product) throw new BadRequestException(`Product not found`);
           const available = await tx.productInstance.count({
@@ -125,30 +154,37 @@ export class OrdersService {
             );
           }
           secureProducts[item.productId] = product;
-          const unitPrice =
+          const unitPrice: M.Money =
             item.price !== undefined && item.price !== null
-              ? Number(item.price)
+              ? M.money(item.price)
               : product.basePrice;
-          calculatedTotal += unitPrice * item.quantity;
-        }
-
-        if (parsedDiscount > calculatedTotal) {
-          throw new BadRequestException(
-            `Discount (${parsedDiscount}) cannot exceed total sale amount (${calculatedTotal})`,
+          calculatedTotal = M.add(
+            calculatedTotal,
+            M.mul(unitPrice, item.quantity),
           );
         }
 
-        const finalGrandTotal = calculatedTotal - parsedDiscount;
-        const udhaarRequested = finalGrandTotal - parsedAmountPaid;
+        if (M.gt(parsedDiscount, calculatedTotal)) {
+          throw new BadRequestException(
+            `Discount (${parsedDiscount.toString()}) cannot exceed total sale amount (${calculatedTotal.toString()})`,
+          );
+        }
+
+        const finalGrandTotal = M.sub(calculatedTotal, parsedDiscount);
+        const udhaarRequested = M.sub(finalGrandTotal, parsedAmountPaid);
 
         let calculatedPaymentStatus = 'UNPAID';
-        if (parsedAmountPaid >= finalGrandTotal) {
+        if (M.gte(parsedAmountPaid, finalGrandTotal)) {
           calculatedPaymentStatus = 'PAID';
-        } else if (parsedAmountPaid > 0) {
+        } else if (M.gt(parsedAmountPaid, 0)) {
           calculatedPaymentStatus = 'PARTIAL';
         }
 
-        if ((orderStatus === 'FINAL' || orderStatus === 'COMPLETED') && udhaarRequested > 0 && !customerId) {
+        if (
+          (orderStatus === 'FINAL' || orderStatus === 'COMPLETED') &&
+          M.gt(udhaarRequested, 0) &&
+          !customerId
+        ) {
           throw new Error(
             'Walk-in customers must pay in full for completed sales. Please select or create a customer profile to give Udhaar.',
           );
@@ -172,9 +208,9 @@ export class OrdersService {
                 productId: item.isService ? null : item.productId,
                 quantity: item.quantity,
                 price: item.isService
-                  ? Number(item.price)
+                  ? M.money(item.price)
                   : item.price !== undefined && item.price !== null
-                    ? Number(item.price)
+                    ? M.money(item.price)
                     : secureProducts[item.productId].basePrice,
                 isService: item.isService || false,
                 serviceName: item.serviceName || null,
@@ -223,13 +259,17 @@ export class OrdersService {
               );
             }
 
-            let instanceStatus: 'SOLD' | 'MEMO_LOCKED' = 'SOLD';
-            if (instances.length > 0) {
-              instanceStatus = orderStatus === 'MEMO' ? 'MEMO_LOCKED' : 'SOLD';
-              await tx.productInstance.updateMany({
-                where: { id: { in: instances.map((i) => i.id) } },
-                data: { status: instanceStatus },
-              });
+            // Claim the candidates atomically: only rows still AVAILABLE are updated,
+            // so a concurrent sale cannot take the same instances.
+            const instanceStatus: 'SOLD' | 'MEMO_LOCKED' =
+              orderStatus === 'MEMO' ? 'MEMO_LOCKED' : 'SOLD';
+            const claimIds = instances.map((i) => i.id);
+            const claimed = await tx.productInstance.updateMany({
+              where: { id: { in: claimIds }, status: 'AVAILABLE' },
+              data: { status: instanceStatus },
+            });
+            if (claimed.count !== claimIds.length) {
+              throw new ConflictException('Stock changed, please retry');
             }
 
             await tx.inventoryMovement.create({
@@ -246,7 +286,7 @@ export class OrdersService {
             });
           }
 
-          if (parsedAmountPaid > 0) {
+          if (M.gt(parsedAmountPaid, 0)) {
             await tx.payment.create({
               data: {
                 orderId: order.id,
@@ -258,12 +298,12 @@ export class OrdersService {
           }
         }
 
+        if (order.status === 'FINAL' || order.status === 'COMPLETED') {
+          await this.postDoubleEntrySequence(order, parsedAmountPaid, tx);
+        }
+
         return order;
       });
-
-      if (completeOrder.status === 'FINAL' || completeOrder.status === 'COMPLETED') {
-        await this.postDoubleEntrySequence(completeOrder, parsedAmountPaid);
-      }
 
       await this.invalidateOrderCaches(
         businessId,
@@ -279,7 +319,9 @@ export class OrdersService {
     } catch (error: any) {
       if (
         error instanceof BadRequestException ||
-        error instanceof NotFoundException
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException ||
+        error instanceof ConflictException
       ) {
         throw error;
       }
@@ -287,35 +329,51 @@ export class OrdersService {
     }
   }
 
-  private async postDoubleEntrySequence(order: any, amountPaid: number) {
-    const grossItemsAmount =
+  /**
+   * Account that carries an order's unpaid balance: the customer's khata, or
+   * for walk-in sales an OTHER_AR account keyed by the order id.
+   */
+  private receivableAccount(order: { id: string; customerId?: string | null }) {
+    return order.customerId
+      ? { accountId: order.customerId, accountType: 'CUSTOMER_AR' }
+      : { accountId: order.id, accountType: 'OTHER_AR' };
+  }
+
+  private async postDoubleEntrySequence(
+    order: any,
+    amountPaid: M.MoneyInput,
+    tx: Prisma.TransactionClient,
+  ) {
+    const discount = M.money(order.discount);
+    const grossItemsAmount: M.Money =
       order.items && order.items.length > 0
-        ? order.items.reduce(
-            (sum: number, item: any) =>
-              sum + Number(item.price) * Number(item.quantity),
-            0,
+        ? M.sum(
+            order.items.map((item: any) => M.mul(item.price, item.quantity)),
           )
-        : Number(order.totalAmount) + Number(order.discount || 0);
+        : M.add(order.totalAmount, discount);
 
-    const discount = Number(order.discount) || 0;
-    const netAmount = Math.max(0, grossItemsAmount - discount);
+    const netAmount = M.max(M.ZERO, M.sub(grossItemsAmount, discount));
 
-    const postings: any[] = [];
+    const postings: {
+      accountId: string;
+      accountType: string;
+      amount: M.Money;
+    }[] = [];
 
     // Credit REVENUE matching the exact netAmount (-netAmount)
-    if (netAmount > 0) {
+    if (M.gt(netAmount, 0)) {
       postings.push({
         accountId: 'REVENUE',
         accountType: 'REVENUE',
-        amount: -netAmount,
+        amount: M.neg(netAmount),
       });
     }
 
     // Debit CASH and/or CUSTOMER_AR to sum exactly to +netAmount
-    const cashPortion = Math.min(Number(amountPaid) || 0, netAmount);
-    const arPortion = netAmount - cashPortion;
+    const cashPortion = M.min(M.money(amountPaid), netAmount);
+    const arPortion = M.sub(netAmount, cashPortion);
 
-    if (cashPortion > 0) {
+    if (M.gt(cashPortion, 0)) {
       postings.push({
         accountId: 'CASH',
         accountType: 'ASSET',
@@ -323,22 +381,21 @@ export class OrdersService {
       });
     }
 
-    if (arPortion > 0 && order.customerId) {
-      postings.push({
-        accountId: order.customerId,
-        accountType: 'CUSTOMER_AR',
-        amount: arPortion,
-      });
+    if (M.gt(arPortion, 0)) {
+      postings.push({ ...this.receivableAccount(order), amount: arPortion });
     }
 
     if (postings.length > 0) {
-      await this.ledgerService.createBalancedTransaction({
-        businessId: order.businessId,
-        referenceId: order.id,
-        type: 'SALE',
-        description: `Sale for Order ${order.id}`,
-        postings,
-      });
+      await this.ledgerService.createBalancedTransaction(
+        {
+          businessId: order.businessId,
+          referenceId: order.id,
+          type: 'SALE',
+          description: `Sale for Order ${order.id}`,
+          postings,
+        },
+        tx,
+      );
     }
   }
 
@@ -394,12 +451,12 @@ export class OrdersService {
     });
 
     const formattedOrders = orders.map((order) => {
-      const totalPaid = order.payments.reduce((sum, p) => sum + p.amount, 0);
-      const pendingBalance = order.totalAmount - totalPaid;
+      const totalPaid = M.sum(order.payments.map((p) => p.amount));
+      const pendingBalance = M.sub(order.totalAmount, totalPaid);
       return {
         ...order,
-        totalPaid,
-        pendingBalance: pendingBalance > 0 ? pendingBalance : 0,
+        totalPaid: M.toApi(totalPaid),
+        pendingBalance: M.gt(pendingBalance, 0) ? M.toApi(pendingBalance) : 0,
       };
     });
 
@@ -650,9 +707,9 @@ export class OrdersService {
 
   async settleMemo(userId: string, id: string, data: any) {
     const { amountPaid, paymentMethod = 'CASH' } = data;
-    const parsedAmountPaid = Number(amountPaid) || 0;
+    const parsedAmountPaid = M.money(Number(amountPaid) || 0);
 
-    if (parsedAmountPaid < 0) {
+    if (M.lt(parsedAmountPaid, 0)) {
       throw new BadRequestException('Amount paid cannot be negative');
     }
 
@@ -672,22 +729,21 @@ export class OrdersService {
       throw new BadRequestException('Order is not in MEMO status');
     }
 
-    const existingPaid = order.payments.reduce((sum, p) => sum + p.amount, 0);
-    const remainingBalance = order.totalAmount - existingPaid;
+    const existingPaid = M.sum(order.payments.map((p) => p.amount));
+    const remainingBalance = M.sub(order.totalAmount, existingPaid);
 
-    if (parsedAmountPaid > remainingBalance) {
+    if (M.gt(parsedAmountPaid, remainingBalance)) {
       throw new BadRequestException(
-        `Amount paid (${parsedAmountPaid}) cannot exceed remaining balance (${remainingBalance})`,
+        `Amount paid (${parsedAmountPaid.toString()}) cannot exceed remaining balance (${remainingBalance.toString()})`,
       );
     }
 
-    const totalPaid = existingPaid + parsedAmountPaid;
-    const newPaymentStatus =
-      totalPaid >= order.totalAmount
-        ? 'PAID'
-        : totalPaid > 0
-          ? 'PARTIAL'
-          : 'UNPAID';
+    const totalPaid = M.add(existingPaid, parsedAmountPaid);
+    const newPaymentStatus = M.gte(totalPaid, order.totalAmount)
+      ? 'PAID'
+      : M.gt(totalPaid, 0)
+        ? 'PARTIAL'
+        : 'UNPAID';
 
     await this.prisma.$transaction(async (tx) => {
       for (const item of order.items) {
@@ -703,7 +759,7 @@ export class OrdersService {
         }
       }
 
-      if (parsedAmountPaid > 0) {
+      if (M.gt(parsedAmountPaid, 0)) {
         await tx.payment.create({
           data: {
             orderId: order.id,
@@ -721,9 +777,9 @@ export class OrdersService {
           paymentStatus: newPaymentStatus as any,
         },
       });
-    });
 
-    await this.postDoubleEntrySequence(order, totalPaid);
+      await this.postDoubleEntrySequence(order, totalPaid, tx);
+    });
 
     if (currentUser?.businessId) {
       await this.invalidateOrderCaches(
@@ -742,8 +798,8 @@ export class OrdersService {
   async recordPayment(userId: string, data: any) {
     const { orderId, amount, method } = data;
     if (!orderId) throw new BadRequestException('Order ID is required');
-    const parsedAmount = parseFloat(amount);
-    if (!parsedAmount || parsedAmount <= 0)
+    const parsedAmount = M.money(parseFloat(amount) || 0);
+    if (!M.gt(parsedAmount, 0))
       throw new BadRequestException('Valid amount greater than 0 is required');
     if (!method) throw new BadRequestException('Payment method is required');
 
@@ -767,20 +823,22 @@ export class OrdersService {
 
     if (!order) throw new NotFoundException('Order not found');
 
-    const totalPaidSoFar = order.payments.reduce((sum, p) => sum + p.amount, 0);
-    const remainingBalance = order.totalAmount - totalPaidSoFar;
+    const businessId = currentUser.businessId;
+    const totalPaidSoFar = M.sum(order.payments.map((p) => p.amount));
+    const remainingBalance = M.sub(order.totalAmount, totalPaidSoFar);
 
-    if (remainingBalance <= 0)
+    if (M.lte(remainingBalance, 0))
       throw new BadRequestException('This order is already fully paid.');
-    if (parsedAmount > remainingBalance) {
+    if (M.gt(parsedAmount, remainingBalance)) {
       throw new BadRequestException(
-        `Amount exceeds the pending balance. Maximum payable amount is Rs. ${remainingBalance.toLocaleString()}`,
+        `Amount exceeds the pending balance. Maximum payable amount is Rs. ${M.toApi(remainingBalance).toLocaleString()}`,
       );
     }
 
-    const newTotalPaid = totalPaidSoFar + parsedAmount;
-    const newPaymentStatus =
-      newTotalPaid >= order.totalAmount ? 'PAID' : 'PARTIAL';
+    const newTotalPaid = M.add(totalPaidSoFar, parsedAmount);
+    const newPaymentStatus = M.gte(newTotalPaid, order.totalAmount)
+      ? 'PAID'
+      : 'PARTIAL';
 
     await this.prisma.$transaction(async (tx) => {
       await tx.payment.create({
@@ -795,26 +853,28 @@ export class OrdersService {
         where: { id: order.id },
         data: { paymentStatus: newPaymentStatus },
       });
-    });
 
-    // Also update ledger
-    await this.ledgerService.createBalancedTransaction({
-      businessId: currentUser.businessId,
-      referenceId: order.id,
-      type: 'PAYMENT',
-      description: `Payment for Order ${order.id}`,
-      postings: [
+      // Ledger entry commits or rolls back together with the payment.
+      await this.ledgerService.createBalancedTransaction(
         {
-          accountId: 'CASH',
-          accountType: 'ASSET',
-          amount: parsedAmount,
+          businessId,
+          referenceId: order.id,
+          type: 'PAYMENT',
+          description: `Payment for Order ${order.id}`,
+          postings: [
+            {
+              accountId: 'CASH',
+              accountType: 'ASSET',
+              amount: parsedAmount,
+            },
+            {
+              ...this.receivableAccount(order),
+              amount: M.neg(parsedAmount),
+            },
+          ],
         },
-        {
-          accountId: order.customerId || 'REVENUE', // assuming if walk-in, revenue was already credited, but here payment reduces AR
-          accountType: 'CUSTOMER_AR',
-          amount: -parsedAmount,
-        },
-      ],
+        tx,
+      );
     });
 
     await this.invalidateOrderCaches(
@@ -848,14 +908,14 @@ export class OrdersService {
 
     if (!order) throw new NotFoundException('Invoice not found');
 
-    const totalPaid = order.payments.reduce((sum, p) => sum + p.amount, 0);
-    const pendingBalance = order.totalAmount - totalPaid;
+    const totalPaid = M.sum(order.payments.map((p) => p.amount));
+    const pendingBalance = M.sub(order.totalAmount, totalPaid);
 
     const formattedInvoice = {
       ...order,
       orderNumber: `ORD-${order.orderNumber || order.id.substring(0, 4)}`,
-      totalPaid,
-      pendingBalance: pendingBalance > 0 ? pendingBalance : 0,
+      totalPaid: M.toApi(totalPaid),
+      pendingBalance: M.gt(pendingBalance, 0) ? M.toApi(pendingBalance) : 0,
     };
 
     return { success: true, invoice: formattedInvoice };
@@ -888,7 +948,7 @@ export class OrdersService {
 
     try {
       await this.prisma.$transaction(async (tx) => {
-        let refundAmount = 0;
+        let refundAmount: M.Money = M.ZERO;
 
         for (const returnItem of itemsToReturn) {
           const orderItem = order.items.find(
@@ -912,7 +972,10 @@ export class OrdersService {
             );
           }
 
-          refundAmount += orderItem.price * returnItem.quantity;
+          refundAmount = M.add(
+            refundAmount,
+            M.mul(orderItem.price, returnItem.quantity),
+          );
 
           const targetStatus =
             returnItem.returnCondition === 'DEFECTIVE'
@@ -920,7 +983,9 @@ export class OrdersService {
               : 'AVAILABLE';
 
           const instanceStatus =
-            order.status === 'MEMO' || order.status === 'PENDING' ? 'MEMO_LOCKED' : 'SOLD';
+            order.status === 'MEMO' || order.status === 'PENDING'
+              ? 'MEMO_LOCKED'
+              : 'SOLD';
 
           const instances = await tx.productInstance.findMany({
             where: {
@@ -957,7 +1022,11 @@ export class OrdersService {
         });
 
         if (order.status === 'FINAL' || order.status === 'COMPLETED') {
-          const postings = [];
+          const postings: {
+            accountId: string;
+            accountType: string;
+            amount: M.Money;
+          }[] = [];
 
           postings.push({
             accountId: 'REVENUE',
@@ -965,34 +1034,33 @@ export class OrdersService {
             amount: refundAmount,
           });
 
-          const totalPaid = order.payments.reduce(
-            (sum, p) => sum + p.amount,
-            0,
-          );
-          if (totalPaid > 0) {
+          const totalPaid = M.sum(order.payments.map((p) => p.amount));
+          if (M.gt(totalPaid, 0)) {
             postings.push({
               accountId: 'CASH',
               accountType: 'ASSET',
-              amount: -Math.min(refundAmount, totalPaid),
+              amount: M.neg(M.min(refundAmount, totalPaid)),
             });
           }
 
-          const remainingRefund = refundAmount - totalPaid;
-          if (remainingRefund > 0 && order.customerId) {
+          const remainingRefund = M.sub(refundAmount, totalPaid);
+          if (M.gt(remainingRefund, 0)) {
             postings.push({
-              accountId: order.customerId,
-              accountType: 'CUSTOMER_AR',
-              amount: -remainingRefund,
+              ...this.receivableAccount(order),
+              amount: M.neg(remainingRefund),
             });
           }
 
-          await this.ledgerService.createBalancedTransaction({
-            businessId: order.businessId,
-            referenceId: `RET-${order.id}`,
-            type: 'RETURN',
-            description: `Return for Order ${order.id}`,
-            postings,
-          });
+          await this.ledgerService.createBalancedTransaction(
+            {
+              businessId: order.businessId,
+              referenceId: `RET-${order.id}`,
+              type: 'RETURN',
+              description: `Return for Order ${order.id}`,
+              postings,
+            },
+            tx,
+          );
         }
       });
     } catch (error) {
