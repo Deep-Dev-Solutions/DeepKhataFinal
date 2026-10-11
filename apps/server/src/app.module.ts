@@ -26,12 +26,14 @@ import { RedisModule } from './redis/redis.module';
 import { TenantModule } from './tenant/tenant.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { KhataEntriesModule } from './khata-entries/khata-entries.module';
+import { StockFinderModule } from './stock-finder/stock-finder.module';
 
 @Module({
   imports: [
     TenantModule,
     NotificationsModule,
     KhataEntriesModule,
+    StockFinderModule,
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
