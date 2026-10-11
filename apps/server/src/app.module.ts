@@ -24,10 +24,12 @@ import { CategoryModule } from './category/category.module';
 import { CabinetModule } from './cabinet/cabinet.module';
 import { RedisModule } from './redis/redis.module';
 import { TenantModule } from './tenant/tenant.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
     TenantModule,
+    NotificationsModule,
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
