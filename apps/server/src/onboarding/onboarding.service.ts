@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   Injectable,
   BadRequestException,
@@ -84,6 +85,7 @@ export class OnboardingService {
       },
       {
         secret: getAccessTokenSecret(),
+        jwtid: randomUUID(),
         expiresIn: (process.env.ACCESS_TOKEN_EXPIRATION || '1h') as any,
       },
     );

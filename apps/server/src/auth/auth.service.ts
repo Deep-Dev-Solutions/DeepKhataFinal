@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { getAccessTokenSecret, getRefreshTokenSecret } from './jwt-secrets';
 import {
   Injectable,
@@ -196,6 +197,7 @@ export class AuthService {
       },
       {
         secret: getAccessTokenSecret(),
+        jwtid: randomUUID(),
         expiresIn: (process.env.ACCESS_TOKEN_EXPIRATION || '1h') as any,
       },
     );
@@ -245,6 +247,7 @@ export class AuthService {
       },
       {
         secret: getAccessTokenSecret(),
+        jwtid: randomUUID(),
         expiresIn: (process.env.ACCESS_TOKEN_EXPIRATION || '1h') as any,
       },
     );
@@ -316,6 +319,7 @@ export class AuthService {
       },
       {
         secret: getAccessTokenSecret(),
+        jwtid: randomUUID(),
         expiresIn: (process.env.ACCESS_TOKEN_EXPIRATION || '1h') as any,
       },
     );
@@ -374,7 +378,23 @@ export class AuthService {
     return user;
   }
 
-  logout(res: Response) {
+  async logout(
+    user: { id: string; jti?: string; exp?: number } | undefined,
+    res: Response,
+  ) {
+    if (user?.jti) {
+      const expiresAt = user.exp
+        ? new Date(user.exp * 1000)
+        : new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await this.prisma.revokedToken.upsert({
+        where: { jti: user.jti },
+        update: {},
+        create: { jti: user.jti, userId: user.id, expiresAt },
+      });
+    }
+    await this.prisma.revokedToken.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    });
     res.clearCookie('jwt');
     return res.json({ message: 'Logout successful' });
   }

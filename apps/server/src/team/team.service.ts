@@ -140,6 +140,7 @@ export class TeamService {
       { id: result.id, role: result.role, businessId: result.businessId },
       {
         secret: getAccessTokenSecret(),
+        jwtid: crypto.randomUUID(),
         expiresIn: (process.env.ACCESS_TOKEN_EXPIRATION || '1h') as any,
       },
     );

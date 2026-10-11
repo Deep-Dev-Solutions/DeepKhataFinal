@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 import { CashService } from './cash.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { LogExpenseDto } from './dto/log-expense.dto';
 import { OpenRegisterDto } from './dto/open-register.dto';
@@ -16,11 +18,12 @@ import { CloseRegisterDto } from './dto/close-register.dto';
 import { BranchId } from '../auth/decorators/branch-id.decorator';
 
 @Controller('cash')
-@UseGuards(ThrottlerGuard, JwtAuthGuard)
+@UseGuards(ThrottlerGuard, JwtAuthGuard, PermissionsGuard)
 export class CashController {
   constructor(private readonly cashService: CashService) {}
 
   @Post('expense')
+  @RequirePermissions('manage:cash')
   async logExpense(
     @Req() req: any,
     @BranchId({ required: false }) branchId: string | undefined,
@@ -33,6 +36,7 @@ export class CashController {
   }
 
   @Get('expenses')
+  @RequirePermissions('read:cash')
   async getExpenses(
     @Req() req: any,
     @BranchId() branchId: string,
@@ -47,6 +51,7 @@ export class CashController {
   }
 
   @Get('register/status')
+  @RequirePermissions('read:cash')
   async getRegisterStatus(
     @Req() req: any,
     @BranchId() branchId: string,
@@ -55,6 +60,7 @@ export class CashController {
   }
 
   @Post('register/open')
+  @RequirePermissions('manage:cash')
   async openRegister(
     @Req() req: any,
     @BranchId({ required: false }) branchId: string | undefined,
@@ -67,11 +73,13 @@ export class CashController {
   }
 
   @Post('register/close')
+  @RequirePermissions('manage:cash')
   async closeRegister(@Req() req: any, @Body() dto: CloseRegisterDto) {
     return this.cashService.closeRegister(req.user.id, dto);
   }
 
   @Get('register/z-report')
+  @RequirePermissions('read:cash')
   async getZReport(
     @Req() req: any,
     @BranchId() branchId: string,
@@ -81,6 +89,7 @@ export class CashController {
   }
 
   @Get('register/sessions')
+  @RequirePermissions('read:cash')
   async getSessions(
     @Req() req: any,
     @BranchId() branchId: string,
