@@ -7,11 +7,16 @@ import StatsCards from "@/components/dashboard/widgets/StatsCards";
 import RevenueChart from "@/components/dashboard/widgets/RevenueChart";
 import PaymentHealth from "@/components/dashboard/widgets/PaymentHealth";
 import RecentOrdersTable from "@/components/dashboard/widgets/RecentOrdersTable";
+import DuesTodayWidget from "@/components/dashboard/widgets/DuesTodayWidget";
+import TransfersInboxWidget from "@/components/dashboard/widgets/TransfersInboxWidget";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import { useAuth } from "@/context/AuthContext";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DashboardData = Record<string, any>;
+
 export default function DashboardHomePage() {
-  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const { activeBranchId } = useAuth();
@@ -29,8 +34,12 @@ export default function DashboardHomePage() {
           throw new Error(data?.message || "Failed to load dashboard data");
 
         setDashboardData(data);
-      } catch (err: any) {
-        setError(err.message || "Could not load dashboard data.");
+      } catch (err) {
+        setError(
+          err instanceof Error && err.message
+            ? err.message
+            : "Could not load dashboard data.",
+        );
       } finally {
         setIsLoading(false);
       }
@@ -38,6 +47,15 @@ export default function DashboardHomePage() {
 
     fetchDashboardData();
   }, [activeBranchId]);
+
+  useEffect(() => {
+    if (isLoading || error) return;
+    if (new URLSearchParams(window.location.search).get("panel") !== "transfers")
+      return;
+    document
+      .querySelector('[data-testid="transfers-widget"]')
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [isLoading, error]);
 
   if (isLoading) {
     return (
@@ -63,7 +81,7 @@ export default function DashboardHomePage() {
             Dashboard Overview
           </h1>
           <p className="text-sm text-slate-500">
-            Here's what's happening with your business today.
+            Here&apos;s what&apos;s happening with your business today.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -79,6 +97,8 @@ export default function DashboardHomePage() {
 
       <StatsCards kpis={dashboardData?.kpis} />
 
+      <DuesTodayWidget />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         <div className="lg:col-span-2">
           <RevenueChart chartData={dashboardData?.chartData || []} />
@@ -88,6 +108,8 @@ export default function DashboardHomePage() {
           <PaymentHealth paymentHealth={dashboardData?.paymentHealth || []} />
         </div>
       </div>
+
+      <TransfersInboxWidget />
 
       <RecentOrdersTable orders={dashboardData?.recentOrders || []} />
     </div>
