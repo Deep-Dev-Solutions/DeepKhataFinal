@@ -3,15 +3,25 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { LedgerService } from '../ledger/ledger.service';
+import * as M from '../common/money';
 
 @Injectable()
 export class ProductsService {
   constructor(
     private prisma: PrismaService,
     private redis: RedisService,
+    private moduleRef: ModuleRef,
   ) {}
+
+  // Resolved lazily (strict: false) so this service does not require
+  // ProductsModule to import LedgerModule.
+  private get ledgerService(): LedgerService {
+    return this.moduleRef.get(LedgerService, { strict: false });
+  }
 
   private async invalidateProducts(businessId: string): Promise<void> {
     await this.redis.deleteByPattern(`products:${businessId}:*`);
@@ -167,7 +177,7 @@ export class ProductsService {
         data: {
           name: name.trim(),
           basePrice: parsedPrice,
-          defaultCostPrice: defaultCostPrice ? Number(defaultCostPrice) : null,
+          defaultCostPrice: defaultCostPrice ? M.round2(defaultCostPrice) : null,
           categoryId: categoryExists.id,
           branchId: branch,
           sku: sku?.trim() || `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -182,7 +192,7 @@ export class ProductsService {
           cabinetId: targetCabinetId,
           branchId: branch,
           vendorId: vendorId || null,
-          unitCost: defaultCostPrice ? Number(defaultCostPrice) : null,
+          unitCost: defaultCostPrice ? M.round2(defaultCostPrice) : null,
           status: 'AVAILABLE' as any,
           serialNumber: sku ? `${sku}-${index + 1}` : null,
         }),
@@ -208,29 +218,28 @@ export class ProductsService {
       });
 
       if (vendorId && defaultCostPrice) {
-        const totalCost = Number(defaultCostPrice) * instanceQty;
-        if (totalCost > 0) {
-          await tx.transaction.create({
-            data: {
+        const totalCost = M.mul(defaultCostPrice, instanceQty);
+        if (M.gt(totalCost, 0)) {
+          await this.ledgerService.createBalancedTransaction(
+            {
               businessId,
               type: 'VENDOR_PURCHASE',
               description: `Initial stock of ${instanceQty}x ${name.trim()}`,
-              postings: {
-                create: [
-                  {
-                    accountId: 'INVENTORY_ACCOUNT',
-                    accountType: 'INVENTORY',
-                    amount: totalCost,
-                  },
-                  {
-                    accountId: vendorId,
-                    accountType: 'VENDOR_PAYABLE',
-                    amount: -totalCost,
-                  },
-                ],
-              },
+              postings: [
+                {
+                  accountId: 'INVENTORY_ACCOUNT',
+                  accountType: 'INVENTORY',
+                  amount: totalCost,
+                },
+                {
+                  accountId: vendorId,
+                  accountType: 'VENDOR_PAYABLE',
+                  amount: M.neg(totalCost),
+                },
+              ],
             },
-          });
+            tx,
+          );
         }
       }
 
@@ -468,7 +477,7 @@ export class ProductsService {
 
     const product = await this.prisma.product.update({
       where: { id: productId },
-      data: { basePrice: Number(price) },
+      data: { basePrice: M.round2(price) },
     });
 
     await this.invalidateProducts(businessId);
@@ -548,7 +557,7 @@ export class ProductsService {
         vendorId: vendorId || null,
         unitCost:
           unitCost !== undefined && unitCost !== null
-            ? Number(unitCost)
+            ? M.round2(unitCost)
             : (product.defaultCostPrice ?? null),
         status: 'AVAILABLE' as any,
       }));
@@ -574,32 +583,31 @@ export class ProductsService {
       if (vendorId) {
         const actualCost =
           unitCost !== undefined && unitCost !== null
-            ? Number(unitCost)
-            : (product.defaultCostPrice ?? 0);
+            ? M.round2(unitCost)
+            : M.money(product.defaultCostPrice);
 
-        const totalCost = actualCost * qty;
-        if (totalCost > 0) {
-          await tx.transaction.create({
-            data: {
+        const totalCost = M.mul(actualCost, qty);
+        if (M.gt(totalCost, 0)) {
+          await this.ledgerService.createBalancedTransaction(
+            {
               businessId,
               type: 'VENDOR_PURCHASE',
               description: `Bulk restock of ${qty}x ${product.name}`,
-              postings: {
-                create: [
-                  {
-                    accountId: 'INVENTORY_ACCOUNT',
-                    accountType: 'INVENTORY',
-                    amount: totalCost,
-                  },
-                  {
-                    accountId: vendorId,
-                    accountType: 'VENDOR_PAYABLE',
-                    amount: -totalCost,
-                  },
-                ],
-              },
+              postings: [
+                {
+                  accountId: 'INVENTORY_ACCOUNT',
+                  accountType: 'INVENTORY',
+                  amount: totalCost,
+                },
+                {
+                  accountId: vendorId,
+                  accountType: 'VENDOR_PAYABLE',
+                  amount: M.neg(totalCost),
+                },
+              ],
             },
-          });
+            tx,
+          );
         }
       }
 
@@ -684,7 +692,7 @@ export class ProductsService {
             name: name.trim(),
             basePrice: parsedPrice,
             defaultCostPrice: item.defaultCostPrice
-              ? Number(item.defaultCostPrice)
+              ? M.round2(item.defaultCostPrice)
               : null,
             categoryId,
             sku,
@@ -700,7 +708,7 @@ export class ProductsService {
               branchId: branch,
               vendorId: item.vendorId || null,
               unitCost: item.defaultCostPrice
-                ? Number(item.defaultCostPrice)
+                ? M.round2(item.defaultCostPrice)
                 : null,
               status: 'AVAILABLE' as any,
               serialNumber: `${sku}-${index + 1}`,
@@ -869,9 +877,8 @@ export class ProductsService {
       (sum, item) => sum + item.quantity,
       0,
     );
-    const totalRevenue = activeOrderItems.reduce(
-      (sum, item) => sum + item.quantity * (item.price ?? 0),
-      0,
+    const totalRevenue = M.sum(
+      activeOrderItems.map((item) => M.mul(item.price, item.quantity)),
     );
 
     const sales = orderItems.map((item) => ({
@@ -880,8 +887,8 @@ export class ProductsService {
       orderNumber: item.order.orderNumber,
       createdAt: item.order.createdAt,
       quantity: item.quantity,
-      price: item.price ?? 0,
-      total: item.quantity * (item.price ?? 0),
+      price: M.money(item.price),
+      total: M.mul(item.price, item.quantity),
       status: item.order.status,
       paymentStatus: item.order.paymentStatus,
       customerName:

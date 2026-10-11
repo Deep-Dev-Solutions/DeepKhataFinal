@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import * as M from '../common/money';
 
 @Injectable()
 export class InventoryService {
@@ -96,7 +97,7 @@ export class InventoryService {
             cabinetId: finalCabinetId,
             branchId,
             vendorId: vendorId || null,
-            unitCost: unitCost ? Number(unitCost) : null,
+            unitCost: unitCost ? M.round2(unitCost) : null,
             status: 'AVAILABLE' as any,
           })),
         });

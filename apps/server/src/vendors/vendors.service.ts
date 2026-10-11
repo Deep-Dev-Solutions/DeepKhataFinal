@@ -5,13 +5,29 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RedisService } from '../redis/redis.service.js';
+import { LedgerService } from '../ledger/ledger.service';
+import * as M from '../common/money';
 
 @Injectable()
 export class VendorsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly ledgerService: LedgerService,
   ) {}
+
+  private parseAmount(raw: unknown, message: string): M.Money {
+    let amt: M.Money;
+    try {
+      amt = M.round2(raw as M.MoneyInput);
+    } catch {
+      throw new BadRequestException(message);
+    }
+    if (raw === null || raw === undefined || raw === '' || !M.gt(amt, 0)) {
+      throw new BadRequestException(message);
+    }
+    return amt;
+  }
 
   async createVendor(userId: string, data: any) {
     const currentUser = await this.prisma.user.findUnique({
@@ -83,17 +99,17 @@ export class VendorsService {
       const vendorPostings = postings.filter((p) => p.accountId === v.id);
       const vendorInstances = instances.filter((i) => i.vendorId === v.id);
 
-      let balance = 0;
-      let totalPurchased = 0;
-      let totalPaid = 0;
+      let balance = M.ZERO;
+      let totalPurchased = M.ZERO;
+      let totalPaid = M.ZERO;
       let lastActivityDate: Date | null = null;
 
       vendorPostings.forEach((p) => {
-        const credit = p.amount < 0 ? Math.abs(p.amount) : 0;
-        const debit = p.amount > 0 ? p.amount : 0;
-        totalPurchased += credit;
-        totalPaid += debit;
-        balance += credit - debit;
+        const credit = M.lt(p.amount, 0) ? M.neg(p.amount) : M.ZERO;
+        const debit = M.gt(p.amount, 0) ? M.money(p.amount) : M.ZERO;
+        totalPurchased = M.add(totalPurchased, credit);
+        totalPaid = M.add(totalPaid, debit);
+        balance = M.add(balance, M.sub(credit, debit));
 
         const txDate = p.transaction?.createdAt;
         if (txDate && (!lastActivityDate || txDate > lastActivityDate)) {
@@ -197,16 +213,16 @@ export class VendorsService {
       }),
     ]);
 
-    let runningBalance = 0;
-    let totalPurchases = 0;
-    let totalPaid = 0;
+    let runningBalance = M.ZERO;
+    let totalPurchases = M.ZERO;
+    let totalPaid = M.ZERO;
 
     const ledger = postings.map((p) => {
-      const credit = p.amount < 0 ? Math.abs(p.amount) : 0;
-      const debit = p.amount > 0 ? p.amount : 0;
-      totalPurchases += credit;
-      totalPaid += debit;
-      runningBalance += credit - debit;
+      const credit = M.lt(p.amount, 0) ? M.neg(p.amount) : M.ZERO;
+      const debit = M.gt(p.amount, 0) ? M.money(p.amount) : M.ZERO;
+      totalPurchases = M.add(totalPurchases, credit);
+      totalPaid = M.add(totalPaid, debit);
+      runningBalance = M.add(runningBalance, M.sub(credit, debit));
 
       return {
         id: p.id,
@@ -216,7 +232,7 @@ export class VendorsService {
         type: p.transaction.type,
         description:
           p.transaction.description ||
-          (p.amount < 0 ? 'Stock Purchase on Credit' : 'Payment to Vendor'),
+          (M.lt(p.amount, 0) ? 'Stock Purchase on Credit' : 'Payment to Vendor'),
         debit,
         credit,
         balance: runningBalance,
@@ -228,13 +244,13 @@ export class VendorsService {
     instancesRaw.forEach((inst) => {
       const dateKey = inst.createdAt.toISOString().split('T')[0];
       const cabName = inst.cabinet?.name || 'General';
-      const costVal = inst.unitCost ?? 0;
+      const costVal = M.money(inst.unitCost);
       const key = `${dateKey}_${inst.productId}_${inst.branchId}_${costVal}`;
       const existing = suppliedInventory.find((x) => x.key === key);
 
       if (existing) {
         existing.quantity += 1;
-        existing.totalCost += costVal;
+        existing.totalCost = M.add(existing.totalCost, costVal);
         if (inst.status === 'AVAILABLE') {
           existing.availableCount += 1;
         } else {
@@ -277,7 +293,7 @@ export class VendorsService {
           totalQuantity: 0,
           availableQuantity: 0,
           soldQuantity: 0,
-          totalCost: 0,
+          totalCost: M.ZERO,
           branches: new Set<string>(),
           lastReceivedDate: inst.createdAt,
         });
@@ -290,7 +306,7 @@ export class VendorsService {
         prod.soldQuantity += 1;
       }
       if (inst.unitCost) {
-        prod.totalCost += inst.unitCost;
+        prod.totalCost = M.add(prod.totalCost, inst.unitCost);
       }
       if (inst.branch?.name) prod.branches.add(inst.branch.name);
       if (inst.createdAt > prod.lastReceivedDate) {
@@ -301,7 +317,9 @@ export class VendorsService {
     const products = Array.from(productMap.values()).map((p) => ({
       ...p,
       avgUnitCost:
-        p.totalQuantity > 0 ? Math.round(p.totalCost / p.totalQuantity) : 0,
+        p.totalQuantity > 0
+          ? M.round2(M.money(p.totalCost).div(p.totalQuantity))
+          : M.ZERO,
       branches: Array.from(p.branches),
     }));
 
@@ -313,10 +331,7 @@ export class VendorsService {
     const soldUnits = instancesRaw.filter(
       (i) => i.status !== 'AVAILABLE',
     ).length;
-    const totalCostValue = instancesRaw.reduce(
-      (sum, i) => sum + (i.unitCost || 0),
-      0,
-    );
+    const totalCostValue = M.sum(instancesRaw.map((i) => i.unitCost));
 
     const metrics = {
       totalPurchases,
@@ -364,31 +379,24 @@ export class VendorsService {
     });
     if (!vendor) throw new NotFoundException('Vendor not found');
 
-    const numAmount = Number(amount);
-    if (!numAmount || isNaN(numAmount) || numAmount <= 0) {
-      throw new BadRequestException('Invalid purchase amount');
-    }
+    const numAmount = this.parseAmount(amount, 'Invalid purchase amount');
 
-    const transaction = await this.prisma.transaction.create({
-      data: {
-        businessId: currentUser.businessId,
-        type: 'VENDOR_PURCHASE',
-        description: description || 'Inbound stock purchase',
-        postings: {
-          create: [
-            {
-              accountId: 'INVENTORY_ACCOUNT',
-              accountType: 'INVENTORY',
-              amount: numAmount, // Debit
-            },
-            {
-              accountId: vendorId,
-              accountType: 'VENDOR_PAYABLE',
-              amount: -numAmount, // Credit
-            },
-          ],
+    const transaction = await this.ledgerService.createBalancedTransaction({
+      businessId: currentUser.businessId,
+      type: 'VENDOR_PURCHASE',
+      description: description || 'Inbound stock purchase',
+      postings: [
+        {
+          accountId: 'INVENTORY_ACCOUNT',
+          accountType: 'INVENTORY',
+          amount: numAmount, // Debit
         },
-      },
+        {
+          accountId: vendorId,
+          accountType: 'VENDOR_PAYABLE',
+          amount: M.neg(numAmount), // Credit
+        },
+      ],
     });
 
     await this.redis.delete(`vendors:${currentUser.businessId}`);
@@ -413,31 +421,24 @@ export class VendorsService {
     });
     if (!vendor) throw new NotFoundException('Vendor not found');
 
-    const numAmount = Number(amount);
-    if (!numAmount || isNaN(numAmount) || numAmount <= 0) {
-      throw new BadRequestException('Invalid payment amount');
-    }
+    const numAmount = this.parseAmount(amount, 'Invalid payment amount');
 
-    const transaction = await this.prisma.transaction.create({
-      data: {
-        businessId: currentUser.businessId,
-        type: 'VENDOR_PAYMENT',
-        description: description || 'Payment to vendor',
-        postings: {
-          create: [
-            {
-              accountId: vendorId,
-              accountType: 'VENDOR_PAYABLE',
-              amount: numAmount, // Debit (reduces liability)
-            },
-            {
-              accountId: 'CASH',
-              accountType: 'ASSET',
-              amount: -numAmount, // Credit (reduces cash)
-            },
-          ],
+    const transaction = await this.ledgerService.createBalancedTransaction({
+      businessId: currentUser.businessId,
+      type: 'VENDOR_PAYMENT',
+      description: description || 'Payment to vendor',
+      postings: [
+        {
+          accountId: vendorId,
+          accountType: 'VENDOR_PAYABLE',
+          amount: numAmount, // Debit (reduces liability)
         },
-      },
+        {
+          accountId: 'CASH',
+          accountType: 'ASSET',
+          amount: M.neg(numAmount), // Credit (reduces cash)
+        },
+      ],
     });
 
     await this.redis.delete(`vendors:${currentUser.businessId}`);

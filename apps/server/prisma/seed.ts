@@ -295,7 +295,7 @@ async function seedTenant(
       id: product.id,
       name: product.name,
       sku: product.sku,
-      basePrice: product.basePrice,
+      basePrice: Number(product.basePrice),
       categoryId: categoryMap[categoryName],
     });
     productIndex++;

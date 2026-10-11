@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../ledger/ledger.service';
+import * as M from '../common/money';
 import { RedisService } from '../redis/redis.service';
 import { LogExpenseDto } from './dto/log-expense.dto';
 import { OpenRegisterDto } from './dto/open-register.dto';
@@ -45,8 +46,13 @@ export class CashService {
   async logExpense(userId: string, dto: LogExpenseDto) {
     const user = await this.getUserWithBusiness(userId);
 
-    const parsedAmount = Number(dto.amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    let parsedAmount: M.Money;
+    try {
+      parsedAmount = M.round2(dto.amount);
+    } catch {
+      throw new BadRequestException('Expense amount must be a positive number.');
+    }
+    if (!M.gt(parsedAmount, 0)) {
       throw new BadRequestException('Expense amount must be a positive number.');
     }
 
@@ -92,10 +98,10 @@ export class CashService {
           {
             accountId: 'CASH',
             accountType: 'ASSET',
-            amount: -parsedAmount, // CREDIT
+            amount: M.neg(parsedAmount), // CREDIT
           },
         ],
-      });
+      }, tx);
 
       // 3. Link ledger transaction to expense
       const updatedExpense = await tx.expense.update({
@@ -150,7 +156,7 @@ export class CashService {
       take: query.limit ? Number(query.limit) : 100,
     });
 
-    const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const totalAmount = M.sum(expenses.map((e) => e.amount));
 
     return {
       success: true,
@@ -206,7 +212,7 @@ export class CashService {
         orderId: true,
       },
     });
-    const cashSales = cashPayments.reduce((sum, p) => sum + p.amount, 0);
+    const cashSales = M.sum(cashPayments.map((p) => p.amount));
 
     // 2. Calculate Cash Expenses since sinceTime
     const expenses = await this.prisma.expense.findMany({
@@ -223,10 +229,10 @@ export class CashService {
         createdAt: true,
       },
     });
-    const cashExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const cashExpenses = M.sum(expenses.map((e) => e.amount));
 
-    const openingBalance = activeSession ? activeSession.openingBalance : 0;
-    const expectedCash = openingBalance + cashSales - cashExpenses;
+    const openingBalance = activeSession ? M.money(activeSession.openingBalance) : M.ZERO;
+    const expectedCash = M.sub(M.add(openingBalance, cashSales), cashExpenses);
 
     return {
       success: true,
@@ -264,7 +270,7 @@ export class CashService {
         businessId: user.businessId,
         branchId: dto.branchId || null,
         openedById: user.id,
-        openingBalance: Number(dto.openingBalance) || 0,
+        openingBalance: M.round2(dto.openingBalance || 0),
         notes: dto.notes?.trim() || null,
         status: 'OPEN',
         openedAt: new Date(),
@@ -318,7 +324,7 @@ export class CashService {
       },
       select: { amount: true },
     });
-    const cashSales = cashPayments.reduce((sum, p) => sum + p.amount, 0);
+    const cashSales = M.sum(cashPayments.map((p) => p.amount));
 
     // 2. Live Cash Expenses during session
     const expenses = await this.prisma.expense.findMany({
@@ -332,12 +338,12 @@ export class CashService {
       },
       select: { amount: true },
     });
-    const cashExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const cashExpenses = M.sum(expenses.map((e) => e.amount));
 
-    const openingBalance = activeSession.openingBalance;
-    const expectedCash = openingBalance + cashSales - cashExpenses;
-    const actualCash = Number(dto.actualCash);
-    const difference = actualCash - expectedCash;
+    const openingBalance = M.money(activeSession.openingBalance);
+    const expectedCash = M.sub(M.add(openingBalance, cashSales), cashExpenses);
+    const actualCash = M.round2(dto.actualCash);
+    const difference = M.sub(actualCash, expectedCash);
 
     const closedSession = await this.prisma.cashRegisterSession.update({
       where: { id: activeSession.id },
@@ -370,7 +376,7 @@ export class CashService {
         expectedCash,
         actualCash,
         difference,
-        discrepancyType: difference === 0 ? 'BALANCED' : difference < 0 ? 'SHORTAGE' : 'OVERAGE',
+        discrepancyType: M.isZero(difference) ? 'BALANCED' : M.lt(difference, 0) ? 'SHORTAGE' : 'OVERAGE',
       },
     };
   }
@@ -458,20 +464,20 @@ export class CashService {
     });
 
     // Group expenses by category
-    const expensesByCategory: Record<string, { total: number; count: number }> = {};
+    const expensesByCategory: Record<string, { total: M.Money; count: number }> = {};
     for (const exp of expenses) {
       if (!expensesByCategory[exp.category]) {
-        expensesByCategory[exp.category] = { total: 0, count: 0 };
+        expensesByCategory[exp.category] = { total: M.ZERO, count: 0 };
       }
-      expensesByCategory[exp.category].total += exp.amount;
+      expensesByCategory[exp.category].total = M.add(expensesByCategory[exp.category].total, exp.amount);
       expensesByCategory[exp.category].count += 1;
     }
 
-    const cashSalesTotal = cashPayments.reduce((sum, p) => sum + p.amount, 0);
-    const cashExpensesTotal = expenses.reduce((sum, e) => sum + e.amount, 0);
-    const expectedCash = session.openingBalance + cashSalesTotal - cashExpensesTotal;
-    const actualCash = session.actualCash ?? expectedCash;
-    const difference = session.difference ?? (actualCash - expectedCash);
+    const cashSalesTotal = M.sum(cashPayments.map((p) => p.amount));
+    const cashExpensesTotal = M.sum(expenses.map((e) => e.amount));
+    const expectedCash = M.sub(M.add(session.openingBalance, cashSalesTotal), cashExpensesTotal);
+    const actualCash = session.actualCash != null ? M.money(session.actualCash) : expectedCash;
+    const difference = session.difference != null ? M.money(session.difference) : M.sub(actualCash, expectedCash);
 
     return {
       success: true,
@@ -485,7 +491,7 @@ export class CashService {
           expectedCash,
           actualCash,
           difference,
-          discrepancyType: difference === 0 ? 'BALANCED' : difference < 0 ? 'SHORTAGE' : 'OVERAGE',
+          discrepancyType: M.isZero(difference) ? 'BALANCED' : M.lt(difference, 0) ? 'SHORTAGE' : 'OVERAGE',
         },
         expensesByCategory,
         salesCount: cashPayments.length,
