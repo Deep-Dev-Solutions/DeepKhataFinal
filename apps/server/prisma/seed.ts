@@ -255,15 +255,15 @@ async function seedTenant(
   const categoriesToSeed =
     tenantKey === 'A' ? CATEGORIES_A : CATEGORIES_A.slice(0, 3);
   for (const catName of categoriesToSeed) {
+    const categoryId = detId(`category-${tenantKey}-${catName}`);
     const category = await prisma.category.upsert({
-      where: {
-        name_businessId: { name: catName, businessId: business.id },
-      },
+      where: { id: categoryId },
       update: {},
       create: {
-        id: detId(`category-${tenantKey}-${catName}`),
+        id: categoryId,
         name: catName,
         businessId: business.id,
+        branchId: null,
       },
     });
     categoryMap[catName] = category.id;
