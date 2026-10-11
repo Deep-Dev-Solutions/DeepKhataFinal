@@ -41,6 +41,7 @@ async function bootstrap() {
         'http://localhost:3001',
       ],
       credentials: true,
+      exposedHeaders: ['X-Next-Cursor'],
     });
 
     await app.init();

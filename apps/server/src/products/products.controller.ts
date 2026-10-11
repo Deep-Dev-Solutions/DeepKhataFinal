@@ -11,6 +11,7 @@ import {
   Patch,
   Param,
   Delete,
+  Res,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CategoryService } from '../category/category.service';
@@ -67,15 +68,21 @@ export class ProductsController {
     @Req() req: any,
     @BranchId() branchId: string,
     @Query() query: any,
+    @Res({ passthrough: true }) res: any,
   ) {
     const activeBranchId =
       (req.headers['x-branch-id'] as string)?.trim() ||
       (query.branchId as string)?.trim() ||
       branchId;
-    return this.productsService.getProducts(req.user.id, {
-      ...query,
-      branchId: activeBranchId,
-    });
+    const { nextCursor, ...body } = await this.productsService.getProducts(
+      req.user.id,
+      {
+        ...query,
+        branchId: activeBranchId,
+      },
+    );
+    if (nextCursor) res.setHeader('X-Next-Cursor', nextCursor);
+    return body;
   }
 
   @Get('global-stock')

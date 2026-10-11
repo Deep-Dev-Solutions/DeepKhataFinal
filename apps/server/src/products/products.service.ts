@@ -3,7 +3,7 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
-import { ModuleRef } from '@nestjs/core';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { LedgerService } from '../ledger/ledger.service';
@@ -14,15 +14,11 @@ export class ProductsService {
   constructor(
     private prisma: PrismaService,
     private redis: RedisService,
-    private moduleRef: ModuleRef,
+    private readonly ledgerService: LedgerService,
   ) {}
 
-  // Resolved lazily (strict: false) so this service does not require
-  // ProductsModule to import LedgerModule.
-  private get ledgerService(): LedgerService {
-    return this.moduleRef.get(LedgerService, { strict: false });
-  }
-
+  // getProducts is no longer cached; this stays as a no-op-safe hook for
+  // callers that still invalidate after writes.
   private async invalidateProducts(businessId: string): Promise<void> {
     await this.redis.deleteByPattern(`products:${businessId}:*`);
   }
@@ -265,203 +261,237 @@ export class ProductsService {
     };
   }
 
+  // Ordered, parameterised page of product ids for a business/branch.
+  // Keyset by position: the cursor is the id of the last row of the previous
+  // page, resolved to its row number inside the same ordered set.
+  private async findProductIdPage(args: {
+    businessId: string;
+    branchId: string;
+    search: string;
+    category?: string;
+    stock?: string;
+    cursor?: string;
+    take: number;
+  }): Promise<string[]> {
+    const { businessId, branchId, search, category, stock, cursor, take } =
+      args;
+    const q = search.trim().toLowerCase();
+    const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
+
+    const searchFilter = q
+      ? Prisma.sql`AND (p."searchText" ILIKE ${like} OR similarity(p."searchText", ${q}) > 0.2 OR lower(p."sku") = ${q} OR lower(p."partNumber") = ${q})`
+      : Prisma.empty;
+    const categoryFilter =
+      category && category !== 'All'
+        ? Prisma.sql`AND c."name" = ${category}`
+        : Prisma.empty;
+    const availableCount = Prisma.sql`(SELECT COUNT(*) FROM "ProductInstance" i WHERE i."productId" = p."id" AND i."status" = 'AVAILABLE' AND i."branchId" = ${branchId})`;
+    const stockFilter =
+      stock === 'out'
+        ? Prisma.sql`AND ${availableCount} = 0`
+        : stock === 'low'
+          ? Prisma.sql`AND ${availableCount} BETWEEN 1 AND 5`
+          : Prisma.empty;
+    const orderBy = q
+      ? Prisma.sql`(lower(p."sku") = ${q} OR lower(p."partNumber") = ${q}) DESC, similarity(p."searchText", ${q}) DESC, p."name" ASC, p."id" ASC`
+      : Prisma.sql`p."name" ASC, p."id" ASC`;
+    const cursorFilter = cursor
+      ? Prisma.sql`WHERE rn > COALESCE((SELECT rn FROM ranked WHERE id = ${cursor}), 0)`
+      : Prisma.empty;
+
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+      WITH ranked AS (
+        SELECT p."id" AS id, ROW_NUMBER() OVER (ORDER BY ${orderBy}) AS rn
+        FROM "Product" p
+        LEFT JOIN "Category" c ON c."id" = p."categoryId"
+        WHERE p."businessId" = ${businessId}
+          AND p."deletedAt" IS NULL
+          AND (p."branchId" = ${branchId} OR p."branchId" IS NULL)
+          ${searchFilter}
+          ${categoryFilter}
+          ${stockFilter}
+      )
+      SELECT id FROM ranked ${cursorFilter} ORDER BY rn LIMIT ${take}
+    `);
+    return rows.map((r) => r.id);
+  }
+
   async getProducts(userId: string, query: any) {
-    const { search, category, stock, branchId } = query;
+    const { category, stock, branchId } = query;
+    const search = typeof query.search === 'string' ? query.search : '';
     const businessId = await this.requireBusinessId(userId);
 
     if (!branchId) {
       throw new BadRequestException('x-branch-id header is required');
     }
 
-    // Dynamic cache key strictly scoped to business and branch
-    const cacheKey = `products:${businessId}:branch:${branchId}:search=${encodeURIComponent(search || '')}:category=${encodeURIComponent(category || 'All')}:stock=${encodeURIComponent(stock || 'all')}`;
-    const cached = await this.redis.get<any>(cacheKey);
-    if (
-      cached &&
-      (!cached.products ||
-        cached.products.length === 0 ||
-        cached.products[0].cabinet !== undefined)
-    ) {
-      return cached;
-    }
+    const parsedLimit = parseInt(String(query.limit ?? ''), 10);
+    const limit = Math.min(
+      Math.max(Number.isFinite(parsedLimit) ? parsedLimit : 200, 1),
+      500,
+    );
+    const cursor =
+      typeof query.cursor === 'string' && query.cursor.trim()
+        ? query.cursor.trim()
+        : undefined;
 
-    // Strictly filter products by the requested branchId
-    const queryConditions: any = {
+    const fetched = await this.findProductIdPage({
       businessId,
-      deletedAt: null,
       branchId,
-    };
-
-    if (search) {
-      queryConditions.AND = [
-        {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { sku: { contains: search, mode: 'insensitive' } },
-          ],
-        },
-      ];
-    }
-    if (category && category !== 'All') {
-      queryConditions.category = { name: category };
-    }
-
-    const products = await this.prisma.product.findMany({
-      where: queryConditions,
-      include: {
-        category: true,
-        instances: {
-          where: {
-            status: 'AVAILABLE',
-            branchId,
-          },
-          include: {
-            cabinet: true,
-            branch: { select: { id: true, name: true, deletedAt: true } },
-          },
-          orderBy: { createdAt: 'desc' },
-        },
-      },
-      orderBy: { id: 'desc' },
+      search,
+      category,
+      stock,
+      cursor,
+      take: limit + 1,
     });
+    const hasMore = fetched.length > limit;
+    const pageIds = hasMore ? fetched.slice(0, limit) : fetched;
+    const nextCursor = hasMore ? pageIds[pageIds.length - 1] : null;
 
-    // Master catalog records that hold physical units anywhere (for branch
-    // filtering we still want to surface globally out-of-stock products).
-    const businessWideAvailable = new Set<string>();
+    if (pageIds.length === 0) {
+      return { success: true, products: [] as any[], nextCursor: null };
+    }
+
+    const [rows, grouped, branches] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { id: { in: pageIds }, businessId },
+        include: {
+          category: true,
+          instances: {
+            where: { status: 'AVAILABLE', branchId },
+            include: {
+              cabinet: true,
+              branch: { select: { id: true, name: true, deletedAt: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+          },
+        },
+      }),
+      // One grouped query for the whole page: per-product, per-branch counts.
+      this.prisma.productInstance.groupBy({
+        by: ['productId', 'branchId', 'status'],
+        where: { productId: { in: pageIds }, status: 'AVAILABLE' },
+        _count: true,
+      }),
+      this.prisma.branch.findMany({
+        where: { businessId },
+        select: { id: true, name: true },
+      }),
+    ]);
+
+    const branchNameById = new Map(branches.map((b) => [b.id, b.name]));
+    const currentBranchName = branchNameById.get(branchId) ?? '';
+
     const branchStockMap = new Map<
       string,
       { total: number; branchNames: string[] }
     >();
+    for (const g of grouped) {
+      const entry = branchStockMap.get(g.productId) || {
+        total: 0,
+        branchNames: [],
+      };
+      entry.total += g._count;
+      const name = branchNameById.get(g.branchId);
+      if (name && !entry.branchNames.includes(name)) entry.branchNames.push(name);
+      branchStockMap.set(g.productId, entry);
+    }
 
-    if (branchId) {
-      const allAvailable = await this.prisma.productInstance.findMany({
-        where: {
-          product: { businessId, deletedAt: null },
-          status: 'AVAILABLE',
-        },
-        select: {
-          productId: true,
-          branch: { select: { id: true, name: true } },
-        },
-      });
-
-      for (const inst of allAvailable) {
-        businessWideAvailable.add(inst.productId);
-        const entry = branchStockMap.get(inst.productId) || {
-          total: 0,
-          branchNames: [],
+    const byId = new Map(rows.map((p) => [p.id, p]));
+    const products = pageIds
+      .map((id) => byId.get(id))
+      .filter((p): p is NonNullable<typeof p> => !!p)
+      .map((p) => {
+        const branchEntry = branchStockMap.get(p.id);
+        const otherBranches = branchEntry
+          ? branchEntry.branchNames.filter((name) => name !== currentBranchName)
+          : [];
+        const primaryCabinet = p.instances?.[0]?.cabinet || null;
+        return {
+          ...p,
+          cabinet: primaryCabinet
+            ? {
+                id: primaryCabinet.id,
+                name: primaryCabinet.name,
+                location: primaryCabinet.location,
+                rack: primaryCabinet.rack,
+                shelf: primaryCabinet.shelf,
+                bin: primaryCabinet.bin,
+              }
+            : null,
+          price: p.basePrice ?? 0,
+          stock: p.instances.length,
+          totalBusinessStock: branchEntry?.total ?? p.instances.length,
+          otherBranchesWithStock: otherBranches,
+          hasDeletedBranchStock: p.instances.some((i) => i.branch?.deletedAt),
         };
-        entry.total += 1;
-        if (
-          inst.branch?.name &&
-          !entry.branchNames.includes(inst.branch.name)
-        ) {
-          entry.branchNames.push(inst.branch.name);
-        }
-        branchStockMap.set(inst.productId, entry);
-      }
-    }
-
-    let currentBranchName = '';
-    if (branchId) {
-      const b = await this.prisma.branch.findUnique({
-        where: { id: branchId },
-        select: { name: true },
       });
-      if (b) currentBranchName = b.name;
-    }
 
-    const result = {
-      success: true,
-      products: products
-        .map((p) => {
-          const branchEntry = branchStockMap.get(p.id);
-          const otherBranches = branchEntry
-            ? branchEntry.branchNames.filter(
-                (name) => name !== currentBranchName,
-              )
-            : [];
-          const primaryCabinet = p.instances?.[0]?.cabinet || null;
-          return {
-            ...p,
-            cabinet: primaryCabinet
-              ? {
-                  id: primaryCabinet.id,
-                  name: primaryCabinet.name,
-                  location: primaryCabinet.location,
-                  rack: primaryCabinet.rack,
-                  shelf: primaryCabinet.shelf,
-                  bin: primaryCabinet.bin,
-                }
-              : null,
-            price: p.basePrice ?? 0,
-            stock: p.instances.length,
-            totalBusinessStock: branchEntry?.total ?? p.instances.length,
-            otherBranchesWithStock: otherBranches,
-            hasDeletedBranchStock: p.instances.some((i) => i.branch?.deletedAt),
-          };
-        })
-        .filter((p) => {
-          if (stock === 'out') return p.stock === 0;
-          if (stock === 'low') return p.stock > 0 && p.stock <= 5;
-          return true;
-        }),
-    };
-
-      await this.redis.set(cacheKey, result, 3600);
-      return result;
+    return { success: true, products, nextCursor };
   }
 
-    async getGlobalStock(userId: string, search: string) {
-      const businessId = await this.requireBusinessId(userId);
-      const normalizedSearch = search?.trim();
+  async getGlobalStock(userId: string, search: string) {
+    const businessId = await this.requireBusinessId(userId);
+    const normalizedSearch = search?.trim().toLowerCase();
 
-      if (!normalizedSearch) {
-        return [];
-      }
+    if (!normalizedSearch) {
+      return [];
+    }
 
-      const [products, branches] = await Promise.all([
-        this.prisma.product.findMany({
-          where: {
-            businessId,
-            deletedAt: null,
-            name: { contains: normalizedSearch, mode: 'insensitive' },
-          },
-          select: {
-            id: true,
-            name: true,
-            basePrice: true,
-            instances: {
-              where: { status: 'AVAILABLE' },
-              select: { branchId: true },
-            },
-          },
-          orderBy: { name: 'asc' },
-        }),
-        this.prisma.branch.findMany({
-          where: { businessId, deletedAt: null },
-          select: { id: true, name: true },
-          orderBy: { name: 'asc' },
-        }),
-      ]);
+    const like = `%${normalizedSearch.replace(/[\\%_]/g, '\\$&')}%`;
+    const idRows = await this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT p."id" AS id
+      FROM "Product" p
+      WHERE p."businessId" = ${businessId}
+        AND p."deletedAt" IS NULL
+        AND (p."searchText" ILIKE ${like}
+             OR similarity(p."searchText", ${normalizedSearch}) > 0.2)
+      ORDER BY (lower(p."sku") = ${normalizedSearch}
+                OR lower(p."partNumber") = ${normalizedSearch}) DESC,
+               similarity(p."searchText", ${normalizedSearch}) DESC,
+               p."name" ASC, p."id" ASC
+      LIMIT 100
+    `);
+    const ids = idRows.map((r) => r.id);
+    if (ids.length === 0) return [];
 
-      return products.flatMap((product) => {
-        const stockByBranch = new Map<string, number>();
-        for (const instance of product.instances) {
-          stockByBranch.set(
-            instance.branchId,
-            (stockByBranch.get(instance.branchId) || 0) + 1,
-          );
-        }
+    const [rows, grouped, branches] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { id: { in: ids }, businessId, deletedAt: null },
+        select: { id: true, name: true, basePrice: true },
+      }),
+      this.prisma.productInstance.groupBy({
+        by: ['productId', 'branchId'],
+        where: { productId: { in: ids }, status: 'AVAILABLE' },
+        _count: true,
+      }),
+      this.prisma.branch.findMany({
+        where: { businessId, deletedAt: null },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
+    ]);
 
-        return branches.map((branch) => ({
+    const stockByProduct = new Map<string, Map<string, number>>();
+    for (const g of grouped) {
+      const m = stockByProduct.get(g.productId) || new Map<string, number>();
+      m.set(g.branchId, g._count);
+      stockByProduct.set(g.productId, m);
+    }
+    const byId = new Map(rows.map((p) => [p.id, p]));
+
+    return ids
+      .map((id) => byId.get(id))
+      .filter((p): p is NonNullable<typeof p> => !!p)
+      .flatMap((product) =>
+        branches.map((branch) => ({
           branchName: branch.name,
           productName: product.name,
-          stock: stockByBranch.get(branch.id) || 0,
+          stock: stockByProduct.get(product.id)?.get(branch.id) || 0,
           price: product.basePrice,
-        }));
-      });
-    }
+        })),
+      );
+  }
 
   async updatePrice(userId: string, productId: string, price: number) {
     const businessId = await this.requireBusinessId(userId);

@@ -30,6 +30,7 @@ async function bootstrapServer() {
         'https://agency-admin-deepkhata.vercel.app',
       ],
       credentials: true,
+      exposedHeaders: ['X-Next-Cursor'],
     });
 
     app.use(cookieParser());
