@@ -27,11 +27,13 @@ export interface LocalCustomer {
 
 export interface SyncQueueItem {
   id: string; // Client-generated UUID
-  type: "CREATE_ORDER" | "UPDATE_ORDER_STATUS";
+  type: "CREATE_ORDER";
   payload: Record<string, unknown>;
   createdAt: string;
-  status: "pending" | "syncing" | "failed";
+  status: "pending" | "syncing" | "failed" | "conflict";
   error?: string;
+  lastError?: string;
+  attempts?: number;
 }
 
 export class DeepKhataDexieDB extends Dexie {
