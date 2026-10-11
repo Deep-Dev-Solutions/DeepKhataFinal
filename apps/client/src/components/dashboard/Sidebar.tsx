@@ -84,6 +84,7 @@ export default function Sidebar() {
 
   return (
     <aside
+      data-testid="sidebar-root"
       style={{ height: "100dvh", maxHeight: "100dvh" }}
       className={`hidden md:flex flex-col ${
         isCollapsed ? "w-20" : "w-64"
@@ -181,6 +182,7 @@ export default function Sidebar() {
                     <Link
                       key={item.name}
                       href={item.href}
+                      data-testid={`nav-${item.href.split('/').filter(Boolean).pop()}`}
                       title={item.name}
                       className={`flex ${
                         isCollapsed
@@ -235,6 +237,7 @@ export default function Sidebar() {
             </Link>
             <button
               onClick={handleLogout}
+              data-testid="sidebar-logout"
               className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
               title="Log out"
             >
@@ -266,6 +269,7 @@ export default function Sidebar() {
 
               <button
                 onClick={handleLogout}
+                data-testid="sidebar-logout"
                 className="flex items-center gap-1 px-2.5 py-1 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer text-xs font-semibold shrink-0 border border-slate-200"
                 title="Log out"
               >

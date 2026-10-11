@@ -103,6 +103,7 @@ export default function LoginPage() {
                 <input
                   id="email"
                   name="email"
+                  data-testid="login-email"
                   type="email"
                   autoComplete="email"
                   required
@@ -129,6 +130,7 @@ export default function LoginPage() {
                 <input
                   id="password"
                   name="password"
+                  data-testid="login-password"
                   type="password"
                   autoComplete="current-password"
                   required
@@ -169,6 +171,7 @@ export default function LoginPage() {
 
             {error && (
               <div
+                data-testid="login-error"
                 className={`p-3.5 rounded-xl border text-sm font-medium ${
                   isLockedOut
                     ? "bg-rose-50 border-rose-200 text-rose-700"
@@ -182,6 +185,7 @@ export default function LoginPage() {
             <div>
               <button
                 type="submit"
+                data-testid="login-submit"
                 disabled={loading}
                 className="w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all disabled:opacity-70"
               >
