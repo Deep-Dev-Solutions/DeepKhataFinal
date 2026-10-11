@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import * as M from '../common/money';
 
 @Injectable()
 export class DashboardService {
@@ -141,51 +142,46 @@ export class DashboardService {
     ]);
 
     // 1. Daily Gross Sales
-    const dailyGrossSales = todaysOrdersWithItems.reduce(
-      (sum, order) => sum + (Number(order.totalAmount) || 0),
-      0,
+    const dailyGrossSales = M.sum(
+      todaysOrdersWithItems.map((order) => order.totalAmount),
     );
 
     // 2. Total Pending Customer Udhar
     const pendingPayments = unpaidOrders.reduce((sum, order) => {
-      const totalPaid = order.payments.reduce(
-        (paymentSum, payment) => paymentSum + Number(payment.amount || 0),
-        0,
-      );
-      return sum + Math.max(0, Number(order.totalAmount || 0) - totalPaid);
-    }, 0);
+      const totalPaid = M.sum(order.payments.map((payment) => payment.amount));
+      return M.add(sum, M.max(M.ZERO, M.sub(order.totalAmount, totalPaid)));
+    }, M.ZERO);
 
     // 3. Daily Cost of Goods Sold (COGS)
-    let dailyCOGS = 0;
+    let dailyCOGS = M.ZERO;
     for (const order of todaysOrdersWithItems) {
       for (const item of order.items) {
         if (!item.isService) {
-          const unitCost = Number(item.product?.defaultCostPrice ?? 0);
-          dailyCOGS += unitCost * item.quantity;
+          dailyCOGS = M.add(
+            dailyCOGS,
+            M.mul(item.product?.defaultCostPrice, item.quantity),
+          );
         }
       }
     }
 
     // 4. Daily Expenses
-    const dailyExpenses = todaysExpenses.reduce(
-      (sum, exp) => sum + (Number(exp.amount) || 0),
-      0,
-    );
+    const dailyExpenses = M.sum(todaysExpenses.map((exp) => exp.amount));
 
     // 5. Net Profit = Gross Revenue - COGS - Daily Expenses
-    const netProfit = dailyGrossSales - dailyCOGS - dailyExpenses;
+    const netProfit = M.sub(M.sub(dailyGrossSales, dailyCOGS), dailyExpenses);
+    const grossNum = M.toApi(dailyGrossSales);
     const profitMargin =
-      dailyGrossSales > 0 ? (netProfit / dailyGrossSales) * 100 : 0;
+      grossNum > 0 ? (M.toApi(netProfit) / grossNum) * 100 : 0;
 
     // 6. Revenue trend compared to yesterday
-    const yesterdayRevenue = yesterdaysOrders.reduce(
-      (sum, o) => sum + (Number(o.totalAmount) || 0),
-      0,
+    const yesterdayRevenue = M.toApi(
+      M.sum(yesterdaysOrders.map((o) => o.totalAmount)),
     );
     const revenueGrowth =
       yesterdayRevenue > 0
-        ? ((dailyGrossSales - yesterdayRevenue) / yesterdayRevenue) * 100
-        : dailyGrossSales > 0
+        ? ((grossNum - yesterdayRevenue) / yesterdayRevenue) * 100
+        : grossNum > 0
           ? 100
           : 0;
 
@@ -209,30 +205,35 @@ export class DashboardService {
         month: 'short',
         day: 'numeric',
       });
-      const dayRevenue = orders
-        .filter((order) => {
-          const createdAt = new Date(order.createdAt);
-          return createdAt >= date && createdAt < nextDay;
-        })
-        .reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
+      const dayRevenue = M.sum(
+        orders
+          .filter((order) => {
+            const createdAt = new Date(order.createdAt);
+            return createdAt >= date && createdAt < nextDay;
+          })
+          .map((order) => order.totalAmount),
+      );
 
-      chartData.push({ name: dayKey.split(' ')[0], revenue: dayRevenue });
+      chartData.push({
+        name: dayKey.split(' ')[0],
+        revenue: M.toApi(dayRevenue),
+      });
     }
 
     const paymentHealth = [
       {
         name: 'Paid Securely',
-        value:
-          paymentBreakdown.find((item) => item.method === 'CASH')?._sum
-            .amount || 0,
+        value: M.toApi(
+          paymentBreakdown.find((item) => item.method === 'CASH')?._sum.amount,
+        ),
         color: '#10b981',
       },
-      { name: 'Pending (Udhaar)', value: pendingPayments, color: '#f43f5e' },
+      { name: 'Pending (Udhaar)', value: M.toApi(pendingPayments), color: '#f43f5e' },
       {
         name: 'Partial Advances',
-        value:
-          paymentBreakdown.find((item) => item.method === 'BANK')?._sum
-            .amount || 0,
+        value: M.toApi(
+          paymentBreakdown.find((item) => item.method === 'BANK')?._sum.amount,
+        ),
         color: '#f59e0b',
       },
     ];
@@ -240,7 +241,7 @@ export class DashboardService {
     const recentOrders = orders.slice(0, 5).map((order) => ({
       orderNumber: order.orderNumber,
       customerName: order.customer?.name || 'Walk-in Customer',
-      totalAmount: Number(order.totalAmount || 0),
+      totalAmount: M.toApi(order.totalAmount),
       paymentStatus: order.paymentStatus,
       relativeTime: this.formatRelativeTime(order.createdAt),
     }));
@@ -250,13 +251,13 @@ export class DashboardService {
     const result = {
       success: true,
       kpis: {
-        todayRevenue: dailyGrossSales,
-        dailyGrossSales,
-        pendingPayments,
-        pendingUdhar: pendingPayments,
-        dailyCOGS: isStaff ? null : dailyCOGS,
-        dailyExpenses: isStaff ? null : dailyExpenses,
-        netProfit: isStaff ? null : netProfit,
+        todayRevenue: grossNum,
+        dailyGrossSales: grossNum,
+        pendingPayments: M.toApi(pendingPayments),
+        pendingUdhar: M.toApi(pendingPayments),
+        dailyCOGS: isStaff ? null : M.toApi(dailyCOGS),
+        dailyExpenses: isStaff ? null : M.toApi(dailyExpenses),
+        netProfit: isStaff ? null : M.toApi(netProfit),
         profitMargin: isStaff ? null : Number(profitMargin.toFixed(1)),
         revenueGrowth: Number(revenueGrowth.toFixed(1)),
         activeOrders,
