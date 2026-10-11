@@ -29,6 +29,7 @@
     "core-js@3.50.0": true,
     "esbuild@0.28.2": true,
     "prisma@6.19.3": true,
-    "unrs-resolver@1.12.2": true
+    "unrs-resolver@1.12.2": true,
+    "@swc/core@1.16.18": true
   }
 }
