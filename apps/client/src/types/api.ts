@@ -36,6 +36,8 @@ export interface Customer {
   type?: string;
   orders?: number;
   spent?: number;
+  balance?: number;
+  outstandingBalance?: number;
   orderHistory?: Order[];
   metrics?: {
     totalOrders?: number;

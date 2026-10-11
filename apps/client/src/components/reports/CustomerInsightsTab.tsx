@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { Star, Loader2 } from "lucide-react";
-import { API_BASE_URL } from "@/lib/auth";
+import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import { Customer } from "@/types/api";
 import { useAuth } from "@/context/AuthContext";
 
 export default function CustomerInsightsTab() {
   const [vipCustomers, setVipCustomers] = useState<Customer[]>([]);
   const { activeBranchId } = useAuth();
-  const [vipCustomers, setVipCustomers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
