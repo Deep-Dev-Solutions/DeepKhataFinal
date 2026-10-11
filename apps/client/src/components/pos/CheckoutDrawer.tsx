@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { useIsReadOnly } from "@/hooks/useIsReadOnly";
+import { Customer } from "@/types/api";
 
 type CheckoutDrawerProps = {
   isOpen: boolean;
@@ -31,10 +32,10 @@ type CheckoutDrawerProps = {
   setWalkInPhone: (v: string) => void;
   customerSearch: string;
   setCustomerSearch: (v: string) => void;
-  customerResults: any[];
-  setCustomerResults: (v: any[]) => void;
-  selectedCustomer: any | null;
-  setSelectedCustomer: (c: any | null) => void;
+  customerResults: Customer[];
+  setCustomerResults: (v: Customer[]) => void;
+  selectedCustomer: Customer | null;
+  setSelectedCustomer: (c: Customer | null) => void;
   isSearchingCustomer: boolean;
   onOpenNewCustomer: () => void;
 

@@ -72,12 +72,12 @@ export async function flushSyncQueue(): Promise<{
         window.dispatchEvent(new CustomEvent("sync-queue-updated"));
       }
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     await Promise.all(
       pendingItems.map((item) =>
         offlineDb.syncQueue.update(item.id, {
           status: "failed",
-          error: err?.message || "Network sync failed",
+          error: (err instanceof Error ? err.message : "Network sync failed") || "Network sync failed",
         }),
       ),
     );

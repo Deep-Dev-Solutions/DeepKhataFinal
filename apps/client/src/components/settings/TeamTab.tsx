@@ -28,6 +28,15 @@ type PendingInvite = {
   sentAt: string;
 };
 
+/** Invitation row as returned by GET /team/pending-invites. */
+type PendingInviteResponse = {
+  id?: string;
+  token?: string;
+  email: string;
+  role: string;
+  createdAt?: string;
+};
+
 export default function TeamTab() {
   // 🟢 State to toggle between Active Team and Pending Invites
   const [viewState, setViewState] = useState<"active" | "pending">("active");
@@ -86,7 +95,7 @@ export default function TeamTab() {
       );
 
       const mappedPending = (pendingData?.pendingInvites || []).map(
-        (invite: any, index: number) => ({
+        (invite: PendingInviteResponse, index: number) => ({
           id: invite.id || invite.token || `${invite.email}-${index}`,
           email: invite.email,
           role: invite.role,
@@ -98,8 +107,8 @@ export default function TeamTab() {
 
       setActiveMembers(mappedActive);
       setPending(mappedPending);
-    } catch (err: any) {
-      setError(err?.message || "Failed to load team data");
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : "Failed to load team data") || "Failed to load team data");
     } finally {
       setLoading(false);
     }
@@ -136,8 +145,8 @@ export default function TeamTab() {
         throw new Error(data?.message || "Failed to resend invitation");
       }
       await loadTeamData();
-    } catch (err: any) {
-      setError(err?.message || "Failed to resend invitation");
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : "Failed to resend invitation") || "Failed to resend invitation");
     } finally {
       setProcessing(null);
     }
@@ -158,8 +167,8 @@ export default function TeamTab() {
         throw new Error(data?.message || "Failed to cancel invitation");
       }
       await loadTeamData();
-    } catch (err: any) {
-      setError(err?.message || "Failed to cancel invitation");
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : "Failed to cancel invitation") || "Failed to cancel invitation");
     } finally {
       setProcessing(null);
     }

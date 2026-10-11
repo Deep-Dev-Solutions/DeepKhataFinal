@@ -60,9 +60,9 @@ export default function AgencyLoginPage() {
       }
 
       router.push("/");
-    } catch (err: any) {
+    } catch (err: unknown) {
       const status = err instanceof ApiError ? err.status : 0;
-      const errorMsg = err?.message || "Agency authentication failed";
+      const errorMsg = err instanceof Error ? err.message : "Agency authentication failed";
       if (status === 429 || /lockout|locked/i.test(errorMsg)) {
         setIsLockedOut(true);
       }

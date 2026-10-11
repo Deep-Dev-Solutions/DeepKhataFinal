@@ -106,8 +106,8 @@ export default function InviteStaffModal({
       onClose();
 
       if (typeof onInviteSuccess === "function") onInviteSuccess(invite);
-    } catch (err: any) {
-      setError(err?.message || "Failed to send invite");
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : "Failed to send invite") || "Failed to send invite");
       setIsSubmitting(false);
     }
   };

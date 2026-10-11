@@ -75,8 +75,8 @@ export default function RecordPaymentModal({
       // Success!
       setIsSubmitting(false);
       onSuccess(); // This will trigger refreshOrder() in the parent component!
-    } catch (err: any) {
-      setError(err.message || "Something went wrong.");
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : "Something went wrong.") || "Something went wrong.");
       setIsSubmitting(false);
     }
   };

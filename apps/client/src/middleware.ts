@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-function decodeToken(token: string | undefined | null): any | null {
+function decodeToken(token: string | undefined | null): Record<string, unknown> | null {
   if (!token) return null;
   try {
     const parts = token.split(".");

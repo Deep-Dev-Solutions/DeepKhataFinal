@@ -12,11 +12,12 @@ import {
   ArrowDownRight,
   ArrowUpRight,
 } from "lucide-react";
+import { ZReportData, ExpenseCategory, ItemizedExpense } from "@/types/api";
 
 type Props = {
   isOpen: boolean;
   onClose: () => void;
-  reportData: any;
+  reportData: ZReportData;
 };
 
 export default function ZReportModal({ isOpen, onClose, reportData }: Props) {
@@ -60,7 +61,7 @@ Difference:          PKR ${summary.difference.toLocaleString()} (${summary.discr
 EXPENSES BREAKDOWN:
 ${Object.entries(expensesByCategory || {})
   .map(
-    ([cat, val]: any) =>
+    ([cat, val]: [string, ExpenseCategory]) =>
       `• ${cat}: PKR ${val.total.toLocaleString()} (${val.count} entries)`,
   )
   .join("\n")}
@@ -260,7 +261,7 @@ Notes: ${session.notes || "None"}
               </p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {Object.entries(expensesByCategory).map(([cat, val]: any) => (
+                {Object.entries(expensesByCategory).map(([cat, val]: [string, ExpenseCategory]) => (
                   <div
                     key={cat}
                     className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs"
@@ -298,7 +299,7 @@ Notes: ${session.notes || "None"}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-mono">
-                    {itemizedExpenses.map((exp: any) => (
+                    {itemizedExpenses.map((exp: ItemizedExpense) => (
                       <tr key={exp.id} className="hover:bg-slate-50/50">
                         <td className="py-2 px-3 text-slate-500 font-sans">
                           {new Date(exp.createdAt).toLocaleTimeString([], {

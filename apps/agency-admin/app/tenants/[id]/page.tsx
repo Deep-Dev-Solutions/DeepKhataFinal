@@ -19,44 +19,10 @@ import {
   Wallet,
   BadgeCheck,
 } from "lucide-react";
-
-interface BillingLog {
-  id: string;
-  amount: number;
-  paymentDate: string;
-  notes: string | null;
-  createdAt: string;
-}
-
-interface TenantDetail {
-  id: string;
-  name: string;
-  slug: string;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
-  createdAt: string;
-  status: "ACTIVE" | "READ_ONLY" | "SUSPENDED";
-  subscriptionExpiresAt: string | null;
-  owner: {
-    name: string;
-    email: string;
-    phone: string | null;
-  };
-  _count: {
-    users: number;
-    products: number;
-    orders: number;
-    branches: number;
-  };
-  branches: {
-    id: string;
-    name: string;
-    location: string | null;
-    createdAt: string;
-  }[];
-  billingLogs: BillingLog[];
-}
+import {
+  TenantDetail,
+  LogPaymentResponse,
+} from "@/types/agency";
 
 const STATUS_META: Record<
   TenantDetail["status"],
@@ -126,19 +92,23 @@ export default function TenantDetailPage() {
     try {
       const data = await api.get<TenantDetail>(`/agency/tenants/${tenantId}`);
       setTenant(data);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to load tenant");
     } finally {
       setLoading(false);
     }
   }, [tenantId, token, isAuthLoading]);
 
   useEffect(() => {
-    if (tenantId && token) {
-      fetchTenant();
-    } else if (!isAuthLoading) {
-      setLoading(false);
-    }
+    const load = async () => {
+      if (tenantId && token) {
+        await fetchTenant();
+      } else if (!isAuthLoading) {
+        setLoading(false);
+      }
+    };
+
+    load().catch(console.error);
   }, [tenantId, token, isAuthLoading, fetchTenant]);
 
   const handleStatusChange = async (
@@ -152,8 +122,8 @@ export default function TenantDetailPage() {
         status: newStatus,
       });
       setTenant({ ...tenant, status: newStatus });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to update status");
     } finally {
       setStatusUpdating(false);
     }
@@ -167,15 +137,14 @@ export default function TenantDetailPage() {
     setBillingSuccess("");
 
     try {
-      const data = await api.post<{
-        billingLog: { amount: number };
-        status: TenantDetail["status"];
-        subscriptionExpiresAt: string | null;
-      }>(`/agency/tenants/${tenant.id}/billing`, {
-        amount: parseFloat(amount),
-        paymentDate,
-        notes: notes || undefined,
-      });
+      const data = await api.post<LogPaymentResponse>(
+        `/agency/tenants/${tenant.id}/billing`,
+        {
+          amount: parseFloat(amount),
+          paymentDate,
+          notes: notes || undefined,
+        },
+      );
       setAmount("");
       setNotes("");
       setBillingSuccess(
@@ -186,8 +155,8 @@ export default function TenantDetailPage() {
         `/agency/tenants/${tenant.id}`,
       );
       setTenant(fresh);
-    } catch (err: any) {
-      setBillingError(err.message);
+    } catch (err: unknown) {
+      setBillingError(err instanceof Error ? err.message : "Failed to log payment");
     } finally {
       setBillingSubmitting(false);
     }
@@ -305,7 +274,7 @@ export default function TenantDetailPage() {
           </div>
           <div className="p-6 space-y-4">
             <p className="text-sm text-slate-500">
-              Forcefully override this tenant's access state.{" "}
+              Forcefully override this tenant&apos;s access state.{" "}
               <span className="font-semibold text-slate-700">Suspended</span>{" "}
               blocks all logins,{" "}
               <span className="font-semibold text-slate-700">Read-Only</span>{" "}
