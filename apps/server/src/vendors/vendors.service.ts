@@ -7,6 +7,9 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { RedisService } from '../redis/redis.service.js';
 import { LedgerService } from '../ledger/ledger.service';
 import * as M from '../common/money';
+import * as D from '../common/dates';
+import { RecordPurchaseDto } from './dto/record-purchase.dto';
+import { RecordPaymentDto } from './dto/record-payment.dto';
 
 @Injectable()
 export class VendorsService {
@@ -365,8 +368,12 @@ export class VendorsService {
     return result;
   }
 
-  async recordPurchase(userId: string, vendorId: string, data: any) {
-    const { amount, description } = data;
+  async recordPurchase(
+    userId: string,
+    vendorId: string,
+    data: RecordPurchaseDto,
+  ) {
+    const { amount, description, dueDate } = data;
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { businessId: true },
@@ -381,10 +388,27 @@ export class VendorsService {
 
     const numAmount = this.parseAmount(amount, 'Invalid purchase amount');
 
+    const today = D.startOfKarachiDay();
+    let finalDueDate: Date;
+    if (dueDate) {
+      finalDueDate = new Date(dueDate);
+      if (Number.isNaN(finalDueDate.getTime()))
+        throw new BadRequestException('Invalid due date');
+      if (finalDueDate.getTime() < today.getTime())
+        throw new BadRequestException('Due date cannot be in the past');
+    } else {
+      const business = await this.prisma.business.findUnique({
+        where: { id: currentUser.businessId },
+        select: { defaultPayableDays: true },
+      });
+      finalDueDate = D.addDays(today, business?.defaultPayableDays ?? 15);
+    }
+
     const transaction = await this.ledgerService.createBalancedTransaction({
       businessId: currentUser.businessId,
       type: 'VENDOR_PURCHASE',
       description: description || 'Inbound stock purchase',
+      dueDate: finalDueDate,
       postings: [
         {
           accountId: 'INVENTORY_ACCOUNT',
@@ -407,7 +431,11 @@ export class VendorsService {
     return { success: true, transaction };
   }
 
-  async recordPayment(userId: string, vendorId: string, data: any) {
+  async recordPayment(
+    userId: string,
+    vendorId: string,
+    data: RecordPaymentDto,
+  ) {
     const { amount, description } = data;
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
