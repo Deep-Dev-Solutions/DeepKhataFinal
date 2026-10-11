@@ -9,6 +9,59 @@ import { RedisService } from '../redis/redis.service';
 import { LedgerService } from '../ledger/ledger.service';
 import * as M from '../common/money';
 
+const COST_KEYS = new Set(['defaultCostPrice', 'unitCost']);
+
+/**
+ * Removes cost fields (defaultCostPrice, unitCost) at any depth for STAFF.
+ * Other roles get the payload back untouched. Only plain objects and arrays
+ * are traversed, so Decimal/Date values pass through as-is.
+ */
+export function stripCostForStaff<T>(role: string | undefined, payload: T): T {
+  if (role !== 'STAFF') return payload;
+  const walk = (v: any): any => {
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === 'object') {
+      const proto = Object.getPrototypeOf(v);
+      if (proto !== Object.prototype && proto !== null) return v;
+      const out: Record<string, any> = {};
+      for (const [k, val] of Object.entries(v)) {
+        if (COST_KEYS.has(k)) continue;
+        out[k] = walk(val);
+      }
+      return out;
+    }
+    return v;
+  };
+  return walk(payload) as T;
+}
+
+function cleanString(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const t = v.trim();
+  return t ? t : null;
+}
+
+// Trim, drop empties, dedupe case-insensitively (first spelling wins).
+// Accepts an array or a string split on ';' or '|'.
+function cleanList(v: unknown): string[] {
+  const raw = Array.isArray(v)
+    ? v
+    : typeof v === 'string'
+      ? v.split(/[;|]/)
+      : [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entry of raw) {
+    const t = cleanString(entry);
+    if (!t) continue;
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(t);
+  }
+  return out;
+}
+
 @Injectable()
 export class ProductsService {
   constructor(
@@ -135,6 +188,11 @@ export class ProductsService {
       bin,
       quantity = 1,
       vendorId,
+      partNumber,
+      aliases,
+      compatibleWith,
+      minSalePrice,
+      lowStockThreshold,
     } = data;
 
     const businessId = await this.requireBusinessId(userId);
@@ -159,6 +217,20 @@ export class ProductsService {
     }
     const instanceQty = Math.max(1, Number(quantity) || 1);
 
+    const parsedMin =
+      minSalePrice !== undefined && minSalePrice !== null && minSalePrice !== ''
+        ? M.round2(minSalePrice)
+        : null;
+    if (parsedMin !== null && M.gt(parsedMin, parsedPrice)) {
+      throw new BadRequestException(
+        'Minimum price cannot be above the sale price',
+      );
+    }
+    const parsedThreshold =
+      lowStockThreshold !== undefined && lowStockThreshold !== null
+        ? Math.max(0, Math.trunc(Number(lowStockThreshold) || 0))
+        : null;
+
     const result = await this.prisma.$transaction(async (tx) => {
       const branch = await this.resolveBranchId(tx, businessId, branchId);
       const targetCabinetId = await this.resolveCabinetId(
@@ -178,6 +250,11 @@ export class ProductsService {
           branchId: branch,
           sku: sku?.trim() || `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
           businessId,
+          partNumber: cleanString(partNumber),
+          aliases: cleanList(aliases),
+          compatibleWith: cleanList(compatibleWith),
+          minSalePrice: parsedMin,
+          lowStockThreshold: parsedThreshold,
         },
       });
 
@@ -658,6 +735,123 @@ export class ProductsService {
     return { success: true, product: result };
   }
 
+  async updateProduct(businessId: string, productId: string, dto: any) {
+    const existing = await this.prisma.product.findFirst({
+      where: { id: productId, businessId, deletedAt: null },
+    });
+    if (!existing) throw new NotFoundException('Product not found');
+
+    const data: Prisma.ProductUncheckedUpdateInput = {};
+
+    if (dto.name !== undefined && dto.name !== null) {
+      const name = cleanString(dto.name);
+      if (!name) throw new BadRequestException('Product name cannot be empty');
+      data.name = name;
+    }
+    if (dto.sku !== undefined && dto.sku !== null) {
+      const sku = cleanString(dto.sku);
+      if (!sku) throw new BadRequestException('SKU cannot be empty');
+      data.sku = sku;
+    }
+    if (dto.basePrice !== undefined && dto.basePrice !== null) {
+      data.basePrice = M.round2(dto.basePrice);
+    }
+    if (dto.defaultCostPrice !== undefined) {
+      data.defaultCostPrice =
+        dto.defaultCostPrice === null ? null : M.round2(dto.defaultCostPrice);
+    }
+    if (dto.categoryId !== undefined && dto.categoryId !== null) {
+      const category = await this.prisma.category.findFirst({
+        where: { id: dto.categoryId, businessId },
+        select: { id: true },
+      });
+      if (!category) throw new BadRequestException('Category does not exist');
+      data.categoryId = category.id;
+    }
+    if (dto.partNumber !== undefined) {
+      data.partNumber = cleanString(dto.partNumber);
+    }
+    if (dto.aliases !== undefined && dto.aliases !== null) {
+      data.aliases = cleanList(dto.aliases);
+    }
+    if (dto.compatibleWith !== undefined && dto.compatibleWith !== null) {
+      data.compatibleWith = cleanList(dto.compatibleWith);
+    }
+    if (dto.minSalePrice !== undefined) {
+      data.minSalePrice =
+        dto.minSalePrice === null ? null : M.round2(dto.minSalePrice);
+    }
+    if (dto.lowStockThreshold !== undefined) {
+      data.lowStockThreshold =
+        dto.lowStockThreshold === null
+          ? null
+          : Math.max(0, Math.trunc(Number(dto.lowStockThreshold)));
+    }
+
+    const effectivePrice =
+      data.basePrice !== undefined ? data.basePrice : existing.basePrice;
+    const effectiveMin =
+      data.minSalePrice !== undefined ? data.minSalePrice : existing.minSalePrice;
+    if (
+      effectiveMin !== null &&
+      effectiveMin !== undefined &&
+      M.gt(effectiveMin as any, effectivePrice as any)
+    ) {
+      throw new BadRequestException(
+        'Minimum price cannot be above the sale price',
+      );
+    }
+
+    const product = await this.prisma.product.update({
+      where: { id: productId },
+      data,
+    });
+
+    await Promise.all([
+      this.invalidateProducts(businessId),
+      this.redis.deleteByPattern(`dashboard:${businessId}*`),
+    ]);
+
+    return product;
+  }
+
+  private async requireInstance(businessId: string, instanceId: string) {
+    const instance = await this.prisma.productInstance.findFirst({
+      where: { id: instanceId, product: { businessId } },
+      select: { id: true },
+    });
+    if (!instance) throw new NotFoundException('Instance not found');
+    return instance;
+  }
+
+  async updateInstance(
+    businessId: string,
+    instanceId: string,
+    dto: { notes?: string; condition?: any },
+  ) {
+    await this.requireInstance(businessId, instanceId);
+    const data: Prisma.ProductInstanceUpdateInput = {};
+    if (dto.notes !== undefined) data.notes = dto.notes.trim() || null;
+    if (dto.condition !== undefined) data.condition = dto.condition;
+    return this.prisma.productInstance.update({
+      where: { id: instanceId },
+      data,
+    });
+  }
+
+  async setInstancePhoto(
+    businessId: string,
+    instanceId: string,
+    photoUrl: string,
+  ) {
+    await this.requireInstance(businessId, instanceId);
+    await this.prisma.productInstance.update({
+      where: { id: instanceId },
+      data: { photoUrl },
+    });
+    return { photoUrl };
+  }
+
   async importProducts(userId: string, productsData: any[]) {
     const businessId = await this.requireBusinessId(userId);
 
@@ -717,6 +911,17 @@ export class ProductsService {
           Number(item.stock || item.quantity || 0),
         );
 
+        const rawMin = item.minSalePrice ?? item.min_price;
+        const minPrice =
+          rawMin !== undefined && rawMin !== null && rawMin !== ''
+            ? Math.max(0, Number(rawMin) || 0)
+            : null;
+        const rawLow = item.lowStockThreshold ?? item.low_stock;
+        const lowStock =
+          rawLow !== undefined && rawLow !== null && rawLow !== ''
+            ? Math.max(0, Math.trunc(Number(rawLow) || 0))
+            : null;
+
         const newProd = await tx.product.create({
           data: {
             name: name.trim(),
@@ -727,6 +932,18 @@ export class ProductsService {
             categoryId,
             sku,
             businessId,
+            partNumber: cleanString(
+              item.partNumber ?? item.PartNumber ?? item.part_number,
+            ),
+            aliases: cleanList(item.aliases ?? item.Aliases),
+            compatibleWith: cleanList(
+              item.compatibleWith ?? item.compatible ?? item.Compatible,
+            ),
+            minSalePrice:
+              minPrice !== null && minPrice <= parsedPrice
+                ? M.round2(minPrice)
+                : null,
+            lowStockThreshold: lowStock,
           },
         });
 

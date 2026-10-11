@@ -12,8 +12,11 @@ import {
   Param,
   Delete,
   Res,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
-import { ProductsService } from './products.service';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ProductsService, stripCostForStaff } from './products.service';
 import { CategoryService } from '../category/category.service';
 import { CabinetService } from '../cabinet/cabinet.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -25,7 +28,12 @@ import { Role } from '@prisma/client';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdatePriceDto } from './dto/update-price.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
+import { UpdateInstanceDto } from './dto/update-instance.dto';
 import { BranchId } from '../auth/decorators/branch-id.decorator';
+import { Tenant } from '../tenant/tenant.decorator';
+import { TenantContext } from '../tenant/tenant.types';
+import { storage } from '../utils/cloudinary.storage';
 
 @Controller('product')
 @UseGuards(ThrottlerGuard, JwtAuthGuard)
@@ -82,14 +90,17 @@ export class ProductsController {
       },
     );
     if (nextCursor) res.setHeader('X-Next-Cursor', nextCursor);
-    return body;
+    return stripCostForStaff(req.user.role, body);
   }
 
   @Get('global-stock')
   @UseGuards(PermissionsGuard)
   @RequirePermissions('read:products')
   async getGlobalStock(@Req() req: any, @Query('search') search = '') {
-    return this.productsService.getGlobalStock(req.user.id, search);
+    return stripCostForStaff(
+      req.user.role,
+      await this.productsService.getGlobalStock(req.user.id, search),
+    );
   }
 
   @Get('getcategories')
@@ -213,6 +224,55 @@ export class ProductsController {
     );
   }
 
+  @Patch('instances/:instanceId')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('write:products')
+  async updateInstance(
+    @Tenant() tenant: TenantContext,
+    @Param('instanceId') instanceId: string,
+    @Body() body: UpdateInstanceDto,
+  ) {
+    return stripCostForStaff(
+      tenant.role,
+      await this.productsService.updateInstance(
+        tenant.businessId,
+        instanceId,
+        body,
+      ),
+    );
+  }
+
+  @Post('instances/:instanceId/photo')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('write:products')
+  @UseInterceptors(FileInterceptor('photo', { storage }))
+  async uploadInstancePhoto(
+    @Tenant() tenant: TenantContext,
+    @Param('instanceId') instanceId: string,
+    @UploadedFile() file: any,
+  ) {
+    if (!file?.path) throw new BadRequestException('Photo file is required');
+    return this.productsService.setInstancePhoto(
+      tenant.businessId,
+      instanceId,
+      file.path,
+    );
+  }
+
+  @Patch(':id')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('write:products')
+  async updateProduct(
+    @Tenant() tenant: TenantContext,
+    @Param('id') id: string,
+    @Body() body: UpdateProductDto,
+  ) {
+    return stripCostForStaff(
+      tenant.role,
+      await this.productsService.updateProduct(tenant.businessId, id, body),
+    );
+  }
+
   @Delete(':id')
   @UseGuards(PermissionsGuard, RolesGuard)
   @RequirePermissions('delete:products')
@@ -225,6 +285,9 @@ export class ProductsController {
   @UseGuards(PermissionsGuard)
   @RequirePermissions('read:products')
   async getProductDetails(@Req() req: any, @Param('id') id: string) {
-    return this.productsService.getProductDetails(req.user.id, id);
+    return stripCostForStaff(
+      req.user.role,
+      await this.productsService.getProductDetails(req.user.id, id),
+    );
   }
 }
