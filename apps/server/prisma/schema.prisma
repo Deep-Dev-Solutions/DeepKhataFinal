@@ -195,6 +195,7 @@ model ProductInstance {
   unitCost     Float?
 
   status       InstanceStatus @default(AVAILABLE) // For MEMO locks
+  condition    ItemCondition  @default(ORIGINAL_PULL)
   serialNumber String?
 
   product Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -231,6 +232,8 @@ model InventoryMovement {
   userId        String
   businessId    String
   vendorId      String?
+  fromCondition ItemCondition?
+  toCondition   ItemCondition      @default(ORIGINAL_PULL)
   createdAt     DateTime           @default(now())
 
   product  Product  @relation(fields: [productId], references: [id])
@@ -326,6 +329,15 @@ enum OrderStatus {
   PENDING
   CANCELLED
   RETURNED
+}
+
+enum ItemCondition {
+  ORIGINAL_PULL
+  COPY
+  MINOR_SCRATCHES
+  WORKING
+  DEAD_DONOR
+  DEFECTIVE
 }
 
 enum InstanceStatus {
