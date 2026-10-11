@@ -28,6 +28,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { NotificationsModule } from './notifications/notifications.module';
 import { KhataEntriesModule } from './khata-entries/khata-entries.module';
 import { StockFinderModule } from './stock-finder/stock-finder.module';
+import { DuesModule } from './dues/dues.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { StockFinderModule } from './stock-finder/stock-finder.module';
     NotificationsModule,
     KhataEntriesModule,
     StockFinderModule,
+    DuesModule,
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
