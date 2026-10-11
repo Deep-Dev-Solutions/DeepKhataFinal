@@ -142,6 +142,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
   return (
     <div
       inert={!isOpen}
+      data-testid="checkout-drawer"
       className={`fixed inset-0 ${isOpen ? "" : "pointer-events-none"}`}
       style={{ zIndex: 60 }}
       aria-hidden={!isOpen}
@@ -173,6 +174,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
           </div>
           <button
             onClick={onClose}
+            data-testid="checkout-close"
             className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
             title="Close checkout (state is kept)"
           >
@@ -221,6 +223,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                   <input
                     type="text"
                     placeholder="Customer Name (Optional)"
+                    data-testid="pos-walkin-name"
                     value={walkInName}
                     onChange={(e) => setWalkInName(e.target.value)}
                     className="w-full pl-9 pr-3 h-10 border border-slate-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none text-slate-800 font-medium placeholder-slate-400 shadow-xs transition-all"
@@ -231,6 +234,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                   <input
                     type="text"
                     placeholder="Phone Number (Optional)"
+                    data-testid="pos-walkin-phone"
                     value={walkInPhone}
                     onChange={(e) => setWalkInPhone(e.target.value)}
                     className="w-full pl-9 pr-3 h-10 border border-slate-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none text-slate-800 font-medium placeholder-slate-400 font-mono shadow-xs transition-all"
@@ -271,6 +275,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                       <input
                         type="text"
                         placeholder="Type name or phone..."
+                        data-testid="pos-customer-select"
                         value={customerSearch}
                         onChange={(e) => setCustomerSearch(e.target.value)}
                         className="w-full pl-9 pr-3 h-10 border border-slate-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 bg-white shadow-xs"
@@ -386,6 +391,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                   type="number"
                   min="0"
                   max={subtotal}
+                  data-testid="pos-discount"
                   value={discount}
                   onFocus={(e) => {
                     if (discount === "0" || Number(discount) === 0)
@@ -449,6 +455,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                 )}
               </div>
               <p
+                data-testid="checkout-balance"
                 className={`text-xl font-black tracking-tight mt-1 ${
                   pendingAmount > 0 ? "text-rose-600" : "text-emerald-600"
                 }`}
@@ -497,6 +504,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                   value={amountPaid}
                   onFocus={(e) => e.target.select()}
                   onChange={(e) => setAmountPaid(e.target.value)}
+                  data-testid="checkout-amount"
                   placeholder="0"
                   className="w-full px-3 h-full text-base font-bold text-slate-900 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder-slate-400"
                 />
@@ -510,6 +518,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
               <select
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
+                data-testid="checkout-method"
                 className="w-full px-3 h-10 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none shadow-xs cursor-pointer"
               >
                 <option value="CASH">Cash</option>
@@ -524,6 +533,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
               <select
                 value={orderStatus}
                 onChange={(e) => setOrderStatus(e.target.value)}
+                data-testid="pos-status-select"
                 disabled={customerMode === "walk-in"}
                 className={`w-full px-3 h-10 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none shadow-xs transition-all ${
                   customerMode === "walk-in"
@@ -542,7 +552,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
         {/* Pinned Footer */}
         <div className="p-3 border-t border-slate-200 bg-slate-50 shrink-0 space-y-2">
           {exceedsCreditLimit && (
-            <div className="flex items-start gap-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 animate-in fade-in duration-200">
+            <div data-testid="checkout-credit-warning" className="flex items-start gap-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 animate-in fade-in duration-200">
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
               <span>
                 Warning: Existing Debt (Rs. {existingBalance.toLocaleString()}) + New Debt (Rs. {Math.max(0, pendingAmount).toLocaleString()}) = Projected Debt (Rs. {projectedDebt.toLocaleString()}). This exceeds the limit of Rs. {creditLimit.toLocaleString()}.
@@ -559,6 +569,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
 
           <button
             onClick={() => handleComplete(orderStatus)}
+            data-testid="checkout-submit"
             disabled={isSubmitDisabled || readOnly}
             title={
               readOnly

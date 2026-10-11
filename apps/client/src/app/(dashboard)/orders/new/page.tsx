@@ -1200,6 +1200,7 @@ function CreateOrderPOSContent() {
                   <input
                     type="text"
                     autoFocus
+                    data-testid="pos-search"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search products or scan barcode (SKU)..."
@@ -1298,10 +1299,11 @@ function CreateOrderPOSContent() {
                   const isOutOfStock = availableCount === 0;
 
                   return (
-                    <div key={product.id} className="relative">
+                    <div key={product.id} className="relative" data-testid="pos-result-row">
                       <button
                         onClick={() => handleProductClick(product)}
                         disabled={isRemoteBranch}
+                        data-testid="pos-add-item"
                         className={`flex flex-col gap-1.5 w-full p-2.5 rounded-xl border transition-all text-left ${
                           isRemoteBranch
                             ? "bg-amber-50/40 border-amber-200 cursor-not-allowed opacity-90"
@@ -1349,6 +1351,7 @@ function CreateOrderPOSContent() {
                               </span>
                             </span>
                             <span
+                              data-testid="pos-remote-badge"
                               className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
                                 isRemoteBranch
                                   ? "bg-amber-100 text-amber-800 border border-amber-300"
@@ -1397,10 +1400,11 @@ function CreateOrderPOSContent() {
                     "Cabinet Bin";
 
                   return (
-                    <div key={product.id} className="relative flex flex-col">
+                    <div key={product.id} className="relative flex flex-col" data-testid="pos-result-row">
                       <button
                         onClick={() => handleProductClick(product)}
                         disabled={isRemoteBranch}
+                        data-testid="pos-add-item"
                         className={`group flex flex-col text-left p-3 rounded-xl border transition-all relative overflow-hidden w-full h-full ${
                           isRemoteBranch
                             ? "bg-amber-50/30 border-amber-200/80 cursor-not-allowed opacity-90"
@@ -1419,7 +1423,7 @@ function CreateOrderPOSContent() {
                               Remote Stock
                             </span>
                           ) : isOutOfStock ? (
-                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 shrink-0">
+                            <span data-testid="pos-remote-badge" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 shrink-0">
                               {(product as any).otherBranchesWithStock?.length >
                               0
                                 ? `In ${(product as any).otherBranchesWithStock[0]}`
@@ -1547,6 +1551,7 @@ function CreateOrderPOSContent() {
                 </span>
               </div>
               <button
+                data-testid="pos-service-toggle"
                 onClick={() => setIsServiceFormOpen(!isServiceFormOpen)}
                 className="flex items-center gap-1 text-[11px] font-bold bg-blue-50 text-blue-700 px-2.5 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors shadow-sm shrink-0 whitespace-nowrap cursor-pointer"
               >
@@ -1574,6 +1579,7 @@ function CreateOrderPOSContent() {
                     type="text"
                     value={serviceName}
                     onChange={(e) => setServiceName(e.target.value)}
+                    data-testid="pos-service-name"
                     placeholder="e.g. Screen Fitting"
                     className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   />
@@ -1581,6 +1587,7 @@ function CreateOrderPOSContent() {
                     type="number"
                     value={servicePrice}
                     onChange={(e) => setServicePrice(e.target.value)}
+                    data-testid="pos-service-price"
                     placeholder="Price (Rs)"
                     className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   />
@@ -1594,6 +1601,7 @@ function CreateOrderPOSContent() {
                 />
                 <button
                   onClick={addServiceToCart}
+                  data-testid="pos-add-service"
                   className="w-full py-2 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700 transition-colors shadow-md cursor-pointer"
                 >
                   Add Labor to Invoice
@@ -1617,6 +1625,7 @@ function CreateOrderPOSContent() {
                 cart.map((item) => (
                   <div
                     key={`${item.id}-${item.isService || false}`}
+                    data-testid="pos-cart-row"
                     className={`p-3 rounded-xl border shadow-2xs space-y-2 transition-all ${
                       item.isService
                         ? "bg-blue-50/40 border-blue-200"
@@ -1647,6 +1656,7 @@ function CreateOrderPOSContent() {
                         <button
                           type="button"
                           onClick={() => removeItem(item.id)}
+                          data-testid="pos-cart-remove"
                           className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors shrink-0"
                           title="Remove item"
                         >
@@ -1676,7 +1686,7 @@ function CreateOrderPOSContent() {
 
                     {/* Row 3: Typed Stepper & Line Subtotal */}
                     <div className="flex items-center justify-between pt-2 border-t border-slate-100 gap-2">
-                      <div className="flex items-center bg-white rounded-lg border border-slate-300 shadow-2xs focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 overflow-hidden">
+                      <div data-testid="pos-cart-qty" className="flex items-center bg-white rounded-lg border border-slate-300 shadow-2xs focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 overflow-hidden">
                         <button
                           type="button"
                           onClick={() => updateQty(item.id, -1)}
@@ -1754,7 +1764,7 @@ function CreateOrderPOSContent() {
                       - Rs. {formatPrice(discount)} discount
                     </span>
                   )}
-                  <span className="text-xl font-black text-blue-600">
+                  <span data-testid="pos-total" className="text-xl font-black text-blue-600">
                     Rs. {formatPrice(grandTotal)}
                   </span>
                 </div>
@@ -1762,6 +1772,7 @@ function CreateOrderPOSContent() {
 
               <button
                 onClick={() => setIsCheckoutOpen(true)}
+                data-testid="pos-checkout"
                 disabled={cart.length === 0 || readOnly}
                 title={
                   readOnly
