@@ -4,6 +4,9 @@ import { AppModule } from '../src/app.module';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import express from 'express';
 import cookieParser from 'cookie-parser';
+import { installDecimalJson } from '../src/common/money';
+
+installDecimalJson();
 
 // Catch any unhandled rejections so they appear in Vercel Runtime Logs
 process.on('unhandledRejection', (reason, promise) => {

@@ -3,8 +3,10 @@ import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import cookieParser from 'cookie-parser';
 import * as dotenv from 'dotenv';
+import { installDecimalJson } from './common/money';
 
 dotenv.config();
+installDecimalJson();
 
 let cachedApp: any;
 
