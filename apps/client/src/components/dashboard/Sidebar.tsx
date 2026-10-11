@@ -20,6 +20,8 @@ import {
   Truck,
   Tags,
   LayoutGrid,
+  HandCoins,
+  ScanSearch,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { AGENCY_APP_URL } from "@/lib/auth";
@@ -38,6 +40,7 @@ const navGroups = [
   {
     title: "Stock & Catalog",
     items: [
+      { name: "Stock Finder", href: "/stock-finder", icon: ScanSearch },
       { name: "Products", href: "/products", icon: Package },
       { name: "Restock Hub", href: "/inventory/restock", icon: Warehouse },
       { name: "Categories", href: "/settings/categories", icon: Tags },
@@ -47,6 +50,7 @@ const navGroups = [
   {
     title: "Accounts",
     items: [
+      { name: "Lena / Dena", href: "/dues", icon: HandCoins },
       { name: "Customers (Udhar)", href: "/customers", icon: Users },
       { name: "Vendors", href: "/vendors", icon: Truck },
     ],
@@ -143,10 +147,10 @@ export default function Sidebar() {
           }
 
           const visibleItems = group.items.filter((item) => {
-            if (
-              item.name === "Reports" &&
-              !hasPermission("read:reports")
-            ) {
+            if (item.name === "Reports" && !hasPermission("read:reports")) {
+              return false;
+            }
+            if (item.name === "Lena / Dena" && !hasPermission("read:dues")) {
               return false;
             }
             if (item.name === "Store Settings" && user?.role === "STAFF") {
@@ -182,7 +186,7 @@ export default function Sidebar() {
                     <Link
                       key={item.name}
                       href={item.href}
-                      data-testid={`nav-${item.href.split('/').filter(Boolean).pop()}`}
+                      data-testid={`nav-${item.href.split("/").filter(Boolean).pop()}`}
                       title={item.name}
                       className={`flex ${
                         isCollapsed

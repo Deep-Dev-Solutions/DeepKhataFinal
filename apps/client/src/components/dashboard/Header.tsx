@@ -20,10 +20,14 @@ import {
   Check,
   Building2,
   MapPin,
+  HandCoins,
+  ScanSearch,
+  PlusCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { useSidebar } from "@/context/SidebarContext";
 import NotificationBell from "./NotificationBell";
+import QuickKhataModal from "@/components/modals/QuickKhataModal";
 import { usePOS } from "@/context/POSContext";
 import { useAuth } from "@/context/AuthContext";
 import { usePathname, useRouter } from "next/navigation";
@@ -35,9 +39,61 @@ type SearchEntry = {
   description: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
+  action?: "quick-khata";
 };
 
 const searchIndex: SearchEntry[] = [
+  {
+    keywords: [
+      "naya lena",
+      "naya dena",
+      "new lena",
+      "new dena",
+      "lena dena",
+      "quick entry",
+      "udhar diya",
+      "udhar liya",
+    ],
+    label: "Naya Lena / Dena",
+    description: "Log money lent or owed in seconds",
+    href: "/dues",
+    icon: PlusCircle,
+    action: "quick-khata",
+  },
+  {
+    keywords: [
+      "lena",
+      "dena",
+      "wasooli",
+      "udhar",
+      "udhaar",
+      "baqaya",
+      "dues",
+      "payables",
+      "receivables",
+      "reminder",
+    ],
+    label: "Lena / Dena",
+    description: "Who owes you and whom you owe, with aging",
+    href: "/dues",
+    icon: HandCoins,
+  },
+  {
+    keywords: [
+      "maal",
+      "stock",
+      "dhoondo",
+      "find",
+      "part",
+      "part number",
+      "stock finder",
+      "other branch",
+    ],
+    label: "Stock Finder (F2)",
+    description: "Find a part in any branch with condition and price",
+    href: "/stock-finder",
+    icon: ScanSearch,
+  },
   {
     keywords: ["galla", "rokarr", "cash", "register", "cash counter"],
     label: "Galla / Cash Counter",
@@ -140,6 +196,7 @@ export default function Header() {
   const activeBranch =
     safeBranches.find((b) => b.id === activeBranchId) || safeBranches[0];
 
+  const [isQuickKhataOpen, setIsQuickKhataOpen] = useState(false);
   const [isBranchOpen, setIsBranchOpen] = useState(false);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -160,7 +217,11 @@ export default function Header() {
   }, [normalizedQuery]);
 
   const selectResult = (entry: SearchEntry) => {
-    router.push(entry.href);
+    if (entry.action === "quick-khata") {
+      setIsQuickKhataOpen(true);
+    } else {
+      router.push(entry.href);
+    }
     setSearchQuery("");
     setIsSearchOpen(false);
     setActiveIndex(0);
@@ -204,9 +265,35 @@ export default function Header() {
         searchInputRef.current?.focus();
       }
     }
+    // Ctrl/Cmd+K opens the jump palette and F2 opens the stock finder,
+    // even while typing in a field.
+    function handleHotkeys(e: KeyboardEvent) {
+      if (isCheckoutOpen) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        if (hideGlobalSearch) return;
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        setIsSearchOpen(true);
+      } else if (e.key === "F2") {
+        e.preventDefault();
+        router.push("/stock-finder");
+      }
+    }
+    document.addEventListener("keydown", handleHotkeys);
     document.addEventListener("keydown", handleSlash);
-    return () => document.removeEventListener("keydown", handleSlash);
-  }, [isCheckoutOpen, hideGlobalSearch]);
+    return () => {
+      document.removeEventListener("keydown", handleSlash);
+      document.removeEventListener("keydown", handleHotkeys);
+    };
+  }, [isCheckoutOpen, hideGlobalSearch, router]);
+
+  // Any page can open the quick lena/dena entry with
+  // window.dispatchEvent(new CustomEvent("open-quick-khata")).
+  useEffect(() => {
+    const open = () => setIsQuickKhataOpen(true);
+    window.addEventListener("open-quick-khata", open);
+    return () => window.removeEventListener("open-quick-khata", open);
+  }, []);
 
   // Click outside closes the search dropdown
   useEffect(() => {
@@ -258,232 +345,255 @@ export default function Header() {
     <div className="sticky top-0 z-[60] print:hidden">
       <SubscriptionBanner />
       <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 lg:px-8">
-      {/* Desktop Sidebar Toggle */}
-      <button
-        type="button"
-        onClick={toggleSidebar}
-        className="hidden md:flex items-center justify-center p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors mr-2 cursor-pointer border border-slate-200/60 shadow-xs"
-        title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-      >
-        {isCollapsed ? (
-          <PanelLeftOpen className="w-5 h-5 text-blue-600" />
-        ) : (
-          <PanelLeftClose className="w-5 h-5 text-slate-600" />
-        )}
-      </button>
+        {/* Desktop Sidebar Toggle */}
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          className="hidden md:flex items-center justify-center p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors mr-2 cursor-pointer border border-slate-200/60 shadow-xs"
+          title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {isCollapsed ? (
+            <PanelLeftOpen className="w-5 h-5 text-blue-600" />
+          ) : (
+            <PanelLeftClose className="w-5 h-5 text-slate-600" />
+          )}
+        </button>
 
-      <div className="md:hidden font-bold text-lg text-slate-900 tracking-tight">
-        DeepKhata
-      </div>
+        <div className="md:hidden font-bold text-lg text-slate-900 tracking-tight">
+          DeepKhata
+        </div>
 
-      {!hideGlobalSearch && (
-        <div className="hidden md:flex flex-1 max-w-md ml-2">
-          <div className="relative w-full" ref={searchRef}>
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 text-slate-400" />
-            </div>
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Search or jump (galla, khata, parchi...)"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setActiveIndex(0);
-                setIsSearchOpen(true);
-              }}
-              onKeyDown={handleSearchKeyDown}
-              onFocus={() => setIsSearchOpen(true)}
-              className="block w-full pl-10 pr-14 py-2 border border-slate-200 rounded-xl leading-5 bg-slate-50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 sm:text-sm transition-all"
-            />
-            {!searchQuery && (
-              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 bg-slate-100 border border-slate-200 rounded-md">
-                  /
-                </kbd>
+        {!hideGlobalSearch && (
+          <div className="hidden md:flex flex-1 max-w-md ml-2">
+            <div className="relative w-full" ref={searchRef}>
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-slate-400" />
               </div>
-            )}
-            {isSearchOpen && searchResults.length > 0 && (
-              <div className="absolute top-full mt-2 left-0 right-0 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200 z-50">
-                <div className="p-1.5 max-h-[320px] overflow-y-auto">
-                  {searchResults.map((entry, idx) => {
-                    const Icon = entry.icon;
-                    const isActive = idx === activeIndex;
-                    return (
-                      <button
-                        key={`${entry.href}-${entry.label}`}
-                        type="button"
-                        onMouseEnter={() => setActiveIndex(idx)}
-                        onClick={() => selectResult(entry)}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors cursor-pointer ${
-                          isActive ? "bg-blue-50" : ""
-                        }`}
-                      >
-                        <div
-                          className={`p-2 rounded-lg shrink-0 ${
-                            isActive
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-slate-100 text-slate-500"
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search or jump (galla, khata, parchi...)"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setActiveIndex(0);
+                  setIsSearchOpen(true);
+                }}
+                onKeyDown={handleSearchKeyDown}
+                onFocus={() => setIsSearchOpen(true)}
+                className="block w-full pl-10 pr-14 py-2 border border-slate-200 rounded-xl leading-5 bg-slate-50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 sm:text-sm transition-all"
+              />
+              {!searchQuery && (
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                  <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 bg-slate-100 border border-slate-200 rounded-md">
+                    /
+                  </kbd>
+                </div>
+              )}
+              {isSearchOpen && searchResults.length > 0 && (
+                <div className="absolute top-full mt-2 left-0 right-0 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200 z-50">
+                  <div className="p-1.5 max-h-[320px] overflow-y-auto">
+                    {searchResults.map((entry, idx) => {
+                      const Icon = entry.icon;
+                      const isActive = idx === activeIndex;
+                      return (
+                        <button
+                          key={`${entry.href}-${entry.label}`}
+                          type="button"
+                          onMouseEnter={() => setActiveIndex(idx)}
+                          onClick={() => selectResult(entry)}
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors cursor-pointer ${
+                            isActive ? "bg-blue-50" : ""
                           }`}
                         >
-                          <Icon className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p
-                            className={`text-sm font-bold truncate ${
-                              isActive ? "text-blue-900" : "text-slate-800"
+                          <div
+                            className={`p-2 rounded-lg shrink-0 ${
+                              isActive
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-slate-100 text-slate-500"
                             }`}
                           >
-                            {entry.label}
-                          </p>
-                          <p className="text-xs text-slate-500 truncate">
-                            {entry.description}
-                          </p>
-                        </div>
-                        <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider shrink-0">
-                          {entry.href}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className="flex items-center gap-4 ml-auto">
-        {/* ── Branch Switcher / Indicator ─────────────────────────────── */}
-        {safeBranches.length > 0 && (
-          <div className="flex items-center" ref={branchDropdownRef}>
-            {safeBranches.length === 1 ? (
-              // Static badge for single-branch businesses
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100/80 text-slate-700 rounded-xl text-xs font-semibold border border-slate-200 shadow-2xs">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-100" />
-                <span className="max-w-[140px] truncate">
-                  {safeBranches[0].name}
-                </span>
-              </div>
-            ) : (
-              // Custom dropdown switcher for multi-branch businesses
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIsBranchOpen((prev) => !prev)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border select-none ${
-                    isBranchOpen
-                      ? "bg-blue-600 text-white border-blue-600 shadow-sm ring-2 ring-blue-100"
-                      : "bg-blue-50/80 hover:bg-blue-100 text-blue-700 border-blue-200 shadow-2xs hover:shadow-xs"
-                  }`}
-                  title="Click to switch active branch"
-                  aria-expanded={isBranchOpen}
-                  aria-haspopup="listbox"
-                >
-                  <GitBranch
-                    className={`w-3.5 h-3.5 flex-shrink-0 transition-colors ${
-                      isBranchOpen ? "text-white" : "text-blue-600"
-                    }`}
-                  />
-                  <span className="max-w-[120px] sm:max-w-[160px] truncate">
-                    {activeBranch?.name || "Select Branch"}
-                  </span>
-                  <ChevronDown
-                    className={`w-3.5 h-3.5 flex-shrink-0 transition-transform duration-200 ${
-                      isBranchOpen ? "rotate-180 text-white" : "text-blue-500"
-                    }`}
-                  />
-                </button>
-
-                {isBranchOpen && (
-                  <div
-                    className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-[0_12px_36px_rgb(0,0,0,0.14)] border border-slate-200/90 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 z-50 p-1.5"
-                    role="listbox"
-                    aria-label="Branch selection"
-                  >
-                    <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between mb-1 bg-slate-50/60 rounded-t-xl">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                        Switch Location
-                      </span>
-                      <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
-                        {safeBranches.length} branches
-                      </span>
-                    </div>
-
-                    <div className="max-h-60 overflow-y-auto space-y-1 p-0.5">
-                      {safeBranches.map((b) => {
-                        const isSelected = (activeBranchId ?? "") === b.id;
-                        return (
-                          <button
-                            key={b.id}
-                            type="button"
-                            onClick={() => {
-                              setActiveBranch(b.id);
-                              setIsBranchOpen(false);
-                            }}
-                            className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-xl text-left text-xs transition-all cursor-pointer ${
-                              isSelected
-                                ? "bg-blue-50 text-blue-700 font-bold border border-blue-200/70 shadow-2xs"
-                                : "hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-transparent"
-                            }`}
-                            role="option"
-                            aria-selected={isSelected}
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div
-                                className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                                  isSelected
-                                    ? "bg-blue-600 text-white shadow-2xs"
-                                    : "bg-slate-100 text-slate-500"
-                                }`}
-                              >
-                                <Building2 className="w-3.5 h-3.5" />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="truncate font-semibold text-slate-900">
-                                  {b.name}
-                                </p>
-                                {b.location ? (
-                                  <p className="text-[10px] text-slate-400 truncate flex items-center gap-0.5 mt-0.5">
-                                    <MapPin className="w-2.5 h-2.5 shrink-0 text-slate-400" />
-                                    <span className="truncate">
-                                      {b.location}
-                                    </span>
-                                  </p>
-                                ) : (
-                                  <p className="text-[10px] text-slate-400 truncate">
-                                    Physical Branch
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                            {isSelected && (
-                              <Check className="w-4 h-4 text-blue-600 shrink-0 ml-1" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <div className="mt-1 pt-1.5 border-t border-slate-100 px-1">
-                      <Link
-                        href="/settings?tab=branches"
-                        onClick={() => setIsBranchOpen(false)}
-                        className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-semibold text-slate-500 hover:text-blue-600 hover:bg-slate-50 transition-colors"
-                      >
-                        Manage Branches
-                      </Link>
-                    </div>
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p
+                              className={`text-sm font-bold truncate ${
+                                isActive ? "text-blue-900" : "text-slate-800"
+                              }`}
+                            >
+                              {entry.label}
+                            </p>
+                            <p className="text-xs text-slate-500 truncate">
+                              {entry.description}
+                            </p>
+                          </div>
+                          <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider shrink-0">
+                            {entry.href}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        <NotificationBell />
-      </div>
-    </header>
+        <div className="flex items-center gap-4 ml-auto">
+          {/* ── Branch Switcher / Indicator ─────────────────────────────── */}
+          {safeBranches.length > 0 && (
+            <div className="flex items-center" ref={branchDropdownRef}>
+              {safeBranches.length === 1 ? (
+                // Static badge for single-branch businesses
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100/80 text-slate-700 rounded-xl text-xs font-semibold border border-slate-200 shadow-2xs">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-100" />
+                  <span className="max-w-[140px] truncate">
+                    {safeBranches[0].name}
+                  </span>
+                </div>
+              ) : (
+                // Custom dropdown switcher for multi-branch businesses
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsBranchOpen((prev) => !prev)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border select-none ${
+                      isBranchOpen
+                        ? "bg-blue-600 text-white border-blue-600 shadow-sm ring-2 ring-blue-100"
+                        : "bg-blue-50/80 hover:bg-blue-100 text-blue-700 border-blue-200 shadow-2xs hover:shadow-xs"
+                    }`}
+                    title="Click to switch active branch"
+                    aria-expanded={isBranchOpen}
+                    aria-haspopup="listbox"
+                  >
+                    <GitBranch
+                      className={`w-3.5 h-3.5 flex-shrink-0 transition-colors ${
+                        isBranchOpen ? "text-white" : "text-blue-600"
+                      }`}
+                    />
+                    <span className="max-w-[120px] sm:max-w-[160px] truncate">
+                      {activeBranch?.name || "Select Branch"}
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 flex-shrink-0 transition-transform duration-200 ${
+                        isBranchOpen ? "rotate-180 text-white" : "text-blue-500"
+                      }`}
+                    />
+                  </button>
+
+                  {isBranchOpen && (
+                    <div
+                      className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-[0_12px_36px_rgb(0,0,0,0.14)] border border-slate-200/90 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 z-50 p-1.5"
+                      role="listbox"
+                      aria-label="Branch selection"
+                    >
+                      <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between mb-1 bg-slate-50/60 rounded-t-xl">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                          Switch Location
+                        </span>
+                        <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
+                          {safeBranches.length} branches
+                        </span>
+                      </div>
+
+                      <div className="max-h-60 overflow-y-auto space-y-1 p-0.5">
+                        {safeBranches.map((b) => {
+                          const isSelected = (activeBranchId ?? "") === b.id;
+                          return (
+                            <button
+                              key={b.id}
+                              type="button"
+                              onClick={() => {
+                                setActiveBranch(b.id);
+                                setIsBranchOpen(false);
+                              }}
+                              className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-xl text-left text-xs transition-all cursor-pointer ${
+                                isSelected
+                                  ? "bg-blue-50 text-blue-700 font-bold border border-blue-200/70 shadow-2xs"
+                                  : "hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-transparent"
+                              }`}
+                              role="option"
+                              aria-selected={isSelected}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div
+                                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                                    isSelected
+                                      ? "bg-blue-600 text-white shadow-2xs"
+                                      : "bg-slate-100 text-slate-500"
+                                  }`}
+                                >
+                                  <Building2 className="w-3.5 h-3.5" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="truncate font-semibold text-slate-900">
+                                    {b.name}
+                                  </p>
+                                  {b.location ? (
+                                    <p className="text-[10px] text-slate-400 truncate flex items-center gap-0.5 mt-0.5">
+                                      <MapPin className="w-2.5 h-2.5 shrink-0 text-slate-400" />
+                                      <span className="truncate">
+                                        {b.location}
+                                      </span>
+                                    </p>
+                                  ) : (
+                                    <p className="text-[10px] text-slate-400 truncate">
+                                      Physical Branch
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              {isSelected && (
+                                <Check className="w-4 h-4 text-blue-600 shrink-0 ml-1" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="mt-1 pt-1.5 border-t border-slate-100 px-1">
+                        <Link
+                          href="/settings?tab=branches"
+                          onClick={() => setIsBranchOpen(false)}
+                          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-semibold text-slate-500 hover:text-blue-600 hover:bg-slate-50 transition-colors"
+                        >
+                          Manage Branches
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          <button
+            type="button"
+            data-testid="header-quick-khata"
+            onClick={() => setIsQuickKhataOpen(true)}
+            title="Naya lena / dena"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+          >
+            <PlusCircle className="w-4 h-4" />
+            Lena / Dena
+          </button>
+          <button
+            type="button"
+            data-testid="header-quick-khata-mobile"
+            onClick={() => setIsQuickKhataOpen(true)}
+            aria-label="Naya lena / dena"
+            className="sm:hidden p-2 rounded-full text-emerald-700 hover:bg-emerald-50"
+          >
+            <PlusCircle className="w-5 h-5" />
+          </button>
+          <NotificationBell />
+          <QuickKhataModal
+            isOpen={isQuickKhataOpen}
+            onClose={() => setIsQuickKhataOpen(false)}
+          />
+        </div>
+      </header>
     </div>
   );
 }
