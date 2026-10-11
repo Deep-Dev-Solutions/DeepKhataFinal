@@ -31,6 +31,7 @@ import { StockFinderModule } from './stock-finder/stock-finder.module';
 import { DuesModule } from './dues/dues.module';
 import { ReservationsModule } from './reservations/reservations.module';
 import { StockTransfersModule } from './stock-transfers/stock-transfers.module';
+import { RemindersModule } from './reminders/reminders.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { StockTransfersModule } from './stock-transfers/stock-transfers.module';
     DuesModule,
     ReservationsModule,
     StockTransfersModule,
+    RemindersModule,
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
