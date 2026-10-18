@@ -6,7 +6,7 @@ import {
   PaymentMethod,
   Prisma,
 } from '@prisma/client';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { hash } from 'bcrypt';
 import { users, tenants, TEST_PASSWORD } from '../../e2e/fixtures/users';
 import { catalog } from '../../e2e/fixtures/catalog';
@@ -227,6 +227,36 @@ async function seedTenant(
       data: { businessId: business.id },
     });
   }
+
+  // Subscription: CUSTOM plan (created by migration 0009), ACTIVE.
+  const customPlan = await prisma.plan.findUnique({
+    where: { code: 'CUSTOM' },
+  });
+  if (!customPlan) {
+    throw new Error('Plan CUSTOM missing: run prisma migrate deploy first');
+  }
+  await prisma.subscription.upsert({
+    where: { businessId: business.id },
+    update: {},
+    create: {
+      businessId: business.id,
+      planId: customPlan.id,
+      status: 'ACTIVE',
+      currentPeriodStart: business.createdAt,
+      customLimits: { maxBranches: 2, maxUsers: 5, maxProducts: null },
+    },
+  });
+
+  // One username-login user per tenant: the first staff user, else the owner.
+  const usernameUser = staffUsers[0] ?? ownerUser;
+  const handle = staffUsers[0] ? 'counter1' : 'owner';
+  await prisma.user.update({
+    where: { id: usernameUser.id },
+    data: {
+      displayUsername: handle,
+      username: `${handle}@${tenantData.slug}`.toLowerCase(),
+    },
+  });
 
   const branchIds: Record<string, string> = {};
   for (const [branchKey, branchData] of Object.entries(tenantData.branches)) {
@@ -1391,7 +1421,7 @@ async function main() {
 
   const hashedPassword = await hash(TEST_PASSWORD, 10);
 
-  await prisma.user.upsert({
+  const superAdminUser = await prisma.user.upsert({
     where: { id: users.superAdmin.id },
     update: {},
     create: {
@@ -1450,6 +1480,29 @@ async function main() {
       role: 'OWNER',
     },
   });
+
+  // Better Auth credential accounts (same bcrypt hash) + verified email.
+  for (const u of [superAdminUser, ownerA, managerA, staffA, ownerB]) {
+    await prisma.user.update({
+      where: { id: u.id },
+      data: { emailVerified: true },
+    });
+    const existing = await prisma.account.findFirst({
+      where: { userId: u.id, providerId: 'credential' },
+      select: { id: true },
+    });
+    if (!existing) {
+      await prisma.account.create({
+        data: {
+          id: randomUUID(),
+          accountId: u.id,
+          providerId: 'credential',
+          userId: u.id,
+          password: hashedPassword,
+        },
+      });
+    }
+  }
 
   console.log(`Seeded users`);
 

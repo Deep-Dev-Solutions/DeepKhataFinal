@@ -52,6 +52,27 @@ model Business {
   stockReservations  StockReservation[]
   stockTransfers     StockTransferRequest[]
 
+  subscription       Subscription?
+  agencyInvoices     AgencyInvoice[]
+  agencyPayments     AgencyPayment[]
+  agencyTasks        AgencyTask[]
+  lifecycleMessages  LifecycleMessage[]
+  dailyUsage         TenantDailyUsage[]
+  devices            Device[]
+  licenseIssues      LicenseIssue[]
+  emailLogs          EmailLog[]
+
+  // Phase 7: acquisition / follow-up / onboarding
+  source              String?
+  city                String?
+  market              String?
+  followUpStatus      FollowUpStatus @default(NEW)
+  followUpNotes       String?
+  onboardingChecklist Json?
+  sampleDataLoaded    Boolean        @default(false)
+  termsAcceptedAt     DateTime?
+  lastActiveAt        DateTime?
+
   defaultReceivableDays Int @default(7)
   defaultPayableDays    Int @default(15)
 
@@ -95,6 +116,7 @@ model Branch {
   stockReservations  StockReservation[]
   transfersFrom      StockTransferRequest[] @relation("TransferFrom")
   transfersTo        StockTransferRequest[] @relation("TransferTo")
+  userBranches       UserBranch[]
 
   createdAt DateTime @default(now())
 
@@ -112,8 +134,26 @@ model User {
   phone     String?
   avatarUrl String?
 
+  // Deprecated: superseded by Account(providerId = 'credential').password. Kept, not dropped.
   failedAttempts Int       @default(0)
   lockoutUntil   DateTime?
+
+  // Better Auth (username + admin plugins)
+  emailVerified   Boolean   @default(false)
+  image           String?
+  username        String?   @unique
+  displayUsername String?
+  banned          Boolean?  @default(false)
+  banReason       String?
+  banExpires      DateTime?
+
+  deactivatedAt DateTime?
+  lastActiveAt  DateTime?
+  allBranches   Boolean   @default(true)
+
+  sessions Session[]
+  accounts Account[]
+  branches UserBranch[]
 
   businessId String?
   business   Business? @relation("BusinessUsers", fields: [businessId], references: [id])
@@ -137,6 +177,8 @@ model Invitation {
   token      String   @unique
   businessId String
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime?
+  branchIds  String[] @default([])
   createdAt  DateTime @default(now())
 
   @@unique([email, businessId])
@@ -751,4 +793,346 @@ model StockTransferItem {
   instance ProductInstance      @relation(fields: [instanceId], references: [id])
 
   @@unique([transferId, instanceId])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 6: Better Auth + email
+// ---------------------------------------------------------------------------
+
+model Session {
+  id             String   @id
+  token          String   @unique
+  userId         String
+  expiresAt      DateTime
+  ipAddress      String?
+  userAgent      String?
+  impersonatedBy String?
+  activeBranchId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  password              String?
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+model UserBranch {
+  userId    String
+  branchId  String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@id([userId, branchId])
+}
+
+enum EmailStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+model EmailLog {
+  id            String      @id @default(uuid())
+  businessId    String?
+  to            String
+  template      String
+  subject       String
+  status        EmailStatus @default(QUEUED)
+  providerId    String?
+  error         String?
+  attempts      Int         @default(0)
+  nextAttemptAt DateTime?
+  payload       Json?
+  createdAt     DateTime    @default(now())
+  sentAt        DateTime?
+
+  business Business? @relation(fields: [businessId], references: [id], onDelete: SetNull)
+
+  @@index([status, nextAttemptAt])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 7: plans, subscriptions, agency billing, follow-up
+// ---------------------------------------------------------------------------
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  READ_ONLY
+  SUSPENDED
+  CANCELLED
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  VOID
+  OVERDUE
+}
+
+enum AgencyPaymentMethod {
+  BANK_TRANSFER
+  JAZZCASH
+  EASYPAISA
+  CASH
+  OTHER
+}
+
+enum FollowUpStatus {
+  NEW
+  CONTACTED
+  FEEDBACK_RECEIVED
+  CONVERTED
+  LOST
+}
+
+enum AgencyTaskType {
+  FOLLOW_UP
+  FEEDBACK_CALL
+  CONVERSION
+}
+
+enum AgencyTaskStatus {
+  OPEN
+  DONE
+}
+
+model Plan {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  name         String
+  priceMonthly Decimal? @db.Decimal(14, 2)
+  priceYearly  Decimal? @db.Decimal(14, 2)
+  maxBranches  Int?
+  maxUsers     Int?
+  maxProducts  Int?
+  trialDays    Int?
+  features     Json     @default("{}")
+  isPublic     Boolean  @default(true)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id                 String             @id @default(uuid())
+  businessId         String             @unique
+  planId             String
+  status             SubscriptionStatus
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime?
+  billingCycle       BillingCycle       @default(MONTHLY)
+  customLimits       Json?
+  priceOverride      Decimal?           @db.Decimal(14, 2)
+  graceEndsAt        DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  plan     Plan     @relation(fields: [planId], references: [id])
+  invoices AgencyInvoice[]
+
+  @@index([status, currentPeriodEnd])
+}
+
+model AgencyInvoice {
+  id             String        @id @default(uuid())
+  number         String        @unique
+  businessId     String
+  subscriptionId String?
+  periodStart    DateTime
+  periodEnd      DateTime
+  lines          Json
+  subtotal       Decimal       @db.Decimal(14, 2)
+  discount       Decimal       @default(0) @db.Decimal(14, 2)
+  total          Decimal       @db.Decimal(14, 2)
+  status         InvoiceStatus @default(DRAFT)
+  dueDate        DateTime
+  sentAt         DateTime?
+  paidAt         DateTime?
+  publicToken    String        @unique
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  business     Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  subscription Subscription?   @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  payments     AgencyPayment[]
+
+  @@index([businessId, status])
+}
+
+model AgencyInvoiceSequence {
+  year Int @id
+  last Int @default(0)
+}
+
+model AgencyPayment {
+  id           String              @id @default(uuid())
+  invoiceId    String?
+  businessId   String
+  amount       Decimal             @db.Decimal(14, 2)
+  method       AgencyPaymentMethod
+  reference    String?
+  proofUrl     String?
+  receivedAt   DateTime
+  recordedById String?
+  legacy       Boolean             @default(false)
+  createdAt    DateTime            @default(now())
+
+  business Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  invoice  AgencyInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([businessId])
+}
+
+model AgencyTask {
+  id         String           @id @default(uuid())
+  businessId String
+  type       AgencyTaskType
+  status     AgencyTaskStatus @default(OPEN)
+  dueAt      DateTime
+  notes      String?
+  createdAt  DateTime         @default(now())
+  doneAt     DateTime?
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([status, dueAt])
+}
+
+model LifecycleMessage {
+  id         String   @id @default(uuid())
+  businessId String
+  key        String
+  sentAt     DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, key])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 8: analytics
+// ---------------------------------------------------------------------------
+
+model TenantDailyUsage {
+  id                  String   @id @default(uuid())
+  businessId          String
+  date                DateTime @db.Date
+  ordersCount         Int      @default(0)
+  gmv                 Decimal  @default(0) @db.Decimal(14, 2)
+  itemsSold           Int      @default(0)
+  returnsCount        Int      @default(0)
+  paymentsReceived    Decimal  @default(0) @db.Decimal(14, 2)
+  newCustomers        Int      @default(0)
+  newProducts         Int      @default(0)
+  activeUsers         Int      @default(0)
+  logins              Int      @default(0)
+  offlineSyncedOrders Int      @default(0)
+  duesOpenReceivable  Decimal  @default(0) @db.Decimal(14, 2)
+  duesOpenPayable     Decimal  @default(0) @db.Decimal(14, 2)
+  computedAt          DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, date])
+  @@index([date])
+}
+
+model AdminAccessLog {
+  id         String   @id @default(uuid())
+  adminId    String
+  businessId String
+  action     String
+  route      String
+  method     String
+  createdAt  DateTime @default(now())
+
+  @@index([businessId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 10: desktop sync
+// ---------------------------------------------------------------------------
+
+model OutboxEvent {
+  id        BigInt    @id @default(autoincrement())
+  entity    String
+  entityId  String
+  op        String
+  payload   Json
+  version   Int       @default(1)
+  createdAt DateTime  @default(now())
+  pushedAt  DateTime?
+
+  @@index([pushedAt, id])
+}
+
+model Device {
+  id         String    @id @default(uuid())
+  businessId String
+  name       String
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime?
+  revokedAt  DateTime?
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+}
+
+model LicenseIssue {
+  id         String   @id @default(uuid())
+  businessId String
+  deviceId   String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
 }
