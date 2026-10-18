@@ -30,6 +30,7 @@
     "esbuild@0.28.2": true,
     "prisma@6.19.3": true,
     "unrs-resolver@1.12.2": true,
-    "@swc/core@1.16.18": true
+    "@swc/core@1.16.18": true,
+    "@embedded-postgres/linux-x64@17.10.0-beta.17": true
   }
 }

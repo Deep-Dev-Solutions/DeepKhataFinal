@@ -1,0 +1,22 @@
+{
+  "name": "desktop",
+  "version": "0.0.1",
+  "private": true,
+  "description": "DeepKhata Shop Server desktop edition (Electron)",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "start": "npm run build && electron .",
+    "dist": "npm run build && electron-builder --win nsis"
+  },
+  "dependencies": {
+    "embedded-postgres": "^17.10.0-beta.17"
+  },
+  "devDependencies": {
+    "electron": "^44.9.0",
+    "electron-builder": "^26.15.3",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.5"
+  }
+}
