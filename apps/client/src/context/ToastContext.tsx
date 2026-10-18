@@ -89,6 +89,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             <div
               key={t.id}
               role="alert"
+              data-testid="toast"
+              data-type={t.type}
               className={`pointer-events-auto flex items-start gap-3 p-3.5 rounded-xl border shadow-xl transition-all animate-in fade-in slide-in-from-bottom-3 duration-200 ${bgClass}`}
             >
               {icon}
