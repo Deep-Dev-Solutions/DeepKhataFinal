@@ -27,6 +27,7 @@ import {
 import Link from "next/link";
 import { useSidebar } from "@/context/SidebarContext";
 import NotificationBell from "./NotificationBell";
+import SyncStatus from "@/components/sync/SyncStatus";
 import QuickKhataModal from "@/components/modals/QuickKhataModal";
 import { usePOS } from "@/context/POSContext";
 import { useAuth } from "@/context/AuthContext";
@@ -587,6 +588,7 @@ export default function Header() {
           >
             <PlusCircle className="w-5 h-5" />
           </button>
+          <SyncStatus />
           <NotificationBell />
           <QuickKhataModal
             isOpen={isQuickKhataOpen}
