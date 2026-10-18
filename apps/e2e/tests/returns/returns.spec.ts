@@ -76,8 +76,8 @@ test('partial return of a paid walk-in sale refunds the returned share and resto
   await expectLedgerBalanced(BUSINESS_A);
 });
 
-// S3: processReturn sets the whole order to RETURNED after ANY return, so the remaining sold units can never be returned.
-test.fail('after a partial return the order stays returnable for the remaining units', async ({ request }) => {
+// Regression (S3, fixed): a partial return used to set the whole order to RETURNED, blocking the remaining units.
+test('after a partial return the order stays returnable for the remaining units', async ({ request }) => {
   const product = await createProduct(request, { price: 1000, qty: 3, label: 'RetTwice' });
   const order = await createSaleViaApi(request, {
     items: [{ productId: product.id, quantity: 3, price: 1000 }],

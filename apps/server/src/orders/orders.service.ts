@@ -300,7 +300,9 @@ export class OrdersService {
             ]);
             dueDate = D.addDays(
               today,
-              customer?.paymentTermsDays ?? business?.defaultReceivableDays ?? 7,
+              customer?.paymentTermsDays ??
+                business?.defaultReceivableDays ??
+                7,
             );
           }
         }
@@ -1090,7 +1092,11 @@ export class OrdersService {
     });
 
     if (!order) throw new NotFoundException('Order not found');
-    if (order.status !== 'FINAL' && order.status !== 'MEMO') {
+    if (
+      order.status !== 'FINAL' &&
+      order.status !== 'COMPLETED' &&
+      order.status !== 'MEMO'
+    ) {
       throw new BadRequestException('Can only return FINAL or MEMO orders');
     }
 
@@ -1100,6 +1106,46 @@ export class OrdersService {
 
     try {
       await this.prisma.$transaction(async (tx) => {
+        // Serialise concurrent returns on the same order so the remaining
+        // quantities and the refunded total below cannot go stale.
+        await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${id} FOR UPDATE`;
+        const lockedOrder = await tx.order.findUnique({
+          where: { id },
+          select: { status: true },
+        });
+        if (
+          !lockedOrder ||
+          (lockedOrder.status !== 'FINAL' &&
+            lockedOrder.status !== 'COMPLETED' &&
+            lockedOrder.status !== 'MEMO')
+        ) {
+          throw new BadRequestException('Can only return FINAL or MEMO orders');
+        }
+
+        // Units already returned per product (earlier partial returns).
+        const priorMovements = await tx.inventoryMovement.groupBy({
+          by: ['productId'],
+          where: {
+            businessId: order.businessId,
+            referenceType: 'RETURN',
+            referenceId: order.id,
+            direction: 'IN',
+          },
+          _sum: { quantity: true },
+        });
+        const returnedQty = new Map<string, number>();
+        for (const m of priorMovements) {
+          returnedQty.set(m.productId, m._sum.quantity ?? 0);
+        }
+        const orderedQty = new Map<string, number>();
+        for (const i of order.items) {
+          if (!i.productId || i.isService) continue;
+          orderedQty.set(
+            i.productId,
+            (orderedQty.get(i.productId) ?? 0) + i.quantity,
+          );
+        }
+
         let returnedGross: M.Money = M.ZERO;
 
         for (const returnItem of itemsToReturn) {
@@ -1118,11 +1164,19 @@ export class OrdersService {
             );
           }
 
-          if (returnItem.quantity > orderItem.quantity) {
+          const purchasedQty =
+            orderedQty.get(returnItem.productId) ?? orderItem.quantity;
+          const alreadyReturned = returnedQty.get(returnItem.productId) ?? 0;
+          const remainingQty = purchasedQty - alreadyReturned;
+          if (returnItem.quantity > remainingQty) {
             throw new BadRequestException(
-              `Return quantity (${returnItem.quantity}) cannot exceed purchased quantity (${orderItem.quantity}) for product ${returnItem.productId}`,
+              `Return quantity (${returnItem.quantity}) cannot exceed remaining returnable quantity (${remainingQty}) for product ${returnItem.productId}`,
             );
           }
+          returnedQty.set(
+            returnItem.productId,
+            alreadyReturned + returnItem.quantity,
+          );
 
           returnedGross = M.add(
             returnedGross,
@@ -1168,23 +1222,64 @@ export class OrdersService {
           });
         }
 
-        await tx.order.update({
-          where: { id },
-          data: { status: 'RETURNED' },
-        });
+        // The order is fully returned only when no sold units remain.
+        const fullyReturned = [...orderedQty.entries()].every(
+          ([productId, qty]) => (returnedQty.get(productId) ?? 0) >= qty,
+        );
+        if (fullyReturned) {
+          await tx.order.update({
+            where: { id },
+            data: { status: 'RETURNED' },
+          });
+        }
 
-        // Refund the discounted price. An order can be returned only once (status
-        // becomes RETURNED), so nothing has been refunded before this point.
+        // Refund the discounted price, never exceeding what is still
+        // refundable after earlier partial returns.
         const grossTotal = M.sum(
           order.items.map((i) => M.mul(i.price, i.quantity)),
         );
         const netTotal = M.max(M.ZERO, M.sub(grossTotal, order.discount));
+        const hasServiceLines = order.items.some(
+          (i) => i.isService || !i.productId,
+        );
+
+        const priorPostings = await tx.posting.findMany({
+          where: {
+            transaction: {
+              businessId: order.businessId,
+              type: 'RETURN',
+              referenceId: `RET-${order.id}`,
+            },
+            accountType: { in: ['REVENUE', 'ASSET'] },
+            accountId: { in: ['REVENUE', 'CASH'] },
+          },
+          select: { accountId: true, amount: true },
+        });
+        const previouslyRefunded = M.sum(
+          priorPostings
+            .filter((p) => p.accountId === 'REVENUE')
+            .map((p) => p.amount),
+        );
+        const cashAlreadyRefunded = M.neg(
+          M.sum(
+            priorPostings
+              .filter((p) => p.accountId === 'CASH')
+              .map((p) => p.amount),
+          ),
+        );
+        const refundable = M.max(M.ZERO, M.sub(netTotal, previouslyRefunded));
+
         let refundAmount: M.Money;
-        if (M.lte(grossTotal, 0) || M.gte(returnedGross, grossTotal)) {
-          refundAmount = netTotal;
+        if (M.lte(grossTotal, 0)) {
+          refundAmount = refundable;
+        } else if (
+          (fullyReturned && !hasServiceLines) ||
+          M.gte(returnedGross, grossTotal)
+        ) {
+          refundAmount = refundable;
         } else {
           refundAmount = M.min(
-            netTotal,
+            refundable,
             M.round2(M.money(returnedGross).times(netTotal).div(grossTotal)),
           );
         }
@@ -1203,15 +1298,20 @@ export class OrdersService {
           });
 
           const totalPaid = M.sum(order.payments.map((p) => p.amount));
-          if (M.gt(totalPaid, 0)) {
+          const cashRefundable = M.max(
+            M.ZERO,
+            M.sub(totalPaid, cashAlreadyRefunded),
+          );
+          const cashRefund = M.min(refundAmount, cashRefundable);
+          if (M.gt(cashRefund, 0)) {
             postings.push({
               accountId: 'CASH',
               accountType: 'ASSET',
-              amount: M.neg(M.min(refundAmount, totalPaid)),
+              amount: M.neg(cashRefund),
             });
           }
 
-          const remainingRefund = M.sub(refundAmount, totalPaid);
+          const remainingRefund = M.sub(refundAmount, cashRefund);
           if (M.gt(remainingRefund, 0)) {
             postings.push({
               ...this.receivableAccount(order),
