@@ -184,9 +184,9 @@ test('closing a register with exactly the expected cash records zero difference;
   expect(Number(closed.difference)).toBe(0);
 });
 
-// S2: cash refunded on a return posts CASH credit in the ledger, but the register's expected cash only sums Payment rows
-// (cash.service.ts getRegisterStatus / closeRegister), so the drawer is expected to hold money that was handed back.
-test.fail('a cash refund on a return during the shift reduces the expected drawer cash', async ({ request }) => {
+// Regression (S2, fixed): expected cash used to ignore CASH refunds posted by returns
+// (cash.service.ts computeSessionTotals now subtracts them).
+test('a cash refund on a return during the shift reduces the expected drawer cash', async ({ request }) => {
   const owner = await apiAs('ownerA', request);
   const opened = await owner.post('/cash/register/open', { openingBalance: 2000, branchId: HALL_ROAD }, { branchId: HALL_ROAD });
   expect(opened.ok(), await opened.text()).toBeTruthy();
