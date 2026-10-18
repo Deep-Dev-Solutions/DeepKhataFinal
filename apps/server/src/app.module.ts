@@ -32,11 +32,13 @@ import { DuesModule } from './dues/dues.module';
 import { ReservationsModule } from './reservations/reservations.module';
 import { StockTransfersModule } from './stock-transfers/stock-transfers.module';
 import { RemindersModule } from './reminders/reminders.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
     TenantModule,
     ScheduleModule.forRoot(),
+    MailModule,
     NotificationsModule,
     KhataEntriesModule,
     StockFinderModule,
