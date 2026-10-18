@@ -30,14 +30,21 @@ const suffix = runId ? `-${runId}` : '';
 export const E2E = {
   apiPort: Number(process.env.E2E_API_PORT || 5000),
   webPort: Number(process.env.E2E_WEB_PORT || 3000),
+  adminPort: Number(process.env.E2E_ADMIN_PORT || 3001),
+  /** Start the agency-admin app too (suites that test the agency console). */
+  withAdmin: !!process.env.E2E_WITH_ADMIN,
   get apiUrl() {
     return `http://localhost:${this.apiPort}`;
   },
   get webUrl() {
     return `http://localhost:${this.webPort}`;
   },
+  get adminUrl() {
+    return `http://localhost:${this.adminPort}`;
+  },
   authDir: `.auth${suffix}`,
   outputDir: `test-results${suffix}`,
   reportDir: `playwright-report${suffix}`,
   clientDistDir: runId ? `.next-e2e${suffix}` : '.next',
+  adminDistDir: runId ? `.next-e2e${suffix}` : '.next',
 };

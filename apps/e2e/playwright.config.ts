@@ -41,7 +41,7 @@ export default defineConfig({
         DATABASE_URL: dbUrl,
         DIRECT_URL: dbUrl,
         ENABLE_TEST_ENDPOINTS: 'true',
-        CORS_ORIGINS: `${E2E.webUrl},http://localhost:3001`,
+        CORS_ORIGINS: `${E2E.webUrl},${E2E.adminUrl}`,
       },
     },
     {
@@ -55,7 +55,24 @@ export default defineConfig({
         PORT: String(E2E.webPort),
         NEXT_PUBLIC_API_URL: E2E.apiUrl,
         NEXT_DIST_DIR: E2E.clientDistDir,
+        NEXT_PUBLIC_AGENCY_URL: E2E.adminUrl,
       },
     },
+    ...(E2E.withAdmin
+      ? [
+          {
+            command: `npm exec -w agency-admin -- next dev --webpack -p ${E2E.adminPort}`,
+            cwd: repoRoot,
+            url: E2E.adminUrl,
+            reuseExistingServer: !process.env.CI,
+            timeout: 180000,
+            env: {
+              PORT: String(E2E.adminPort),
+              NEXT_PUBLIC_API_URL: E2E.apiUrl,
+              NEXT_DIST_DIR: E2E.adminDistDir,
+            },
+          },
+        ]
+      : []),
   ],
 });
