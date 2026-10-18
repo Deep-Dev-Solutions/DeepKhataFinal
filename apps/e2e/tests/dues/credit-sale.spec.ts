@@ -5,17 +5,20 @@ import { expectLedgerBalanced } from '../../helpers/ledger';
 import { karachiDatePlus } from '../../helpers/clock';
 import { catalog } from '../../fixtures/catalog';
 import { tenants } from '../../fixtures/users';
+import { createProduct, HAFEEZ } from '../pos/support';
 
 test.use({ storageState: storage('ownerA') });
 
-test('credit sale with due date shows on Lena and updates after a partial payment', async ({ page }) => {
+test('credit sale with due date shows on Lena and updates after a partial payment', async ({ page, request }) => {
+  // Own product so the shared seeded keyboard stock (asserted by the POS and stock-finder suites) is untouched.
+  const product = await createProduct(request, { price: 4500, qty: 1, branchId: HAFEEZ, label: 'DuesCredit' });
   const customer = await db.customer.findUniqueOrThrow({ where: { id: catalog.creditOrder.customerId } });
   expect(customer.phone).toBeTruthy();
   const before = await db.order.findMany({ where: { businessId: tenants.A.id }, select: { id: true } });
 
   await page.goto('/orders/new');
-  await page.getByTestId('pos-search').fill('Keyboard');
-  const result = page.getByTestId('pos-result-row').filter({ hasText: catalog.keyboard840.name });
+  await page.getByTestId('pos-search').fill(product.name);
+  const result = page.getByTestId('pos-result-row').filter({ hasText: product.name });
   await expect(result).toHaveCount(1);
   await result.getByTestId('pos-add-item').click();
   await expect(page.getByTestId('pos-cart-row')).toHaveCount(1);
