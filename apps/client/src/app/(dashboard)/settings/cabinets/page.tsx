@@ -219,7 +219,7 @@ export default function CabinetsSettingsPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-500 pb-12 mt-2 font-sans">
+    <div data-testid="cabinets-page" className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-500 pb-12 mt-2 font-sans">
       {/* Header */}
       <div className="flex items-center gap-3 pb-5 border-b border-slate-200">
         <div>
@@ -273,6 +273,7 @@ export default function CabinetsSettingsPage() {
             </label>
             <input
               type="text"
+              data-testid="cabinet-name"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="e.g. Display Rack"
@@ -287,6 +288,7 @@ export default function CabinetsSettingsPage() {
               </label>
               <input
                 type="text"
+                data-testid="cabinet-rack"
                 value={newRack}
                 onChange={(e) => setNewRack(e.target.value)}
                 placeholder="e.g. A"
@@ -299,6 +301,7 @@ export default function CabinetsSettingsPage() {
               </label>
               <input
                 type="text"
+                data-testid="cabinet-shelf"
                 value={newShelf}
                 onChange={(e) => setNewShelf(e.target.value)}
                 placeholder="e.g. 2"
@@ -311,6 +314,7 @@ export default function CabinetsSettingsPage() {
               </label>
               <input
                 type="text"
+                data-testid="cabinet-bin"
                 value={newBin}
                 onChange={(e) => setNewBin(e.target.value)}
                 placeholder="e.g. 04"
@@ -327,6 +331,7 @@ export default function CabinetsSettingsPage() {
           <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
             <button
               type="submit"
+              data-testid="cabinet-submit"
               disabled={isSaving || readOnly}
               title={
                 readOnly
@@ -453,6 +458,7 @@ export default function CabinetsSettingsPage() {
                 ) : (
                   <div
                     key={cab.id}
+                    data-testid="cabinet-row"
                     className="p-4 flex items-center justify-between hover:bg-slate-50/60 transition-colors"
                   >
                     <div className="flex items-center gap-3 min-w-0">
@@ -493,6 +499,7 @@ export default function CabinetsSettingsPage() {
                         onClick={() =>
                           setDeleteTarget({ id: cab.id, name: cab.name })
                         }
+                        data-testid="cabinet-delete"
                         disabled={deletingId === cab.id}
                         className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
                         title="Delete cabinet (destroys stock inside)"

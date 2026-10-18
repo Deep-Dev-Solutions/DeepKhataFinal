@@ -298,7 +298,7 @@ function ProductsPageContent() {
   const outOfStockCount = filteredProducts.filter((p) => p.stock === 0).length;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-10 mt-2">
+    <div data-testid="products-page" className="space-y-6 animate-in fade-in duration-500 pb-10 mt-2">
       {/* 🟢 1. PAGE HEADER & ADD BUTTON */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
@@ -323,6 +323,7 @@ function ProductsPageContent() {
             ) : (
               <button
                 type="button"
+                data-testid="products-add"
                 onClick={() => setIsAddModalOpen(true)}
                 className="flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200"
               >
@@ -397,6 +398,7 @@ function ProductsPageContent() {
             </div>
             <input
               type="text"
+              data-testid="products-search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by product name or SKU barcode..."
@@ -498,6 +500,7 @@ function ProductsPageContent() {
               ) : (
                 filteredProducts.map((product) => (
                   <tr
+                    data-testid="product-row"
                     key={product.id}
                     className="hover:bg-slate-50 transition-colors group"
                   >
@@ -540,7 +543,7 @@ function ProductsPageContent() {
                     </td>
 
                     <td className="px-6 py-4">
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                      <span data-testid="product-row-stock" className={`text-xs font-bold px-2.5 py-1 rounded-full ${
                         product.stock > 3
                           ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                           : product.stock > 0

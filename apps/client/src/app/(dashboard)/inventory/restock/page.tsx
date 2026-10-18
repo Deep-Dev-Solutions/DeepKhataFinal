@@ -334,7 +334,7 @@ export default function RestockPage() {
   const totalUnits = batch.reduce((sum, line) => sum + line.quantity, 0);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] overflow-hidden animate-in fade-in duration-500 mt-2 font-sans">
+    <div data-testid="restock-page" className="flex flex-col h-[calc(100vh-80px)] overflow-hidden animate-in fade-in duration-500 mt-2 font-sans">
       {/* Header */}
       <div className="flex items-center justify-between pb-3 border-b border-slate-200 shrink-0">
         <div className="flex items-center gap-3">
@@ -370,7 +370,7 @@ export default function RestockPage() {
       </div>
 
       {successMsg && (
-        <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs font-bold text-emerald-800 shadow-sm">
+        <div data-testid="restock-success" className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs font-bold text-emerald-800 shadow-sm">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{successMsg}</span>
@@ -399,6 +399,7 @@ export default function RestockPage() {
               <Search className="h-4 w-4 text-slate-400 absolute left-3 top-3" />
               <input
                 type="text"
+                data-testid="restock-product-search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search product to restock..."
@@ -471,6 +472,7 @@ export default function RestockPage() {
                   Cabinet (Spatial Bin)
                 </label>
                 <select
+                  data-testid="restock-cabinet"
                   value={selectedCabinetId}
                   onChange={(e) => setSelectedCabinetId(e.target.value)}
                   disabled={!selectedBranchId}
@@ -494,6 +496,7 @@ export default function RestockPage() {
                   Select Vendor (Optional)
                 </label>
                 <select
+                  data-testid="restock-vendor"
                   value={selectedVendorId}
                   onChange={(e) => setSelectedVendorId(e.target.value)}
                   className="w-full border border-slate-300 rounded-xl py-2 px-3 text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
@@ -514,6 +517,7 @@ export default function RestockPage() {
                 <input
                   type="number"
                   min="1"
+                  data-testid="restock-qty"
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
                   className="w-full border border-slate-300 rounded-xl py-2 px-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -528,6 +532,7 @@ export default function RestockPage() {
                   type="number"
                   min="0"
                   step="0.01"
+                  data-testid="restock-unit-cost"
                   value={unitCost}
                   onChange={(e) => setUnitCost(e.target.value)}
                   placeholder="0.00"
@@ -642,7 +647,7 @@ export default function RestockPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {batch.map((line, index) => (
-                    <tr key={index} className="text-slate-700">
+                    <tr key={index} data-testid="restock-item-row" className="text-slate-700">
                       <td className="py-2.5 pr-2">
                         <p className="font-bold text-slate-900 truncate max-w-44">
                           {line.productName}
@@ -700,6 +705,7 @@ export default function RestockPage() {
               </span>
             </div>
             <button
+              data-testid="restock-submit"
               onClick={handleConfirmRestock}
               disabled={batch.length === 0 || isSubmitting || readOnly}
               title={
