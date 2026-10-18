@@ -195,7 +195,7 @@ describe('Phase 2 money and ledger correctness (e2e)', () => {
 
     // The order search turns any digits in the term into an int orderNumber filter;
     // an 11-digit phone number overflows Postgres int4 and the request 500s.
-    it.fails('searching orders by an 11-digit phone number does not error', async () => {
+    it('searching orders by an 11-digit phone number does not error', async () => {
       const res = await http()
         .get('/order/getallorders')
         .query({ search: '03001234567', days: 'all', branchId: BRANCH })
@@ -206,7 +206,7 @@ describe('Phase 2 money and ledger correctness (e2e)', () => {
     // A fully-paid, discounted walk-in sale that is wholly returned must net to
     // zero revenue and zero cash. processReturn refunds the gross item price, not
     // the amount actually charged, so revenue is left at +0.99.
-    it.fails('full return of a discounted sale nets revenue and receivables to zero', async () => {
+    it('full return of a discounted sale nets revenue and receivables to zero', async () => {
       const productId = await makeProduct('RetDisc', 33.33, 3);
       const res = await http()
         .post('/order/neworder')

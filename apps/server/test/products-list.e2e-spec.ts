@@ -147,10 +147,9 @@ describe('Product list: pagination, search, freshness, cost hiding (e2e)', () =>
       expect(hit.stock).toBe(3);
     });
 
-    // Typo tolerance relies on similarity(searchText, q) > 0.2, but searchText is the
-    // whole name+sku+aliases+compat string, so a one-word typo scores ~0.105 and is
-    // dropped (word_similarity would score 0.625). Returns [] today.
-    it.fails('finds the 840 G3 keyboard despite the typo "keybord"', async () => {
+    // Regression: plain similarity() over the whole searchText dropped one-word typos;
+    // search now also matches on word_similarity().
+    it('finds the 840 G3 keyboard despite the typo "keybord"', async () => {
       const res = await list('ownerA', { search: 'keybord' }).expect(200);
       expect(res.body.products.map((p: any) => p.id)).toContain(catalog.keyboard840.productId);
     });

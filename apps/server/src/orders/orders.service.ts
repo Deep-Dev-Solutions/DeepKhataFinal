@@ -383,31 +383,24 @@ export class OrdersService {
               continue;
             }
 
-            // Prioritize instances in the active branch, falling back across business
-            let instances = branchId
-              ? await tx.productInstance.findMany({
-                  where: {
-                    productId: item.productId,
-                    branchId,
-                    status: 'AVAILABLE',
-                  },
-                  take: item.quantity,
-                })
-              : [];
-
-            if (instances.length < item.quantity) {
-              const needed = item.quantity - instances.length;
-              const alreadyFoundIds = instances.map((i) => i.id);
-              const fallbackInstances = await tx.productInstance.findMany({
-                where: {
-                  productId: item.productId,
-                  id: { notIn: alreadyFoundIds },
-                  status: 'AVAILABLE',
-                },
-                take: needed,
-              });
-              instances = [...instances, ...fallbackInstances];
-            }
+            // Pick candidates inside the tx, locking them and skipping rows other
+            // concurrent sales already hold, so parallel sales get different units.
+            // Active-branch units come first, then any branch.
+            const instances = branchId
+              ? await tx.$queryRaw<{ id: string; cabinetId: string | null }[]>(
+                  Prisma.sql`SELECT "id", "cabinetId" FROM "ProductInstance"
+                    WHERE "productId" = ${item.productId} AND "status" = 'AVAILABLE'
+                    ORDER BY ("branchId" = ${branchId}) DESC, "createdAt" ASC
+                    LIMIT ${item.quantity}
+                    FOR UPDATE SKIP LOCKED`,
+                )
+              : await tx.$queryRaw<{ id: string; cabinetId: string | null }[]>(
+                  Prisma.sql`SELECT "id", "cabinetId" FROM "ProductInstance"
+                    WHERE "productId" = ${item.productId} AND "status" = 'AVAILABLE'
+                    ORDER BY "createdAt" ASC
+                    LIMIT ${item.quantity}
+                    FOR UPDATE SKIP LOCKED`,
+                );
 
             if (instances.length < item.quantity) {
               throw new BadRequestException(
@@ -581,7 +574,10 @@ export class OrdersService {
       queryConditions.paymentStatus = paymentStatus;
 
     if (search) {
-      const searchNum = parseInt(search.replace(/\D/g, ''), 10);
+      const trimmedSearch = String(search).trim();
+      const searchNum = /^\d+$/.test(trimmedSearch)
+        ? parseInt(trimmedSearch, 10)
+        : NaN;
       const orConditions: any[] = [
         { id: { contains: search, mode: 'insensitive' } },
         { customer: { name: { contains: search, mode: 'insensitive' } } },
@@ -589,7 +585,7 @@ export class OrdersService {
         { walkInName: { contains: search, mode: 'insensitive' } },
         { walkInPhone: { contains: search, mode: 'insensitive' } },
       ];
-      if (!isNaN(searchNum)) {
+      if (!isNaN(searchNum) && searchNum <= 2147483647) {
         orConditions.push({ orderNumber: searchNum });
       }
       queryConditions.OR = orConditions;
@@ -1104,7 +1100,7 @@ export class OrdersService {
 
     try {
       await this.prisma.$transaction(async (tx) => {
-        let refundAmount: M.Money = M.ZERO;
+        let returnedGross: M.Money = M.ZERO;
 
         for (const returnItem of itemsToReturn) {
           const orderItem = order.items.find(
@@ -1128,8 +1124,8 @@ export class OrdersService {
             );
           }
 
-          refundAmount = M.add(
-            refundAmount,
+          returnedGross = M.add(
+            returnedGross,
             M.mul(orderItem.price, returnItem.quantity),
           );
 
@@ -1176,6 +1172,22 @@ export class OrdersService {
           where: { id },
           data: { status: 'RETURNED' },
         });
+
+        // Refund the discounted price. An order can be returned only once (status
+        // becomes RETURNED), so nothing has been refunded before this point.
+        const grossTotal = M.sum(
+          order.items.map((i) => M.mul(i.price, i.quantity)),
+        );
+        const netTotal = M.max(M.ZERO, M.sub(grossTotal, order.discount));
+        let refundAmount: M.Money;
+        if (M.lte(grossTotal, 0) || M.gte(returnedGross, grossTotal)) {
+          refundAmount = netTotal;
+        } else {
+          refundAmount = M.min(
+            netTotal,
+            M.round2(M.money(returnedGross).times(netTotal).div(grossTotal)),
+          );
+        }
 
         if (order.status === 'FINAL' || order.status === 'COMPLETED') {
           const postings: {

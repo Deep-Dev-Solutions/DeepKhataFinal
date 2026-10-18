@@ -356,7 +356,7 @@ export class ProductsService {
     const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
 
     const searchFilter = q
-      ? Prisma.sql`AND (p."searchText" ILIKE ${like} OR similarity(p."searchText", ${q}) > 0.2 OR lower(p."sku") = ${q} OR lower(p."partNumber") = ${q})`
+      ? Prisma.sql`AND (p."searchText" ILIKE ${like} OR word_similarity(${q}, p."searchText") > 0.3 OR similarity(p."searchText", ${q}) > 0.2 OR lower(p."sku") = ${q} OR lower(p."partNumber") = ${q})`
       : Prisma.empty;
     const categoryFilter =
       category && category !== 'All'
@@ -370,7 +370,7 @@ export class ProductsService {
           ? Prisma.sql`AND ${availableCount} BETWEEN 1 AND 5`
           : Prisma.empty;
     const orderBy = q
-      ? Prisma.sql`(lower(p."sku") = ${q} OR lower(p."partNumber") = ${q}) DESC, similarity(p."searchText", ${q}) DESC, p."name" ASC, p."id" ASC`
+      ? Prisma.sql`COALESCE(lower(p."sku") = ${q} OR lower(p."partNumber") = ${q}, false) DESC, GREATEST(word_similarity(${q}, p."searchText"), similarity(p."searchText", ${q})) DESC, p."name" ASC, p."id" ASC`
       : Prisma.sql`p."name" ASC, p."id" ASC`;
     const cursorFilter = cursor
       ? Prisma.sql`WHERE rn > COALESCE((SELECT rn FROM ranked WHERE id = ${cursor}), 0)`
@@ -522,10 +522,14 @@ export class ProductsService {
       WHERE p."businessId" = ${businessId}
         AND p."deletedAt" IS NULL
         AND (p."searchText" ILIKE ${like}
-             OR similarity(p."searchText", ${normalizedSearch}) > 0.2)
-      ORDER BY (lower(p."sku") = ${normalizedSearch}
-                OR lower(p."partNumber") = ${normalizedSearch}) DESC,
-               similarity(p."searchText", ${normalizedSearch}) DESC,
+             OR word_similarity(${normalizedSearch}, p."searchText") > 0.3
+             OR similarity(p."searchText", ${normalizedSearch}) > 0.2
+             OR lower(p."sku") = ${normalizedSearch}
+             OR lower(p."partNumber") = ${normalizedSearch})
+      ORDER BY COALESCE(lower(p."sku") = ${normalizedSearch}
+                OR lower(p."partNumber") = ${normalizedSearch}, false) DESC,
+               GREATEST(word_similarity(${normalizedSearch}, p."searchText"),
+                        similarity(p."searchText", ${normalizedSearch})) DESC,
                p."name" ASC, p."id" ASC
       LIMIT 100
     `);
