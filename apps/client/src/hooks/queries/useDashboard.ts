@@ -12,6 +12,7 @@ const DASHBOARD_STALE_MS = 5 * 60_000;
 
 async function fetchDashboard(branchId: string | null): Promise<DashboardData> {
   const res = await fetch(`${API_BASE_URL}/dashboard/dashboarddata`, {
+    credentials: "include",
     headers: getAuthHeaders(branchId),
     cache: "no-store",
   });

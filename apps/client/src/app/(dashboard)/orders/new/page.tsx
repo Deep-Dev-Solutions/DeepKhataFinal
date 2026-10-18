@@ -105,6 +105,7 @@ function CreateOrderPOSContent() {
     const fetchBranches = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/product/getbranches`, {
+          credentials: "include",
           headers: getAuthHeaders(activeBranchId),
           cache: "no-store",
         });
@@ -190,6 +191,7 @@ function CreateOrderPOSContent() {
       try {
         const targetBranchId = viewingBranchId || activeBranchId;
         const res = await fetch(`${API_BASE_URL}/product/getcategories`, {
+          credentials: "include",
           headers: getAuthHeaders(targetBranchId),
         });
         const data = await res.json();
@@ -257,6 +259,7 @@ function CreateOrderPOSContent() {
       const res = await fetch(
         `${API_BASE_URL}/product/getproducts?${params.toString()}`,
         {
+          credentials: "include",
           headers: getAuthHeaders(targetBranchId),
           cache: "no-store",
         },
@@ -323,6 +326,7 @@ function CreateOrderPOSContent() {
       try {
         if (typeof navigator !== "undefined" && !navigator.onLine) return;
         const res = await fetch(`${API_BASE_URL}/customer/getallcustomers`, {
+          credentials: "include",
           headers: getAuthHeaders(activeBranchId),
         });
         const data = await res.json();
@@ -366,6 +370,7 @@ function CreateOrderPOSContent() {
         const res = await fetch(
           `${API_BASE_URL}/customer/getallcustomers?search=${customerSearch}`,
           {
+            credentials: "include",
             headers: getAuthHeaders(activeBranchId),
           },
         );
@@ -401,10 +406,8 @@ function CreateOrderPOSContent() {
     const urlCustomerId = searchParams.get("customerId");
     if (urlCustomerId) {
       setCustomerMode("existing");
-      const token = localStorage.getItem("accessToken");
-
       fetch(`${API_BASE_URL}/customer/${urlCustomerId}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
       })
         .then((res) => res.json())
         .then((data) => {
@@ -450,6 +453,7 @@ function CreateOrderPOSContent() {
     };
 
     fetch(`${API_BASE_URL}/product/${encodeURIComponent(addProductId)}/details`, {
+      credentials: "include",
       headers: getAuthHeaders(activeBranchId),
       cache: "no-store",
     })
@@ -667,6 +671,7 @@ function CreateOrderPOSContent() {
     // 🟢 2. ONLINE SUBMISSION WITH NETWORK RESILIENCE CATCH
     try {
       const res = await fetch(`${API_BASE_URL}/order/neworder`, {
+        credentials: "include",
         method: "POST",
         headers: getAuthHeaders(activeBranchId),
         body: JSON.stringify(payload),
@@ -898,6 +903,7 @@ function CreateOrderPOSContent() {
           const res = await fetch(
             `${API_BASE_URL}/product/getproducts?search=${encodeURIComponent(cleanSku)}`,
             {
+              credentials: "include",
               headers: getAuthHeaders(activeBranchId),
             },
           );

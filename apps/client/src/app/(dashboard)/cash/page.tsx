@@ -110,6 +110,7 @@ export default function CashHubPage() {
 
       // Fetch Register Status
       const statusRes = await fetch(`${API_BASE_URL}/cash/register/status`, {
+        credentials: "include",
         headers,
       });
       const statusData = await statusRes.json();
@@ -118,7 +119,7 @@ export default function CashHubPage() {
       }
 
       // Fetch Expenses
-      const expRes = await fetch(`${API_BASE_URL}/cash/expenses`, { headers });
+      const expRes = await fetch(`${API_BASE_URL}/cash/expenses`, { credentials: "include",  headers });
       const expData = await expRes.json();
       if (expData.success) {
         setExpenses(expData.expenses);
@@ -126,6 +127,7 @@ export default function CashHubPage() {
 
       // Fetch Branches for selector
       const branchRes = await fetch(`${API_BASE_URL}/product/getbranches`, {
+        credentials: "include",
         headers,
       });
       const branchData = await branchRes.json();
@@ -154,6 +156,7 @@ export default function CashHubPage() {
     try {
       const headers = getAuthHeaders(activeBranchId);
       const res = await fetch(`${API_BASE_URL}/cash/expense`, {
+        credentials: "include",
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -198,6 +201,7 @@ export default function CashHubPage() {
   }) => {
     const headers = getAuthHeaders(activeBranchId);
     const res = await fetch(`${API_BASE_URL}/cash/register/open`, {
+      credentials: "include",
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -224,6 +228,7 @@ export default function CashHubPage() {
   }) => {
     const headers = getAuthHeaders(activeBranchId);
     const res = await fetch(`${API_BASE_URL}/cash/register/close`, {
+      credentials: "include",
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -252,7 +257,7 @@ export default function CashHubPage() {
       const url = sessionId
         ? `${API_BASE_URL}/cash/register/z-report?sessionId=${sessionId}`
         : `${API_BASE_URL}/cash/register/z-report`;
-      const res = await fetch(url, { headers });
+      const res = await fetch(url, { credentials: "include",  headers });
       const data = await res.json();
       if (data.success) {
         setCurrentZReport(data.report);

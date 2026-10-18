@@ -86,6 +86,7 @@ function CustomersPageContent() {
       const response = await fetch(
         `${API_BASE_URL}/customer/getallcustomers?${params.toString()}`,
         {
+          credentials: "include",
           headers: getAuthHeaders(),
         },
       );

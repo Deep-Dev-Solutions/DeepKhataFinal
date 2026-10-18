@@ -68,6 +68,7 @@ export default function OrderSuccessModal({
     const fetchBusiness = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/businessinfo`, {
+          credentials: "include",
           headers: getAuthHeaders(),
         });
         const data = await res.json();

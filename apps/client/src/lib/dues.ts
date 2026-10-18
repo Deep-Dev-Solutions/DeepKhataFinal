@@ -60,6 +60,7 @@ async function request<T>(
   init?: { method?: string; body?: unknown },
 ): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
+    credentials: "include",
     method: init?.method ?? "GET",
     headers: getAuthHeaders(branchId),
     body: init?.body === undefined ? undefined : JSON.stringify(init.body),

@@ -51,6 +51,7 @@ export default function AddVendorModal({
 
     try {
       const response = await fetch(`${API_BASE_URL}/vendors`, {
+        credentials: "include",
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({

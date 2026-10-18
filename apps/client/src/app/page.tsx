@@ -24,7 +24,7 @@ export default function Home() {
   useEffect(() => {
     const checkBackend = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/health`, { method: "GET" });
+        const res = await fetch(`${API_BASE_URL}/health`, { credentials: "include",  method: "GET" });
         if (res.ok) {
           setBackendStatus("connected");
         } else {

@@ -82,12 +82,14 @@ export default function AddProductModal({
         const [branchResponse, cabinetResponse, vendorResponse] =
           await Promise.all([
             fetch(`${API_BASE_URL}/product/getbranches`, {
+              credentials: "include",
               headers: getAuthHeaders(),
             }),
             fetch(`${API_BASE_URL}/product/getcabinets`, {
+              credentials: "include",
               headers: getAuthHeaders(),
             }),
-            fetch(`${API_BASE_URL}/vendors`, { headers: getAuthHeaders() }),
+            fetch(`${API_BASE_URL}/vendors`, { credentials: "include",  headers: getAuthHeaders() }),
           ]);
         const branchData = await branchResponse.json();
         const cabinetData = await cabinetResponse.json();
@@ -150,6 +152,7 @@ export default function AddProductModal({
     setError("");
     try {
       const response = await fetch(`${API_BASE_URL}/product/addproduct`, {
+        credentials: "include",
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({

@@ -33,6 +33,7 @@ export async function fetchNotifications(
   limit = 10,
 ): Promise<NotificationsResponse> {
   const res = await fetch(`${API_BASE_URL}/notifications?limit=${limit}`, {
+    credentials: "include",
     headers: getAuthHeaders(branchId),
     cache: "no-store",
   });
@@ -45,6 +46,7 @@ export async function markNotificationsRead(
   body: { ids?: string[]; all?: boolean },
 ): Promise<{ updated: number }> {
   const res = await fetch(`${API_BASE_URL}/notifications/read`, {
+    credentials: "include",
     method: "POST",
     headers: getAuthHeaders(branchId),
     body: JSON.stringify(body),

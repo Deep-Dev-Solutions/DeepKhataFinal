@@ -57,6 +57,7 @@ export default function RecordPaymentModal({
     try {
       // Send the payment to the backend
       const response = await fetch(`${API_BASE_URL}/order/recordpayment`, {
+        credentials: "include",
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({

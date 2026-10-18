@@ -83,6 +83,7 @@ export async function fetchNotificationSettings(
   activeBranchId?: string | null,
 ): Promise<NotificationSettings> {
   const res = await fetch(`${API_BASE_URL}/notification-settings`, {
+    credentials: "include",
     headers: getAuthHeaders(activeBranchId),
   });
   return parseResponse(res);
@@ -93,6 +94,7 @@ export async function saveNotificationSettings(
   activeBranchId?: string | null,
 ): Promise<NotificationSettings> {
   const res = await fetch(`${API_BASE_URL}/notification-settings`, {
+    credentials: "include",
     method: "PUT",
     headers: getAuthHeaders(activeBranchId),
     body: JSON.stringify(body),

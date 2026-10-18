@@ -66,6 +66,7 @@ export default function CabinetsSettingsPage() {
     setPageError("");
     try {
       const response = await fetch(`${API_BASE_URL}/product/getcabinets`, {
+        credentials: "include",
         headers: getAuthHeaders(activeBranchId),
       });
       const data = await response.json();
@@ -109,6 +110,7 @@ export default function CabinetsSettingsPage() {
     setSuccessMsg("");
     try {
       const response = await fetch(`${API_BASE_URL}/cabinet`, {
+        credentials: "include",
         method: "POST",
         headers: getAuthHeaders(activeBranchId),
         body: JSON.stringify({ name, rack, shelf, bin, branchId: activeBranchId }),
@@ -166,6 +168,7 @@ export default function CabinetsSettingsPage() {
     setSuccessMsg("");
     try {
       const response = await fetch(`${API_BASE_URL}/cabinet/${id}`, {
+        credentials: "include",
         method: "PATCH",
         headers: getAuthHeaders(activeBranchId),
         body: JSON.stringify({
@@ -197,6 +200,7 @@ export default function CabinetsSettingsPage() {
     setSuccessMsg("");
     try {
       const response = await fetch(`${API_BASE_URL}/cabinet/${id}`, {
+        credentials: "include",
         method: "DELETE",
         headers: getAuthHeaders(activeBranchId),
       });

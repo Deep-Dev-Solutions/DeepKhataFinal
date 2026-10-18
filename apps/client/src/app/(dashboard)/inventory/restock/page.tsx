@@ -120,6 +120,7 @@ export default function RestockPage() {
   const loadBranches = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/product/getbranches`, {
+        credentials: "include",
         headers: getAuthHeaders(),
       });
       const data = await res.json();
@@ -152,6 +153,7 @@ export default function RestockPage() {
         const res = await fetch(
           `${API_BASE_URL}/product/getproducts?${params.toString()}`,
           {
+            credentials: "include",
             headers: getAuthHeaders(targetBranch),
             cache: "no-store",
           },
@@ -179,6 +181,7 @@ export default function RestockPage() {
       }
       try {
         const res = await fetch(`${API_BASE_URL}/product/getcabinets`, {
+          credentials: "include",
           headers: getAuthHeaders(targetBranch),
           cache: "no-store",
         });
@@ -201,6 +204,7 @@ export default function RestockPage() {
   const loadCategories = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/product/getcategories`, {
+        credentials: "include",
         headers: getAuthHeaders(selectedBranchId || activeBranchId),
       });
       const data = await res.json();
@@ -214,6 +218,7 @@ export default function RestockPage() {
   const loadVendors = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/vendors`, {
+        credentials: "include",
         headers: getAuthHeaders(),
       });
       const data = await res.json();
@@ -293,6 +298,7 @@ export default function RestockPage() {
       };
 
       const res = await fetch(`${API_BASE_URL}/inventory/restock`, {
+        credentials: "include",
         method: "POST",
         headers: getAuthHeaders(selectedBranchId),
         body: JSON.stringify(payload),

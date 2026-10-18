@@ -104,6 +104,7 @@ export default function OrderDetailsLedger() {
 
     try {
       const response = await fetch(`${API_BASE_URL}/order/${id}`, {
+        credentials: "include",
         headers: getAuthHeaders(),
       });
 
@@ -226,6 +227,7 @@ export default function OrderDetailsLedger() {
         const custId = rawOrder.customerId || rawOrder.customer?.id;
         try {
           const custRes = await fetch(`${API_BASE_URL}/customer/${custId}`, {
+            credentials: "include",
             headers: getAuthHeaders(),
           });
           const custData = await custRes.json();
@@ -257,6 +259,7 @@ export default function OrderDetailsLedger() {
     setIsSubmittingStatus(true);
     try {
       const response = await fetch(`${API_BASE_URL}/order/${id}/status`, {
+        credentials: "include",
         method: "PATCH",
         headers: getAuthHeaders(),
         body: JSON.stringify({ status: "RETURNED" }),
@@ -317,6 +320,7 @@ export default function OrderDetailsLedger() {
       }
 
       const response = await fetch(url, {
+        credentials: "include",
         method: "PATCH",
         headers: getAuthHeaders(),
         body: JSON.stringify(body),
@@ -368,6 +372,7 @@ export default function OrderDetailsLedger() {
       };
 
       const response = await fetch(`${API_BASE_URL}/order/${id}/return`, {
+        credentials: "include",
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify(payload),
@@ -391,6 +396,7 @@ export default function OrderDetailsLedger() {
     setIsSubmittingStatus(true);
     try {
       const response = await fetch(`${API_BASE_URL}/order/${id}/status`, {
+        credentials: "include",
         method: "PATCH",
         headers: getAuthHeaders(),
         body: JSON.stringify({ status: "COMPLETED" }),
@@ -412,6 +418,7 @@ export default function OrderDetailsLedger() {
   const handleCancelOrder = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/order/${id}/status`, {
+        credentials: "include",
         method: "PATCH",
         headers: getAuthHeaders(),
         body: JSON.stringify({ status: "CANCELLED" }),

@@ -98,6 +98,7 @@ export default function ProductDetailPage() {
   const fetchDetails = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/product/${id}/details`, {
+        credentials: "include",
         headers: getAuthHeaders(),
       });
       const data = await res.json();

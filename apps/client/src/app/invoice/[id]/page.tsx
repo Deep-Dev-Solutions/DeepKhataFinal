@@ -22,7 +22,9 @@ export default function InvoicePage() {
   useEffect(() => {
     const fetchInvoice = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/order/public/invoice/${id}`);
+        const res = await fetch(`${API_BASE_URL}/order/public/invoice/${id}`, {
+          credentials: "include",
+        });
         const data = await res.json();
         if (data.success) setInvoice(data.invoice);
       } catch (error) {

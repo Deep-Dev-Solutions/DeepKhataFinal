@@ -78,6 +78,7 @@ export default function OrdersHubPage() {
       const response = await fetch(
         `${API_BASE_URL}/order/getallorders?${params.toString()}`,
         {
+          credentials: "include",
           headers: getAuthHeaders(activeBranchId),
         },
       );

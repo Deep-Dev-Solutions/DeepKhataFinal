@@ -63,6 +63,7 @@ export default function VendorProfilePage() {
     setPageError("");
     try {
       const response = await fetch(`${API_BASE_URL}/vendors/${id}`, {
+        credentials: "include",
         headers: getAuthHeaders(),
       });
       const data = await response.json();
@@ -115,6 +116,7 @@ export default function VendorProfilePage() {
           ? `/vendors/${id}/purchase`
           : `/vendors/${id}/payment`;
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        credentials: "include",
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({

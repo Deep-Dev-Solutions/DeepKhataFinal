@@ -29,6 +29,7 @@ export async function createKhataEntry(
   body: CreateKhataEntryBody,
 ): Promise<unknown> {
   const response = await fetch(`${API_BASE_URL}/khata-entries`, {
+    credentials: "include",
     method: "POST",
     headers: getAuthHeaders(branchId),
     body: JSON.stringify(body),

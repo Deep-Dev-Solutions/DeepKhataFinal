@@ -51,6 +51,7 @@ function VendorsPageContent() {
 
     try {
       const response = await fetch(`${API_BASE_URL}/vendors`, {
+        credentials: "include",
         headers: getAuthHeaders(),
       });
 

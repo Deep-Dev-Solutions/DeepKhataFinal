@@ -29,7 +29,9 @@ function JoinForm() {
     const fetchInvitation = async () => {
       try {
         // Calling your new GET controller
-        const res = await fetch(`${API_BASE_URL}/team/invite/${token}`);
+        const res = await fetch(`${API_BASE_URL}/team/invite/${token}`, {
+          credentials: "include",
+        });
         const data = await res.json();
 
         if (!res.ok || !data.success) {
@@ -58,6 +60,7 @@ function JoinForm() {
 
     try {
       const res = await fetch(`${API_BASE_URL}/team/join`, {
+        credentials: "include",
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, name, password }),

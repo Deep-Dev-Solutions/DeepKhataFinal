@@ -41,6 +41,7 @@ export default function InventoryLedgerPage() {
     setIsLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/inventory/movements?limit=100`, {
+        credentials: "include",
         headers: getAuthHeaders(activeBranchId),
       });
       const data = await res.json();

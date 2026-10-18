@@ -106,6 +106,7 @@ export default function EditProductModal({
     setError("");
     try {
       const response = await fetch(`${API_BASE_URL}/product/${product.id}`, {
+        credentials: "include",
         method: "PATCH",
         headers: getAuthHeaders(),
         body: JSON.stringify(body),

@@ -106,7 +106,7 @@ function QuickKhataForm({
           isLena
             ? `${API_BASE_URL}/customer/getallcustomers`
             : `${API_BASE_URL}/vendors`,
-          { headers: getAuthHeaders(activeBranchId) },
+          { credentials: "include",  headers: getAuthHeaders(activeBranchId) },
         );
         const data = await res.json();
         if (!res.ok) throw new Error("load failed");

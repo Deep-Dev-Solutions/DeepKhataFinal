@@ -53,6 +53,7 @@ export default function CategoriesSettingsPage() {
     setPageError("");
     try {
       const response = await fetch(`${API_BASE_URL}/product/getcategories`, {
+        credentials: "include",
         headers: getAuthHeaders(activeBranchId),
       });
       const data = await response.json();
@@ -86,6 +87,7 @@ export default function CategoriesSettingsPage() {
     setSuccessMsg("");
     try {
       const response = await fetch(`${API_BASE_URL}/product/addcategory`, {
+        credentials: "include",
         method: "POST",
         headers: getAuthHeaders(activeBranchId),
         body: JSON.stringify({ name }),
@@ -131,6 +133,7 @@ export default function CategoriesSettingsPage() {
       const response = await fetch(
         `${API_BASE_URL}/category/${id}`,
         {
+          credentials: "include",
           method: "PATCH",
           headers: getAuthHeaders(activeBranchId),
           body: JSON.stringify({ name }),
@@ -160,6 +163,7 @@ export default function CategoriesSettingsPage() {
       const response = await fetch(
         `${API_BASE_URL}/category/${id}`,
         {
+          credentials: "include",
           method: "DELETE",
           headers: getAuthHeaders(activeBranchId),
         },

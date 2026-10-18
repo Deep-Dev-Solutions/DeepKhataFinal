@@ -37,6 +37,7 @@ export default function NewCustomerModal({
 
     try {
       const response = await fetch(`${API_BASE_URL}/customer/newcustomer`, {
+        credentials: "include",
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({

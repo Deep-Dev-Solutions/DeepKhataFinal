@@ -33,6 +33,7 @@ async function request<T>(
   method = "GET",
 ): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
+    credentials: "include",
     method,
     headers: getAuthHeaders(branchId),
     cache: "no-store",

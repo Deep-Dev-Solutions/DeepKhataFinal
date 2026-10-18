@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/dialog";
 
 export default function BranchesTab() {
-  const { role, branches: authBranches, token, refreshUser } = useAuth();
+  const { role, branches: authBranches, refreshUser } = useAuth();
   const { toast } = useToast();
   const readOnly = useIsReadOnly();
 
@@ -70,11 +70,10 @@ export default function BranchesTab() {
   const [isUpgradeDialogOpen, setIsUpgradeDialogOpen] = useState(false);
 
   const fetchBranches = useCallback(async () => {
-    if (!token) return;
     try {
       setIsLoading(true);
       const res = await fetch(`${API_BASE_URL}/product/getbranches`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
       });
       if (res.ok) {
         const data = await res.json();
@@ -87,7 +86,7 @@ export default function BranchesTab() {
     } finally {
       setIsLoading(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     if (Array.isArray(authBranches) && authBranches.length > 0) {
@@ -111,17 +110,17 @@ export default function BranchesTab() {
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingBranch || !token) return;
+    if (!editingBranch) return;
 
     setIsSaving(true);
     try {
       const res = await fetch(
         `${API_BASE_URL}/settings/branch/${editingBranch.id}`,
         {
+          credentials: "include",
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             name: editFormData.name.trim(),
@@ -151,17 +150,15 @@ export default function BranchesTab() {
   };
 
   const handleDeleteBranch = async () => {
-    if (!token || !deleteTarget) return;
+    if (!deleteTarget) return;
 
     setIsDeleting(true);
     try {
       const res = await fetch(
         `${API_BASE_URL}/settings/branch/${deleteTarget.id}`,
         {
+          credentials: "include",
           method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
         },
       );
 
@@ -199,8 +196,6 @@ export default function BranchesTab() {
 
   const handleAddBranch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token) return;
-
     if (isLimitReached) {
       setModalError(
         "Base plan limit reached (2 branches). Contact administration to upgrade.",
@@ -219,10 +214,10 @@ export default function BranchesTab() {
     setModalError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/settings/branch`, {
+        credentials: "include",
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           name: addFormData.name.trim(),

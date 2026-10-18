@@ -32,10 +32,10 @@ export default function ProfileTab({ user }: { user: User }) {
 
     try {
       const res = await fetch(`${API_BASE_URL}/settings/profile`, {
+        credentials: "include",
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
         },
         body: JSON.stringify({ [field]: value }),
       });
@@ -62,10 +62,8 @@ export default function ProfileTab({ user }: { user: User }) {
 
     try {
       const res = await fetch(`${API_BASE_URL}/settings/profile`, {
+        credentials: "include",
         method: "PUT",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
-        },
         body: formData, // No content-type needed for FormData
       });
 

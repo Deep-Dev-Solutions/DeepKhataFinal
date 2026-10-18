@@ -76,10 +76,10 @@ export default function InviteStaffModal({
     // 3. SEND API REQUEST
     try {
       const res = await fetch(`${API_BASE_URL}/team/invite`, {
+        credentials: "include",
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
         },
         body: JSON.stringify({
           email,

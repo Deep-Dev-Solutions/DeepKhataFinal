@@ -129,6 +129,7 @@ function ProductsPageContent() {
     if (!activeBranchId) return;
     try {
       const response = await fetch(`${API_BASE_URL}/product/getcategories`, {
+        credentials: "include",
         headers: getAuthHeaders(activeBranchId),
       });
       const data = await response.json();
@@ -159,6 +160,7 @@ function ProductsPageContent() {
       const response = await fetch(
         `${API_BASE_URL}/product/getproducts?${params.toString()}`,
         {
+          credentials: "include",
           headers: getAuthHeaders(activeBranchId),
         },
       );
@@ -222,6 +224,7 @@ function ProductsPageContent() {
     setActionMsg("");
     try {
       const response = await fetch(`${API_BASE_URL}/product/${id}`, {
+        credentials: "include",
         method: "DELETE",
         headers: getAuthHeaders(activeBranchId),
       });
@@ -250,6 +253,7 @@ function ProductsPageContent() {
     setActionMsg("");
     try {
       const response = await fetch(`${API_BASE_URL}/product/move-stock`, {
+        credentials: "include",
         method: "POST",
         headers: getAuthHeaders(activeBranchId),
         body: JSON.stringify({ productId }),

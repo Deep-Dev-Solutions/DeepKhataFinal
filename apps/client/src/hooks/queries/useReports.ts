@@ -25,6 +25,7 @@ async function fetchReport<T>(
   failMessage: string,
 ): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
+    credentials: "include",
     headers: getAuthHeaders(branchId),
   });
   const json = (await res.json()) as T & { success?: boolean; message?: string };
