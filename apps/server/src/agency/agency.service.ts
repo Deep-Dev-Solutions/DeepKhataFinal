@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
+import { randomBytes, randomUUID } from 'node:crypto';
 import * as M from '../common/money';
 import { BusinessStatus, Role, SubscriptionStatus } from '@prisma/client';
 import { TenantCacheService } from '../tenant/tenant-cache.service';
@@ -18,7 +19,7 @@ import {
   UpdateSignupDto,
   UpdateTaskDto,
 } from '../lifecycle/dto/agency-signups.dto';
-import { daysBetween } from '../common/dates';
+import { addDays, daysBetween, karachiDateOnly } from '../common/dates';
 
 const TRIAL_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -131,6 +132,56 @@ export class AgencyService {
     }
   }
 
+  /** Subscription + last-30-day usage per tenant (one grouped query, no per-tenant scans). */
+  private async enrichment(businessIds: string[]) {
+    const since = addDays(karachiDateOnly(new Date()), -29);
+    const [subs, usage] = await Promise.all([
+      this.prisma.subscription.findMany({
+        where: { businessId: { in: businessIds } },
+        select: {
+          businessId: true,
+          status: true,
+          trialEndsAt: true,
+          currentPeriodEnd: true,
+          plan: { select: { code: true, name: true } },
+        },
+      }),
+      this.prisma.tenantDailyUsage.groupBy({
+        by: ['businessId'],
+        where: { businessId: { in: businessIds }, date: { gte: since } },
+        _sum: { ordersCount: true, gmv: true },
+      }),
+    ]);
+    return {
+      subs: new Map(subs.map((x) => [x.businessId, x])),
+      usage: new Map(usage.map((x) => [x.businessId, x])),
+    };
+  }
+
+  private enrich<T extends { id: string }>(
+    b: T,
+    e: Awaited<ReturnType<AgencyService['enrichment']>>,
+  ) {
+    const sub = e.subs.get(b.id);
+    const u = e.usage.get(b.id);
+    return {
+      ...b,
+      subscription: sub
+        ? {
+            status: sub.status,
+            planCode: sub.plan.code,
+            planName: sub.plan.name,
+            trialEndsAt: sub.trialEndsAt,
+            currentPeriodEnd: sub.currentPeriodEnd,
+          }
+        : null,
+      usage30: {
+        orders: u?._sum.ordersCount ?? 0,
+        gmv: M.round2(u?._sum.gmv ?? 0),
+      },
+    };
+  }
+
   async getTenants() {
     const businesses = await this.prisma.business.findMany({
       include: {
@@ -152,11 +203,10 @@ export class AgencyService {
       },
       orderBy: { createdAt: 'desc' },
     });
-    return businesses.map(({ status, subscriptionExpiresAt, ...rest }) => ({
-      ...rest,
-      status,
-      subscriptionExpiresAt,
-    }));
+    const e = await this.enrichment(businesses.map((b) => b.id));
+    return businesses.map(({ status, subscriptionExpiresAt, ...rest }) =>
+      this.enrich({ ...rest, status, subscriptionExpiresAt }, e),
+    );
   }
 
   async getTenantById(businessId: string) {
@@ -196,7 +246,39 @@ export class AgencyService {
     }
 
     const { status, subscriptionExpiresAt, ...rest } = business;
-    return { ...rest, status, subscriptionExpiresAt };
+    const e = await this.enrichment([business.id]);
+    return this.enrich({ ...rest, status, subscriptionExpiresAt }, e);
+  }
+
+  /**
+   * Support "view as tenant": a 1 h Session for the tenant's owner with
+   * impersonatedBy = the admin. SessionGuard makes such sessions read-only.
+   * The VIEW_AS access-log row is written by AdminAccessLogInterceptor.
+   */
+  async createViewAsSession(businessId: string, adminId: string) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true, ownerId: true },
+    });
+    if (!business) {
+      throw new NotFoundException(`Business with ID ${businessId} not found`);
+    }
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 60 * 60 * 1000);
+    const token = randomBytes(32).toString('hex');
+    await this.prisma.session.create({
+      data: {
+        id: randomUUID(),
+        token,
+        userId: business.ownerId,
+        expiresAt,
+        impersonatedBy: adminId,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+    const frontend = (process.env.FRONTEND_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+    return { token, url: `${frontend}/dashboard?viewAs=1`, expiresAt };
   }
 
   async updateTenantStatus(businessId: string, status: string) {

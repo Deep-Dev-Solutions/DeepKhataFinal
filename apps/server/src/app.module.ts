@@ -36,12 +36,14 @@ import { RemindersModule } from './reminders/reminders.module';
 import { MailModule } from './mail/mail.module';
 import { PlansModule } from './plans/plans.module';
 import { BillingModule } from './billing/billing.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
     TenantModule,
     PlansModule,
     BillingModule,
+    AnalyticsModule,
     ScheduleModule.forRoot(),
     MailModule,
     NotificationsModule,

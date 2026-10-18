@@ -5,14 +5,17 @@ import {
   Patch,
   Body,
   Param,
+  ParseUUIDPipe,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { AgencyService } from './agency.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SessionGuard } from '../auth/guards/session.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
+import { AccessLogAction } from '../analytics/access-log.decorator';
 import {
   SignupsQueryDto,
   TasksQueryDto,
@@ -20,7 +23,7 @@ import {
   UpdateTaskDto,
 } from '../lifecycle/dto/agency-signups.dto';
 
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(SessionGuard, RolesGuard)
 @Roles(Role.SUPER_ADMIN)
 @Controller('agency')
 export class AgencyController {
@@ -39,6 +42,16 @@ export class AgencyController {
   @Get('tenants/:id')
   async getTenantById(@Param('id') id: string) {
     return this.agencyService.getTenantById(id);
+  }
+
+  /** Read-only support session as the tenant's owner; 1 h; logged as VIEW_AS. */
+  @Post('tenants/:id/view-as')
+  @AccessLogAction('VIEW_AS')
+  async viewAsTenant(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: { user: { id: string } },
+  ) {
+    return this.agencyService.createViewAsSession(id, req.user.id);
   }
 
   @Patch('tenants/:id/status')
