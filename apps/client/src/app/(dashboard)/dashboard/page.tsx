@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { Loader2, Plus } from "lucide-react";
 import StatsCards from "@/components/dashboard/widgets/StatsCards";
@@ -9,44 +9,14 @@ import PaymentHealth from "@/components/dashboard/widgets/PaymentHealth";
 import RecentOrdersTable from "@/components/dashboard/widgets/RecentOrdersTable";
 import DuesTodayWidget from "@/components/dashboard/widgets/DuesTodayWidget";
 import TransfersInboxWidget from "@/components/dashboard/widgets/TransfersInboxWidget";
-import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
-import { useAuth } from "@/context/AuthContext";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type DashboardData = Record<string, any>;
+import { useDashboard } from "@/hooks/queries/useDashboard";
 
 export default function DashboardHomePage() {
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
-  const { activeBranchId } = useAuth();
-
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/dashboard/dashboarddata`, {
-          headers: getAuthHeaders(activeBranchId),
-          cache: "no-store",
-        });
-
-        const data = await res.json();
-        if (!res.ok)
-          throw new Error(data?.message || "Failed to load dashboard data");
-
-        setDashboardData(data);
-      } catch (err) {
-        setError(
-          err instanceof Error && err.message
-            ? err.message
-            : "Could not load dashboard data.",
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchDashboardData();
-  }, [activeBranchId]);
+  const { data: dashboardData, isPending: isLoading, error: queryError } =
+    useDashboard();
+  const error = queryError
+    ? queryError.message || "Could not load dashboard data."
+    : "";
 
   useEffect(() => {
     if (isLoading || error) return;

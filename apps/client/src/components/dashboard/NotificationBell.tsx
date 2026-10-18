@@ -1,17 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { Bell } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import {
-  fetchNotifications,
-  markNotificationsRead,
-  type AppNotification,
+  useMarkNotificationsRead,
+  useNotifications,
+} from "@/hooks/queries/useNotifications";
+import { queryKeys } from "@/lib/query-keys";
+import type {
+  AppNotification,
+  NotificationsResponse,
 } from "@/lib/notifications";
 
-const POLL_MS = 60_000;
+const NO_ITEMS: AppNotification[] = [];
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -24,42 +29,29 @@ function relativeTime(iso: string): string {
 }
 
 export default function NotificationBell() {
-  const { activeBranchId, token } = useAuth();
+  const { activeBranchId } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
-  const [items, setItems] = useState<AppNotification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const data = await fetchNotifications(activeBranchId, 10);
-      setItems(data.items);
-      setUnreadCount(data.unreadCount);
-    } catch (err) {
-      console.warn("Failed to load notifications", err);
-    }
-  }, [activeBranchId]);
+  // Polls every 60 s (paused while the tab is hidden); refetches on tab focus.
+  const { data, refetch } = useNotifications(10);
+  const markRead = useMarkNotificationsRead();
+  const items = data?.items ?? NO_ITEMS;
+  const unreadCount = data?.unreadCount ?? 0;
 
-  // Initial fetch + 60s polling (paused while tab hidden) + refetch on visible
-  useEffect(() => {
-    if (!token) return;
-    const initial = setTimeout(() => void load(), 0);
-    const timer = setInterval(() => {
-      if (document.visibilityState === "hidden") return;
-      void load();
-    }, POLL_MS);
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") void load();
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      clearTimeout(initial);
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [token, load]);
+  const listKey = queryKeys.notifications.list(activeBranchId);
+
+  /** Optimistically patch the cached list; markRead settles by invalidating. */
+  const patchCache = (
+    update: (prev: NotificationsResponse) => NotificationsResponse,
+  ) => {
+    queryClient.setQueryData<NotificationsResponse>(listKey, (prev) =>
+      prev ? update(prev) : prev,
+    );
+  };
 
   // Click outside / Escape closes dropdown
   useEffect(() => {
@@ -86,17 +78,20 @@ export default function NotificationBell() {
   const toggle = () => {
     const next = !isOpen;
     setIsOpen(next);
-    if (next) void load();
+    if (next) void refetch();
   };
 
   const handleItemClick = async (n: AppNotification) => {
     const wasUnread = !n.readAt;
     if (wasUnread) {
       const stamp = new Date().toISOString();
-      setItems((prev) =>
-        prev.map((i) => (i.id === n.id ? { ...i, readAt: stamp } : i)),
-      );
-      setUnreadCount((c) => Math.max(0, c - 1));
+      patchCache((prev) => ({
+        ...prev,
+        items: prev.items.map((i) =>
+          i.id === n.id ? { ...i, readAt: stamp } : i,
+        ),
+        unreadCount: Math.max(0, prev.unreadCount - 1),
+      }));
     }
     if (n.link) {
       setIsOpen(false);
@@ -104,27 +99,28 @@ export default function NotificationBell() {
     }
     if (wasUnread) {
       try {
-        await markNotificationsRead(activeBranchId, { ids: [n.id] });
+        await markRead.mutateAsync({ ids: [n.id] });
       } catch (err) {
         toast.error(
           err instanceof Error ? err.message : "Could not mark as read",
         );
-        void load();
       }
     }
   };
 
   const handleMarkAll = async () => {
     const stamp = new Date().toISOString();
-    setItems((prev) => prev.map((i) => (i.readAt ? i : { ...i, readAt: stamp })));
-    setUnreadCount(0);
+    patchCache((prev) => ({
+      ...prev,
+      items: prev.items.map((i) => (i.readAt ? i : { ...i, readAt: stamp })),
+      unreadCount: 0,
+    }));
     try {
-      await markNotificationsRead(activeBranchId, { all: true });
+      await markRead.mutateAsync({ all: true });
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Could not mark all as read",
       );
-      void load();
     }
   };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -10,19 +10,22 @@ import DueRow from "@/components/dues/DueRow";
 import DuePayModal from "@/components/dues/DuePayModal";
 import DuePromiseModal from "@/components/dues/DuePromiseModal";
 import {
-  fetchDues,
-  fetchDuesSummary,
+  useDues,
+  useDuesSummary,
+  usePostPromise,
+  usePostReminded,
+  useRecordDuePayment,
+} from "@/hooks/queries/useDues";
+import {
   fetchWhatsappLink,
   karachiDateString,
-  postPromise,
-  postReminded,
-  recordDuePayment,
   type DueBucket,
   type DueDirection,
   type DueItem,
   type DueSort,
-  type DuesSummary,
 } from "@/lib/dues";
+
+const EMPTY_ITEMS: DueItem[] = [];
 
 const BUCKETS: Array<DueBucket | "all"> = ["all", "0-7", "8-30", "31-90", "90+"];
 
@@ -38,62 +41,32 @@ function DuesPageContent() {
   const [searchInput, setSearchInput] = useState("");
   const [q, setQ] = useState("");
 
-  const [summary, setSummary] = useState<DuesSummary | null>(null);
-  const [items, setItems] = useState<DueItem[]>([]);
-  const [loadedKey, setLoadedKey] = useState("");
-  const [error, setError] = useState("");
-  const [tick, setTick] = useState(0);
-
   const [payItem, setPayItem] = useState<DueItem | null>(null);
   const [promiseItem, setPromiseItem] = useState<DueItem | null>(null);
   const [dismissedFocus, setDismissedFocus] = useState<string | null>(null);
   const focusedRef = useRef<string | null>(null);
-
-  const listKey = `${activeBranchId ?? ""}|${direction}|${bucket}|${q}|${sort}`;
-  const loading = loadedKey !== listKey;
 
   useEffect(() => {
     const h = setTimeout(() => setQ(searchInput.trim()), 300);
     return () => clearTimeout(h);
   }, [searchInput]);
 
-  const refreshAll = useCallback(() => setTick((t) => t + 1), []);
-  const refreshList = refreshAll;
+  const summaryQuery = useDuesSummary();
+  const listQuery = useDues({ direction, bucket, q, sort });
+  const recordPayment = useRecordDuePayment();
+  const promiseMutation = usePostPromise();
+  const remindedMutation = usePostReminded();
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchDuesSummary(activeBranchId)
-      .then((s) => {
-        if (!cancelled) setSummary(s);
-      })
-      .catch((e) => {
-        if (!cancelled)
-          setError(e instanceof Error ? e.message : "Failed to load summary");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeBranchId, tick]);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchDues({ direction, bucket, q, sort }, activeBranchId)
-      .then((list) => {
-        if (cancelled) return;
-        setError("");
-        setItems(list);
-        setLoadedKey(listKey);
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        setError(e instanceof Error ? e.message : "Failed to load dues");
-        setItems([]);
-        setLoadedKey(listKey);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [direction, bucket, q, sort, activeBranchId, listKey, tick]);
+  const summary = summaryQuery.data ?? null;
+  const items = listQuery.data ?? EMPTY_ITEMS;
+  const loading = listQuery.isPending;
+  const listError = listQuery.error
+    ? listQuery.error.message || "Failed to load dues"
+    : "";
+  const summaryError = summaryQuery.error
+    ? summaryQuery.error.message || "Failed to load summary"
+    : "";
+  const error = listError || summaryError;
 
   // ?focus=<entityType>:<entityId> -> scroll to and highlight the row.
   useEffect(() => {
@@ -119,28 +92,23 @@ function DuesPageContent() {
     try {
       const { url } = await fetchWhatsappLink(item, activeBranchId);
       window.open(url, "_blank");
-      await postReminded(item, "WHATSAPP_LINK", activeBranchId);
-      refreshList();
+      await remindedMutation.mutateAsync({ item, channel: "WHATSAPP_LINK" });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "WhatsApp link failed");
     }
   };
 
   const handleCall = (item: DueItem) => {
-    postReminded(item, "CALL", activeBranchId)
-      .then(() => refreshList())
-      .catch(() => {});
+    remindedMutation.mutateAsync({ item, channel: "CALL" }).catch(() => {});
   };
 
   const handleSnooze = async (item: DueItem) => {
     try {
-      await postPromise(
+      await promiseMutation.mutateAsync({
         item,
-        { promisedDate: karachiDateString(3), kind: "SNOOZE" },
-        activeBranchId,
-      );
+        body: { promisedDate: karachiDateString(3), kind: "SNOOZE" },
+      });
       toast.success("3 din ke liye snooze kar diya");
-      refreshAll();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Snooze failed");
     }
@@ -148,22 +116,19 @@ function DuesPageContent() {
 
   const submitPay = async (amount: number) => {
     if (!payItem) return;
-    await recordDuePayment(payItem, amount, activeBranchId);
+    await recordPayment.mutateAsync({ item: payItem, amount });
     toast.success("Payment record ho gayi");
     setPayItem(null);
-    refreshAll();
   };
 
   const submitPromise = async (promisedDate: string) => {
     if (!promiseItem) return;
-    await postPromise(
-      promiseItem,
-      { promisedDate, kind: "PROMISE" },
-      activeBranchId,
-    );
+    await promiseMutation.mutateAsync({
+      item: promiseItem,
+      body: { promisedDate, kind: "PROMISE" },
+    });
     toast.success("Promise date save ho gayi");
     setPromiseItem(null);
-    refreshAll();
   };
 
   const agingCounts = summary?.aging[direction];

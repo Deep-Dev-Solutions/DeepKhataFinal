@@ -1,47 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Star, Loader2 } from "lucide-react";
-import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
-import { Customer } from "@/types/api";
-import { useAuth } from "@/context/AuthContext";
+import { useCustomerReport } from "@/hooks/queries/useReports";
 
 export default function CustomerInsightsTab() {
-  const [vipCustomers, setVipCustomers] = useState<Customer[]>([]);
-  const { activeBranchId } = useAuth();
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    let isActive = true;
-
-    const fetchCustomerInsights = async () => {
-      setIsLoading(true);
-      setError("");
-
-      try {
-        const res = await fetch(`${API_BASE_URL}/reports/customers`, {
-          headers: getAuthHeaders(activeBranchId),
-        });
-
-        const json = await res.json();
-        if (!res.ok || !json?.success)
-          throw new Error(json?.message || "Failed to load customer report");
-
-        if (isActive) setVipCustomers(json.vipCustomers || []);
-      } catch {
-        if (isActive) setError("Could not load customer insights.");
-      } finally {
-        if (isActive) setIsLoading(false);
-      }
-    };
-
-    fetchCustomerInsights();
-
-    return () => {
-      isActive = false;
-    };
-  }, [activeBranchId]);
+  const { data, isPending: isLoading, isError } = useCustomerReport();
+  const vipCustomers = data ?? [];
+  const error = isError ? "Could not load customer insights." : "";
 
   if (isLoading) {
     return (
