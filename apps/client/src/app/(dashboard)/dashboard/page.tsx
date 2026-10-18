@@ -7,6 +7,7 @@ import StatsCards from "@/components/dashboard/widgets/StatsCards";
 import RevenueChart from "@/components/dashboard/widgets/RevenueChart";
 import PaymentHealth from "@/components/dashboard/widgets/PaymentHealth";
 import RecentOrdersTable from "@/components/dashboard/widgets/RecentOrdersTable";
+import GettingStartedChecklist from "@/components/dashboard/GettingStartedChecklist";
 import DuesTodayWidget from "@/components/dashboard/widgets/DuesTodayWidget";
 import TransfersInboxWidget from "@/components/dashboard/widgets/TransfersInboxWidget";
 import { useDashboard } from "@/hooks/queries/useDashboard";
@@ -64,6 +65,8 @@ export default function DashboardHomePage() {
           </Link>
         </div>
       </div>
+
+      <GettingStartedChecklist />
 
       <StatsCards kpis={dashboardData?.kpis} />
 
