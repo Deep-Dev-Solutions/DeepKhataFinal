@@ -6,11 +6,14 @@ const keys: StoredUser[] = ['ownerA', 'managerA', 'staffA', 'ownerB'];
 
 for (const key of keys) {
   setup(`authenticate ${key}`, async ({ page }) => {
+    // The first request after a cold `next dev` start compiles /login and
+    // /dashboard; wait for the form and allow the redirect time to compile.
     await page.goto('/login');
-    await page.getByLabel('Email address').fill(users[key].email);
-    await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD);
-    await page.getByRole('button', { name: /sign in/i }).click();
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByTestId('login-email')).toBeVisible({ timeout: 60_000 });
+    await page.getByTestId('login-email').fill(users[key].email);
+    await page.getByTestId('login-password').fill(TEST_PASSWORD);
+    await page.getByTestId('login-submit').click();
+    await expect(page).toHaveURL(/\/dashboard$/, { timeout: 60_000 });
     await expect
       .poll(() => page.evaluate(() => localStorage.getItem('accessToken')))
       .not.toBeNull();
