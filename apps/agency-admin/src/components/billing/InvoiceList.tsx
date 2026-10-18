@@ -8,7 +8,7 @@ import InvoiceForm from "./InvoiceForm";
 import InvoicesTable from "./InvoicesTable";
 import { Invoice } from "./types";
 
-const STATUSES = ["", "DRAFT", "SENT", "PARTIALLY_PAID", "PAID", "OVERDUE", "VOID"];
+const STATUSES = ["", "DRAFT", "SENT", "PAID", "OVERDUE", "VOID"];
 
 /** Invoice list with status filter and create modal. Optional businessId scopes it to one tenant. */
 export default function InvoiceList({ businessId }: { businessId?: string }) {

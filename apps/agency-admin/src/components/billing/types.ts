@@ -1,5 +1,5 @@
 export type BillingCycle = "MONTHLY" | "YEARLY";
-export type InvoiceStatus = "DRAFT" | "SENT" | "PAID" | "PARTIALLY_PAID" | "OVERDUE" | "VOID" | string;
+export type InvoiceStatus = "DRAFT" | "SENT" | "PAID" | "OVERDUE" | "VOID" | string;
 export type PaymentMethod = "BANK_TRANSFER" | "JAZZCASH" | "EASYPAISA" | "CASH" | "OTHER";
 
 export const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
@@ -59,7 +59,6 @@ export interface TenantOption {
 export const STATUS_BADGES: Record<string, string> = {
   DRAFT: "bg-slate-100 text-slate-700 border-slate-200",
   SENT: "bg-blue-50 text-blue-700 border-blue-200",
-  PARTIALLY_PAID: "bg-amber-50 text-amber-700 border-amber-200",
   PAID: "bg-emerald-50 text-emerald-700 border-emerald-200",
   OVERDUE: "bg-rose-50 text-rose-700 border-rose-200",
   VOID: "bg-slate-50 text-slate-400 border-slate-200 line-through",

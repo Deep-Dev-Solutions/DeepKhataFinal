@@ -1,4 +1,4 @@
-import { Store, Users, Globe, Bell, User, GitBranch } from "lucide-react";
+import { Store, Users, Globe, Bell, User, GitBranch, CreditCard } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 
 interface SettingsNavProps {
@@ -40,6 +40,15 @@ export default function SettingsNav({
               className={`flex items-center gap-2 pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "team" ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"}`}
             >
               <Users className="w-4 h-4" /> Team & Roles
+            </button>
+          )}
+
+          {hasPermission("manage:team") && (
+            <button
+              onClick={() => setActiveTab("plan")}
+              className={`flex items-center gap-2 pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "plan" ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"}`}
+            >
+              <CreditCard className="w-4 h-4" /> Plan & Usage
             </button>
           )}
 

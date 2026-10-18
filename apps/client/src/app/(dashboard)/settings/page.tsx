@@ -6,6 +6,7 @@ import SettingsNav from "@/components/settings/SettingsNav";
 import ProfileTab from "@/components/settings/ProfileTab";
 import GeneralTab from "@/components/settings/GeneralTab";
 import TeamTab from "@/components/settings/TeamTab";
+import PlanUsageTab from "@/components/settings/PlanUsageTab";
 import PortalTab from "@/components/settings/PortalTab";
 import BranchesTab from "@/components/settings/BranchesTab";
 import NotificationsTab from "@/components/settings/NotificationsTab";
@@ -126,6 +127,7 @@ function SettingsPageContent() {
           />
         )}
         {activeTab === "team" && hasPermission("manage:team") && <TeamTab />}
+        {activeTab === "plan" && hasPermission("manage:team") && <PlanUsageTab />}
         {activeTab === "branches" && hasPermission("manage:business") && (
           <BranchesTab />
         )}
