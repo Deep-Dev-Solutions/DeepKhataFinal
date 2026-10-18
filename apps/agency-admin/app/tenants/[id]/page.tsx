@@ -19,44 +19,10 @@ import {
   Wallet,
   BadgeCheck,
 } from "lucide-react";
-
-interface BillingLog {
-  id: string;
-  amount: number;
-  paymentDate: string;
-  notes: string | null;
-  createdAt: string;
-}
-
-interface TenantDetail {
-  id: string;
-  name: string;
-  slug: string;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
-  createdAt: string;
-  status: "ACTIVE" | "READ_ONLY" | "SUSPENDED";
-  subscriptionExpiresAt: string | null;
-  owner: {
-    name: string;
-    email: string;
-    phone: string | null;
-  };
-  _count: {
-    users: number;
-    products: number;
-    orders: number;
-    branches: number;
-  };
-  branches: {
-    id: string;
-    name: string;
-    location: string | null;
-    createdAt: string;
-  }[];
-  billingLogs: BillingLog[];
-}
+import {
+  TenantDetail,
+  LogPaymentResponse,
+} from "@/types/agency";
 
 const STATUS_META: Record<
   TenantDetail["status"],
@@ -126,19 +92,23 @@ export default function TenantDetailPage() {
     try {
       const data = await api.get<TenantDetail>(`/agency/tenants/${tenantId}`);
       setTenant(data);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to load tenant");
     } finally {
       setLoading(false);
     }
   }, [tenantId, token, isAuthLoading]);
 
   useEffect(() => {
-    if (tenantId && token) {
-      fetchTenant();
-    } else if (!isAuthLoading) {
-      setLoading(false);
-    }
+    const load = async () => {
+      if (tenantId && token) {
+        await fetchTenant();
+      } else if (!isAuthLoading) {
+        setLoading(false);
+      }
+    };
+
+    load().catch(console.error);
   }, [tenantId, token, isAuthLoading, fetchTenant]);
 
   const handleStatusChange = async (
@@ -152,8 +122,8 @@ export default function TenantDetailPage() {
         status: newStatus,
       });
       setTenant({ ...tenant, status: newStatus });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to update status");
     } finally {
       setStatusUpdating(false);
     }
@@ -167,15 +137,14 @@ export default function TenantDetailPage() {
     setBillingSuccess("");
 
     try {
-      const data = await api.post<{
-        billingLog: { amount: number };
-        status: TenantDetail["status"];
-        subscriptionExpiresAt: string | null;
-      }>(`/agency/tenants/${tenant.id}/billing`, {
-        amount: parseFloat(amount),
-        paymentDate,
-        notes: notes || undefined,
-      });
+      const data = await api.post<LogPaymentResponse>(
+        `/agency/tenants/${tenant.id}/billing`,
+        {
+          amount: parseFloat(amount),
+          paymentDate,
+          notes: notes || undefined,
+        },
+      );
       setAmount("");
       setNotes("");
       setBillingSuccess(
@@ -186,8 +155,8 @@ export default function TenantDetailPage() {
         `/agency/tenants/${tenant.id}`,
       );
       setTenant(fresh);
-    } catch (err: any) {
-      setBillingError(err.message);
+    } catch (err: unknown) {
+      setBillingError(err instanceof Error ? err.message : "Failed to log payment");
     } finally {
       setBillingSubmitting(false);
     }
@@ -230,7 +199,7 @@ export default function TenantDetailPage() {
   ];
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div data-testid="tenant-detail" className="space-y-6 animate-in fade-in duration-500">
       {/* ── Back / Page Header ───────────────────────────────────────────── */}
       <div>
         <Link
@@ -305,7 +274,7 @@ export default function TenantDetailPage() {
           </div>
           <div className="p-6 space-y-4">
             <p className="text-sm text-slate-500">
-              Forcefully override this tenant's access state.{" "}
+              Forcefully override this tenant&apos;s access state.{" "}
               <span className="font-semibold text-slate-700">Suspended</span>{" "}
               blocks all logins,{" "}
               <span className="font-semibold text-slate-700">Read-Only</span>{" "}
@@ -317,6 +286,7 @@ export default function TenantDetailPage() {
               <select
                 value={tenant.status}
                 onChange={handleStatusChange}
+                data-testid="tenant-status-select"
                 disabled={statusUpdating}
                 className={`flex-1 px-3 py-2.5 border rounded-lg font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer disabled:opacity-60 ${statusMeta.select}`}
               >
@@ -337,7 +307,7 @@ export default function TenantDetailPage() {
             <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
               <BadgeCheck size={14} className="text-emerald-500" />
               Current status:{" "}
-              <span className="font-semibold text-slate-800">
+              <span data-testid="tenant-status" className="font-semibold text-slate-800">
                 {statusMeta.label}
               </span>
               . Changes apply immediately to all users of this business.
@@ -356,7 +326,7 @@ export default function TenantDetailPage() {
               <CalendarClock size={18} className="text-indigo-600 shrink-0" />
               <div className="text-sm">
                 <span className="text-slate-500">Subscription expires on </span>
-                <span className="font-bold text-slate-900">
+                <span data-testid="tenant-expiry" className="font-bold text-slate-900">
                   {formatDate(tenant.subscriptionExpiresAt)}
                 </span>
               </div>
@@ -384,6 +354,7 @@ export default function TenantDetailPage() {
                     min="1"
                     step="any"
                     value={amount}
+                    data-testid="tenant-payment-amount"
                     onChange={(e) => setAmount(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     placeholder="e.g. 15000"
@@ -417,6 +388,7 @@ export default function TenantDetailPage() {
               <button
                 type="submit"
                 disabled={billingSubmitting}
+                data-testid="tenant-payment-submit"
                 className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-60 shadow-sm"
               >
                 {billingSubmitting ? (
@@ -462,7 +434,7 @@ export default function TenantDetailPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {tenant.billingLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+                  <tr data-testid="tenant-billing-row" key={log.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-3 font-medium text-slate-900">
                       {formatDate(log.paymentDate)}
                     </td>

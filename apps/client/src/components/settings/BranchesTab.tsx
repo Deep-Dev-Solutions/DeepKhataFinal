@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL } from "@/lib/auth";
 import { useIsReadOnly } from "@/hooks/useIsReadOnly";
+import { Branch } from "@/types/api";
 import {
   GitBranch,
   MapPin,
@@ -34,8 +35,8 @@ export default function BranchesTab() {
   const { toast } = useToast();
   const readOnly = useIsReadOnly();
 
-  const [branches, setBranches] = useState<any[]>(
-    Array.isArray(authBranches) ? authBranches : [],
+  const [branches, setBranches] = useState<Branch[]>(
+    Array.isArray(authBranches) ? (authBranches as Branch[]) : [],
   );
   const [isLoading, setIsLoading] = useState(
     !authBranches || authBranches.length === 0,
@@ -43,7 +44,7 @@ export default function BranchesTab() {
 
   // Edit Dialog State
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editingBranch, setEditingBranch] = useState<any>(null);
+  const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
   const [editFormData, setEditFormData] = useState({
     name: "",
     phone: "",
@@ -62,7 +63,7 @@ export default function BranchesTab() {
   const [modalError, setModalError] = useState<string | null>(null);
 
   // Delete Dialog State
-  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Branch | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Upgrade Dialog State
@@ -98,7 +99,7 @@ export default function BranchesTab() {
   }, [authBranches, fetchBranches]);
 
   // Edit Handlers
-  const openEditDialog = (branch: any) => {
+  const openEditDialog = (branch: Branch) => {
     setEditingBranch(branch);
     setEditFormData({
       name: branch.name || "",
@@ -142,8 +143,8 @@ export default function BranchesTab() {
       if (refreshUser) {
         await refreshUser();
       }
-    } catch (err: any) {
-      toast.error(err.message || "An error occurred");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : "An error occurred") || "An error occurred");
     } finally {
       setIsSaving(false);
     }
@@ -175,8 +176,8 @@ export default function BranchesTab() {
       if (refreshUser) {
         await refreshUser();
       }
-    } catch (err: any) {
-      toast.error(err.message || "An error occurred");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : "An error occurred") || "An error occurred");
     } finally {
       setIsDeleting(false);
     }
@@ -258,8 +259,8 @@ export default function BranchesTab() {
       if (refreshUser) {
         await refreshUser();
       }
-    } catch (err: any) {
-      const errorMsg = err.message || "An error occurred while creating branch";
+    } catch (err: unknown) {
+      const errorMsg = (err instanceof Error ? err.message : "An error occurred while creating branch") || "An error occurred while creating branch";
       setModalError(errorMsg);
       toast.error(errorMsg);
     } finally {
@@ -360,12 +361,12 @@ export default function BranchesTab() {
               <GitBranch className="w-10 h-10 mx-auto text-slate-300 mb-2" />
               <p className="font-semibold text-slate-700">No branches found</p>
               <p className="text-xs text-slate-400 mt-0.5">
-                Click "Add Branch" above to create your location.
+                Click &quot;Add Branch&quot; above to create your location.
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {safeBranches.map((b: any) => (
+              {safeBranches.map((b: Branch) => (
                 <div
                   key={b.id}
                   className="border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all bg-white flex flex-col justify-between"

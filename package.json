@@ -1,0 +1,35 @@
+{
+  "name": "deepkhata",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently --names api,web,admin --prefix-colors cyan,blue,magenta \"npm run start:dev -w server\" \"npm run dev -w client\" \"npm run dev -w agency-admin\" --kill-others-on-fail",
+    "db:up": "docker compose -f docker-compose.dev.yml up -d --wait",
+    "db:down": "docker compose -f docker-compose.dev.yml down",
+    "db:migrate": "npm run prisma:migrate -w server",
+    "db:seed": "npm exec -w server -- prisma db seed",
+    "db:reset": "npm exec -w server -- prisma migrate reset --force",
+    "test:api": "npm run test:e2e -w server",
+    "test:e2e": "npm test -w e2e",
+    "lint": "npm run lint --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "bcrypt@6.0.0": true,
+    "core-js@3.50.0": true,
+    "esbuild@0.28.2": true,
+    "prisma@6.19.3": true,
+    "unrs-resolver@1.12.2": true,
+    "@swc/core@1.16.18": true
+  }
+}

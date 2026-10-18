@@ -13,6 +13,9 @@ import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 import InviteStaffModal from "@/components/modals/InviteStaffModal";
 import AlertDialog from "@/components/ui/alert-dialog";
+import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
+import { usePermissions } from "@/hooks/usePermissions";
 
 type ActiveMember = {
   id: string;
@@ -26,6 +29,15 @@ type PendingInvite = {
   email: string;
   role: string;
   sentAt: string;
+};
+
+/** Invitation row as returned by GET /team/pending-invites. */
+type PendingInviteResponse = {
+  id?: string;
+  token?: string;
+  email: string;
+  role: string;
+  createdAt?: string;
 };
 
 export default function TeamTab() {
@@ -43,7 +55,17 @@ export default function TeamTab() {
   const [cancelInviteEmail, setCancelInviteEmail] = useState<string | null>(
     null,
   );
+  const [pendingRoleChange, setPendingRoleChange] = useState<{
+    member: ActiveMember;
+    role: string;
+  } | null>(null);
+  const [revokeMember, setRevokeMember] = useState<ActiveMember | null>(null);
+  const [memberBusy, setMemberBusy] = useState(false);
   const readOnly = useIsReadOnly();
+  const { toast } = useToast();
+  const { user: authUser, activeBranchId } = useAuth();
+  const { hasPermission } = usePermissions();
+  const canManageTeam = hasPermission("manage:team");
 
   const loadTeamData = async () => {
     setLoading(true);
@@ -86,7 +108,7 @@ export default function TeamTab() {
       );
 
       const mappedPending = (pendingData?.pendingInvites || []).map(
-        (invite: any, index: number) => ({
+        (invite: PendingInviteResponse, index: number) => ({
           id: invite.id || invite.token || `${invite.email}-${index}`,
           email: invite.email,
           role: invite.role,
@@ -98,8 +120,8 @@ export default function TeamTab() {
 
       setActiveMembers(mappedActive);
       setPending(mappedPending);
-    } catch (err: any) {
-      setError(err?.message || "Failed to load team data");
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : "Failed to load team data") || "Failed to load team data");
     } finally {
       setLoading(false);
     }
@@ -136,8 +158,8 @@ export default function TeamTab() {
         throw new Error(data?.message || "Failed to resend invitation");
       }
       await loadTeamData();
-    } catch (err: any) {
-      setError(err?.message || "Failed to resend invitation");
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : "Failed to resend invitation") || "Failed to resend invitation");
     } finally {
       setProcessing(null);
     }
@@ -158,10 +180,60 @@ export default function TeamTab() {
         throw new Error(data?.message || "Failed to cancel invitation");
       }
       await loadTeamData();
-    } catch (err: any) {
-      setError(err?.message || "Failed to cancel invitation");
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : "Failed to cancel invitation") || "Failed to cancel invitation");
     } finally {
       setProcessing(null);
+    }
+  };
+
+  const isSelf = (member: ActiveMember) =>
+    !!authUser?.email &&
+    member.email.toLowerCase() === authUser.email.toLowerCase();
+
+  const handleUpdateRole = async (member: ActiveMember, role: string) => {
+    if (readOnly || !canManageTeam) return;
+    setMemberBusy(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/team/updaterole`, {
+        method: "PATCH",
+        headers: getAuthHeaders(activeBranchId),
+        body: JSON.stringify({ email: member.email, role }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.message || "Failed to update role");
+      }
+      toast.success(`${member.name} is now ${role}`);
+      await loadTeamData();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to update role");
+    } finally {
+      setMemberBusy(false);
+    }
+  };
+
+  const handleRemoveMember = async (member: ActiveMember) => {
+    if (readOnly || !canManageTeam) return;
+    setMemberBusy(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/team/removemember`, {
+        method: "DELETE",
+        headers: getAuthHeaders(activeBranchId),
+        body: JSON.stringify({ email: member.email }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.message || "Failed to remove member");
+      }
+      toast.success(`${member.name} was removed from the team`);
+      await loadTeamData();
+    } catch (err: unknown) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to remove member",
+      );
+    } finally {
+      setMemberBusy(false);
     }
   };
 
@@ -181,6 +253,7 @@ export default function TeamTab() {
         {/* Buttons right next to each other */}
         <div className="flex items-center gap-3">
           <button
+            data-testid="team-invite-open"
             onClick={() => setIsInviteOpen(true)}
             disabled={readOnly}
             title={
@@ -222,6 +295,7 @@ export default function TeamTab() {
         {/* 🟢 SUB-TABS (Toggle Active vs Pending) */}
         <div className="border-b border-slate-200 bg-slate-50 px-5 pt-4 flex gap-6">
           <button
+            data-testid="team-tab-active"
             onClick={() => setViewState("active")}
             className={`pb-3 text-sm font-bold border-b-2 transition-colors -mb-px ${
               viewState === "active"
@@ -233,6 +307,7 @@ export default function TeamTab() {
           </button>
 
           <button
+            data-testid="team-tab-pending"
             onClick={() => setViewState("pending")}
             className={`pb-3 text-sm font-bold border-b-2 transition-colors -mb-px flex items-center gap-2 ${
               viewState === "pending"
@@ -278,6 +353,7 @@ export default function TeamTab() {
                     activeMembers.map((user) => (
                       <tr
                         key={user.id}
+                        data-testid="team-member-row"
                         className="hover:bg-slate-50 transition-colors"
                       >
                         <td className="px-5 py-3">
@@ -311,24 +387,44 @@ export default function TeamTab() {
                             <div className="flex items-center justify-end gap-2">
                               {/* 🟢 MOVED: Change Role Dropdown inside Actions */}
                               <div className="relative">
-                                <select className="bg-white border border-slate-200 text-slate-700 py-1.5 pl-3 pr-7 rounded-md text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer appearance-none hover:bg-slate-50 transition-colors shadow-sm">
-                                  <option
-                                    value="STAFF"
-                                    selected={user.role === "STAFF"}
-                                  >
-                                    Change to STAFF
-                                  </option>
-                                  <option
-                                    value="MANAGER"
-                                    selected={user.role === "MANAGER"}
-                                  >
+                                <select
+                                  data-testid="team-member-role-select"
+                                  value={user.role}
+                                  disabled={
+                                    readOnly ||
+                                    !canManageTeam ||
+                                    memberBusy ||
+                                    isSelf(user)
+                                  }
+                                  onChange={(e) => {
+                                    if (e.target.value !== user.role) {
+                                      setPendingRoleChange({
+                                        member: user,
+                                        role: e.target.value,
+                                      });
+                                    }
+                                  }}
+                                  className="bg-white border border-slate-200 text-slate-700 py-1.5 pl-3 pr-7 rounded-md text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer appearance-none hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <option value="STAFF">Change to STAFF</option>
+                                  <option value="MANAGER">
                                     Change to MANAGER
                                   </option>
                                 </select>
                                 <ChevronDown className="w-3 h-3 absolute right-2 top-2 text-slate-400 pointer-events-none" />
                               </div>
 
-                              <button className="flex items-center gap-1.5 px-3 py-1.5 text-rose-600 hover:bg-rose-50 rounded-md transition-colors text-xs font-semibold border border-transparent hover:border-rose-100">
+                              <button
+                                data-testid="team-member-revoke"
+                                onClick={() => setRevokeMember(user)}
+                                disabled={
+                                  readOnly ||
+                                  !canManageTeam ||
+                                  memberBusy ||
+                                  isSelf(user)
+                                }
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-rose-600 hover:bg-rose-50 rounded-md transition-colors text-xs font-semibold border border-transparent hover:border-rose-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
                                 <Trash2 className="w-3.5 h-3.5" /> Revoke
                               </button>
                             </div>
@@ -377,6 +473,7 @@ export default function TeamTab() {
                     pending.map((invite) => (
                       <tr
                         key={invite.id}
+                        data-testid="team-invite-row"
                         className="hover:bg-amber-50/50 transition-colors"
                       >
                         <td className="px-5 py-3">
@@ -397,6 +494,7 @@ export default function TeamTab() {
                         <td className="px-5 py-3 text-right">
                           <div className="flex items-center justify-end gap-2">
                             <button
+                              data-testid="team-invite-resend"
                               onClick={() => handleResendInvite(invite.email)}
                               disabled={processing !== null}
                               className="flex items-center gap-1.5 px-3 py-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors text-xs font-semibold border border-transparent hover:border-blue-100 bg-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -408,6 +506,7 @@ export default function TeamTab() {
                                 : "Resend"}
                             </button>
                             <button
+                              data-testid="team-invite-cancel"
                               onClick={() => setCancelInviteEmail(invite.email)}
                               disabled={processing !== null}
                               className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-600 rounded-md transition-colors text-xs font-semibold border border-transparent hover:border-rose-100 bg-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -448,6 +547,47 @@ export default function TeamTab() {
         }}
         businessId={currentBusinessId}
         onInviteSuccess={() => void loadTeamData()}
+      />
+
+      <AlertDialog
+        isOpen={pendingRoleChange !== null}
+        title="Change Role?"
+        description={
+          pendingRoleChange
+            ? `Change ${pendingRoleChange.member.name} (${pendingRoleChange.member.email}) from ${pendingRoleChange.member.role} to ${pendingRoleChange.role}?`
+            : ""
+        }
+        confirmLabel="Change Role"
+        destructive={false}
+        confirming={memberBusy}
+        onConfirm={() => {
+          const change = pendingRoleChange;
+          setPendingRoleChange(null);
+          if (change) {
+            void handleUpdateRole(change.member, change.role);
+          }
+        }}
+        onClose={() => setPendingRoleChange(null)}
+      />
+
+      <AlertDialog
+        isOpen={revokeMember !== null}
+        title="Remove Team Member?"
+        description={
+          revokeMember
+            ? `Are you sure you want to remove ${revokeMember.name} (${revokeMember.email}) from your team? They will lose access immediately.`
+            : ""
+        }
+        confirmLabel="Remove Member"
+        confirming={memberBusy}
+        onConfirm={() => {
+          const member = revokeMember;
+          setRevokeMember(null);
+          if (member) {
+            void handleRemoveMember(member);
+          }
+        }}
+        onClose={() => setRevokeMember(null)}
       />
 
       <AlertDialog

@@ -200,8 +200,12 @@ export default function OrderDetailsLedger() {
           minute: "2-digit",
         }),
         customer: {
-          name: rawOrder.customer ? rawOrder.customer.name : "Walk-in Customer",
-          phone: rawOrder.customer ? rawOrder.customer.phone : "N/A",
+          name: rawOrder.customer
+            ? rawOrder.customer.name
+            : rawOrder.walkInName || "Walk-in Customer",
+          phone: rawOrder.customer
+            ? rawOrder.customer.phone
+            : rawOrder.walkInPhone || "N/A",
           type: rawOrder.customer
             ? rawOrder.customer.isDefaulter
               ? "Defaulter"
@@ -384,6 +388,7 @@ export default function OrderDetailsLedger() {
   };
 
   const handleMarkAsCompleted = async () => {
+    setIsSubmittingStatus(true);
     try {
       const response = await fetch(`${API_BASE_URL}/order/${id}/status`, {
         method: "PATCH",
@@ -398,7 +403,9 @@ export default function OrderDetailsLedger() {
       toast.success("Order marked as completed.");
       await refreshOrder();
     } catch (err: any) {
-      toast.error(err.message);
+      toast.error(err.message || "Failed to update status");
+    } finally {
+      setIsSubmittingStatus(false);
     }
   };
 
@@ -472,19 +479,24 @@ export default function OrderDetailsLedger() {
 
               <span
                 className={`text-xs font-bold px-2.5 py-1 rounded-md flex items-center gap-1 border ${
-                  order.status === "FINAL" || order.status === "COMPLETED"
+                  order.status === "COMPLETED"
                     ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                    : order.status === "MEMO"
-                      ? "bg-amber-100 text-amber-800 border-amber-300"
-                      : order.status === "RETURNED"
-                        ? "bg-purple-100 text-purple-700 border-purple-200"
-                        : order.status === "CANCELLED"
-                          ? "bg-slate-200 text-slate-600 border-slate-300"
-                          : "bg-blue-100 text-blue-700 border-blue-200"
+                    : order.status === "PENDING"
+                      ? "bg-blue-100 text-blue-700 border-blue-200"
+                      : order.status === "MEMO"
+                        ? "bg-amber-100 text-amber-800 border-amber-300"
+                        : order.status === "RETURNED"
+                          ? "bg-purple-100 text-purple-700 border-purple-200"
+                          : order.status === "CANCELLED"
+                            ? "bg-slate-200 text-slate-600 border-slate-300"
+                            : "bg-slate-100 text-slate-700 border-slate-200"
                 }`}
               >
-                {(order.status === "FINAL" || order.status === "COMPLETED") && (
+                {order.status === "COMPLETED" && (
                   <CheckCircle2 className="w-3.5 h-3.5" />
+                )}
+                {order.status === "PENDING" && (
+                  <Clock className="w-3.5 h-3.5 text-blue-600" />
                 )}
                 {order.status === "ESTIMATE" && (
                   <FileText className="w-3.5 h-3.5 text-blue-600" />
@@ -520,6 +532,7 @@ export default function OrderDetailsLedger() {
                 <RotateCcw className="w-4 h-4" /> Return to Stock
               </button>
               <button
+                data-testid="order-convert-final"
                 onClick={() => handleOpenConvertModal("FINAL")}
                 disabled={isSubmittingStatus}
                 className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs sm:text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm shadow-emerald-200 disabled:opacity-50"
@@ -539,6 +552,7 @@ export default function OrderDetailsLedger() {
                 <Clock className="w-4 h-4" /> Convert to MEMO
               </button>
               <button
+                data-testid="order-convert-final"
                 onClick={() => handleOpenConvertModal("FINAL")}
                 disabled={isSubmittingStatus}
                 className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs sm:text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm shadow-emerald-200 disabled:opacity-50"
@@ -551,9 +565,10 @@ export default function OrderDetailsLedger() {
           {order.status === "PENDING" && (
             <button
               onClick={handleMarkAsCompleted}
-              className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200"
+              disabled={isSubmittingStatus}
+              className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 disabled:opacity-50 cursor-pointer"
             >
-              <CheckCircle2 className="w-4 h-4" /> Mark as Completed
+              <CheckCircle2 className="w-4 h-4" /> {isSubmittingStatus ? "Updating..." : "Mark as Completed"}
             </button>
           )}
 
@@ -618,6 +633,7 @@ export default function OrderDetailsLedger() {
                 <RotateCcw className="w-4 h-4" /> Return to Stock
               </button>
               <button
+                data-testid="order-convert-final"
                 onClick={() => handleOpenConvertModal("FINAL")}
                 disabled={isSubmittingStatus}
                 className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm shadow-emerald-200 disabled:opacity-50"
@@ -661,6 +677,7 @@ export default function OrderDetailsLedger() {
                 <Clock className="w-4 h-4" /> Convert to MEMO
               </button>
               <button
+                data-testid="order-convert-final"
                 onClick={() => handleOpenConvertModal("FINAL")}
                 disabled={isSubmittingStatus}
                 className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm shadow-emerald-200 disabled:opacity-50"
@@ -731,6 +748,7 @@ export default function OrderDetailsLedger() {
                       Rs. {item.total.toLocaleString()}
                     </span>
                     <button
+                      data-testid="order-item-return"
                       onClick={() => handleOpenReturnModal(item)}
                       disabled={
                         order.status === "RETURNED" ||
@@ -839,7 +857,10 @@ export default function OrderDetailsLedger() {
             </h3>
             <div className="flex items-start justify-between">
               <div>
-                <p className="font-bold text-slate-900 text-lg">
+                <p
+                  data-testid="order-walkin-name"
+                  className="font-bold text-slate-900 text-lg"
+                >
                   {order.customer.name}
                 </p>
                 <p className="text-sm text-slate-500 mt-1">
@@ -967,6 +988,7 @@ export default function OrderDetailsLedger() {
                   </button>
                   <button
                     type="button"
+                    data-testid="convert-full-paid"
                     onClick={() =>
                       setConvertAmountPaid(String(order.financials.total))
                     }
@@ -1035,6 +1057,7 @@ export default function OrderDetailsLedger() {
               </button>
               <button
                 type="button"
+                data-testid="convert-submit"
                 onClick={() => handleProcessConversion()}
                 disabled={isSubmittingStatus}
                 className="w-full flex justify-center items-center gap-2 px-5 py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50"
@@ -1081,12 +1104,14 @@ export default function OrderDetailsLedger() {
                   type="number"
                   min="1"
                   max={returnItemModal.qty}
+                  data-testid="return-qty"
                   value={returnQty}
                   onChange={(e) => setReturnQty(Number(e.target.value))}
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-blue-500 outline-none"
                 />
               </div>
               <button
+                data-testid="return-confirm"
                 onClick={handleProcessReturn}
                 disabled={
                   isSubmittingStatus ||

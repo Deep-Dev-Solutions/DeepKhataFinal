@@ -15,6 +15,24 @@ import {
 } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { useIsReadOnly } from "@/hooks/useIsReadOnly";
+import { Customer } from "@/types/api";
+
+/** Today's date in Asia/Karachi plus `days`, formatted YYYY-MM-DD. */
+export function addDaysKarachi(days: number): string {
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi",
+  }).format(new Date());
+  const [y, m, d] = today.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + days));
+  return dt.toISOString().slice(0, 10);
+}
+
+const DUE_CHIPS: Array<{ days: number; label: string }> = [
+  { days: 3, label: "3 din" },
+  { days: 7, label: "1 hafta" },
+  { days: 14, label: "2 hafte" },
+  { days: 30, label: "1 mahina" },
+];
 
 type CheckoutDrawerProps = {
   isOpen: boolean;
@@ -31,10 +49,10 @@ type CheckoutDrawerProps = {
   setWalkInPhone: (v: string) => void;
   customerSearch: string;
   setCustomerSearch: (v: string) => void;
-  customerResults: any[];
-  setCustomerResults: (v: any[]) => void;
-  selectedCustomer: any | null;
-  setSelectedCustomer: (c: any | null) => void;
+  customerResults: Customer[];
+  setCustomerResults: (v: Customer[]) => void;
+  selectedCustomer: Customer | null;
+  setSelectedCustomer: (c: Customer | null) => void;
   isSearchingCustomer: boolean;
   onOpenNewCustomer: () => void;
 
@@ -54,6 +72,10 @@ type CheckoutDrawerProps = {
   isOnline: boolean;
   isSubmitting: boolean;
   disabledReason: string | null;
+
+  dueDate?: string;
+  onDueDateChange?: (d: string) => void;
+  errorMessage?: string | null;
 };
 
 export default function CheckoutDrawer(props: CheckoutDrawerProps) {
@@ -90,6 +112,9 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
     isOnline,
     isSubmitting,
     disabledReason,
+    dueDate,
+    onDueDateChange,
+    errorMessage,
   } = props;
   const { toast } = useToast();
   const readOnly = useIsReadOnly();
@@ -124,8 +149,16 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
   };
 
   const existingBalance =
-    Number(selectedCustomer?.metrics?.outstandingBalance) || 0;
+    Number(
+      selectedCustomer?.balance ??
+        selectedCustomer?.metrics?.outstandingBalance ??
+        selectedCustomer?.outstandingBalance ??
+        0,
+    ) || 0;
   const creditLimit = Number(selectedCustomer?.creditLimit) || 0;
+  const projectedDebt = existingBalance + Math.max(0, pendingAmount);
+  const exceedsCreditLimit =
+    creditLimit > 0 && projectedDebt > creditLimit;
   const changeToReturn = Number(amountPaid) > grandTotal;
   const isSubmitDisabled =
     Boolean(disabledReason) || isSubmitting || cartCount === 0;
@@ -133,6 +166,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
   return (
     <div
       inert={!isOpen}
+      data-testid="checkout-drawer"
       className={`fixed inset-0 ${isOpen ? "" : "pointer-events-none"}`}
       style={{ zIndex: 60 }}
       aria-hidden={!isOpen}
@@ -164,6 +198,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
           </div>
           <button
             onClick={onClose}
+            data-testid="checkout-close"
             className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
             title="Close checkout (state is kept)"
           >
@@ -180,9 +215,11 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
             </h3>
             <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200/80">
               <button
+                data-testid="pos-customer-mode-walkin"
                 onClick={() => {
                   setCustomerMode("walk-in");
                   setSelectedCustomer(null);
+                  setOrderStatus("FINAL");
                 }}
                 className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                   customerMode === "walk-in"
@@ -193,6 +230,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                 Walk-in Customer
               </button>
               <button
+                data-testid="pos-customer-mode-existing"
                 onClick={() => setCustomerMode("existing")}
                 className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                   customerMode === "existing"
@@ -211,6 +249,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                   <input
                     type="text"
                     placeholder="Customer Name (Optional)"
+                    data-testid="pos-walkin-name"
                     value={walkInName}
                     onChange={(e) => setWalkInName(e.target.value)}
                     className="w-full pl-9 pr-3 h-10 border border-slate-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none text-slate-800 font-medium placeholder-slate-400 shadow-xs transition-all"
@@ -221,6 +260,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                   <input
                     type="text"
                     placeholder="Phone Number (Optional)"
+                    data-testid="pos-walkin-phone"
                     value={walkInPhone}
                     onChange={(e) => setWalkInPhone(e.target.value)}
                     className="w-full pl-9 pr-3 h-10 border border-slate-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none text-slate-800 font-medium placeholder-slate-400 font-mono shadow-xs transition-all"
@@ -261,6 +301,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                       <input
                         type="text"
                         placeholder="Type name or phone..."
+                        data-testid="pos-customer-select"
                         value={customerSearch}
                         onChange={(e) => setCustomerSearch(e.target.value)}
                         className="w-full pl-9 pr-3 h-10 border border-slate-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 bg-white shadow-xs"
@@ -299,6 +340,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                     <div className="mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
                       {customerResults.map((c) => (
                         <button
+                          data-testid="pos-customer-option"
                           key={c.id}
                           onClick={() => {
                             setSelectedCustomer(c);
@@ -376,6 +418,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                   type="number"
                   min="0"
                   max={subtotal}
+                  data-testid="pos-discount"
                   value={discount}
                   onFocus={(e) => {
                     if (discount === "0" || Number(discount) === 0)
@@ -439,6 +482,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                 )}
               </div>
               <p
+                data-testid="checkout-balance"
                 className={`text-xl font-black tracking-tight mt-1 ${
                   pendingAmount > 0 ? "text-rose-600" : "text-emerald-600"
                 }`}
@@ -451,6 +495,47 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                   {(Number(amountPaid) - grandTotal).toLocaleString()}
                 </p>
               )}
+              {pendingAmount > 0 &&
+                orderStatus !== "ESTIMATE" &&
+                onDueDateChange && (
+                  <div className="mt-3 pt-3 border-t border-rose-200/70 space-y-2">
+                    <label
+                      htmlFor="checkout-due-date"
+                      className="block text-xs font-bold text-slate-700"
+                    >
+                      Due Date (wapsi ki tareekh)
+                    </label>
+                    <input
+                      id="checkout-due-date"
+                      type="date"
+                      value={dueDate ?? ""}
+                      min={addDaysKarachi(0)}
+                      onChange={(e) => onDueDateChange(e.target.value)}
+                      data-testid="checkout-due-date"
+                      className="w-full px-3 h-10 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none shadow-xs"
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      {DUE_CHIPS.map((chip) => (
+                        <button
+                          key={chip.days}
+                          type="button"
+                          data-testid="checkout-due-chip"
+                          data-days={chip.days}
+                          onClick={() =>
+                            onDueDateChange(addDaysKarachi(chip.days))
+                          }
+                          className={`text-xs font-bold px-2.5 py-1 rounded-md border transition-colors cursor-pointer ${
+                            dueDate === addDaysKarachi(chip.days)
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                          }`}
+                        >
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
             </div>
           </section>
 
@@ -487,6 +572,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                   value={amountPaid}
                   onFocus={(e) => e.target.select()}
                   onChange={(e) => setAmountPaid(e.target.value)}
+                  data-testid="checkout-amount"
                   placeholder="0"
                   className="w-full px-3 h-full text-base font-bold text-slate-900 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder-slate-400"
                 />
@@ -500,10 +586,32 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
               <select
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
+                data-testid="checkout-method"
                 className="w-full px-3 h-10 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none shadow-xs cursor-pointer"
               >
                 <option value="CASH">Cash</option>
                 <option value="BANK">Bank Transfer / Card</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                Order Status
+              </label>
+              <select
+                value={orderStatus}
+                onChange={(e) => setOrderStatus(e.target.value)}
+                data-testid="pos-status-select"
+                disabled={customerMode === "walk-in"}
+                className={`w-full px-3 h-10 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none shadow-xs transition-all ${
+                  customerMode === "walk-in"
+                    ? "opacity-60 cursor-not-allowed bg-slate-100"
+                    : "bg-white cursor-pointer"
+                }`}
+              >
+                <option value="FINAL">Final (Handed to customer)</option>
+                <option value="PENDING">Pending (Delivery / Pickup later)</option>
+                <option value="MEMO">Memo / Amanat (On Approval)</option>
               </select>
             </div>
           </section>
@@ -511,6 +619,26 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
 
         {/* Pinned Footer */}
         <div className="p-3 border-t border-slate-200 bg-slate-50 shrink-0 space-y-2">
+          {exceedsCreditLimit && (
+            <div data-testid="checkout-credit-warning" className="flex items-start gap-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 animate-in fade-in duration-200">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+              <span>
+                Warning: Existing Debt (Rs. {existingBalance.toLocaleString()}) + New Debt (Rs. {Math.max(0, pendingAmount).toLocaleString()}) = Projected Debt (Rs. {projectedDebt.toLocaleString()}). This exceeds the limit of Rs. {creditLimit.toLocaleString()}.
+              </span>
+            </div>
+          )}
+
+          {errorMessage && (
+            <div
+              role="alert"
+              data-testid="checkout-error"
+              className="flex items-start gap-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 animate-in fade-in duration-200"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
           {disabledReason && cartCount > 0 && (
             <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-medium text-amber-900 animate-in fade-in duration-200">
               <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
@@ -519,7 +647,8 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
           )}
 
           <button
-            onClick={() => handleComplete("FINAL")}
+            onClick={() => handleComplete(orderStatus)}
+            data-testid="checkout-submit"
             disabled={isSubmitDisabled || readOnly}
             title={
               readOnly
@@ -539,7 +668,13 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                 ? "Read-only — Subscription expired"
                 : !isOnline
                   ? `Queue Order Offline`
-                  : "Complete Order"}
+                  : orderStatus === "FINAL"
+                    ? "Complete Final Sale"
+                    : orderStatus === "PENDING"
+                      ? "Save Pending Order"
+                      : orderStatus === "MEMO"
+                        ? "Create Memo / Amanat"
+                        : "Complete Final Sale"}
             {!isSubmitting && !readOnly && (
               <CheckCircle2 className="w-5 h-5" />
             )}

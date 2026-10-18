@@ -196,13 +196,12 @@ export default function VendorProfilePage() {
     return (
       item.productName.toLowerCase().includes(q) ||
       (item.sku && item.sku.toLowerCase().includes(q)) ||
-      (item.branchName && item.branchName.toLowerCase().includes(q)) ||
-      (item.condition && item.condition.toLowerCase().includes(q))
+      (item.branchName && item.branchName.toLowerCase().includes(q))
     );
   });
 
   return (
-    <div className="flex flex-col gap-6 animate-in fade-in duration-500 pb-10">
+    <div data-testid="vendor-detail" className="flex flex-col gap-6 animate-in fade-in duration-500 pb-10">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl border bg-white border-slate-200 shadow-sm">
         <div className="flex items-center gap-4">
@@ -235,6 +234,7 @@ export default function VendorProfilePage() {
 
         <div className="flex items-center gap-2">
           <button
+            data-testid="vendor-purchase-open"
             onClick={() => {
               setActionType("purchase");
               const el = document.getElementById("tx-form");
@@ -245,6 +245,7 @@ export default function VendorProfilePage() {
             + Record Purchase
           </button>
           <button
+            data-testid="vendor-payment-open"
             onClick={() => {
               setActionType("payment");
               const el = document.getElementById("tx-form");
@@ -298,6 +299,7 @@ export default function VendorProfilePage() {
               Balance Due
             </p>
             <p
+              data-testid="vendor-balance"
               className={`text-base sm:text-lg font-black truncate ${vendor.balance > 0 ? "text-rose-600" : "text-emerald-700"}`}
             >
               Rs. {formatPrice(vendor.balance)}
@@ -452,6 +454,7 @@ export default function VendorProfilePage() {
                   type="number"
                   required
                   min="1"
+                  data-testid="vendor-amount"
                   value={txAmount}
                   onChange={(e) => setTxAmount(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
@@ -465,6 +468,7 @@ export default function VendorProfilePage() {
                 </label>
                 <input
                   type="text"
+                  data-testid="vendor-description"
                   value={txDescription}
                   onChange={(e) => setTxDescription(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
@@ -478,6 +482,7 @@ export default function VendorProfilePage() {
 
               <button
                 type="submit"
+                data-testid="vendor-submit"
                 disabled={isSubmittingTx || !txAmount}
                 className={`w-full py-2.5 text-white font-bold rounded-xl text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer shadow-sm ${
                   actionType === "purchase"
@@ -706,7 +711,6 @@ export default function VendorProfilePage() {
                     <tr>
                       <th className="px-5 py-3">Received Date</th>
                       <th className="px-5 py-3">Product Name</th>
-                      <th className="px-5 py-3">Condition</th>
                       <th className="px-5 py-3">Branch & Cabinet</th>
                       <th className="px-5 py-3 text-center">Batch Qty</th>
                       <th className="px-5 py-3 text-center">Stock Status</th>
@@ -718,7 +722,7 @@ export default function VendorProfilePage() {
                     {filteredInventory.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={8}
+                          colSpan={7}
                           className="px-5 py-14 text-center text-slate-400"
                         >
                           <Layers className="w-10 h-10 mx-auto mb-2 opacity-25 text-slate-400" />
@@ -756,11 +760,6 @@ export default function VendorProfilePage() {
                                 {item.sku}
                               </span>
                             )}
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
-                              {item.condition?.replace(/_/g, " ")}
-                            </span>
                           </td>
                           <td className="px-5 py-3.5">
                             <div className="text-xs">
@@ -842,6 +841,7 @@ export default function VendorProfilePage() {
                     ) : (
                       vendor.ledger.map((item: any) => (
                         <tr
+                          data-testid="vendor-ledger-row"
                           key={item.id}
                           className="hover:bg-slate-50/70 transition-colors"
                         >

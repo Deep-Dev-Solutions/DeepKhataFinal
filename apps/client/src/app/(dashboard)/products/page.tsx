@@ -23,6 +23,7 @@ import {
 import Link from "next/link";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsReadOnly } from "@/hooks/useIsReadOnly";
+import { useAuth } from "@/context/AuthContext";
 import AddProductModal from "@/components/modals/AddProductModal";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
 
@@ -46,7 +47,6 @@ type ProductRecord = {
   } | null;
   instances?: Array<{
     id: string;
-    condition: string;
     status: string;
     cabinet?: {
       name?: string | null;
@@ -63,7 +63,6 @@ type ProductRow = {
   price: number;
   stock: number;
   location: string;
-  conditions: string[];
   hasDeletedBranchStock: boolean;
 };
 
@@ -74,9 +73,6 @@ const normalizeProduct = (product: ProductRecord): ProductRow => {
   const primaryCabinet = instances[0]?.cabinet;
   const location =
     primaryCabinet?.location || primaryCabinet?.name || "Cabinet (Shop Bin)";
-  const uniqueConditions = Array.from(
-    new Set(instances.map((i) => i.condition).filter(Boolean)),
-  );
 
   return {
     id: product.id,
@@ -86,7 +82,6 @@ const normalizeProduct = (product: ProductRecord): ProductRow => {
     price: Number(product.basePrice ?? product.price ?? 0),
     stock: Number(product.stock ?? 0),
     location,
-    conditions: uniqueConditions.length ? uniqueConditions : ["ORIGINAL_PULL"],
     hasDeletedBranchStock: Boolean(product.hasDeletedBranchStock),
   };
 };
@@ -97,6 +92,7 @@ function ProductsPageContent() {
   const router = useRouter();
   const { hasPermission } = usePermissions();
   const readOnly = useIsReadOnly();
+  const { activeBranchId } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState(
     searchParams.get("search") || "",
@@ -116,12 +112,9 @@ function ProductsPageContent() {
   const [deleteTarget, setDeleteTarget] = useState<ProductRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [movingId, setMovingId] = useState<string | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  // 🟢 STATES
-  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
-
-  const [newCategoryName, setNewCategoryName] = useState("");
 
   // Debounce search query to prevent spamming the backend
   useEffect(() => {
@@ -133,9 +126,10 @@ function ProductsPageContent() {
   }, [searchQuery]);
 
   const fetchCategories = useCallback(async () => {
+    if (!activeBranchId) return;
     try {
       const response = await fetch(`${API_BASE_URL}/product/getcategories`, {
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(activeBranchId),
       });
       const data = await response.json();
       if (data.success) {
@@ -145,9 +139,13 @@ function ProductsPageContent() {
     } catch (error) {
       console.error("Failed to fetch categories", error);
     }
-  }, []);
+  }, [activeBranchId]);
 
   const refreshProducts = useCallback(async () => {
+    if (!activeBranchId) {
+      setIsLoadingProducts(false);
+      return;
+    }
     setIsLoadingProducts(true);
     setPageError("");
 
@@ -161,7 +159,7 @@ function ProductsPageContent() {
       const response = await fetch(
         `${API_BASE_URL}/product/getproducts?${params.toString()}`,
         {
-          headers: getAuthHeaders(),
+          headers: getAuthHeaders(activeBranchId),
         },
       );
 
@@ -185,29 +183,7 @@ function ProductsPageContent() {
     } finally {
       setIsLoadingProducts(false);
     }
-  }, [debouncedSearchQuery, activeCategory, stockFilter]);
-
-  const handleAddCategory = async () => {
-    const trimmedName = newCategoryName.trim();
-
-    if (!trimmedName) return;
-
-    const response = await fetch(`${API_BASE_URL}/product/addcategory`, {
-      method: "POST",
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ name: trimmedName }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data?.message || data?.error || "Failed to add category");
-    }
-
-    await fetchCategories();
-    setIsCategoryModalOpen(false);
-    setNewCategoryName("");
-  };
+  }, [debouncedSearchQuery, activeCategory, stockFilter, activeBranchId]);
 
   // Synchronize search query and filter with URL params
   useEffect(() => {
@@ -247,7 +223,7 @@ function ProductsPageContent() {
     try {
       const response = await fetch(`${API_BASE_URL}/product/${id}`, {
         method: "DELETE",
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(activeBranchId),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -275,7 +251,7 @@ function ProductsPageContent() {
     try {
       const response = await fetch(`${API_BASE_URL}/product/move-stock`, {
         method: "POST",
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(activeBranchId),
         body: JSON.stringify({ productId }),
       });
       const data = await response.json();
@@ -322,7 +298,7 @@ function ProductsPageContent() {
   const outOfStockCount = filteredProducts.filter((p) => p.stock === 0).length;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-10 mt-2">
+    <div data-testid="products-page" className="space-y-6 animate-in fade-in duration-500 pb-10 mt-2">
       {/* 🟢 1. PAGE HEADER & ADD BUTTON */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
@@ -345,12 +321,14 @@ function ProductsPageContent() {
                 <Lock className="w-4 h-4" /> Read-only
               </span>
             ) : (
-              <Link
-                href="/products/new"
+              <button
+                type="button"
+                data-testid="products-add"
+                onClick={() => setIsAddModalOpen(true)}
                 className="flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200"
               >
                 <Plus className="w-4 h-4" /> Add Product
-              </Link>
+              </button>
             )}
           </div>
         )}
@@ -410,24 +388,6 @@ function ProductsPageContent() {
               {category}
             </button>
           ))}
-          {hasPermission("write:products") && (
-            <button
-              onClick={() => setIsCategoryModalOpen(true)}
-              disabled={readOnly}
-              title={
-                readOnly
-                  ? "Subscription expired. System is in read-only mode."
-                  : undefined
-              }
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium border whitespace-nowrap transition-colors flex items-center gap-1 ml-auto ${
-                readOnly
-                  ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
-                  : "text-blue-600 hover:bg-blue-50 border-dashed border-blue-200 cursor-pointer"
-              }`}
-            >
-              <Plus className="w-3.5 h-3.5" /> {readOnly ? "Read-only" : "New Category"}
-            </button>
-          )}
         </div>
 
         {/* Search */}
@@ -438,6 +398,7 @@ function ProductsPageContent() {
             </div>
             <input
               type="text"
+              data-testid="products-search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by product name or SKU barcode..."
@@ -515,8 +476,8 @@ function ProductsPageContent() {
                 <th className="px-6 py-4 font-semibold w-56">
                   Spatial Location (Cabinet)
                 </th>
-                <th className="px-6 py-4 font-semibold w-52">
-                  Condition & Instances
+                <th className="px-6 py-4 font-semibold w-40">
+                  Available Stock
                 </th>
                 <th className="px-6 py-4 font-semibold w-24 text-right">
                   Actions
@@ -539,6 +500,7 @@ function ProductsPageContent() {
               ) : (
                 filteredProducts.map((product) => (
                   <tr
+                    data-testid="product-row"
                     key={product.id}
                     className="hover:bg-slate-50 transition-colors group"
                   >
@@ -581,31 +543,17 @@ function ProductsPageContent() {
                     </td>
 
                     <td className="px-6 py-4">
-                      <div className="flex flex-col gap-1.5">
-                        <div className="flex flex-wrap gap-1">
-                          {product.conditions.map((cond) => (
-                            <span
-                              key={cond}
-                              className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded border ${
-                                cond === "ORIGINAL_PULL"
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                  : cond === "DEAD_DONOR"
-                                    ? "bg-rose-50 text-rose-700 border-rose-200"
-                                    : cond === "COPY"
-                                      ? "bg-blue-50 text-blue-700 border-blue-200"
-                                      : "bg-amber-50 text-amber-700 border-amber-200"
-                              }`}
-                            >
-                              {cond.replace(/_/g, " ")}
-                            </span>
-                          ))}
-                        </div>
-                        <span className="text-xs font-semibold text-slate-600">
-                          {product.stock > 0
-                            ? `${product.stock} instances available`
-                            : "0 instances (exhausted)"}
-                        </span>
-                      </div>
+                      <span data-testid="product-row-stock" className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                        product.stock > 3
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : product.stock > 0
+                            ? "bg-amber-50 text-amber-700 border border-amber-200"
+                            : "bg-slate-100 text-slate-500 border border-slate-200"
+                      }`}>
+                        {product.stock > 0
+                          ? `${product.stock} units available`
+                          : "Out of Stock"}
+                      </span>
                     </td>
 
                     <td className="px-6 py-4 text-right flex items-center justify-end gap-1">
@@ -690,59 +638,12 @@ function ProductsPageContent() {
         }}
       />
 
-      {/* Add Category Modal (Inline for now) */}
-      {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-            onClick={() => setIsCategoryModalOpen(false)}
-          />
-          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm p-6 animate-in zoom-in-95">
-            <h3 className="text-lg font-bold text-slate-900 mb-1">
-              Add New Category
-            </h3>
-            <p className="text-sm text-slate-500 mb-4">
-              Create a new category to organize your products.
-            </p>
-
-            <input
-              type="text"
-              autoFocus
-              value={newCategoryName}
-              onChange={(e) => setNewCategoryName(e.target.value)}
-              placeholder="e.g. Cables & Adapters"
-              className="w-full border border-slate-300 rounded-lg py-2.5 px-3 mb-5 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-            />
-
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setIsCategoryModalOpen(false)}
-                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  void handleAddCategory();
-                }}
-                disabled={readOnly}
-                title={
-                  readOnly
-                    ? "Subscription expired. System is in read-only mode."
-                    : undefined
-                }
-                className={`px-4 py-2 text-sm font-bold rounded-lg ${
-                  readOnly
-                    ? "bg-slate-400 text-white cursor-not-allowed"
-                    : "bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
-                }`}
-              >
-                Save Category
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AddProductModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSuccess={refreshProducts}
+        categories={categories}
+      />
     </div>
   );
 }

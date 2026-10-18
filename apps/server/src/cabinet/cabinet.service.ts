@@ -4,10 +4,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class CabinetService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
 
   private async requireBusinessId(userId: string): Promise<string> {
     const user = await this.prisma.user.findUnique({
@@ -50,6 +54,11 @@ export class CabinetService {
       where.branchId = query.branchId;
     }
 
+    const branchKey = query?.branchId || 'all';
+    const cacheKey = `cabinets:${businessId}:branch:${branchKey}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
     const cabinets = await this.prisma.cabinet.findMany({
       where,
       include: {
@@ -59,7 +68,9 @@ export class CabinetService {
       orderBy: { name: 'asc' },
     });
 
-    return { success: true, cabinets };
+    const result = { success: true, cabinets };
+    await this.redis.set(cacheKey, result, 3600);
+    return result;
   }
 
   async addCabinet(userId: string, data: any) {
@@ -88,6 +99,8 @@ export class CabinetService {
         branchId,
       },
     });
+
+    await this.redis.delete(`cabinets:${businessId}:branch:${branchId}`);
 
     return {
       success: true,
@@ -125,6 +138,8 @@ export class CabinetService {
       },
     });
 
+    await this.redis.delete(`cabinets:${businessId}:branch:${cabinet.branchId}`);
+
     return {
       success: true,
       message: 'Cabinet updated successfully',
@@ -156,6 +171,8 @@ export class CabinetService {
 
       return { instancesDestroyed: instancesDestroyed.count, movementsDetached: movementsDetached.count };
     });
+
+    await this.redis.delete(`cabinets:${businessId}:branch:${cabinet.branchId}`);
 
     return {
       success: true,

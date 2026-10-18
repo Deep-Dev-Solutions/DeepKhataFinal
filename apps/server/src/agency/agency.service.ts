@@ -7,7 +7,9 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
+import * as M from '../common/money';
 import { BusinessStatus, Role } from '@prisma/client';
+import { TenantCacheService } from '../tenant/tenant-cache.service';
 
 const TRIAL_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -19,7 +21,10 @@ const VALID_STATUSES: BusinessStatus[] = [
 
 @Injectable()
 export class AgencyService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantCache: TenantCacheService,
+  ) {}
 
   async onboardTenant(data: any) {
     const {
@@ -201,6 +206,7 @@ export class AgencyService {
       where: { id: businessId },
       data: { status: status as BusinessStatus },
     });
+    this.tenantCache.invalidateBusiness(businessId);
 
     return {
       message: `Tenant status updated to ${status}`,
@@ -223,8 +229,13 @@ export class AgencyService {
       );
     }
 
-    const amount = Number(data?.amount);
-    if (!amount || amount <= 0) {
+    let amount: M.Money;
+    try {
+      amount = M.round2(data?.amount);
+    } catch {
+      amount = M.ZERO;
+    }
+    if (!M.gt(amount, 0)) {
       throw new BadRequestException('A valid positive amount is required');
     }
 
@@ -256,6 +267,7 @@ export class AgencyService {
         return { billingLog, updatedBusiness };
       },
     );
+    this.tenantCache.invalidateBusiness(businessId);
 
     return {
       message:
@@ -288,6 +300,8 @@ export class AgencyService {
         businessId,
       },
     });
+
+    this.tenantCache.invalidateBranches(businessId);
 
     return { message: 'Branch provisioned successfully', branch };
   }

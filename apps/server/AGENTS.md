@@ -1,10 +1,11 @@
-## Backend Architecture (NestJS)
+# Server rules (apps/server)
 
-### Serverless & Stateless Constraints
+The server is a long-running Node process, deployed as Docker on a VPS. The Vercel entry `apps/server/api/index.ts` is legacy until cutover.
 
-- Because deployment runs on Vercel's container infrastructure, the application must be completely stateless[cite: 1]. Do not use in-memory stores, persistent background workers, or stateful web sockets.
-- Prisma must connect via Supabase's transaction pooler:
-  ```env
-  DATABASE_URL="postgres://[user]:[password]@[host]:6543/[db]?pgbouncer=true"
-  DIRECT_URL="postgres://[user]:[password]@[host]:5432/[db]"
-  ```
+- In-process scheduled jobs are allowed via `@nestjs/schedule`. Keep them idempotent with a unique log table, because a restart can re-run a tick.
+- In-memory caches are allowed, but must have a TTL and must be safe to lose.
+- Redis is optional. `RedisService` is a no-op without `REDIS_URL`. Do not make features depend on Redis.
+- `DATABASE_URL` and `DIRECT_URL` both point at Postgres. Do not add pgbouncer flags locally.
+- Long work must not block request handlers.
+- Every controller uses `ThrottlerGuard` and `JwtAuthGuard`. Business routes also use `PermissionsGuard` with `@RequirePermissions`.
+- Tenancy comes from `req.user` / `@Tenant()`, never from request input.

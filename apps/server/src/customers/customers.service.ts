@@ -6,13 +6,96 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
+import * as M from '../common/money';
 
 // Store-wide default credit line for new Udhar accounts (PKR).
 const DEFAULT_CREDIT_LIMIT = 50000;
 
 @Injectable()
 export class CustomersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
+
+  private async invalidateCustomers(businessId: string): Promise<void> {
+    await this.redis.deleteByPattern(`customers:${businessId}:*`);
+  }
+
+  /**
+   * Batched ledger balances (debit-positive) per customer, excluding postings
+   * tied to CANCELLED orders. One query for postings + one for cancelled ids,
+   * regardless of how many customers. Customers with no active postings are
+   * absent from the returned map.
+   */
+  private async loadLedgerBalances(
+    businessId: string,
+    customerIds: string[],
+  ): Promise<Map<string, M.Money>> {
+    const result = new Map<string, M.Money>();
+    if (customerIds.length === 0) return result;
+
+    const cancelled = await this.prisma.order.findMany({
+      where: {
+        businessId,
+        customerId: { in: customerIds },
+        status: 'CANCELLED',
+      },
+      select: { id: true },
+    });
+    const cancelledIds = cancelled.map((o) => o.id);
+
+    const grouped = await this.prisma.posting.groupBy({
+      by: ['accountId'],
+      where: {
+        accountId: { in: customerIds },
+        transaction: { businessId },
+        ...(cancelledIds.length > 0
+          ? {
+              OR: [
+                { transaction: { referenceId: null } },
+                { transaction: { referenceId: { notIn: cancelledIds } } },
+              ],
+            }
+          : {}),
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    });
+
+    for (const g of grouped) {
+      if (g._count._all > 0) result.set(g.accountId, M.money(g._sum.amount));
+    }
+    return result;
+  }
+
+  /**
+   * The ONE customer balance definition (used by list, detail and ledger):
+   * the clamped (>= 0) ledger balance over non-cancelled postings; if the
+   * customer has no active postings at all, fall back to the outstanding
+   * amount on non-cancelled, non-returned orders.
+   */
+  private computeBalance(
+    ledgerBalance: M.Money | undefined,
+    orders: {
+      status: string;
+      totalAmount: M.MoneyInput;
+      payments: { amount: M.MoneyInput }[];
+    }[],
+  ): M.Money {
+    if (ledgerBalance !== undefined) return M.max(ledgerBalance, 0);
+    return M.sum(
+      orders
+        .filter((o) => o.status !== 'CANCELLED' && o.status !== 'RETURNED')
+        .map((o) =>
+          M.max(
+            M.sub(o.totalAmount, M.sum(o.payments.map((p) => p.amount))),
+            0,
+          ),
+        ),
+    );
+  }
 
   async newCustomer(userId: string, data: any) {
     const { name, phone, shopName, address, email } = data;
@@ -50,6 +133,8 @@ export class CustomersService {
       },
     });
 
+    await this.invalidateCustomers(currentUser.businessId);
+
     return { success: true, customer };
   }
 
@@ -70,6 +155,8 @@ export class CustomersService {
       where: { id },
       data,
     });
+
+    await this.invalidateCustomers(currentUser.businessId);
 
     return {
       success: true,
@@ -104,6 +191,8 @@ export class CustomersService {
       },
     });
 
+    await this.invalidateCustomers(currentUser.businessId);
+
     return {
       success: true,
       message: 'Risk settings updated securely.',
@@ -121,7 +210,12 @@ export class CustomersService {
     if (!currentUser?.businessId)
       throw new BadRequestException('No business found.');
 
-    const queryConditions: any = { businessId: currentUser.businessId };
+    const businessId = currentUser.businessId;
+    const cacheKey = `customers:${businessId}:search=${encodeURIComponent(search || '')}:unpaid=${unpaid || 'false'}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
+    const queryConditions: any = { businessId };
 
     if (search) {
       queryConditions.OR = [
@@ -141,11 +235,12 @@ export class CustomersService {
         address: true,
         email: true,
         creditLimit: true,
-        _count: { select: { orders: true } },
+        _count: { select: { orders: { where: { status: { not: 'CANCELLED' } } } } },
         orders: {
           where: { status: { not: 'CANCELLED' } },
           select: {
             totalAmount: true,
+            status: true,
             payments: { select: { amount: true } },
           },
         },
@@ -153,18 +248,21 @@ export class CustomersService {
       orderBy: { createdAt: 'desc' },
     });
 
+    const ledgerBalances = await this.loadLedgerBalances(
+      businessId,
+      customersData.map((c) => c.id),
+    );
+
     let formattedCustomers = customersData.map((customer) => {
-      let lifetimeSpend = 0;
-      let totalPaid = 0;
-
-      customer.orders.forEach((order) => {
-        lifetimeSpend += order.totalAmount;
-        order.payments.forEach((payment) => {
-          totalPaid += payment.amount;
-        });
-      });
-
-      const outstandingBalance = lifetimeSpend - totalPaid;
+      const lifetimeSpend = M.sum(
+        customer.orders
+          .filter((o) => o.status !== 'RETURNED')
+          .map((o) => o.totalAmount),
+      );
+      const outstandingBalance = this.computeBalance(
+        ledgerBalances.get(customer.id),
+        customer.orders,
+      );
 
       return {
         id: customer.id,
@@ -176,15 +274,17 @@ export class CustomersService {
         creditLimit: customer.creditLimit,
         totalOrders: customer._count.orders,
         lifetimeValue: lifetimeSpend,
-        balance: outstandingBalance > 0 ? outstandingBalance : 0,
+        balance: outstandingBalance,
       };
     });
 
     if (unpaid === 'true') {
-      formattedCustomers = formattedCustomers.filter((c) => c.balance > 0);
+      formattedCustomers = formattedCustomers.filter((c) => M.gt(c.balance, 0));
     }
 
-    return { success: true, customers: formattedCustomers };
+    const result = { success: true, customers: formattedCustomers };
+    await this.redis.set(cacheKey, result, 3600);
+    return result;
   }
 
   async getCustomerById(userId: string, id: string) {
@@ -220,11 +320,24 @@ export class CustomersService {
       orderBy: { createdAt: 'asc' },
     });
 
-    let runningBalance = 0;
-    const ledger = postings.map((p) => {
-      const debit = p.amount > 0 ? p.amount : 0;
-      const credit = p.amount < 0 ? Math.abs(p.amount) : 0;
-      runningBalance += p.amount;
+    // Exclude postings tied to CANCELLED orders to eliminate "Ghost Udhaar"
+    const cancelledOrderIds = new Set(
+      customer.orders
+        .filter((o) => o.status === 'CANCELLED')
+        .map((o) => o.id),
+    );
+
+    const activePostings = postings.filter(
+      (p) =>
+        !p.transaction.referenceId ||
+        !cancelledOrderIds.has(p.transaction.referenceId),
+    );
+
+    let runningBalance = M.ZERO;
+    const ledger = activePostings.map((p) => {
+      const debit = M.gt(p.amount, 0) ? M.money(p.amount) : M.ZERO;
+      const credit = M.lt(p.amount, 0) ? M.neg(p.amount) : M.ZERO;
+      runningBalance = M.add(runningBalance, p.amount);
 
       return {
         id: p.id,
@@ -234,26 +347,26 @@ export class CustomersService {
         type: p.transaction.type,
         description:
           p.transaction.description ||
-          (p.amount > 0 ? 'Udhar (Sale)' : 'Payment Received'),
+          (M.gt(p.amount, 0) ? 'Udhar (Sale)' : 'Payment Received'),
         debit,
         credit,
         balance: runningBalance,
       };
     });
 
-    let lifetimeSpend = 0;
-    let totalOutstanding = 0;
+    let lifetimeSpend = M.ZERO;
     let validOrderCount = 0;
 
     const orderHistory = customer.orders.map((order) => {
-      let orderTotal = order.totalAmount;
-      let orderPaid = order.payments.reduce((sum, p) => sum + p.amount, 0);
-      let orderBalance = orderTotal - orderPaid;
+      const orderTotal = M.money(order.totalAmount);
+      const orderPaid = M.sum(order.payments.map((p) => p.amount));
+      let orderBalance = M.sub(orderTotal, orderPaid);
 
-      if (order.status !== 'CANCELLED' && order.status !== 'RETURNED') {
+      if (order.status === 'CANCELLED' || order.status === 'RETURNED') {
+        orderBalance = M.ZERO;
+      } else {
         validOrderCount += 1;
-        lifetimeSpend += orderTotal;
-        totalOutstanding += orderBalance;
+        lifetimeSpend = M.add(lifetimeSpend, orderTotal);
       }
 
       return {
@@ -267,16 +380,14 @@ export class CustomersService {
         total: orderTotal,
         status: order.status,
         payment: order.paymentStatus,
-        balance: orderBalance > 0 ? orderBalance : 0,
+        balance: M.max(orderBalance, 0),
       };
     });
 
-    const finalOutstandingBalance =
-      postings.length > 0
-        ? runningBalance
-        : totalOutstanding > 0
-          ? totalOutstanding
-          : 0;
+    const finalOutstandingBalance = this.computeBalance(
+      activePostings.length > 0 ? runningBalance : undefined,
+      customer.orders,
+    );
 
     const formattedCustomer = {
       id: customer.id,
@@ -317,26 +428,44 @@ export class CustomersService {
 
     const customer = await this.prisma.customer.findFirst({
       where: { id, businessId: currentUser.businessId },
+      include: { orders: { include: { payments: true } } },
     });
 
     if (!customer) throw new NotFoundException('Customer not found.');
 
-    const postings = await this.prisma.posting.findMany({
-      where: {
-        accountId: id,
-        transaction: { businessId: currentUser.businessId },
-      },
-      include: {
-        transaction: true,
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+    const [postings, cancelledOrders] = await Promise.all([
+      this.prisma.posting.findMany({
+        where: {
+          accountId: id,
+          transaction: { businessId: currentUser.businessId },
+        },
+        include: {
+          transaction: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.order.findMany({
+        where: {
+          customerId: id,
+          businessId: currentUser.businessId,
+          status: 'CANCELLED',
+        },
+        select: { id: true },
+      }),
+    ]);
 
-    let runningBalance = 0;
-    const ledger = postings.map((p) => {
-      const debit = p.amount > 0 ? p.amount : 0;
-      const credit = p.amount < 0 ? Math.abs(p.amount) : 0;
-      runningBalance += p.amount;
+    const cancelledOrderIds = new Set(cancelledOrders.map((o) => o.id));
+    const activePostings = postings.filter(
+      (p) =>
+        !p.transaction.referenceId ||
+        !cancelledOrderIds.has(p.transaction.referenceId),
+    );
+
+    let runningBalance = M.ZERO;
+    const ledger = activePostings.map((p) => {
+      const debit = M.gt(p.amount, 0) ? M.money(p.amount) : M.ZERO;
+      const credit = M.lt(p.amount, 0) ? M.neg(p.amount) : M.ZERO;
+      runningBalance = M.add(runningBalance, p.amount);
 
       return {
         id: p.id,
@@ -346,7 +475,7 @@ export class CustomersService {
         type: p.transaction.type,
         description:
           p.transaction.description ||
-          (p.amount > 0 ? 'Udhar (Sale)' : 'Payment Received'),
+          (M.gt(p.amount, 0) ? 'Udhar (Sale)' : 'Payment Received'),
         debit,
         credit,
         balance: runningBalance,
@@ -357,9 +486,12 @@ export class CustomersService {
       success: true,
       customerId: id,
       customerName: customer.name,
-      totalDebit: ledger.reduce((sum, item) => sum + item.debit, 0),
-      totalCredit: ledger.reduce((sum, item) => sum + item.credit, 0),
-      currentBalance: runningBalance,
+      totalDebit: M.sum(ledger.map((item) => item.debit)),
+      totalCredit: M.sum(ledger.map((item) => item.credit)),
+      currentBalance: this.computeBalance(
+        activePostings.length > 0 ? runningBalance : undefined,
+        customer.orders,
+      ),
       ledger,
     };
   }

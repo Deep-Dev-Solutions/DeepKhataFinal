@@ -75,14 +75,14 @@ export default function RecordPaymentModal({
       // Success!
       setIsSubmitting(false);
       onSuccess(); // This will trigger refreshOrder() in the parent component!
-    } catch (err: any) {
-      setError(err.message || "Something went wrong.");
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : "Something went wrong.") || "Something went wrong.");
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div data-testid="record-payment-modal" className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* 🟢 Backdrop */}
       <div
         className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200"
@@ -135,7 +135,7 @@ export default function RecordPaymentModal({
               <span className="absolute left-3 top-2.5 text-slate-400 font-semibold text-sm">
                 Rs.
               </span>
-              <input
+              <input data-testid="record-payment-amount"
                 type="number"
                 required
                 max={pendingAmount} // HTML fallback validation
@@ -154,7 +154,7 @@ export default function RecordPaymentModal({
             </label>
             <div className="relative">
               <Wallet className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-              <select
+              <select data-testid="record-payment-method"
                 value={method}
                 onChange={(e) => setMethod(e.target.value)}
                 className="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white appearance-none cursor-pointer shadow-sm"
@@ -183,7 +183,7 @@ export default function RecordPaymentModal({
             >
               Cancel
             </button>
-            <button
+            <button data-testid="record-payment-submit"
               type="submit"
               disabled={isSubmitting || !amount || Number(amount) <= 0}
               className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"

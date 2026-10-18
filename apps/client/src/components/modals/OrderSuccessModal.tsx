@@ -242,6 +242,7 @@ export default function OrderSuccessModal({
               {!order.isOffline && onViewOrder && (
                 <button
                   type="button"
+                  data-testid="pos-success-view-order"
                   onClick={() => onViewOrder(order.id)}
                   className="flex items-center justify-center gap-2 py-2.5 px-3 border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 rounded-xl text-xs sm:text-sm font-semibold transition-colors"
                 >
@@ -266,6 +267,40 @@ export default function OrderSuccessModal({
       {/* ========================================================================= */}
       {/* 🟢 PRINT-ONLY 80MM / 58MM THERMAL RECEIPT SLIP                           */}
       {/* ========================================================================= */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+        @media print {
+          @page {
+            size: 80mm auto;
+            margin: 0mm;
+          }
+          body * {
+            visibility: hidden !important;
+          }
+          #thermal-print-slip,
+          #thermal-print-slip * {
+            visibility: visible !important;
+          }
+          #thermal-print-slip {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 80mm !important;
+            max-width: 80mm !important;
+            min-width: 80mm !important;
+            margin: 0 !important;
+            padding: 4mm 3mm !important;
+            display: block !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            box-sizing: border-box !important;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+          }
+        }
+      `,
+        }}
+      />
       <div
         id="thermal-print-slip"
         className="hidden print:block thermal-slip font-mono text-[12px] text-black bg-white"

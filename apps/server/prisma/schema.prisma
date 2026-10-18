@@ -3,13 +3,15 @@
 
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+  binaryTargets = ["native", "rhel-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+  extensions = [pg_trgm]
 }
 
 model Business {
@@ -45,6 +47,13 @@ model Business {
   registerSessions   CashRegisterSession[]
   inventoryMovements InventoryMovement[]
   billingLogs        AgencyBillingLog[]
+  khataEntries       KhataEntry[]
+  notifications      Notification[]
+  stockReservations  StockReservation[]
+  stockTransfers     StockTransferRequest[]
+
+  defaultReceivableDays Int @default(7)
+  defaultPayableDays    Int @default(15)
 
   createdAt DateTime @default(now())
 }
@@ -52,7 +61,7 @@ model Business {
 model AgencyBillingLog {
   id          String   @id @default(uuid())
   businessId  String
-  amount      Float
+  amount      Decimal @db.Decimal(14, 2)
   paymentDate DateTime
   notes       String?
 
@@ -75,12 +84,23 @@ model Branch {
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   cabinets         Cabinet[]
+  products         Product[]
+  categories       Category[]
   productInstances ProductInstance[]
   expenses         Expense[]
   registerSessions CashRegisterSession[]
   orders           Order[]
+  khataEntries     KhataEntry[]
+  inventoryMovements InventoryMovement[]
+  stockReservations  StockReservation[]
+  transfersFrom      StockTransferRequest[] @relation("TransferFrom")
+  transfersTo        StockTransferRequest[] @relation("TransferTo")
 
   createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  @@index([businessId, updatedAt])
 }
 
 model User {
@@ -105,6 +125,7 @@ model User {
   openedRegisters    CashRegisterSession[] @relation("RegisterOpener")
   closedRegisters    CashRegisterSession[] @relation("RegisterCloser")
   inventoryMovements InventoryMovement[]
+  notifications      Notification[]
 
   createdAt DateTime @default(now())
 }
@@ -132,14 +153,22 @@ model Customer {
   cnicNumber String?
 
   // Anti-Fraud System
-  creditLimit    Float   @default(0)
+  creditLimit    Decimal @db.Decimal(14, 2)   @default(0)
   isDefaulter    Boolean @default(false)
   guarantorPhone String?
+  paymentTermsDays Int?
 
   businessId String
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   orders     Order[]
+  khataEntries KhataEntry[]
   createdAt  DateTime @default(now())
+
+  deletedAt DateTime?
+  updatedAt DateTime @updatedAt
+
+  @@index([businessId, updatedAt])
+  @@index([businessId, phone])
 }
 
 model Cabinet {
@@ -160,25 +189,47 @@ model Cabinet {
   createdAt DateTime          @default(now())
 
   movements InventoryMovement[]
+
+  deletedAt DateTime?
+  updatedAt DateTime @updatedAt
+
+  @@index([businessId, updatedAt])
 }
 
 model Product {
   id               String  @id @default(uuid())
   name             String
   sku              String
-  basePrice        Float
-  defaultCostPrice Float?
+  basePrice        Decimal @db.Decimal(14, 2)
+  defaultCostPrice Decimal? @db.Decimal(14, 2)
   deletedAt        DateTime?
+
+  partNumber        String?
+  aliases           String[] @default([])
+  compatibleWith    String[] @default([])
+  minSalePrice      Decimal? @db.Decimal(14, 2)
+  lowStockThreshold Int?
+  searchText        String   @default("")
 
   categoryId       String?
   category         Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   businessId       String
   business         Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branchId         String?
+  branch           Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   orderItems       OrderItem[]
   instances        ProductInstance[]
-  movements        InventoryMovement[]
+    movements        InventoryMovement[]
+
+  updatedAt DateTime @updatedAt
+
+  @@index([businessId, updatedAt])
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([sku(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([businessId, partNumber])
 }
 
 model ProductInstance {
@@ -188,11 +239,16 @@ model ProductInstance {
   branchId  String
   vendorId  String?
 
-  unitCost     Float?
+  unitCost     Decimal? @db.Decimal(14, 2)
 
-  condition    ItemCondition  @default(ORIGINAL_PULL)
   status       InstanceStatus @default(AVAILABLE) // For MEMO locks
+  condition    ItemCondition  @default(ORIGINAL_PULL)
   serialNumber String?
+  photoUrl     String?
+  notes        String?
+
+  reservations  StockReservation[]
+  transferItems StockTransferItem[]
 
   product Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   cabinet Cabinet? @relation(fields: [cabinetId], references: [id])
@@ -201,6 +257,9 @@ model ProductInstance {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([productId, status, branchId])
+  @@index([branchId, updatedAt])
 }
 
 model Category {
@@ -209,17 +268,22 @@ model Category {
   businessId String
 
   business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branchId   String?
+  branch     Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
   products Product[]
 
-  @@unique([name, businessId])
+  @@unique([name, branchId])
+
+  deletedAt DateTime?
+  updatedAt DateTime @updatedAt
+
+  @@index([businessId, updatedAt])
 }
 
 model InventoryMovement {
   id            String             @id @default(uuid())
   productId     String
   cabinetId     String?
-  fromCondition ItemCondition?
-  toCondition   ItemCondition
   quantity      Int
   direction     InventoryDirection // IN (restock) | OUT (sale/return/adjust)
   referenceType String? // ORDER | RESTOCK | RETURN | ADJUSTMENT
@@ -228,6 +292,9 @@ model InventoryMovement {
   userId        String
   businessId    String
   vendorId      String?
+  fromCondition ItemCondition?
+  toCondition   ItemCondition      @default(ORIGINAL_PULL)
+  branchId      String?
   createdAt     DateTime           @default(now())
 
   product  Product  @relation(fields: [productId], references: [id])
@@ -235,7 +302,9 @@ model InventoryMovement {
   user     User     @relation(fields: [userId], references: [id])
   business Business @relation(fields: [businessId], references: [id])
   vendor   Vendor?  @relation(fields: [vendorId], references: [id])
+  branch   Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
+  @@index([branchId])
   @@index([productId])
   @@index([businessId])
   @@index([createdAt])
@@ -246,14 +315,15 @@ model Order {
   customerId    String?
   businessId    String
   branchId      String?
-  discount      Float         @default(0)
+  discount      Decimal @db.Decimal(14, 2)         @default(0)
   status        OrderStatus
   paymentStatus PaymentStatus @default(UNPAID)
-  totalAmount   Float
+  totalAmount   Decimal @db.Decimal(14, 2)
   createdBy     String?
   orderNumber   Int           @default(autoincrement())
   walkInName    String?
   walkInPhone   String?
+  dueDate       DateTime?
 
   creator   User?       @relation("OrderCreator", fields: [createdBy], references: [id])
   customer  Customer?   @relation(fields: [customerId], references: [id])
@@ -262,6 +332,9 @@ model Order {
   items     OrderItem[]
   payments  Payment[]
   createdAt DateTime    @default(now())
+
+  @@index([businessId, createdAt])
+  @@index([businessId, customerId])
 }
 
 model OrderItem {
@@ -269,25 +342,30 @@ model OrderItem {
   orderId     String
   productId   String?
   quantity    Int
-  price       Float
+  price       Decimal @db.Decimal(14, 2)
   isService   Boolean @default(false)
   serviceName String?
   notes       String?
+  priceOverrideReason String?
 
   order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id])
+
+  @@index([productId])
 }
 
 model Payment {
   id         String        @id @default(uuid())
   orderId    String
-  amount     Float
+  amount     Decimal @db.Decimal(14, 2)
   method     PaymentMethod
   receivedBy String
 
   receiver  User     @relation("PaymentReceiver", fields: [receivedBy], references: [id])
   order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+
+  @@index([orderId])
 }
 
 model Transaction {
@@ -297,10 +375,13 @@ model Transaction {
   referenceId String?
   type        String
   description String?
+  dueDate     DateTime?
 
   postings  Posting[]
   expense   Expense?
   createdAt DateTime  @default(now())
+
+  @@index([businessId, type, createdAt])
 }
 
 model Posting {
@@ -310,15 +391,20 @@ model Posting {
 
   accountId   String // Could be Customer ID or Ledger Account ID
   accountType String // e.g., CUSTOMER, CASH, REVENUE, INVENTORY
-  amount      Float // Positive for debit, negative for credit
+  amount      Decimal @db.Decimal(14, 2) // Positive for debit, negative for credit
 
   createdAt DateTime @default(now())
+
+  @@index([accountId, accountType])
+  @@index([transactionId])
 }
 
 enum OrderStatus {
   ESTIMATE
   MEMO
   FINAL
+  COMPLETED
+  PENDING
   CANCELLED
   RETURNED
 }
@@ -340,6 +426,8 @@ enum InstanceStatus {
   RETURNED_WORKING
   RETURNED_DEFECTIVE
   CONSUMED
+  RESERVED
+  IN_TRANSIT
 }
 
 enum InventoryDirection {
@@ -379,7 +467,7 @@ model Expense {
   branchId   String?
   branch     Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
-  amount      Float
+  amount      Decimal @db.Decimal(14, 2)
   category    String // e.g., CHAI_REFRESHMENT, DELIVERY_RIDER, REPAIR_PARTS, SUPPLIES, UTILITIES, OTHER
   description String?
 
@@ -409,12 +497,12 @@ model CashRegisterSession {
 
   status RegisterStatus @default(OPEN)
 
-  openingBalance Float   @default(0)
-  cashSales      Float   @default(0)
-  cashExpenses   Float   @default(0)
-  expectedCash   Float   @default(0)
-  actualCash     Float?
-  difference     Float?
+  openingBalance Decimal @db.Decimal(14, 2)   @default(0)
+  cashSales      Decimal @db.Decimal(14, 2)   @default(0)
+  cashExpenses   Decimal @db.Decimal(14, 2)   @default(0)
+  expectedCash   Decimal @db.Decimal(14, 2)   @default(0)
+  actualCash     Decimal? @db.Decimal(14, 2)
+  difference     Decimal? @db.Decimal(14, 2)
   notes          String?
 
   openedAt DateTime  @default(now())
@@ -443,8 +531,14 @@ model Vendor {
 
   productInstances   ProductInstance[]
   inventoryMovements InventoryMovement[]
+  khataEntries       KhataEntry[]
 
   createdAt DateTime @default(now())
+
+  deletedAt DateTime?
+  updatedAt DateTime @updatedAt
+
+  @@index([businessId, updatedAt])
 }
 
 model LoginAttempt {
@@ -458,3 +552,203 @@ model LoginAttempt {
   @@index([ip])
 }
 
+
+model RevokedToken {
+  jti       String   @id
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+enum KhataDirection {
+  RECEIVABLE
+  PAYABLE
+}
+
+enum KhataPartyType {
+  CUSTOMER
+  VENDOR
+  OTHER
+}
+
+enum KhataStatus {
+  OPEN
+  PARTIAL
+  SETTLED
+  WRITTEN_OFF
+}
+
+model KhataEntry {
+  id            String         @id @default(uuid())
+  businessId    String
+  branchId      String?
+  direction     KhataDirection
+  partyType     KhataPartyType
+  customerId    String?
+  vendorId      String?
+  partyName     String
+  partyPhone    String?
+  amount        Decimal        @db.Decimal(14, 2)
+  settledAmount Decimal        @default(0) @db.Decimal(14, 2)
+  counterAccount String        @default("ASSET")
+  dueDate       DateTime
+  note          String?
+  status        KhataStatus    @default(OPEN)
+  createdById   String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branch   Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  vendor   Vendor?   @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, direction, status, dueDate])
+}
+
+model PromiseToPay {
+  id           String   @id @default(uuid())
+  businessId   String
+  entityType   String
+  entityId     String
+  kind         String   @default("PROMISE")
+  promisedDate DateTime
+  note         String?
+  createdById  String
+  createdAt    DateTime @default(now())
+
+  @@index([businessId, entityType, entityId])
+}
+
+model DueReminder {
+  id         String   @id @default(uuid())
+  businessId String
+  entityType String
+  entityId   String
+  channel    String
+  sentById   String?
+  createdAt  DateTime @default(now())
+
+  @@index([businessId, entityType, entityId])
+}
+
+model Notification {
+  id         String    @id @default(uuid())
+  businessId String
+  userId     String
+  branchId   String?
+  type       String
+  title      String
+  body       String
+  link       String?
+  entityType String?
+  entityId   String?
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, userId, readAt])
+  @@index([userId, createdAt])
+}
+
+model NotificationSetting {
+  id         String   @id @default(uuid())
+  businessId String
+  userId     String?
+  rules      Json
+  digestTime String   @default("10:00")
+  recipients String   @default("OWNER_AND_MANAGERS")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([businessId, userId])
+}
+
+model NotificationLog {
+  id         String   @id @default(uuid())
+  businessId String
+  ruleKey    String
+  entityId   String
+  fireDate   DateTime @db.Date
+  createdAt  DateTime @default(now())
+
+  @@unique([ruleKey, entityId, fireDate])
+  @@index([businessId])
+}
+
+enum ReservationStatus {
+  ACTIVE
+  RELEASED
+  CONVERTED
+}
+
+enum TransferStatus {
+  REQUESTED
+  DISPATCHED
+  RECEIVED
+  CANCELLED
+}
+
+model StockReservation {
+  id            String            @id @default(uuid())
+  businessId    String
+  instanceId    String
+  branchId      String
+  customerName  String
+  customerPhone String?
+  expiresAt     DateTime
+  status        ReservationStatus @default(ACTIVE)
+  createdById   String
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  business Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  instance ProductInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  branch   Branch          @relation(fields: [branchId], references: [id])
+
+  @@index([businessId, status, expiresAt])
+  @@index([instanceId])
+}
+
+model StockTransferRequest {
+  id             String         @id @default(uuid())
+  businessId     String
+  fromBranchId   String
+  toBranchId     String
+  status         TransferStatus @default(REQUESTED)
+  note           String?
+  requestedById  String
+  dispatchedById String?
+  receivedById   String?
+  requestedAt    DateTime       @default(now())
+  dispatchedAt   DateTime?
+  receivedAt     DateTime?
+  cancelledAt    DateTime?
+  updatedAt      DateTime       @updatedAt
+
+  items StockTransferItem[]
+
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  fromBranch Branch   @relation("TransferFrom", fields: [fromBranchId], references: [id])
+  toBranch   Branch   @relation("TransferTo", fields: [toBranchId], references: [id])
+
+  @@index([businessId, status])
+  @@index([toBranchId, status])
+  @@index([fromBranchId, status])
+}
+
+model StockTransferItem {
+  id         String @id @default(uuid())
+  transferId String
+  instanceId String
+
+  transfer StockTransferRequest @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  instance ProductInstance      @relation(fields: [instanceId], references: [id])
+
+  @@unique([transferId, instanceId])
+}

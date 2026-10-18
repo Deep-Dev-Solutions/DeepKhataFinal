@@ -4,13 +4,19 @@ import {
   Get,
   Body,
   Query,
+  Headers,
+  BadRequestException,
   UseGuards,
   Req,
   Patch,
   Param,
   Delete,
+  Res,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
-import { ProductsService } from './products.service';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ProductsService, stripCostForStaff } from './products.service';
 import { CategoryService } from '../category/category.service';
 import { CabinetService } from '../cabinet/cabinet.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -22,6 +28,12 @@ import { Role } from '@prisma/client';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdatePriceDto } from './dto/update-price.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
+import { UpdateInstanceDto } from './dto/update-instance.dto';
+import { BranchId } from '../auth/decorators/branch-id.decorator';
+import { Tenant } from '../tenant/tenant.decorator';
+import { TenantContext } from '../tenant/tenant.types';
+import { storage } from '../utils/cloudinary.storage';
 
 @Controller('product')
 @UseGuards(ThrottlerGuard, JwtAuthGuard)
@@ -35,36 +47,84 @@ export class ProductsController {
   @Post('addcategory')
   @UseGuards(PermissionsGuard)
   @RequirePermissions('write:products')
-  async addCategory(@Req() req: any, @Body() body: any) {
-    return this.categoryService.addCategory(req.user.id, body);
+  async addCategory(
+    @Req() req: any,
+    @BranchId() branchId: string,
+    @Body() body: any,
+  ) {
+    return this.categoryService.addCategory(req.user.id, body, branchId);
   }
 
   @Post('addproduct')
   @UseGuards(PermissionsGuard)
   @RequirePermissions('write:products')
-  async addProduct(@Req() req: any, @Body() body: CreateProductDto) {
-    return this.productsService.addProduct(req.user.id, body);
+  async addProduct(
+    @Req() req: any,
+    @BranchId({ required: false }) branchId: string | undefined,
+    @Body() body: CreateProductDto,
+  ) {
+    return this.productsService.addProduct(req.user.id, {
+      ...body,
+      branchId: (body as any).branchId || branchId,
+    });
   }
 
   @Get('getproducts')
   @UseGuards(PermissionsGuard)
   @RequirePermissions('read:products')
-  async getProducts(@Req() req: any, @Query() query: any) {
-    return this.productsService.getProducts(req.user.id, query);
+  async getProducts(
+    @Req() req: any,
+    @BranchId() branchId: string,
+    @Query() query: any,
+    @Res({ passthrough: true }) res: any,
+  ) {
+    const activeBranchId =
+      (req.headers['x-branch-id'] as string)?.trim() ||
+      (query.branchId as string)?.trim() ||
+      branchId;
+    const { nextCursor, ...body } = await this.productsService.getProducts(
+      req.user.id,
+      {
+        ...query,
+        branchId: activeBranchId,
+      },
+    );
+    if (nextCursor) res.setHeader('X-Next-Cursor', nextCursor);
+    return stripCostForStaff(req.user.role, body);
+  }
+
+  @Get('global-stock')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('read:products')
+  async getGlobalStock(@Req() req: any, @Query('search') search = '') {
+    return stripCostForStaff(
+      req.user.role,
+      await this.productsService.getGlobalStock(req.user.id, search),
+    );
   }
 
   @Get('getcategories')
   @UseGuards(PermissionsGuard)
   @RequirePermissions('read:products')
-  async getCategories(@Req() req: any) {
-    return this.categoryService.getCategories(req.user.id);
+  async getCategories(
+    @Req() req: any,
+    @BranchId() branchId: string,
+  ) {
+    return this.categoryService.getCategories(req.user.id, branchId);
   }
 
   @Get('getcabinets')
   @UseGuards(PermissionsGuard)
   @RequirePermissions('read:products')
-  async getCabinets(@Req() req: any, @Query() query: any) {
-    return this.cabinetService.getCabinets(req.user.id, query);
+  async getCabinets(
+    @Req() req: any,
+    @BranchId() branchId: string,
+    @Query() query: any,
+  ) {
+    return this.cabinetService.getCabinets(req.user.id, {
+      ...query,
+      branchId,
+    });
   }
 
   @Post('addcabinet')
@@ -79,10 +139,11 @@ export class ProductsController {
   @RequirePermissions('write:products')
   async updateCategory(
     @Req() req: any,
+    @BranchId() branchId: string,
     @Param('id') id: string,
     @Body() body: any,
   ) {
-    return this.categoryService.updateCategory(req.user.id, id, body);
+    return this.categoryService.updateCategory(req.user.id, id, body, branchId);
   }
 
   @Patch('cabinet/:id')
@@ -100,8 +161,12 @@ export class ProductsController {
   @UseGuards(PermissionsGuard, RolesGuard)
   @RequirePermissions('write:products')
   @Roles(Role.OWNER, Role.SUPER_ADMIN)
-  async deleteCategory(@Req() req: any, @Param('id') id: string) {
-    return this.categoryService.deleteCategory(req.user.id, id);
+  async deleteCategory(
+    @Req() req: any,
+    @BranchId() branchId: string,
+    @Param('id') id: string,
+  ) {
+    return this.categoryService.deleteCategory(req.user.id, id, branchId);
   }
 
   @Post('cabinet/:id/delete')
@@ -159,6 +224,55 @@ export class ProductsController {
     );
   }
 
+  @Patch('instances/:instanceId')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('write:products')
+  async updateInstance(
+    @Tenant() tenant: TenantContext,
+    @Param('instanceId') instanceId: string,
+    @Body() body: UpdateInstanceDto,
+  ) {
+    return stripCostForStaff(
+      tenant.role,
+      await this.productsService.updateInstance(
+        tenant.businessId,
+        instanceId,
+        body,
+      ),
+    );
+  }
+
+  @Post('instances/:instanceId/photo')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('write:products')
+  @UseInterceptors(FileInterceptor('photo', { storage }))
+  async uploadInstancePhoto(
+    @Tenant() tenant: TenantContext,
+    @Param('instanceId') instanceId: string,
+    @UploadedFile() file: any,
+  ) {
+    if (!file?.path) throw new BadRequestException('Photo file is required');
+    return this.productsService.setInstancePhoto(
+      tenant.businessId,
+      instanceId,
+      file.path,
+    );
+  }
+
+  @Patch(':id')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('write:products')
+  async updateProduct(
+    @Tenant() tenant: TenantContext,
+    @Param('id') id: string,
+    @Body() body: UpdateProductDto,
+  ) {
+    return stripCostForStaff(
+      tenant.role,
+      await this.productsService.updateProduct(tenant.businessId, id, body),
+    );
+  }
+
   @Delete(':id')
   @UseGuards(PermissionsGuard, RolesGuard)
   @RequirePermissions('delete:products')
@@ -171,6 +285,9 @@ export class ProductsController {
   @UseGuards(PermissionsGuard)
   @RequirePermissions('read:products')
   async getProductDetails(@Req() req: any, @Param('id') id: string) {
-    return this.productsService.getProductDetails(req.user.id, id);
+    return stripCostForStaff(
+      req.user.role,
+      await this.productsService.getProductDetails(req.user.id, id),
+    );
   }
 }

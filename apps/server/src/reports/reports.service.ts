@@ -1,9 +1,14 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
+import * as M from '../common/money';
 
 @Injectable()
 export class ReportsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
 
   async getFinancialOverview(userId: string, query: any) {
     const { days = 7, branchId } = query;
@@ -14,11 +19,15 @@ export class ReportsService {
     if (!currentUser?.businessId)
       throw new BadRequestException('No workspace found.');
     const businessId = currentUser.businessId;
+    const normalizedDays = parseInt(days as string, 10) || 7;
+    const cacheKey = `reports:financial:${businessId}:days=${normalizedDays}:branch=${branchId || 'all'}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
 
     const dateLimit = new Date();
-    dateLimit.setDate(dateLimit.getDate() - parseInt(days as string));
+    dateLimit.setDate(dateLimit.getDate() - normalizedDays);
 
-    const branchFilter = branchId ? { branchId } : {};
+    const branchFilter = { branchId };
 
     const orders = await this.prisma.order.findMany({
       where: {
@@ -36,32 +45,45 @@ export class ReportsService {
       where: { order: { businessId, ...branchFilter, createdAt: { gte: dateLimit } } },
     });
 
-    let totalRevenue = 0;
-    let totalCost = 0;
-    let totalDiscounts = 0;
+    let totalRevenue = M.ZERO;
+    let totalCost = M.ZERO;
+    let totalDiscounts = M.ZERO;
     const dailyData: Record<string, any> = {};
+    const dailyMoney: Record<string, { revenue: M.Money; profit: M.Money }> = {};
 
     orders.forEach((order) => {
-      totalRevenue += order.totalAmount;
-      totalDiscounts += order.discount || 0;
+      totalRevenue = M.add(totalRevenue, order.totalAmount);
+      totalDiscounts = M.add(totalDiscounts, order.discount);
 
       const dateStr = new Date(order.createdAt).toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
       });
-      if (!dailyData[dateStr])
+      if (!dailyData[dateStr]) {
         dailyData[dateStr] = { date: dateStr, revenue: 0, profit: 0 };
+        dailyMoney[dateStr] = { revenue: M.ZERO, profit: M.ZERO };
+      }
 
-      let orderCost = 0;
+      let orderCost = M.ZERO;
       order.items.forEach((item) => {
-        const cost = (item.product?.defaultCostPrice || 0) * item.quantity;
-        orderCost += cost;
+        const cost = M.mul(item.product?.defaultCostPrice, item.quantity);
+        orderCost = M.add(orderCost, cost);
       });
-      totalCost += orderCost;
+      totalCost = M.add(totalCost, orderCost);
 
-      dailyData[dateStr].revenue += order.totalAmount;
-      dailyData[dateStr].profit += order.totalAmount - orderCost;
+      dailyMoney[dateStr].revenue = M.add(
+        dailyMoney[dateStr].revenue,
+        order.totalAmount,
+      );
+      dailyMoney[dateStr].profit = M.add(
+        dailyMoney[dateStr].profit,
+        M.sub(order.totalAmount, orderCost),
+      );
     });
+    for (const key of Object.keys(dailyData)) {
+      dailyData[key].revenue = M.toApi(dailyMoney[key].revenue);
+      dailyData[key].profit = M.toApi(dailyMoney[key].profit);
+    }
 
     const paymentFlow = payments.map((p) => ({
       name:
@@ -70,7 +92,7 @@ export class ReportsService {
           : p.method === 'BANK'
             ? 'Bank Transfer'
             : 'Online',
-      value: p._sum.amount || 0,
+      value: M.toApi(p._sum.amount),
       color:
         p.method === 'CASH'
           ? '#10b981'
@@ -79,33 +101,36 @@ export class ReportsService {
             : '#f59e0b',
     }));
 
-    const allPaymentsTotal = payments.reduce(
-      (sum, p) => sum + (p._sum.amount || 0),
-      0,
-    );
-    const pendingDues = totalRevenue - allPaymentsTotal;
-    if (pendingDues > 0) {
+    const allPaymentsTotal = M.sum(payments.map((p) => p._sum.amount));
+    const pendingDues = M.sub(totalRevenue, allPaymentsTotal);
+    if (M.gt(pendingDues, 0)) {
       paymentFlow.push({
         name: 'Unpaid (Udhaar)',
-        value: pendingDues,
+        value: M.toApi(pendingDues),
         color: '#f43f5e',
       });
     }
 
-    return {
+    const result = {
       success: true,
       kpis: {
-        totalRevenue,
-        netProfit: totalRevenue - totalCost,
-        averageOrderValue: orders.length > 0 ? totalRevenue / orders.length : 0,
-        pendingDues: pendingDues > 0 ? pendingDues : 0,
+        totalRevenue: M.toApi(totalRevenue),
+        netProfit: M.toApi(M.sub(totalRevenue, totalCost)),
+        averageOrderValue:
+          orders.length > 0
+            ? M.toApi(totalRevenue.dividedBy(orders.length))
+            : 0,
+        pendingDues: M.gt(pendingDues, 0) ? M.toApi(pendingDues) : 0,
       },
       revenueTrend: Object.values(dailyData),
       paymentFlow,
     };
+
+    await this.redis.set(cacheKey, result, 900);
+    return result;
   }
 
-  async getInventoryInsights(userId: string) {
+  async getInventoryInsights(userId: string, branchId: string) {
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { businessId: true },
@@ -119,7 +144,7 @@ export class ReportsService {
       const topSelling = await this.prisma.orderItem.groupBy({
         by: ['productId'],
         _sum: { quantity: true, price: true },
-        where: { order: { businessId, status: { not: 'CANCELLED' } } },
+        where: { order: { businessId, branchId, status: { not: 'CANCELLED' } } },
         orderBy: { _sum: { quantity: 'desc' } },
         take: 5,
       });
@@ -127,12 +152,16 @@ export class ReportsService {
       for (const item of topSelling) {
         if (!item.productId) continue;
         const prod = await this.prisma.product.findFirst({
-          where: { id: item.productId, deletedAt: null },
+          where: {
+            id: item.productId,
+            deletedAt: null,
+            instances: { some: { branchId } },
+          },
           select: {
             name: true,
             basePrice: true,
             _count: {
-              select: { instances: { where: { status: 'AVAILABLE' } } },
+              select: { instances: { where: { status: 'AVAILABLE', branchId } } },
             },
           },
         });
@@ -140,7 +169,7 @@ export class ReportsService {
           topProducts.push({
             name: prod.name,
             sold: item._sum.quantity || 0,
-            revenue: item._sum.price || 0,
+            revenue: M.toApi(item._sum.price),
             stock: prod._count.instances || 0,
           });
         }
@@ -155,7 +184,9 @@ export class ReportsService {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
       const activeProductIds = await this.prisma.orderItem.findMany({
-        where: { order: { businessId, createdAt: { gte: thirtyDaysAgo } } },
+        where: {
+          order: { businessId, branchId, createdAt: { gte: thirtyDaysAgo } },
+        },
         select: { productId: true },
         distinct: ['productId'],
       });
@@ -168,7 +199,7 @@ export class ReportsService {
         where: {
           businessId,
           deletedAt: null,
-          instances: { some: { status: 'AVAILABLE' } },
+          instances: { some: { status: 'AVAILABLE', branchId } },
           id: { notIn: activeIdsArray.length ? activeIdsArray : ['__none__'] },
         },
         select: {
@@ -176,7 +207,7 @@ export class ReportsService {
           defaultCostPrice: true,
           basePrice: true,
           _count: {
-            select: { instances: { where: { status: 'AVAILABLE' } } },
+            select: { instances: { where: { status: 'AVAILABLE', branchId } } },
           },
         },
         take: 5,
@@ -186,7 +217,12 @@ export class ReportsService {
         name: p.name,
         daysUnsold: 30,
         stock: p._count.instances || 0,
-        tiedValue: (p._count.instances || 0) * (p.defaultCostPrice || p.basePrice || 0),
+        tiedValue: M.toApi(
+          M.mul(
+            M.isZero(p.defaultCostPrice) ? p.basePrice : p.defaultCostPrice,
+            p._count.instances || 0,
+          ),
+        ),
       }));
     } catch (e) {
       deadStock = [];
@@ -195,7 +231,7 @@ export class ReportsService {
     return { success: true, topProducts, deadStock };
   }
 
-  async getStaffPerformance(userId: string) {
+  async getStaffPerformance(userId: string, branchId: string) {
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { businessId: true },
@@ -206,7 +242,7 @@ export class ReportsService {
       by: ['createdBy'],
       _sum: { totalAmount: true },
       _count: { id: true },
-      where: { businessId, status: { not: 'CANCELLED' } },
+      where: { businessId, branchId, status: { not: 'CANCELLED' } },
     });
 
     const staffPerformance = [];
@@ -222,7 +258,7 @@ export class ReportsService {
           staffPerformance.push({
             name: `${staffUser.name} (${roleFormatted})`,
             orders: stat._count.id,
-            revenue: stat._sum.totalAmount || 0,
+            revenue: M.toApi(stat._sum.totalAmount),
           });
         }
       }
@@ -230,7 +266,7 @@ export class ReportsService {
     return { success: true, staffPerformance };
   }
 
-  async getCustomerInsights(userId: string) {
+  async getCustomerInsights(userId: string, branchId: string) {
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { businessId: true },
@@ -243,6 +279,7 @@ export class ReportsService {
       _count: { id: true },
       where: {
         businessId,
+        branchId,
         status: { not: 'CANCELLED' },
         customerId: { not: null },
       },
@@ -262,7 +299,7 @@ export class ReportsService {
             name: cust.name,
             type: cust.isDefaulter ? 'Defaulter' : 'Standard',
             orders: stat._count.id,
-            spent: stat._sum.totalAmount || 0,
+            spent: M.toApi(stat._sum.totalAmount),
           });
         }
       }

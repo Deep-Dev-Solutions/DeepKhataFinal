@@ -1,10 +1,13 @@
 import {
+  ArrayMaxSize,
+  IsArray,
   IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsPositive,
   IsString,
+  MaxLength,
   Min,
 } from 'class-validator';
 
@@ -49,10 +52,6 @@ export class CreateProductDto {
   @IsOptional()
   bin?: string;
 
-  @IsString()
-  @IsOptional()
-  condition?: string;
-
   @IsInt()
   @Min(1, { message: 'Initial quantity must be at least 1' })
   @IsOptional()
@@ -61,4 +60,33 @@ export class CreateProductDto {
   @IsString()
   @IsOptional()
   vendorId?: string;
+
+  @IsString()
+  @MaxLength(64)
+  @IsOptional()
+  partNumber?: string;
+
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  @IsOptional()
+  aliases?: string[];
+
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @MaxLength(100, { each: true })
+  @IsOptional()
+  compatibleWith?: string[];
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @IsOptional()
+  minSalePrice?: number;
+
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  lowStockThreshold?: number;
 }

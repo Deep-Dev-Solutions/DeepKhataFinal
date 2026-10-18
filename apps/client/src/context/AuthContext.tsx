@@ -12,6 +12,7 @@ import {
   API_BASE_URL,
   AGENCY_APP_URL,
   getAuthToken,
+  getAuthHeaders,
   setAuthToken,
   clearAuthToken,
   decodeJwt,
@@ -86,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (activeToken: string, businessId: string) => {
       try {
         const res = await fetch(`${API_BASE_URL}/product/getbranches`, {
-          headers: { Authorization: `Bearer ${activeToken}` },
+          headers: getAuthHeaders(),
         });
         if (!res.ok) return;
         const data = await res.json();
@@ -188,20 +189,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const decoded = decodeJwt<JwtPayload>(activeToken);
 
     if (decoded?.id) {
-      let cached: any = null;
+      let cached: Record<string, unknown> | null = null;
       try {
         const raw = localStorage.getItem("user");
         if (raw) cached = JSON.parse(raw);
       } catch {}
 
+      const cachedName = typeof cached?.name === "string" ? cached.name : undefined;
+      const cachedEmail = typeof cached?.email === "string" ? cached.email : undefined;
+      const cachedRole = typeof cached?.role === "string" ? cached.role : undefined;
+      const cachedBusinessId = typeof cached?.businessId === "string" ? cached.businessId : undefined;
+      const cachedPhone = typeof cached?.phone === "string" ? cached.phone : undefined;
+      const cachedAvatarUrl = typeof cached?.avatarUrl === "string" ? cached.avatarUrl : undefined;
+
       initialUser = {
         id: decoded.id,
-        name: decoded.name || cached?.name || "User",
-        email: decoded.email || cached?.email || "",
-        role: (decoded.role || cached?.role || "OWNER").toUpperCase(),
-        businessId: decoded.businessId || cached?.businessId || null,
-        phone: cached?.phone || null,
-        avatarUrl: cached?.avatarUrl || null,
+        name: (typeof decoded.name === "string" ? decoded.name : undefined) || cachedName || "User",
+        email: (typeof decoded.email === "string" ? decoded.email : undefined) || cachedEmail || "",
+        role: ((typeof decoded.role === "string" ? decoded.role : undefined) || cachedRole || "OWNER").toUpperCase(),
+        businessId: (typeof decoded.businessId === "string" ? decoded.businessId : undefined) || cachedBusinessId || null,
+        phone: cachedPhone || null,
+        avatarUrl: cachedAvatarUrl || null,
       };
       setUser(initialUser);
 

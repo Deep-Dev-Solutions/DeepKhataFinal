@@ -13,7 +13,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { API_BASE_URL } from "@/lib/auth";
+import { API_BASE_URL, getAuthToken } from "@/lib/auth";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -44,12 +44,8 @@ export default function OnboardingPage() {
     setIsSubmitting(true);
 
     try {
-      const rawUser = localStorage.getItem("user");
-      if (!rawUser)
-        throw new Error("You must be signed in to complete onboarding");
-      const user = JSON.parse(rawUser);
-      const ownerId = user.id || user.ID || user.userId || user?.id;
-      if (!ownerId) throw new Error("Unable to determine owner id");
+      const token = getAuthToken();
+      if (!token) throw new Error("Please log in again");
 
       const payload = {
         name: formData.businessName,
@@ -59,12 +55,14 @@ export default function OnboardingPage() {
         phone: formData.phone,
         address: formData.address,
         slug: formData.slug,
-        ownerId,
       };
 
       const res = await fetch(`${API_BASE_URL}/onboard/onboarding`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(payload),
       });
 

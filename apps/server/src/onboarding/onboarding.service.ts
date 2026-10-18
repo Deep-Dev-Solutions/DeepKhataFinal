@@ -1,28 +1,39 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import {
+  Injectable,
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
+import { TenantCacheService } from '../tenant/tenant-cache.service';
+import { getAccessTokenSecret } from '../auth/jwt-secrets';
 
 @Injectable()
 export class OnboardingService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private tenantCache: TenantCacheService,
   ) {}
 
-  async businessOnboarding(data: any) {
-    const {
-      name,
-      industry,
-      teamSize,
-      currency,
-      phone,
-      address,
-      slug,
-      ownerId,
-    } = data;
+  async businessOnboarding(ownerId: string, data: any) {
+    const { name, industry, teamSize, currency, phone, address, slug } = data;
 
     if (!ownerId) {
-      throw new BadRequestException('ownerId is required');
+      throw new UnauthorizedException('Authentication required');
+    }
+
+    const owner = await this.prisma.user.findUnique({
+      where: { id: ownerId },
+      select: { id: true, businessId: true },
+    });
+    if (!owner) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    if (owner.businessId) {
+      throw new ConflictException('User already belongs to a business');
     }
 
     const existingBusiness = await this.prisma.business.findUnique({
@@ -68,6 +79,9 @@ export class OnboardingService {
       return newBusiness;
     });
 
+    // The user now has a business and OWNER role; drop the cached pre-onboarding row.
+    this.tenantCache.invalidateUser(ownerId);
+
     const accessToken = this.jwtService.sign(
       {
         id: ownerId,
@@ -75,7 +89,8 @@ export class OnboardingService {
         businessId: result.id,
       },
       {
-        secret: process.env.ACCESS_TOKEN_SECRET,
+        secret: getAccessTokenSecret(),
+        jwtid: randomUUID(),
         expiresIn: (process.env.ACCESS_TOKEN_EXPIRATION || '1h') as any,
       },
     );

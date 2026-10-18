@@ -53,6 +53,7 @@ export default function SubscriptionBanner() {
 
   return (
     <div
+      data-testid="subscription-banner"
       className={`w-full px-4 py-2 text-center text-sm font-semibold flex items-center justify-center gap-2 ${
         isExpired
           ? "bg-red-600 text-white"
@@ -65,7 +66,7 @@ export default function SubscriptionBanner() {
       ) : (
         <AlertTriangle className="w-4 h-4 shrink-0" />
       )}
-      <span>{banner.message}</span>
+      <span data-testid="subscription-banner-message">{banner.message}</span>
     </div>
   );
 }

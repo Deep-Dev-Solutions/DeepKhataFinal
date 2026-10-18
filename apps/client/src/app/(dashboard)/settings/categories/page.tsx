@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
+import { useAuth } from "@/context/AuthContext";
 
 type CategoryRow = {
   id: string;
@@ -25,6 +26,7 @@ type CategoryRow = {
 };
 
 export default function CategoriesSettingsPage() {
+  const { activeBranchId } = useAuth();
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pageError, setPageError] = useState("");
@@ -51,7 +53,7 @@ export default function CategoriesSettingsPage() {
     setPageError("");
     try {
       const response = await fetch(`${API_BASE_URL}/product/getcategories`, {
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(activeBranchId),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -69,7 +71,7 @@ export default function CategoriesSettingsPage() {
 
   useEffect(() => {
     void refreshCategories();
-  }, []);
+  }, [activeBranchId]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,7 +87,7 @@ export default function CategoriesSettingsPage() {
     try {
       const response = await fetch(`${API_BASE_URL}/product/addcategory`, {
         method: "POST",
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(activeBranchId),
         body: JSON.stringify({ name }),
       });
       const data = await response.json();
@@ -130,7 +132,7 @@ export default function CategoriesSettingsPage() {
         `${API_BASE_URL}/category/${id}`,
         {
           method: "PATCH",
-          headers: getAuthHeaders(),
+          headers: getAuthHeaders(activeBranchId),
           body: JSON.stringify({ name }),
         },
       );
@@ -159,7 +161,7 @@ export default function CategoriesSettingsPage() {
         `${API_BASE_URL}/category/${id}`,
         {
           method: "DELETE",
-          headers: getAuthHeaders(),
+          headers: getAuthHeaders(activeBranchId),
         },
       );
       const data = await response.json();

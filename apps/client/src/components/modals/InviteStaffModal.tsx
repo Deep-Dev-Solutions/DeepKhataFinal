@@ -106,14 +106,14 @@ export default function InviteStaffModal({
       onClose();
 
       if (typeof onInviteSuccess === "function") onInviteSuccess(invite);
-    } catch (err: any) {
-      setError(err?.message || "Failed to send invite");
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : "Failed to send invite") || "Failed to send invite");
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div data-testid="invite-modal" className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Dark Blur Backdrop */}
       <div
         className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200"
@@ -156,6 +156,7 @@ export default function InviteStaffModal({
               <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
               <input
                 type="email"
+                data-testid="invite-email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -172,6 +173,7 @@ export default function InviteStaffModal({
             <div className="relative">
               <Shield className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
               <select
+                data-testid="invite-role"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white appearance-none cursor-pointer"
@@ -183,7 +185,7 @@ export default function InviteStaffModal({
           </div>
 
           {error && (
-            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg">
+            <div data-testid="invite-error" className="p-3 bg-rose-50 border border-rose-200 rounded-lg">
               <p className="text-sm text-rose-600 font-medium text-center">
                 {error}
               </p>
@@ -193,6 +195,7 @@ export default function InviteStaffModal({
           {/* Footer Actions */}
           <div className="pt-2 flex items-center justify-end gap-3">
             <button
+              data-testid="invite-close"
               type="button"
               onClick={() => {
                 resetForm();
@@ -204,6 +207,7 @@ export default function InviteStaffModal({
             </button>
             <button
               type="submit"
+              data-testid="invite-submit"
               disabled={isSubmitting || readOnly}
               title={
                 readOnly

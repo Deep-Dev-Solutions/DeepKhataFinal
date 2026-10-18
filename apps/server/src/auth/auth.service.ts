@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { getAccessTokenSecret, getRefreshTokenSecret } from './jwt-secrets';
 import {
   Injectable,
   BadRequestException,
@@ -10,6 +12,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
+import { TenantCacheService } from '../tenant/tenant-cache.service';
 import { Response } from 'express';
 import { Role } from '@prisma/client';
 
@@ -29,11 +32,23 @@ function formatRemainingTime(ms: number): string {
   return `${totalMinutes} minute${totalMinutes > 1 ? 's' : ''}`;
 }
 
+/** Refresh-token cookie options; COOKIE_DOMAIN shares it across app/api/admin subdomains. */
+function refreshCookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: process.env.NODE_ENV === 'production',
+    domain: process.env.COOKIE_DOMAIN || undefined,
+    path: '/',
+  };
+}
+
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private tenantCache: TenantCacheService,
   ) {}
 
   private async checkLockout(ip: string, email?: string) {
@@ -194,7 +209,8 @@ export class AuthService {
         businessId: NewUser.businessId,
       },
       {
-        secret: process.env.ACCESS_TOKEN_SECRET,
+        secret: getAccessTokenSecret(),
+        jwtid: randomUUID(),
         expiresIn: (process.env.ACCESS_TOKEN_EXPIRATION || '1h') as any,
       },
     );
@@ -243,7 +259,8 @@ export class AuthService {
         businessId: existinguser.businessId,
       },
       {
-        secret: process.env.ACCESS_TOKEN_SECRET,
+        secret: getAccessTokenSecret(),
+        jwtid: randomUUID(),
         expiresIn: (process.env.ACCESS_TOKEN_EXPIRATION || '1h') as any,
       },
     );
@@ -253,16 +270,12 @@ export class AuthService {
         id: existinguser.id,
       },
       {
-        secret: process.env.REFRESH_TOKEN_SECRET,
+        secret: getRefreshTokenSecret(),
         expiresIn: (process.env.REFRESH_TOKEN_EXPIRATION || '7d') as any,
       },
     );
 
-    res.cookie('jwt', refreshtoken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-    });
+    res.cookie('jwt', refreshtoken, refreshCookieOptions());
 
     const { password: _, ...userWithoutPassword } = existinguser;
 
@@ -314,7 +327,8 @@ export class AuthService {
         businessId: existinguser.businessId,
       },
       {
-        secret: process.env.ACCESS_TOKEN_SECRET,
+        secret: getAccessTokenSecret(),
+        jwtid: randomUUID(),
         expiresIn: (process.env.ACCESS_TOKEN_EXPIRATION || '1h') as any,
       },
     );
@@ -324,16 +338,12 @@ export class AuthService {
         id: existinguser.id,
       },
       {
-        secret: process.env.REFRESH_TOKEN_SECRET,
+        secret: getRefreshTokenSecret(),
         expiresIn: (process.env.REFRESH_TOKEN_EXPIRATION || '7d') as any,
       },
     );
 
-    res.cookie('jwt', refreshtoken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-    });
+    res.cookie('jwt', refreshtoken, refreshCookieOptions());
 
     const { password: _, ...userWithoutPassword } = existinguser;
 
@@ -373,8 +383,26 @@ export class AuthService {
     return user;
   }
 
-  logout(res: Response) {
-    res.clearCookie('jwt');
+  async logout(
+    user: { id: string; jti?: string; exp?: number } | undefined,
+    res: Response,
+  ) {
+    if (user?.jti) {
+      const expiresAt = user.exp
+        ? new Date(user.exp * 1000)
+        : new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await this.prisma.revokedToken.upsert({
+        where: { jti: user.jti },
+        update: {},
+        create: { jti: user.jti, userId: user.id, expiresAt },
+      });
+      this.tenantCache.markRevoked(user.jti);
+    }
+    await this.prisma.revokedToken.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    });
+    // Same domain/path as when set, or the browser keeps the cookie.
+    res.clearCookie('jwt', refreshCookieOptions());
     return res.json({ message: 'Logout successful' });
   }
 }

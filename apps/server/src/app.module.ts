@@ -22,9 +22,28 @@ import { BusinessModule } from './business/business.module';
 import { AgencyModule } from './agency/agency.module';
 import { CategoryModule } from './category/category.module';
 import { CabinetModule } from './cabinet/cabinet.module';
+import { RedisModule } from './redis/redis.module';
+import { TenantModule } from './tenant/tenant.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { NotificationsModule } from './notifications/notifications.module';
+import { KhataEntriesModule } from './khata-entries/khata-entries.module';
+import { StockFinderModule } from './stock-finder/stock-finder.module';
+import { DuesModule } from './dues/dues.module';
+import { ReservationsModule } from './reservations/reservations.module';
+import { StockTransfersModule } from './stock-transfers/stock-transfers.module';
+import { RemindersModule } from './reminders/reminders.module';
 
 @Module({
   imports: [
+    TenantModule,
+    ScheduleModule.forRoot(),
+    NotificationsModule,
+    KhataEntriesModule,
+    StockFinderModule,
+    DuesModule,
+    ReservationsModule,
+    StockTransfersModule,
+    RemindersModule,
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
@@ -50,6 +69,7 @@ import { CabinetModule } from './cabinet/cabinet.module';
     AgencyModule,
     CategoryModule,
     CabinetModule,
+    RedisModule,
   ],
   controllers: [AppController],
   providers: [AppService],

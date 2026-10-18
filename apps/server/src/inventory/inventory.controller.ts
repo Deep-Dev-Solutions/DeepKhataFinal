@@ -29,4 +29,16 @@ export class InventoryController {
   async getMovements(@Req() req: any, @Query() query: any) {
     return this.inventoryService.getMovements(req.user.id, query);
   }
+
+  @Get('low-stock')
+  @RequirePermissions('read:products')
+  async getLowStock(@Req() req: any, @Query() query: any) {
+    return this.inventoryService.getLowStock(req.user.id, query);
+  }
+
+  @Get('restock-history')
+  @RequirePermissions('read:products')
+  async getRestockHistory(@Req() req: any, @Query() query: any) {
+    return this.inventoryService.getRestockHistory(req.user.id, query);
+  }
 }

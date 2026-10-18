@@ -1,6 +1,8 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../ledger/ledger.service';
+import * as M from '../common/money';
+import { RedisService } from '../redis/redis.service';
 import { LogExpenseDto } from './dto/log-expense.dto';
 import { OpenRegisterDto } from './dto/open-register.dto';
 import { CloseRegisterDto } from './dto/close-register.dto';
@@ -10,7 +12,19 @@ export class CashService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ledgerService: LedgerService,
+    private readonly redis: RedisService,
   ) {}
+
+  private async invalidateCashCaches(
+    businessId: string,
+    branchId?: string | null,
+  ): Promise<void> {
+    const branchPattern = branchId ? `branch=${branchId}` : '*';
+    await Promise.all([
+      this.redis.deleteByPattern(`dashboard:${businessId}:branch:${branchId || '*'}`),
+      this.redis.deleteByPattern(`reports:*${businessId}*${branchPattern}*`),
+    ]);
+  }
 
   private async getUserWithBusiness(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -32,8 +46,13 @@ export class CashService {
   async logExpense(userId: string, dto: LogExpenseDto) {
     const user = await this.getUserWithBusiness(userId);
 
-    const parsedAmount = Number(dto.amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    let parsedAmount: M.Money;
+    try {
+      parsedAmount = M.round2(dto.amount);
+    } catch {
+      throw new BadRequestException('Expense amount must be a positive number.');
+    }
+    if (!M.gt(parsedAmount, 0)) {
       throw new BadRequestException('Expense amount must be a positive number.');
     }
 
@@ -49,7 +68,7 @@ export class CashService {
       orderBy: { openedAt: 'desc' },
     });
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // 1. Create the Expense record
       const expense = await tx.expense.create({
         data: {
@@ -79,10 +98,10 @@ export class CashService {
           {
             accountId: 'CASH',
             accountType: 'ASSET',
-            amount: -parsedAmount, // CREDIT
+            amount: M.neg(parsedAmount), // CREDIT
           },
         ],
-      });
+      }, tx);
 
       // 3. Link ledger transaction to expense
       const updatedExpense = await tx.expense.update({
@@ -101,6 +120,9 @@ export class CashService {
         expense: updatedExpense,
       };
     });
+
+    await this.invalidateCashCaches(user.businessId, dto.branchId);
+    return result;
   }
 
   /**
@@ -134,7 +156,7 @@ export class CashService {
       take: query.limit ? Number(query.limit) : 100,
     });
 
-    const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const totalAmount = M.sum(expenses.map((e) => e.amount));
 
     return {
       success: true,
@@ -145,18 +167,99 @@ export class CashService {
   }
 
   /**
+   * Cash flow totals for one branch over [from, to]. Single source of truth for the
+   * live status, the close reconciliation and the Z-report, so all three agree.
+   * cashRefunds = |CASH postings| of RETURN ledger transactions (referenceId RET-<orderId>)
+   * whose order belongs to the branch (Transaction itself carries no branchId).
+   */
+  private async computeSessionTotals(
+    businessId: string,
+    branchId: string,
+    from: Date,
+    to?: Date,
+  ) {
+    const window = { gte: from, ...(to ? { lte: to } : {}) };
+
+    const [cashPayments, expenses, returnTxs] = await Promise.all([
+      this.prisma.payment.findMany({
+        where: {
+          method: 'CASH',
+          createdAt: window,
+          order: { businessId, branchId },
+        },
+        select: { id: true, amount: true },
+      }),
+      this.prisma.expense.findMany({
+        where: { businessId, branchId, createdAt: window },
+        select: { id: true, amount: true },
+      }),
+      this.prisma.transaction.findMany({
+        where: {
+          businessId,
+          type: 'RETURN',
+          createdAt: window,
+          referenceId: { startsWith: 'RET-' },
+        },
+        select: {
+          referenceId: true,
+          postings: {
+            where: { accountId: 'CASH', accountType: 'ASSET' },
+            select: { amount: true },
+          },
+        },
+      }),
+    ]);
+
+    let cashRefunds = M.ZERO;
+    if (returnTxs.length > 0) {
+      const orderIds = returnTxs.map((t) => (t.referenceId as string).slice(4));
+      const branchOrders = await this.prisma.order.findMany({
+        where: { id: { in: orderIds }, businessId, branchId },
+        select: { id: true },
+      });
+      const branchOrderIds = new Set(branchOrders.map((o) => o.id));
+      for (const t of returnTxs) {
+        if (!branchOrderIds.has((t.referenceId as string).slice(4))) continue;
+        for (const p of t.postings) {
+          // CASH credits on a return are negative; refunded amount is the absolute value
+          if (M.lt(p.amount, 0)) cashRefunds = M.add(cashRefunds, M.neg(p.amount));
+        }
+      }
+    }
+
+    const cashSales = M.sum(cashPayments.map((p) => p.amount));
+    const cashExpenses = M.sum(expenses.map((e) => e.amount));
+    return {
+      cashSales,
+      cashExpenses,
+      cashRefunds,
+      salesCount: cashPayments.length,
+      expensesCount: expenses.length,
+    };
+  }
+
+  private expectedCashOf(
+    openingBalance: M.MoneyInput,
+    t: { cashSales: M.Money; cashExpenses: M.Money; cashRefunds: M.Money },
+  ): M.Money {
+    return M.sub(
+      M.sub(M.add(openingBalance, t.cashSales), t.cashExpenses),
+      t.cashRefunds,
+    );
+  }
+
+  /**
    * Step 2: Get Register Status and live drawer calculations
-   * Expected Cash = Opening Balance + Cash Sales - Cash Expenses
+   * Expected Cash = Opening Balance + Cash Sales - Cash Expenses - Cash Refunds
    */
   async getRegisterStatus(userId: string, branchId?: string) {
     const user = await this.getUserWithBusiness(userId);
+    if (!branchId) {
+      throw new BadRequestException('Select a branch');
+    }
 
     const activeSession = await this.prisma.cashRegisterSession.findFirst({
-      where: {
-        businessId: user.businessId,
-        status: 'OPEN',
-        ...(branchId ? { branchId } : {}),
-      },
+      where: { businessId: user.businessId, status: 'OPEN', branchId },
       include: {
         openedBy: { select: { id: true, name: true, email: true } },
         branch: { select: { id: true, name: true } },
@@ -173,54 +276,21 @@ export class CashService {
       sinceTime.setHours(0, 0, 0, 0);
     }
 
-    // 1. Calculate Cash Sales since sinceTime
-    const cashPayments = await this.prisma.payment.findMany({
-      where: {
-        method: 'CASH',
-        createdAt: { gte: sinceTime },
-        order: {
-          businessId: user.businessId,
-        },
-      },
-      select: {
-        id: true,
-        amount: true,
-        createdAt: true,
-        orderId: true,
-      },
-    });
-    const cashSales = cashPayments.reduce((sum, p) => sum + p.amount, 0);
-
-    // 2. Calculate Cash Expenses since sinceTime
-    const expenses = await this.prisma.expense.findMany({
-      where: {
-        businessId: user.businessId,
-        createdAt: { gte: sinceTime },
-        ...(branchId ? { branchId } : {}),
-      },
-      select: {
-        id: true,
-        amount: true,
-        category: true,
-        description: true,
-        createdAt: true,
-      },
-    });
-    const cashExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
-
-    const openingBalance = activeSession ? activeSession.openingBalance : 0;
-    const expectedCash = openingBalance + cashSales - cashExpenses;
+    const totals = await this.computeSessionTotals(user.businessId, branchId, sinceTime);
+    const openingBalance = activeSession ? M.money(activeSession.openingBalance) : M.ZERO;
+    const expectedCash = this.expectedCashOf(openingBalance, totals);
 
     return {
       success: true,
       isOpen: !!activeSession,
       session: activeSession,
       openingBalance,
-      cashSales,
-      cashExpenses,
+      cashSales: totals.cashSales,
+      cashExpenses: totals.cashExpenses,
+      cashRefunds: totals.cashRefunds,
       expectedCash,
-      salesCount: cashPayments.length,
-      expensesCount: expenses.length,
+      salesCount: totals.salesCount,
+      expensesCount: totals.expensesCount,
     };
   }
 
@@ -230,12 +300,12 @@ export class CashService {
   async openRegister(userId: string, dto: OpenRegisterDto) {
     const user = await this.getUserWithBusiness(userId);
 
+    if (!dto.branchId) {
+      throw new BadRequestException('Select a branch');
+    }
+
     const existing = await this.prisma.cashRegisterSession.findFirst({
-      where: {
-        businessId: user.businessId,
-        status: 'OPEN',
-        ...(dto.branchId ? { branchId: dto.branchId } : {}),
-      },
+      where: { businessId: user.businessId, status: 'OPEN', branchId: dto.branchId },
     });
 
     if (existing) {
@@ -245,9 +315,9 @@ export class CashService {
     const session = await this.prisma.cashRegisterSession.create({
       data: {
         businessId: user.businessId,
-        branchId: dto.branchId || null,
+        branchId: dto.branchId,
         openedById: user.id,
-        openingBalance: Number(dto.openingBalance) || 0,
+        openingBalance: M.round2(dto.openingBalance || 0),
         notes: dto.notes?.trim() || null,
         status: 'OPEN',
         openedAt: new Date(),
@@ -271,12 +341,12 @@ export class CashService {
   async closeRegister(userId: string, dto: CloseRegisterDto) {
     const user = await this.getUserWithBusiness(userId);
 
+    if (!dto.branchId) {
+      throw new BadRequestException('Select a branch');
+    }
+
     const activeSession = await this.prisma.cashRegisterSession.findFirst({
-      where: {
-        businessId: user.businessId,
-        status: 'OPEN',
-        ...(dto.branchId ? { branchId: dto.branchId } : {}),
-      },
+      where: { businessId: user.businessId, status: 'OPEN', branchId: dto.branchId },
       orderBy: { openedAt: 'desc' },
     });
 
@@ -286,40 +356,18 @@ export class CashService {
 
     const now = new Date();
 
-    // 1. Live Cash Sales during session
-    const cashPayments = await this.prisma.payment.findMany({
-      where: {
-        method: 'CASH',
-        createdAt: {
-          gte: activeSession.openedAt,
-          lte: now,
-        },
-        order: {
-          businessId: user.businessId,
-        },
-      },
-      select: { amount: true },
-    });
-    const cashSales = cashPayments.reduce((sum, p) => sum + p.amount, 0);
+    // Totals are scoped to the SESSION's branch, never to the request body.
+    const { cashSales, cashExpenses, cashRefunds } = await this.computeSessionTotals(
+      user.businessId,
+      activeSession.branchId as string,
+      activeSession.openedAt,
+      now,
+    );
 
-    // 2. Live Cash Expenses during session
-    const expenses = await this.prisma.expense.findMany({
-      where: {
-        businessId: user.businessId,
-        createdAt: {
-          gte: activeSession.openedAt,
-          lte: now,
-        },
-        ...(dto.branchId ? { branchId: dto.branchId } : {}),
-      },
-      select: { amount: true },
-    });
-    const cashExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
-
-    const openingBalance = activeSession.openingBalance;
-    const expectedCash = openingBalance + cashSales - cashExpenses;
-    const actualCash = Number(dto.actualCash);
-    const difference = actualCash - expectedCash;
+    const openingBalance = M.money(activeSession.openingBalance);
+    const expectedCash = this.expectedCashOf(openingBalance, { cashSales, cashExpenses, cashRefunds });
+    const actualCash = M.round2(dto.actualCash);
+    const difference = M.sub(actualCash, expectedCash);
 
     const closedSession = await this.prisma.cashRegisterSession.update({
       where: { id: activeSession.id },
@@ -349,10 +397,11 @@ export class CashService {
         openingBalance,
         cashSales,
         cashExpenses,
+        cashRefunds,
         expectedCash,
         actualCash,
         difference,
-        discrepancyType: difference === 0 ? 'BALANCED' : difference < 0 ? 'SHORTAGE' : 'OVERAGE',
+        discrepancyType: M.isZero(difference) ? 'BALANCED' : M.lt(difference, 0) ? 'SHORTAGE' : 'OVERAGE',
       },
     };
   }
@@ -360,7 +409,7 @@ export class CashService {
   /**
    * Step 2: Generate End of Day Z-Report
    */
-  async getZReport(userId: string, sessionId?: string) {
+  async getZReport(userId: string, branchId: string, sessionId?: string) {
     const user = await this.getUserWithBusiness(userId);
 
     let session: any = null;
@@ -377,7 +426,7 @@ export class CashService {
     } else {
       // Find latest closed session or current open session
       session = await this.prisma.cashRegisterSession.findFirst({
-        where: { businessId: user.businessId },
+        where: { businessId: user.businessId, branchId },
         include: {
           openedBy: { select: { id: true, name: true, email: true } },
           closedBy: { select: { id: true, name: true, email: true } },
@@ -389,6 +438,9 @@ export class CashService {
 
     if (!session) {
       throw new NotFoundException('No register session found.');
+    }
+    if (session.branchId !== branchId) {
+      throw new NotFoundException('Register session not found for this branch.');
     }
 
     const endTime = session.closedAt || new Date();
@@ -403,6 +455,7 @@ export class CashService {
         },
         order: {
           businessId: user.businessId,
+          ...(session.branchId ? { branchId: session.branchId } : {}),
         },
       },
       include: {
@@ -436,20 +489,26 @@ export class CashService {
     });
 
     // Group expenses by category
-    const expensesByCategory: Record<string, { total: number; count: number }> = {};
+    const expensesByCategory: Record<string, { total: M.Money; count: number }> = {};
     for (const exp of expenses) {
       if (!expensesByCategory[exp.category]) {
-        expensesByCategory[exp.category] = { total: 0, count: 0 };
+        expensesByCategory[exp.category] = { total: M.ZERO, count: 0 };
       }
-      expensesByCategory[exp.category].total += exp.amount;
+      expensesByCategory[exp.category].total = M.add(expensesByCategory[exp.category].total, exp.amount);
       expensesByCategory[exp.category].count += 1;
     }
 
-    const cashSalesTotal = cashPayments.reduce((sum, p) => sum + p.amount, 0);
-    const cashExpensesTotal = expenses.reduce((sum, e) => sum + e.amount, 0);
-    const expectedCash = session.openingBalance + cashSalesTotal - cashExpensesTotal;
-    const actualCash = session.actualCash ?? expectedCash;
-    const difference = session.difference ?? (actualCash - expectedCash);
+    const totals = await this.computeSessionTotals(
+      user.businessId,
+      session.branchId,
+      session.openedAt,
+      endTime,
+    );
+    const cashSalesTotal = totals.cashSales;
+    const cashExpensesTotal = totals.cashExpenses;
+    const expectedCash = this.expectedCashOf(session.openingBalance, totals);
+    const actualCash = session.actualCash != null ? M.money(session.actualCash) : expectedCash;
+    const difference = session.difference != null ? M.money(session.difference) : M.sub(actualCash, expectedCash);
 
     return {
       success: true,
@@ -460,10 +519,11 @@ export class CashService {
           openingBalance: session.openingBalance,
           cashSales: cashSalesTotal,
           cashExpenses: cashExpensesTotal,
+          cashRefunds: totals.cashRefunds,
           expectedCash,
           actualCash,
           difference,
-          discrepancyType: difference === 0 ? 'BALANCED' : difference < 0 ? 'SHORTAGE' : 'OVERAGE',
+          discrepancyType: M.isZero(difference) ? 'BALANCED' : M.lt(difference, 0) ? 'SHORTAGE' : 'OVERAGE',
         },
         expensesByCategory,
         salesCount: cashPayments.length,
@@ -477,11 +537,11 @@ export class CashService {
   /**
    * Get recent register sessions history
    */
-  async getRecentSessions(userId: string, limit = 10) {
+  async getRecentSessions(userId: string, branchId: string, limit = 10) {
     const user = await this.getUserWithBusiness(userId);
 
     const sessions = await this.prisma.cashRegisterSession.findMany({
-      where: { businessId: user.businessId },
+      where: { businessId: user.businessId, branchId },
       include: {
         openedBy: { select: { id: true, name: true, email: true } },
         closedBy: { select: { id: true, name: true, email: true } },

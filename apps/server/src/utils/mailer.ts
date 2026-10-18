@@ -32,9 +32,11 @@ export const sendInviteEmail = async (toEmail: any, role: any, token: any) => {
   const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
   const inviteLink = `${frontendUrl}/join?token=${token}`;
 
+  const appName = process.env.APP_NAME || 'DeepKhata';
+  const mailDomain = process.env.MAIL_DOMAIN || 'deepkhata.app';
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
-      <h2>You have been invited to BizFlow!</h2>
+      <h2>You have been invited to ${appName}!</h2>
       <p>You have been invited to join a workspace as a <strong>${role}</strong>.</p>
       <p>Click the button below to accept the invitation and set up your account:</p>
       <a href="${inviteLink}" style="display: inline-block; padding: 10px 20px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 5px; margin-top: 10px;">
@@ -47,14 +49,14 @@ export const sendInviteEmail = async (toEmail: any, role: any, token: any) => {
   const isResend =
     process.env.SMTP_HOST?.includes('resend') || !!process.env.RESEND_API_KEY;
   const defaultFrom = isResend
-    ? '"BizFlow Admin" <onboarding@resend.dev>'
-    : '"BizFlow Admin" <noreply@bizflow.com>';
+    ? `"${appName} Admin" <onboarding@resend.dev>`
+    : `"${appName} Admin" <noreply@${mailDomain}>`;
   const from = process.env.SMTP_FROM || defaultFrom;
 
   await transporter.sendMail({
     from,
     to: toEmail,
-    subject: 'Invitation to join BizFlow Workspace',
+    subject: `Invitation to join ${appName} Workspace`,
     html: htmlContent,
   });
 };

@@ -2,9 +2,12 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import cookieParser from 'cookie-parser';
+import { getCorsOrigins } from './config/cors';
 import * as dotenv from 'dotenv';
+import { installDecimalJson } from './common/money';
 
 dotenv.config();
+installDecimalJson();
 
 let cachedApp: any;
 
@@ -21,15 +24,12 @@ async function bootstrapServer() {
     );
 
     app.enableCors({
-      origin: [
-        'http://localhost:3000',
-        'http://localhost:3001',
-        'https://deepkhata.vercel.app',
-        'https://agency-admin-deepkhata.vercel.app',
-      ],
+      origin: getCorsOrigins(),
       credentials: true,
+      exposedHeaders: ['X-Next-Cursor'],
     });
 
+    app.getHttpAdapter().getInstance().set('trust proxy', process.env.TRUST_PROXY || 'loopback');
     app.use(cookieParser());
 
     await app.init();

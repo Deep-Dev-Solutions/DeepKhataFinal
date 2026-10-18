@@ -2,13 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
-import { API_BASE_URL } from "@/lib/auth";
+import { Product } from "@/types/api";
+import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { useAuth } from "@/context/AuthContext";
 
 export default function InventoryInsightsTab() {
-  const [topProducts, setTopProducts] = useState<any[]>([]);
-  const [deadStock, setDeadStock] = useState<any[]>([]);
+  const [topProducts, setTopProducts] = useState<Product[]>([]);
+  const [deadStock, setDeadStock] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const { activeBranchId } = useAuth();
 
   useEffect(() => {
     let isActive = true;
@@ -19,9 +22,7 @@ export default function InventoryInsightsTab() {
 
       try {
         const res = await fetch(`${API_BASE_URL}/reports/inventory`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
-          },
+          headers: getAuthHeaders(activeBranchId),
         });
 
         const json = await res.json();
@@ -32,9 +33,9 @@ export default function InventoryInsightsTab() {
           setTopProducts(json.topProducts || []);
           setDeadStock(json.deadStock || []);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (isActive)
-          setError(err?.message || "Could not load inventory insights.");
+          setError((err instanceof Error ? err.message : "Could not load inventory insights.") || "Could not load inventory insights.");
       } finally {
         if (isActive) setIsLoading(false);
       }
@@ -45,7 +46,7 @@ export default function InventoryInsightsTab() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [activeBranchId]);
 
   if (isLoading) {
     return (

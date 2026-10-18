@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -18,8 +18,11 @@ import {
   DollarSign,
   User,
   Calendar,
+  Pencil,
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { usePermissions } from "@/hooks/usePermissions";
+import EditProductModal from "@/components/modals/EditProductModal";
 
 const formatPrice = (val: any): string => {
   if (val === null || val === undefined) return "0";
@@ -29,7 +32,6 @@ const formatPrice = (val: any): string => {
 
 type Instance = {
   id: string;
-  condition: string;
   branch: { id: string; name: string };
   cabinet?: { id: string; name: string };
 };
@@ -41,8 +43,6 @@ type Movement = {
   direction: string;
   referenceType: string;
   notes: string;
-  fromCondition: string | null;
-  toCondition: string;
   vendor?: { businessName: string };
   cabinet?: { name: string };
 };
@@ -72,6 +72,12 @@ type Product = {
   totalSold?: number;
   totalRevenue?: number;
   category?: { name: string };
+  defaultCostPrice?: number | string | null;
+  partNumber?: string | null;
+  aliases?: string[] | null;
+  compatibleWith?: string[] | null;
+  minSalePrice?: number | string | null;
+  lowStockThreshold?: number | string | null;
 };
 
 export default function ProductDetailPage() {
@@ -86,32 +92,37 @@ export default function ProductDetailPage() {
     "location",
   );
 
-  useEffect(() => {
-    const fetchDetails = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/product/${id}/details`, {
-          headers: getAuthHeaders(),
-        });
-        const data = await res.json();
-        if (data.success) {
-          setProduct(data.product);
-          const instList = data.instances || [];
-          const saleList = data.sales || [];
-          setInstances(instList);
-          setMovements(data.movements || []);
-          setSales(saleList);
-          if (instList.length === 0 && saleList.length > 0) {
-            setActiveTab("sales");
-          }
+  const { hasPermission } = usePermissions();
+  const [isEditOpen, setIsEditOpen] = useState(false);
+
+  const fetchDetails = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/product/${id}/details`, {
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setProduct(data.product);
+        const instList = data.instances || [];
+        const saleList = data.sales || [];
+        setInstances(instList);
+        setMovements(data.movements || []);
+        setSales(saleList);
+        if (instList.length === 0 && saleList.length > 0) {
+          setActiveTab("sales");
         }
-      } catch (err) {
-        console.error("Failed to load product details", err);
-      } finally {
-        setIsLoading(false);
       }
-    };
-    if (id) fetchDetails();
+    } catch (err) {
+      console.error("Failed to load product details", err);
+    } finally {
+      setIsLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (id) void fetchDetails();
+  }, [id, fetchDetails]);
 
   if (isLoading) {
     return (
@@ -129,24 +140,17 @@ export default function ProductDetailPage() {
     );
   }
 
-  // Group instances by Branch -> Cabinet -> Condition
-  const locationBreakdown: Record<string, any> = {};
+  // Group instances by Branch -> Cabinet
+  const locationBreakdown: Record<string, Record<string, number>> = {};
   instances.forEach((inst) => {
     const branchName = inst.branch.name;
     const cabinetName = inst.cabinet?.name || "No Cabinet";
-    const condition = inst.condition.replace(/_/g, " ");
 
     if (!locationBreakdown[branchName]) {
       locationBreakdown[branchName] = {};
     }
-    if (!locationBreakdown[branchName][cabinetName]) {
-      locationBreakdown[branchName][cabinetName] = {};
-    }
-    if (!locationBreakdown[branchName][cabinetName][condition]) {
-      locationBreakdown[branchName][cabinetName][condition] = 0;
-    }
-
-    locationBreakdown[branchName][cabinetName][condition] += 1;
+    locationBreakdown[branchName][cabinetName] =
+      (locationBreakdown[branchName][cabinetName] || 0) + 1;
   });
 
   return (
@@ -164,6 +168,16 @@ export default function ProductDetailPage() {
             Product Details & Performance
           </p>
         </div>
+        {hasPermission("write:products") && (
+          <button
+            type="button"
+            data-testid="product-edit"
+            onClick={() => setIsEditOpen(true)}
+            className="ml-auto flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+          >
+            <Pencil className="h-4 w-4" /> Edit
+          </button>
+        )}
       </div>
 
       {/* KPI Row */}
@@ -325,31 +339,17 @@ export default function ProductDetailPage() {
                       </div>
                       <div className="p-4 grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                         {Object.entries(cabinets).map(
-                          ([cabinet, conditions]: [string, any]) => (
+                          ([cabinet, qty]: [string, any]) => (
                             <div
                               key={cabinet}
-                              className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm"
+                              className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex items-center justify-between"
                             >
-                              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-2">
+                              <div className="text-xs font-bold text-slate-700">
                                 {cabinet}
                               </div>
-                              <ul className="space-y-2">
-                                {Object.entries(conditions).map(
-                                  ([cond, qty]: [string, any]) => (
-                                    <li
-                                      key={cond}
-                                      className="flex justify-between items-center text-sm"
-                                    >
-                                      <span className="font-medium text-slate-700">
-                                        {cond}
-                                      </span>
-                                      <span className="font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
-                                        {qty}
-                                      </span>
-                                    </li>
-                                  ),
-                                )}
-                              </ul>
+                              <span className="font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded text-sm">
+                                {qty} units
+                              </span>
                             </div>
                           ),
                         )}
@@ -491,7 +491,6 @@ export default function ProductDetailPage() {
                   <th className="px-4 py-3">Date</th>
                   <th className="px-4 py-3">Type</th>
                   <th className="px-4 py-3 text-center">Qty</th>
-                  <th className="px-4 py-3">Condition (To)</th>
                   <th className="px-4 py-3">Location / Vendor</th>
                   <th className="px-4 py-3">Notes</th>
                 </tr>
@@ -500,7 +499,7 @@ export default function ProductDetailPage() {
                 {movements.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={5}
                       className="px-4 py-8 text-center text-slate-400"
                     >
                       No movement history.
@@ -527,9 +526,6 @@ export default function ProductDetailPage() {
                         {m.direction === "IN" ? "+" : "-"}
                         {m.quantity}
                       </td>
-                      <td className="px-4 py-3 text-slate-600 text-xs">
-                        {m.toCondition.replace(/_/g, " ")}
-                      </td>
                       <td className="px-4 py-3 text-slate-600">
                         {m.referenceType === "RESTOCK"
                           ? m.vendor?.businessName || "Unknown Vendor"
@@ -549,6 +545,14 @@ export default function ProductDetailPage() {
           </div>
         )}
       </div>
+      {hasPermission("write:products") && (
+        <EditProductModal
+          isOpen={isEditOpen}
+          onClose={() => setIsEditOpen(false)}
+          product={product}
+          onSaved={fetchDetails}
+        />
+      )}
     </div>
   );
 }

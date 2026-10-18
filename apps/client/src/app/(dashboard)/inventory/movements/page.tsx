@@ -13,15 +13,14 @@ import {
   Box,
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { useAuth } from "@/context/AuthContext";
 
 type Movement = {
   id: string;
   productId: string;
   cabinetId: string | null;
-  fromCondition: string | null;
-  toCondition: string | null;
   quantity: number;
-  direction: "IN" | "OUT" | "TRANSFER" | "CONDITION_UPDATE";
+  direction: "IN" | "OUT" | "TRANSFER";
   referenceType: string;
   referenceId: string;
   notes: string | null;
@@ -33,6 +32,7 @@ type Movement = {
 };
 
 export default function InventoryLedgerPage() {
+  const { activeBranchId } = useAuth();
   const [movements, setMovements] = useState<Movement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
@@ -41,7 +41,7 @@ export default function InventoryLedgerPage() {
     setIsLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/inventory/movements?limit=100`, {
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(activeBranchId),
       });
       const data = await res.json();
       if (data.success) {
@@ -55,7 +55,7 @@ export default function InventoryLedgerPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [activeBranchId]);
 
   useEffect(() => {
     void loadMovements();
@@ -76,7 +76,7 @@ export default function InventoryLedgerPage() {
             Inventory Movement Ledger
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Double-entry log of all stock inbound, outbound, and condition
+            Double-entry log of all stock inbound, outbound, and inventory
             changes.
           </p>
         </div>
@@ -157,10 +157,11 @@ export default function InventoryLedgerPage() {
                         >
                           {m.direction} ({m.referenceType})
                         </span>
-                        <span className="text-[10px] text-slate-500">
-                          {m.fromCondition ? `${m.fromCondition} → ` : ""}
-                          {m.toCondition || "N/A"}
-                        </span>
+                        {m.notes && (
+                          <span className="text-[10px] text-slate-500">
+                            {m.notes}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">

@@ -107,7 +107,7 @@ export default function StatsCards({ kpis }: StatsCardsProps) {
         <div className="flex justify-between items-start">
           <div className="min-w-0">
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-              Today's Net Profit
+              Today&apos;s Net Profit
             </p>
             {isStaff || netProfit === null ? (
               <div className="flex items-center gap-1.5 text-slate-400 py-1">

@@ -23,6 +23,9 @@ import {
   List,
   GripVertical,
   ChevronRight,
+  Globe2,
+  AlertCircle,
+  Box,
 } from "lucide-react";
 import { offlineDb, type SyncQueueItem } from "@/lib/db";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
@@ -31,10 +34,12 @@ import OrderSuccessModal, {
   type CompletedOrderData,
 } from "@/components/modals/OrderSuccessModal";
 import NewCustomerModal from "@/components/modals/NewCustomerModal";
-import CheckoutDrawer from "@/components/pos/CheckoutDrawer";
+import CheckoutDrawer, {
+  addDaysKarachi,
+} from "@/components/pos/CheckoutDrawer";
 import { usePOS } from "@/context/POSContext";
 import { useAuth } from "@/context/AuthContext";
-import { API_BASE_URL } from "@/lib/auth";
+import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import { useToast } from "@/context/ToastContext";
 import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 
@@ -44,11 +49,12 @@ type Product = {
   sku: string | null;
   basePrice?: number;
   price?: number;
+  minSalePrice?: number | null;
   stock: number;
   category?: { name: string };
+  cabinet?: { id?: string; name?: string | null; location?: string | null } | null;
   instances?: Array<{
     id: string;
-    condition: string;
     status: string;
     cabinet?: { name?: string | null; location?: string | null } | null;
     branch?: { id: string; name: string; deletedAt: string | null } | null;
@@ -62,9 +68,11 @@ type CartItem = {
   price: number;
   stock?: number;
   qty: number;
-  condition?: string;
   isService?: boolean;
   notes?: string;
+  minSalePrice?: number | null;
+  reservationId?: string;
+  priceOverrideReason?: string;
 };
 
 const formatPrice = (val: any): string => {
@@ -81,9 +89,46 @@ function CreateOrderPOSContent() {
     user,
     isLoading: isAuthLoading,
     activeBranchId,
-    branches,
+    branches: authBranches,
   } = useAuth();
   const { toast } = useToast();
+  const userRole = user?.role;
+  const canOverrideMinPrice = userRole === "OWNER" || userRole === "MANAGER";
+
+  const [branches, setBranches] = useState<any[]>([]);
+  const [viewingBranchId, setViewingBranchId] = useState<string>(
+    activeBranchId || "",
+  );
+
+  // Fetch all available branches for current business on component mount
+  useEffect(() => {
+    const fetchBranches = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/product/getbranches`, {
+          headers: getAuthHeaders(activeBranchId),
+          cache: "no-store",
+        });
+        const data = await res.json();
+        if (data.success && Array.isArray(data.branches)) {
+          setBranches(data.branches);
+        } else if (Array.isArray(authBranches) && authBranches.length > 0) {
+          setBranches(authBranches);
+        }
+      } catch {
+        if (Array.isArray(authBranches) && authBranches.length > 0) {
+          setBranches(authBranches);
+        }
+      }
+    };
+    void fetchBranches();
+  }, [authBranches, activeBranchId]);
+
+  // Keep viewingBranchId in sync when the global top-right active branch switches
+  useEffect(() => {
+    if (activeBranchId) {
+      setViewingBranchId(activeBranchId);
+    }
+  }, [activeBranchId]);
 
   // 🟢 BARCODE SCANNER FOCUS TRAP STATES
   const [scanFeedback, setScanFeedback] = useState<{
@@ -113,11 +158,6 @@ function CreateOrderPOSContent() {
   const [walkInName, setWalkInName] = useState("");
   const [walkInPhone, setWalkInPhone] = useState("");
 
-  // Inline condition picker (product card expands, not a modal)
-  const [expandedConditionProduct, setExpandedConditionProduct] = useState<
-    (Product & { conditionCounts?: any }) | null
-  >(null);
-
   // Inline service/labor form in the cart (not a modal)
   const [isServiceFormOpen, setIsServiceFormOpen] = useState(false);
   const [serviceName, setServiceName] = useState("");
@@ -132,6 +172,8 @@ function CreateOrderPOSContent() {
   const [amountPaid, setAmountPaid] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [orderStatus, setOrderStatus] = useState("FINAL");
+  const [dueDate, setDueDate] = useState<string>("");
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
@@ -146,9 +188,9 @@ function CreateOrderPOSContent() {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const token = localStorage.getItem("accessToken");
+        const targetBranchId = viewingBranchId || activeBranchId;
         const res = await fetch(`${API_BASE_URL}/product/getcategories`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: getAuthHeaders(targetBranchId),
         });
         const data = await res.json();
         if (data.success && Array.isArray(data.categories)) {
@@ -171,81 +213,66 @@ function CreateOrderPOSContent() {
       }
     };
     void fetchCategories();
-  }, []);
+  }, [viewingBranchId, activeBranchId]);
 
   // ==========================================
   // 🟢 FETCH & CACHE PRODUCTS IN DEXIE INDEXEDDB
   // ==========================================
-  useEffect(() => {
-    const fetchProducts = async () => {
-      setIsLoadingProducts(true);
-      try {
-        // If navigator is offline, read directly from Dexie
-        if (typeof navigator !== "undefined" && !navigator.onLine) {
-          const cached = await offlineDb.products.toArray();
-          let filtered = cached;
-          if (searchQuery) {
-            const q = searchQuery.toLowerCase();
-            filtered = filtered.filter(
-              (p) =>
-                p.name.toLowerCase().includes(q) ||
-                (p.sku && p.sku.toLowerCase().includes(q)),
-            );
-          }
-          if (activeCategory !== "All") {
-            filtered = filtered.filter(
-              (p) => p.category?.name === activeCategory,
-            );
-          }
-          const normalized = (filtered || []).map((p: any) => ({
-            ...p,
-            price: Number(p.price ?? p.basePrice ?? 0),
-          }));
-          setProducts(normalized as Product[]);
-          setIsLoadingProducts(false);
-          return;
+  const fetchProducts = useCallback(async () => {
+    setIsLoadingProducts(true);
+    try {
+      // If navigator is offline, read directly from Dexie
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const cached = await offlineDb.products.toArray();
+        let filtered = cached;
+        if (searchQuery) {
+          const q = searchQuery.toLowerCase();
+          filtered = filtered.filter(
+            (p) =>
+              p.name.toLowerCase().includes(q) ||
+              (p.sku && p.sku.toLowerCase().includes(q)),
+          );
         }
-
-        const token = localStorage.getItem("accessToken");
-        const params = new URLSearchParams();
-        if (searchQuery) params.append("search", searchQuery);
-        if (activeCategory !== "All") params.append("category", activeCategory);
-        // 🔒 Branch isolation: only show stock physically in the active branch
-        if (activeBranchId) params.append("branchId", activeBranchId);
-
-        const res = await fetch(
-          `${API_BASE_URL}/product/getproducts?${params.toString()}`,
-          {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          },
-        );
-        const data = await res.json();
-
-        if (data.success) {
-          const normalized = data.products.map((p: any) => ({
-            ...p,
-            price: Number(p.price ?? p.basePrice ?? 0),
-          }));
-          setProducts(normalized);
-          // 🟢 Cache into IndexedDB
-          void offlineDb.products.bulkPut(normalized);
-        } else {
-          // Fallback to Dexie cache
-          const cached = await offlineDb.products.toArray();
-          if (cached.length > 0) {
-            setProducts(
-              cached.map((p: any) => ({
-                ...p,
-                price: Number(p.price ?? p.basePrice ?? 0),
-              })),
-            );
-          }
+        if (activeCategory !== "All") {
+          filtered = filtered.filter(
+            (p) => p.category?.name === activeCategory,
+          );
         }
-      } catch (error) {
-        console.warn(
-          "Failed to fetch products online, fallback to IndexedDB:",
-          error,
-        );
+        const normalized = (filtered || []).map((p: any) => ({
+          ...p,
+          price: Number(p.price ?? p.basePrice ?? 0),
+        }));
+        setProducts(normalized as Product[]);
+        setIsLoadingProducts(false);
+        return;
+      }
+
+      const targetBranchId = viewingBranchId || activeBranchId;
+      const params = new URLSearchParams();
+      if (searchQuery) params.append("search", searchQuery);
+      if (activeCategory !== "All") params.append("category", activeCategory);
+      if (targetBranchId) params.append("branchId", targetBranchId);
+      params.append("t", Date.now().toString());
+
+      const res = await fetch(
+        `${API_BASE_URL}/product/getproducts?${params.toString()}`,
+        {
+          headers: getAuthHeaders(targetBranchId),
+          cache: "no-store",
+        },
+      );
+      const data = await res.json();
+
+      if (data.success) {
+        const normalized = data.products.map((p: any) => ({
+          ...p,
+          price: Number(p.price ?? p.basePrice ?? 0),
+        }));
+        setProducts(normalized);
+        // 🟢 Cache into IndexedDB
+        void offlineDb.products.bulkPut(normalized);
+      } else {
+        // Fallback to Dexie cache
         const cached = await offlineDb.products.toArray();
         if (cached.length > 0) {
           setProducts(
@@ -255,23 +282,48 @@ function CreateOrderPOSContent() {
             })),
           );
         }
-      } finally {
-        setIsLoadingProducts(false);
       }
-    };
+    } catch (error) {
+      console.warn(
+        "Failed to fetch products online, fallback to IndexedDB:",
+        error,
+      );
+      const cached = await offlineDb.products.toArray();
+      if (cached.length > 0) {
+        setProducts(
+          cached.map((p: any) => ({
+            ...p,
+            price: Number(p.price ?? p.basePrice ?? 0),
+          })),
+        );
+      }
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  }, [searchQuery, activeCategory, viewingBranchId, activeBranchId]);
 
+  useEffect(() => {
     const delayDebounceFn = setTimeout(() => void fetchProducts(), 300);
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery, activeCategory, activeBranchId]);
+    const refreshWhenActive = () => {
+      if (document.visibilityState === "visible") void fetchProducts();
+    };
+    window.addEventListener("focus", refreshWhenActive);
+    document.addEventListener("visibilitychange", refreshWhenActive);
+
+    return () => {
+      clearTimeout(delayDebounceFn);
+      window.removeEventListener("focus", refreshWhenActive);
+      document.removeEventListener("visibilitychange", refreshWhenActive);
+    };
+  }, [fetchProducts]);
 
   // Pre-fetch all customers into IndexedDB for offline capability
   useEffect(() => {
     const prefetchCustomers = async () => {
       try {
         if (typeof navigator !== "undefined" && !navigator.onLine) return;
-        const token = localStorage.getItem("accessToken");
         const res = await fetch(`${API_BASE_URL}/customer/getallcustomers`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: getAuthHeaders(activeBranchId),
         });
         const data = await res.json();
         if (data.success && Array.isArray(data.customers)) {
@@ -311,11 +363,10 @@ function CreateOrderPOSContent() {
           return;
         }
 
-        const token = localStorage.getItem("accessToken");
         const res = await fetch(
           `${API_BASE_URL}/customer/getallcustomers?search=${customerSearch}`,
           {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            headers: getAuthHeaders(activeBranchId),
           },
         );
         const data = await res.json();
@@ -368,6 +419,86 @@ function CreateOrderPOSContent() {
     }
   }, [searchParams]);
 
+  // ==========================================
+  // Default due date: Karachi today + customer's payment terms (or 7 days)
+  // ==========================================
+  const customerTerms = Number(
+    (selectedCustomer as { paymentTermsDays?: number | null } | null)
+      ?.paymentTermsDays,
+  );
+  const paymentTermsDays: number = customerTerms > 0 ? customerTerms : 7;
+  const effectiveDueDate = dueDate || addDaysKarachi(paymentTermsDays);
+
+  // ==========================================
+  // Pre-add a product (and optional reservation) from the stock finder
+  // ==========================================
+  const handledAddProductRef = useRef<string | null>(null);
+  useEffect(() => {
+    const addProductId = searchParams.get("addProduct");
+    if (!addProductId) return;
+    const reservationId = searchParams.get("reservationId") || undefined;
+    const key = `${addProductId}:${reservationId ?? ""}`;
+    if (handledAddProductRef.current === key) return;
+    handledAddProductRef.current = key;
+
+    const clearParams = () => {
+      const next = new URLSearchParams(searchParams.toString());
+      next.delete("addProduct");
+      next.delete("reservationId");
+      const qs = next.toString();
+      router.replace(qs ? `/orders/new?${qs}` : "/orders/new");
+    };
+
+    fetch(`${API_BASE_URL}/product/${encodeURIComponent(addProductId)}/details`, {
+      headers: getAuthHeaders(activeBranchId),
+      cache: "no-store",
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok || !data.product) {
+          throw new Error(data?.message || "Product not found");
+        }
+        const p = data.product;
+        const stock = Number(p.stock ?? 0);
+        if (stock <= 0 && !reservationId) {
+          toast.warning(`"${p.name}" has no available stock to sell.`);
+          return;
+        }
+        const price = Number(p.price ?? p.basePrice ?? 0);
+        setCart((prev) => {
+          const existing = prev.find((i) => i.id === p.id && !i.isService);
+          if (existing) {
+            if (!reservationId) return prev;
+            return prev.map((i) =>
+              i === existing ? { ...i, qty: 1, reservationId } : i,
+            );
+          }
+          return [
+            ...prev,
+            {
+              id: p.id,
+              name: p.name,
+              sku: p.sku ?? null,
+              price,
+              stock,
+              qty: 1,
+              minSalePrice:
+                p.minSalePrice != null ? Number(p.minSalePrice) : null,
+              ...(reservationId ? { reservationId } : {}),
+            },
+          ];
+        });
+        toast.success(`Added "${p.name}" to the invoice.`);
+      })
+      .catch((err: unknown) => {
+        toast.error(
+          err instanceof Error ? err.message : "Could not add the product.",
+        );
+      })
+      .finally(clearParams);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   // Helper to safely deduct stock in Dexie and React state
   const deductLocalStock = async (cartItems: CartItem[]) => {
     for (const ci of cartItems) {
@@ -388,7 +519,6 @@ function CreateOrderPOSContent() {
         const updatedInstances = (p.instances || []).map((inst) => {
           if (
             inst.status === "AVAILABLE" &&
-            (!inCart.condition || inst.condition === inCart.condition) &&
             deducted < inCart.qty
           ) {
             deducted++;
@@ -405,6 +535,12 @@ function CreateOrderPOSContent() {
     );
   };
 
+  const isBelowMin = (item: CartItem) =>
+    !item.isService &&
+    item.minSalePrice != null &&
+    Number(item.minSalePrice) > 0 &&
+    item.price < Number(item.minSalePrice);
+
   // ==========================================
   // 🟢 OFFLINE-FIRST POS CHECKOUT LOGIC
   // ==========================================
@@ -420,6 +556,15 @@ function CreateOrderPOSContent() {
     const currentCustomer = selectedCustomer;
     const currentStatus =
       typeof statusOverride === "string" ? statusOverride : orderStatus;
+    setCheckoutError(null);
+    const currentSubtotal = currentCart.reduce(
+      (s, i) => s + i.price * i.qty,
+      0,
+    );
+    const balanceForDue = Math.max(
+      0,
+      Math.max(0, currentSubtotal - currentDiscount) - currentPaid,
+    );
 
     const payload = {
       customerId: selectedCustomer?.id || null,
@@ -427,18 +572,25 @@ function CreateOrderPOSContent() {
       walkInPhone: customerMode === "walk-in" ? walkInPhone || null : null,
       discount: currentDiscount,
       status: currentStatus,
+      orderStatus: currentStatus,
       amountPaid: currentPaid,
       paymentMethod,
       // 🔒 Tag the order with the branch where it was created
       branchId: activeBranchId || null,
+      ...(balanceForDue > 0 && currentStatus !== "ESTIMATE"
+        ? { dueDate: dueDate || addDaysKarachi(paymentTermsDays) }
+        : {}),
       items: currentCart.map((item) => ({
         productId: item.isService ? null : item.id,
         quantity: item.qty,
-        condition: item.condition,
         isService: !!item.isService,
         serviceName: item.isService ? item.name : null,
         notes: item.notes || null,
         price: item.price,
+        ...(item.reservationId ? { reservationId: item.reservationId } : {}),
+        ...(item.priceOverrideReason && isBelowMin(item)
+          ? { priceOverrideReason: item.priceOverrideReason.trim() }
+          : {}),
       })),
     };
 
@@ -499,6 +651,7 @@ function CreateOrderPOSContent() {
           `Offline Intercept: Order queued in IndexedDB (#${localOrderId.slice(0, 8)}). Stock reserved.`,
         );
         setCart([]);
+        setDueDate("");
         setAmountPaid("");
         setDiscount("");
         return true;
@@ -513,18 +666,19 @@ function CreateOrderPOSContent() {
 
     // 🟢 2. ONLINE SUBMISSION WITH NETWORK RESILIENCE CATCH
     try {
-      const token = localStorage.getItem("accessToken");
       const res = await fetch(`${API_BASE_URL}/order/neworder`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: getAuthHeaders(activeBranchId),
         body: JSON.stringify(payload),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to create order");
+      if (!res.ok) {
+        const apiMsg = Array.isArray(data.message)
+          ? data.message.join(", ")
+          : data.message;
+        throw new Error(apiMsg || "Failed to create order");
+      }
 
       const subtotal = currentCart.reduce((s, i) => s + i.price * i.qty, 0);
       const totalAmount = Number(
@@ -566,6 +720,7 @@ function CreateOrderPOSContent() {
 
       toast.success("Order created successfully!");
       setCart([]);
+      setDueDate("");
       setAmountPaid("");
       setDiscount("");
       return true;
@@ -633,11 +788,14 @@ function CreateOrderPOSContent() {
           `Connection dropped mid-flight: Order queued in IndexedDB (#${localOrderId.slice(0, 8)}). Local stock reserved.`,
         );
         setCart([]);
+        setDueDate("");
         setAmountPaid("");
         setDiscount("");
         return true;
       } else {
-        toast.error(error.message || "Failed to create order");
+        const msg = error?.message || "Failed to create order";
+        setCheckoutError(msg);
+        toast.error(msg);
         return false;
       }
     } finally {
@@ -647,31 +805,35 @@ function CreateOrderPOSContent() {
 
   // Calculate stock limits (Cap services at 99, physical items at available stock)
   const getMaxAllowedQty = useCallback(
-    (item: { id: string; condition?: string; isService?: boolean }) => {
+    (item: { id: string; isService?: boolean }) => {
       if (item.isService) return 99;
       const prod = products.find((p) => p.id === item.id);
       if (!prod) return 999;
-      if (prod.instances && item.condition) {
-        const matchingAvailable = prod.instances.filter(
-          (i) => i.status === "AVAILABLE" && i.condition === item.condition,
-        ).length;
-        return Math.max(1, matchingAvailable);
-      }
       return Math.max(1, prod.stock);
     },
     [products],
   );
 
   // Cart Functions
-  const addToCart = (product: Product, condition: string) => {
+  const addToCart = (product: Product) => {
+    if (viewingBranchId && activeBranchId && viewingBranchId !== activeBranchId) {
+      const viewingBranch = branches.find((b: any) => b.id === viewingBranchId);
+      const branchName = viewingBranch?.name || "another branch";
+      toast.warning(`Cannot add remote stock from ${branchName} to cart.`);
+      return;
+    }
+
     const maxAllowed = getMaxAllowedQty({
       id: product.id,
-      condition,
       isService: false,
     });
-    const exists = cart.find(
-      (item) => item.id === product.id && item.condition === condition,
-    );
+    const exists = cart.find((item) => item.id === product.id);
+    if (exists?.reservationId) {
+      toast.warning(
+        `"${product.name}" is a reserved unit (quantity locked to 1).`,
+      );
+      return;
+    }
     if (exists && exists.qty >= maxAllowed) {
       toast.warning(
         `Maximum stock limit (${maxAllowed}) reached for "${product.name}".`,
@@ -680,12 +842,10 @@ function CreateOrderPOSContent() {
     }
 
     setCart((prev) => {
-      const itemExists = prev.find(
-        (item) => item.id === product.id && item.condition === condition,
-      );
+      const itemExists = prev.find((item) => item.id === product.id);
       if (itemExists) {
         return prev.map((item) =>
-          item.id === product.id && item.condition === condition
+          item.id === product.id
             ? { ...item, qty: Math.min(maxAllowed, item.qty + 1) }
             : item,
         );
@@ -696,11 +856,9 @@ function CreateOrderPOSContent() {
           ...product,
           price: Number(product.price ?? product.basePrice ?? 0),
           qty: 1,
-          condition,
         },
       ];
     });
-    setExpandedConditionProduct(null);
 
     const fromDeletedBranch = product.instances?.some(
       (i) => i.branch?.deletedAt,
@@ -737,11 +895,10 @@ function CreateOrderPOSContent() {
       // 3. Fallback: Query backend by exact SKU/search
       if (!targetProduct) {
         try {
-          const token = localStorage.getItem("accessToken");
           const res = await fetch(
             `${API_BASE_URL}/product/getproducts?search=${encodeURIComponent(cleanSku)}`,
             {
-              headers: token ? { Authorization: `Bearer ${token}` } : {},
+              headers: getAuthHeaders(activeBranchId),
             },
           );
           if (res.ok) {
@@ -758,12 +915,7 @@ function CreateOrderPOSContent() {
       }
 
       if (targetProduct) {
-        const availableInstances =
-          targetProduct.instances?.filter((i) => i.status === "AVAILABLE") ||
-          [];
-        const condition = availableInstances[0]?.condition || "ORIGINAL_PULL";
-
-        addToCart(targetProduct, condition);
+        addToCart(targetProduct);
         setScanFeedback({
           type: "success",
           message: `Scanned: "${targetProduct.name}" (SKU: ${cleanSku}) added to cart!`,
@@ -862,6 +1014,15 @@ function CreateOrderPOSContent() {
   };
 
   const handleProductClick = (product: Product) => {
+    if (viewingBranchId && activeBranchId && viewingBranchId !== activeBranchId) {
+      const viewingBranch = branches.find((b: any) => b.id === viewingBranchId);
+      const branchName = viewingBranch?.name || "another branch";
+      toast.warning(
+        `Cannot sell items from ${branchName}. Switch to this branch in the top bar to make a sale.`,
+      );
+      return;
+    }
+
     const availableInstances =
       product.instances?.filter((i) => i.status === "AVAILABLE") || [];
 
@@ -880,33 +1041,14 @@ function CreateOrderPOSContent() {
       return;
     }
 
-    const conditionCounts = availableInstances.reduce((acc: any, inst: any) => {
-      acc[inst.condition] = (acc[inst.condition] || 0) + 1;
-      return acc;
-    }, {});
-
-    if (Object.keys(conditionCounts).length === 0) {
-      return;
-    } else if (Object.keys(conditionCounts).length === 1) {
-      addToCart(product, Object.keys(conditionCounts)[0]);
-    } else {
-      // Toggle inline condition picker on the card (no modal)
-      setExpandedConditionProduct(
-        expandedConditionProduct?.id === product.id
-          ? null
-          : { ...product, conditionCounts },
-      );
-    }
+    addToCart(product);
   };
 
-  const updateQty = (
-    id: string,
-    condition: string | undefined,
-    delta: number,
-  ) => {
+  const updateQty = (id: string, delta: number) => {
     setCart((prev) =>
       prev.map((item) => {
-        if (item.id === id && item.condition === condition) {
+        if (item.id === id) {
+          if (item.reservationId) return item;
           const maxAllowed = getMaxAllowedQty(item);
           const targetQty = item.qty + delta;
           if (targetQty > maxAllowed) {
@@ -924,14 +1066,11 @@ function CreateOrderPOSContent() {
     );
   };
 
-  const setDirectQty = (
-    id: string,
-    condition: string | undefined,
-    qty: number,
-  ) => {
+  const setDirectQty = (id: string, qty: number) => {
     setCart((prev) =>
       prev.map((item) => {
-        if (item.id === id && item.condition === condition) {
+        if (item.id === id) {
+          if (item.reservationId) return item;
           const maxAllowed = getMaxAllowedQty(item);
           let safeQty = Math.max(1, isNaN(qty) ? 1 : qty);
           if (safeQty > maxAllowed) {
@@ -949,10 +1088,26 @@ function CreateOrderPOSContent() {
     );
   };
 
-  const removeItem = (id: string, condition: string | undefined) =>
+  const updatePrice = (id: string, price: number) => {
     setCart((prev) =>
-      prev.filter((item) => !(item.id === id && item.condition === condition)),
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, price: isNaN(price) ? 0 : Math.max(0, price) }
+          : item,
+      ),
     );
+  };
+
+  const updateOverrideReason = (id: string, reason: string) => {
+    setCart((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, priceOverrideReason: reason } : item,
+      ),
+    );
+  };
+
+  const removeItem = (id: string) =>
+    setCart((prev) => prev.filter((item) => item.id !== id));
 
   const subtotal = cart.reduce(
     (sum, item) => sum + (item.price ?? 0) * item.qty,
@@ -967,6 +1122,12 @@ function CreateOrderPOSContent() {
     }
     if (customerMode === "existing" && !selectedCustomer) {
       return "Select an existing customer to proceed with customer account.";
+    }
+    if (
+      canOverrideMinPrice &&
+      cart.some((i) => isBelowMin(i) && !i.priceOverrideReason?.trim())
+    ) {
+      return "Enter a reason for selling below the minimum price.";
     }
     if (customerMode === "walk-in" && pendingAmount > 0) {
       return "Enter full amount or select an existing customer for Udhar.";
@@ -1049,6 +1210,23 @@ function CreateOrderPOSContent() {
 
   const disabledReason = getDisabledReason();
   const readOnly = useIsReadOnly();
+
+  const handleCloseSuccessModal = () => {
+    setCompletedOrderData(null);
+    setCart([]);
+    setDueDate("");
+    setAmountPaid("");
+    setDiscount("");
+    setWalkInName("");
+    setWalkInPhone("");
+    void fetchProducts();
+  };
+
+  const isRemoteBranch = Boolean(
+    viewingBranchId && activeBranchId && viewingBranchId !== activeBranchId,
+  );
+  const viewingBranch = branches.find((b: any) => b.id === viewingBranchId);
+  const viewingBranchName = viewingBranch?.name || "Remote Branch";
 
   return (
     <div className="flex flex-col h-[calc(100vh-125px)] min-h-0 overflow-hidden font-sans">
@@ -1177,6 +1355,7 @@ function CreateOrderPOSContent() {
                   <input
                     type="text"
                     autoFocus
+                    data-testid="pos-search"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search products or scan barcode (SKU)..."
@@ -1194,6 +1373,7 @@ function CreateOrderPOSContent() {
                     <LayoutGrid className="w-4 h-4" />
                   </button>
                   <button
+                    data-testid="pos-view-compact"
                     onClick={() => setCatalogView("list")}
                     title="Compact list view"
                     className={`p-1.5 sm:p-2 rounded-lg transition-colors cursor-pointer ${catalogView === "list" ? "bg-slate-900 text-white shadow-sm" : "text-slate-400 hover:text-slate-700"}`}
@@ -1204,21 +1384,59 @@ function CreateOrderPOSContent() {
               </div>
             </div>
 
-            <div className="px-3.5 pt-2.5 pb-2 flex items-center gap-1.5 overflow-x-auto hide-scrollbar border-b border-slate-100 shrink-0">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setActiveCategory(cat)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${activeCategory === cat ? "bg-slate-900 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
-                >
-                  {cat}
-                </button>
-              ))}
+            <div className="px-3.5 pt-2.5 pb-2 flex items-center justify-between gap-2 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-1.5 overflow-x-auto hide-scrollbar flex-1 min-w-0">
+                {categories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${activeCategory === cat ? "bg-slate-900 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Sleek Branch Selector Dropdown */}
+              {branches.length > 0 && (
+                <div className="flex items-center gap-1.5 shrink-0 pl-2 border-l border-slate-200">
+                  <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <select
+                    data-testid="pos-catalog-branch"
+                    value={viewingBranchId}
+                    onChange={(e) => setViewingBranchId(e.target.value)}
+                    className="text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg px-2.5 py-1 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-xs hover:border-slate-300 transition-colors"
+                  >
+                    {branches.map((b: any) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} {b.id === activeBranchId ? "(Current)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             <div
               className={`flex-1 overflow-y-auto p-3 bg-slate-50/50 ${catalogView === "grid" ? "grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-2.5 content-start" : "flex flex-col gap-1.5 content-start"}`}
             >
+              {/* Alert banner if viewing remote branch */}
+              {isRemoteBranch && (
+                <div className="col-span-full mb-1 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-800">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>
+                      Viewing catalog from <strong>{viewingBranchName}</strong>. Remote items cannot be added to local sale cart.
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => activeBranchId && setViewingBranchId(activeBranchId)}
+                    className="text-amber-900 font-bold hover:underline ml-2 whitespace-nowrap cursor-pointer"
+                  >
+                    Return to Current Branch
+                  </button>
+                </div>
+              )}
               {isLoadingProducts ? (
                 <div className="col-span-full h-40 flex items-center justify-center text-slate-400 text-sm">
                   Loading products...
@@ -1237,39 +1455,40 @@ function CreateOrderPOSContent() {
                   const availableCount = availableInstances.length;
                   const isOutOfStock = availableCount === 0;
 
-                  const conditions = Array.from(
-                    new Set(
-                      availableInstances.length > 0
-                        ? availableInstances.map((i) => i.condition)
-                        : product.instances?.map((i) => i.condition) || [],
-                    ),
-                  );
-
-                  const isExpanded =
-                    expandedConditionProduct?.id === product.id;
-
                   return (
-                    <div key={product.id} className="relative">
+                    <div key={product.id} className="relative" data-testid="pos-result-row">
                       <button
                         onClick={() => handleProductClick(product)}
+                        disabled={isRemoteBranch}
+                        data-testid="pos-add-item"
                         className={`flex flex-col gap-1.5 w-full p-2.5 rounded-xl border transition-all text-left ${
-                          isOutOfStock
-                            ? "border-slate-200 bg-slate-100/70 opacity-60 cursor-pointer select-none"
-                            : "bg-white border-slate-200 hover:border-blue-500 hover:shadow-xs shadow-2xs cursor-pointer"
-                        } ${isExpanded ? "border-blue-500 ring-1 ring-blue-500/20" : ""}`}
+                          isRemoteBranch
+                            ? "bg-amber-50/40 border-amber-200 cursor-not-allowed opacity-90"
+                            : isOutOfStock
+                              ? "border-slate-200 bg-slate-100/70 opacity-60 cursor-pointer select-none"
+                              : "bg-white border-slate-200 hover:border-blue-500 hover:shadow-xs shadow-2xs cursor-pointer"
+                        }`}
                       >
                         {/* Top Row: Full Product Name & Price */}
                         <div className="flex items-start justify-between gap-2 w-full">
                           <span
                             className={`font-bold text-xs sm:text-sm line-clamp-1 flex-1 min-w-0 wrap-break-words ${
-                              isOutOfStock ? "text-slate-400" : "text-slate-900"
+                              isRemoteBranch
+                                ? "text-slate-800"
+                                : isOutOfStock
+                                  ? "text-slate-400"
+                                  : "text-slate-900"
                             }`}
                           >
                             {product.name}
                           </span>
                           <span
                             className={`text-xs font-black shrink-0 ${
-                              isOutOfStock ? "text-slate-400" : "text-blue-600"
+                              isRemoteBranch
+                                ? "text-amber-800"
+                                : isOutOfStock
+                                  ? "text-slate-400"
+                                  : "text-blue-600"
                             }`}
                           >
                             Rs.{" "}
@@ -1277,80 +1496,47 @@ function CreateOrderPOSContent() {
                           </span>
                         </div>
 
-                        {/* Bottom Row: Conditions, Stock & Add Action */}
+                        {/* Bottom Row: Cabinet, Stock & Add Action */}
                         <div className="flex items-center justify-between gap-1.5 w-full">
                           <div className="flex items-center gap-1 flex-wrap min-w-0">
-                            {conditions.slice(0, 2).map((cond) => (
-                              <span
-                                key={cond}
-                                className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded ${
-                                  cond === "DEFECTIVE"
-                                    ? "bg-red-50 text-red-600"
-                                    : cond === "DEAD_DONOR"
-                                      ? "bg-rose-50 text-rose-600"
-                                      : cond === "COPY"
-                                        ? "bg-blue-50 text-blue-600"
-                                        : "bg-slate-100 text-slate-600"
-                                }`}
-                              >
-                                {cond.replace(/_/g, " ")}
+                            <span className="inline-flex items-center gap-1 text-[8.5px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0 truncate max-w-32">
+                              <Box className="w-2.5 h-2.5 shrink-0 text-indigo-600" />
+                              <span className="truncate">
+                                {product.cabinet?.name ||
+                                  product.instances?.[0]?.cabinet?.name ||
+                                  "No Cabinet"}
                               </span>
-                            ))}
-                            {conditions.length > 2 && (
-                              <span className="text-[8.5px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
-                                +{conditions.length - 2}
-                              </span>
-                            )}
+                            </span>
                             <span
+                              data-testid="pos-remote-badge"
                               className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                                isOutOfStock
-                                  ? "bg-slate-200 text-slate-600"
-                                  : availableCount <= 3
-                                    ? "bg-amber-50 text-amber-600"
-                                    : "bg-emerald-50 text-emerald-600"
+                                isRemoteBranch
+                                  ? "bg-amber-100 text-amber-800 border border-amber-300"
+                                  : isOutOfStock
+                                    ? "bg-slate-200 text-slate-600"
+                                    : availableCount <= 3
+                                      ? "bg-amber-50 text-amber-600"
+                                      : "bg-emerald-50 text-emerald-600"
                               }`}
                             >
-                              {isOutOfStock
-                                ? (product as any).otherBranchesWithStock
-                                    ?.length > 0
-                                  ? `In ${(product as any).otherBranchesWithStock[0]}`
-                                  : "Out"
-                                : `${availableCount} left`}
+                              {isRemoteBranch
+                                ? `${availableCount} left`
+                                : isOutOfStock
+                                  ? (product as any).otherBranchesWithStock
+                                      ?.length > 0
+                                    ? `In ${(product as any).otherBranchesWithStock[0]}`
+                                    : "Out"
+                                  : `${availableCount} left`}
                             </span>
                           </div>
 
-                          <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-slate-900 text-white hover:bg-blue-600 transition-colors shrink-0">
-                            <Plus className="w-3.5 h-3.5" />
-                          </span>
+                          {!isRemoteBranch && (
+                            <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-slate-900 text-white hover:bg-blue-600 transition-colors shrink-0">
+                              <Plus className="w-3.5 h-3.5" />
+                            </span>
+                          )}
                         </div>
                       </button>
-
-                      {isExpanded &&
-                        expandedConditionProduct?.conditionCounts && (
-                          <div
-                            className="mt-1 rounded-lg border border-blue-200 bg-white shadow-sm p-1.5 space-y-1"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {Object.entries(
-                              expandedConditionProduct.conditionCounts,
-                            ).map(([cond, count]) => (
-                              <button
-                                key={cond}
-                                onClick={() =>
-                                  addToCart(expandedConditionProduct, cond)
-                                }
-                                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-left bg-blue-50/60 hover:bg-blue-100 transition-colors cursor-pointer"
-                              >
-                                <span className="font-semibold text-slate-800 text-[11px]">
-                                  {cond.replace(/_/g, " ")}
-                                </span>
-                                <span className="text-[10px] font-semibold text-slate-500">
-                                  {count as number} avail
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
                     </div>
                   );
                 })
@@ -1363,32 +1549,41 @@ function CreateOrderPOSContent() {
                   const availableCount = availableInstances.length;
                   const isOutOfStock = availableCount === 0;
 
-                  const primaryCabinet = product.instances?.[0]?.cabinet;
+                  const primaryCabinet =
+                    product.cabinet || product.instances?.[0]?.cabinet;
                   const loc =
                     primaryCabinet?.location ||
                     primaryCabinet?.name ||
                     "Cabinet Bin";
 
-                  const isExpanded =
-                    expandedConditionProduct?.id === product.id;
-
                   return (
-                    <div key={product.id} className="relative flex flex-col">
+                    <div key={product.id} className="relative flex flex-col" data-testid="pos-result-row">
                       <button
                         onClick={() => handleProductClick(product)}
+                        disabled={isRemoteBranch}
+                        data-testid="pos-add-item"
                         className={`group flex flex-col text-left p-3 rounded-xl border transition-all relative overflow-hidden w-full h-full ${
-                          isOutOfStock
-                            ? "border-slate-200 bg-slate-100/70 opacity-60 cursor-pointer select-none"
-                            : "bg-white border-slate-200 hover:border-blue-500 hover:shadow-md active:scale-[0.98] shadow-sm cursor-pointer"
-                        } ${isExpanded ? "border-blue-500 ring-1 ring-blue-500/20" : ""}`}
+                          isRemoteBranch
+                            ? "bg-amber-50/30 border-amber-200/80 cursor-not-allowed opacity-90"
+                            : isOutOfStock
+                              ? "border-slate-200 bg-slate-100/70 opacity-60 cursor-pointer select-none"
+                              : "bg-white border-slate-200 hover:border-blue-500 hover:shadow-md active:scale-[0.98] shadow-sm cursor-pointer"
+                        }`}
                       >
                         {/* Card Header: Category & Stock Status */}
                         <div className="flex items-center justify-between gap-1.5 mb-1.5 w-full">
                           <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider truncate">
                             {product.category?.name || "General"}
                           </span>
-                          {isOutOfStock ? (
-                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 shrink-0">
+                          {isRemoteBranch ? (
+                            <span
+                              data-testid="pos-remote-badge"
+                              className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 shrink-0"
+                            >
+                              Remote Stock
+                            </span>
+                          ) : isOutOfStock ? (
+                            <span data-testid="pos-remote-badge" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 shrink-0">
                               {(product as any).otherBranchesWithStock?.length >
                               0
                                 ? `In ${(product as any).otherBranchesWithStock[0]}`
@@ -1410,35 +1605,26 @@ function CreateOrderPOSContent() {
                         {/* Product Title (2 lines max, never clipped or cut off) */}
                         <h4
                           className={`font-bold text-xs sm:text-sm line-clamp-2 leading-snug mb-1.5 wrap-break-words ${
-                            isOutOfStock
-                              ? "text-slate-400"
-                              : "text-slate-900 group-hover:text-blue-600 transition-colors"
+                            isRemoteBranch
+                              ? "text-slate-800"
+                              : isOutOfStock
+                                ? "text-slate-400"
+                                : "text-slate-900 group-hover:text-blue-600 transition-colors"
                           }`}
                         >
                           {product.name}
                         </h4>
 
-                        {/* Condition badges */}
+                        {/* Cabinet & Spatial Bin Location */}
                         <div className="flex flex-wrap items-center gap-1 mb-2">
-                          {Array.from(
-                            new Set(availableInstances.map((i) => i.condition)),
-                          ).map((cond) => (
-                            <span
-                              key={cond}
-                              className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600"
-                            >
-                              {cond ? cond.replace(/_/g, " ") : ""}
+                          <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 truncate max-w-36">
+                            <Box className="w-2.5 h-2.5 shrink-0 text-indigo-600" />
+                            <span className="truncate">
+                              {product.cabinet?.name ||
+                                primaryCabinet?.name ||
+                                "No Cabinet"}
                             </span>
-                          ))}
-                          {availableInstances.length === 0 &&
-                            product.instances?.[0]?.condition && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
-                                {product.instances[0].condition.replace(
-                                  /_/g,
-                                  " ",
-                                )}
-                              </span>
-                            )}
+                          </span>
 
                           {/* Spatial Bin Location */}
                           {loc && (
@@ -1453,47 +1639,23 @@ function CreateOrderPOSContent() {
                         <div className="mt-auto pt-2 border-t border-slate-100 flex items-center justify-between gap-1 w-full">
                           <span
                             className={`font-black text-xs sm:text-sm ${
-                              isOutOfStock ? "text-slate-400" : "text-blue-600"
+                              isRemoteBranch
+                                ? "text-amber-800"
+                                : isOutOfStock
+                                  ? "text-slate-400"
+                                  : "text-blue-600"
                             }`}
                           >
                             Rs.{" "}
                             {formatPrice(product.price ?? product.basePrice)}
                           </span>
-                          {!isOutOfStock && (
+                          {!isRemoteBranch && !isOutOfStock ? (
                             <span className="text-[10px] font-bold text-slate-500 group-hover:text-blue-600 group-hover:underline flex items-center gap-0.5 shrink-0 transition-colors">
                               <Plus className="w-3 h-3" /> Add
                             </span>
-                          )}
+                          ) : null}
                         </div>
                       </button>
-
-                      {/* INLINE CONDITION PICKER */}
-                      {isExpanded &&
-                        expandedConditionProduct?.conditionCounts && (
-                          <div
-                            className="mt-1.5 p-2 rounded-xl border border-blue-200 bg-blue-50/70 space-y-1.5 w-full shadow-sm"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {Object.entries(
-                              expandedConditionProduct.conditionCounts,
-                            ).map(([cond, count]) => (
-                              <button
-                                key={cond}
-                                onClick={() =>
-                                  addToCart(expandedConditionProduct, cond)
-                                }
-                                className="w-full flex items-center justify-between p-2 rounded-lg border border-blue-200 bg-white hover:bg-blue-100 transition-colors cursor-pointer"
-                              >
-                                <span className="font-bold text-slate-800 text-xs">
-                                  {cond ? cond.replace(/_/g, " ") : ""}
-                                </span>
-                                <span className="text-[10px] font-semibold text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-blue-100">
-                                  {count as number} avail
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
                     </div>
                   );
                 })
@@ -1549,6 +1711,7 @@ function CreateOrderPOSContent() {
                 </span>
               </div>
               <button
+                data-testid="pos-service-toggle"
                 onClick={() => setIsServiceFormOpen(!isServiceFormOpen)}
                 className="flex items-center gap-1 text-[11px] font-bold bg-blue-50 text-blue-700 px-2.5 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors shadow-sm shrink-0 whitespace-nowrap cursor-pointer"
               >
@@ -1576,6 +1739,7 @@ function CreateOrderPOSContent() {
                     type="text"
                     value={serviceName}
                     onChange={(e) => setServiceName(e.target.value)}
+                    data-testid="pos-service-name"
                     placeholder="e.g. Screen Fitting"
                     className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   />
@@ -1583,6 +1747,7 @@ function CreateOrderPOSContent() {
                     type="number"
                     value={servicePrice}
                     onChange={(e) => setServicePrice(e.target.value)}
+                    data-testid="pos-service-price"
                     placeholder="Price (Rs)"
                     className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   />
@@ -1596,6 +1761,7 @@ function CreateOrderPOSContent() {
                 />
                 <button
                   onClick={addServiceToCart}
+                  data-testid="pos-add-service"
                   className="w-full py-2 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700 transition-colors shadow-md cursor-pointer"
                 >
                   Add Labor to Invoice
@@ -1618,7 +1784,8 @@ function CreateOrderPOSContent() {
               ) : (
                 cart.map((item) => (
                   <div
-                    key={`${item.id}-${item.condition}-${item.isService}`}
+                    key={`${item.id}-${item.isService || false}`}
+                    data-testid="pos-cart-row"
                     className={`p-3 rounded-xl border shadow-2xs space-y-2 transition-all ${
                       item.isService
                         ? "bg-blue-50/40 border-blue-200"
@@ -1648,7 +1815,8 @@ function CreateOrderPOSContent() {
                       {!isAuthLoading && user && user.role !== "STAFF" && (
                         <button
                           type="button"
-                          onClick={() => removeItem(item.id, item.condition)}
+                          onClick={() => removeItem(item.id)}
+                          data-testid="pos-cart-remove"
                           className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors shrink-0"
                           title="Remove item"
                         >
@@ -1657,14 +1825,30 @@ function CreateOrderPOSContent() {
                       )}
                     </div>
 
-                    {/* Row 2: Unit Price & Condition Tags */}
+                    {/* Row 2: Unit Price & Part Tags */}
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-xs font-semibold text-slate-600">
-                        Rs. {formatPrice(item.price)} each
+                      <span className="flex items-center gap-1 text-xs font-semibold text-slate-600">
+                        Rs.
+                        <input
+                          type="number"
+                          min="0"
+                          value={item.price}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) =>
+                            updatePrice(item.id, Number(e.target.value))
+                          }
+                          data-testid="pos-cart-price"
+                          title="Unit price"
+                          className="w-20 h-6 px-1.5 text-xs font-bold text-slate-900 border border-slate-300 rounded-md bg-white focus:border-blue-500 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        each
                       </span>
-                      {!item.isService && item.condition && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
-                          {item.condition.replace(/_/g, " ")}
+                      {item.reservationId && (
+                        <span
+                          data-testid="pos-reserved-badge"
+                          className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 border border-violet-200"
+                        >
+                          Reserved
                         </span>
                       )}
                       {!item.isService && (
@@ -1681,12 +1865,41 @@ function CreateOrderPOSContent() {
                       )}
                     </div>
 
+                    {isBelowMin(item) &&
+                      (canOverrideMinPrice ? (
+                        <div className="space-y-1">
+                          <p className="text-[10.5px] font-semibold text-amber-700">
+                            Below minimum price (Rs.{" "}
+                            {formatPrice(item.minSalePrice)}). A reason is
+                            required.
+                          </p>
+                          <input
+                            type="text"
+                            value={item.priceOverrideReason ?? ""}
+                            onChange={(e) =>
+                              updateOverrideReason(item.id, e.target.value)
+                            }
+                            data-testid="pos-override-reason"
+                            placeholder="Reason for selling below minimum"
+                            className="w-full h-8 px-2 text-xs border border-amber-300 rounded-lg bg-amber-50/50 focus:border-amber-500 outline-none"
+                          />
+                        </div>
+                      ) : (
+                        <p
+                          data-testid="pos-below-min"
+                          className="text-[10.5px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-2 py-1"
+                        >
+                          Minimum price is Rs. {formatPrice(item.minSalePrice)}.
+                          Ask the owner or manager to sell below it.
+                        </p>
+                      ))}
+
                     {/* Row 3: Typed Stepper & Line Subtotal */}
                     <div className="flex items-center justify-between pt-2 border-t border-slate-100 gap-2">
-                      <div className="flex items-center bg-white rounded-lg border border-slate-300 shadow-2xs focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 overflow-hidden">
+                      <div data-testid="pos-cart-qty" className="flex items-center bg-white rounded-lg border border-slate-300 shadow-2xs focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 overflow-hidden">
                         <button
                           type="button"
-                          onClick={() => updateQty(item.id, item.condition, -1)}
+                          onClick={() => updateQty(item.id, -1)}
                           className="w-7 h-7 flex items-center justify-center text-slate-600 hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer"
                           title="Decrease quantity"
                         >
@@ -1697,12 +1910,12 @@ function CreateOrderPOSContent() {
                           min="1"
                           max={getMaxAllowedQty(item)}
                           value={item.qty}
+                          disabled={!!item.reservationId}
                           onFocus={(e) => e.target.select()}
                           onChange={(e) => {
                             const val = parseInt(e.target.value, 10);
                             setDirectQty(
                               item.id,
-                              item.condition,
                               isNaN(val) ? 1 : val,
                             );
                           }}
@@ -1710,9 +1923,9 @@ function CreateOrderPOSContent() {
                             const val = parseInt(e.target.value, 10);
                             const max = getMaxAllowedQty(item);
                             if (isNaN(val) || val < 1) {
-                              setDirectQty(item.id, item.condition, 1);
+                              setDirectQty(item.id, 1);
                             } else if (val > max) {
-                              setDirectQty(item.id, item.condition, max);
+                              setDirectQty(item.id, max);
                             }
                           }}
                           className="w-11 h-7 text-center text-xs font-black text-slate-900 bg-slate-50/70 border-x border-slate-200 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:bg-white"
@@ -1720,7 +1933,7 @@ function CreateOrderPOSContent() {
                         />
                         <button
                           type="button"
-                          onClick={() => updateQty(item.id, item.condition, 1)}
+                          onClick={() => updateQty(item.id, 1)}
                           className="w-7 h-7 flex items-center justify-center text-slate-600 hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer"
                           title="Increase quantity"
                         >
@@ -1762,7 +1975,7 @@ function CreateOrderPOSContent() {
                       - Rs. {formatPrice(discount)} discount
                     </span>
                   )}
-                  <span className="text-xl font-black text-blue-600">
+                  <span data-testid="pos-total" className="text-xl font-black text-blue-600">
                     Rs. {formatPrice(grandTotal)}
                   </span>
                 </div>
@@ -1770,6 +1983,7 @@ function CreateOrderPOSContent() {
 
               <button
                 onClick={() => setIsCheckoutOpen(true)}
+                data-testid="pos-checkout"
                 disabled={cart.length === 0 || readOnly}
                 title={
                   readOnly
@@ -1832,12 +2046,17 @@ function CreateOrderPOSContent() {
         isOnline={isOnline}
         isSubmitting={isSubmitting}
         disabledReason={disabledReason}
+        dueDate={effectiveDueDate}
+        onDueDateChange={(d) => {
+          setDueDate(d);
+        }}
+        errorMessage={checkoutError}
       />
 
       {/* 🟢 POS ORDER SUCCESS & THERMAL PRINT OVERLAY */}
       <OrderSuccessModal
         order={completedOrderData}
-        onClose={() => setCompletedOrderData(null)}
+        onClose={handleCloseSuccessModal}
         onViewOrder={(id) => router.push(`/orders/${id}`)}
       />
 

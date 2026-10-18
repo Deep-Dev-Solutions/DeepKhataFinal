@@ -17,6 +17,7 @@ import OrderTable from "@/components/orders/OrderTable";
 import OrderPagination from "@/components/orders/OrderPagination";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import { useToast } from "@/context/ToastContext";
+import { useAuth } from "@/context/AuthContext";
 
 const getFriendlyDate = (dateStr: string) => {
   const date = new Date(dateStr);
@@ -34,6 +35,7 @@ const getFriendlyDate = (dateStr: string) => {
 };
 
 export default function OrdersHubPage() {
+  const { activeBranchId } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("all-orders");
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
@@ -76,7 +78,7 @@ export default function OrdersHubPage() {
       const response = await fetch(
         `${API_BASE_URL}/order/getallorders?${params.toString()}`,
         {
-          headers: getAuthHeaders(),
+          headers: getAuthHeaders(activeBranchId),
         },
       );
 
@@ -112,7 +114,7 @@ export default function OrdersHubPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [debouncedSearchQuery, days]);
+  }, [debouncedSearchQuery, days, activeBranchId]);
 
   useEffect(() => {
     void refreshOrders();
@@ -121,9 +123,9 @@ export default function OrdersHubPage() {
   // 🟢 SMART FILTER LOGIC
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
-      if (activeTab === "pending" || activeTab === "memo")
-        return order.status === "MEMO" || order.status === "PENDING";
-      if (activeTab === "completed" || activeTab === "final")
+      if (activeTab === "memo") return order.status === "MEMO";
+      if (activeTab === "pending") return order.status === "PENDING";
+      if (activeTab === "final" || activeTab === "completed")
         return order.status === "FINAL" || order.status === "COMPLETED";
       if (activeTab === "needs-attention")
         return (
@@ -186,15 +188,18 @@ export default function OrdersHubPage() {
           {[
             "All Orders",
             "Memo / Amanat",
-            "Needs Attention",
             "Final Sales",
+            "Pending",
+            "Needs Attention",
           ].map((tab) => {
             const id =
               tab === "Memo / Amanat"
-                ? "pending"
+                ? "memo"
                 : tab === "Final Sales"
-                  ? "completed"
-                  : tab.toLowerCase().replace(" ", "-");
+                  ? "final"
+                  : tab === "Pending"
+                    ? "pending"
+                    : tab.toLowerCase().replace(" ", "-");
             return (
               <button
                 key={id}

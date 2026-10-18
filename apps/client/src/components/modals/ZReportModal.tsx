@@ -12,11 +12,12 @@ import {
   ArrowDownRight,
   ArrowUpRight,
 } from "lucide-react";
+import { ZReportData, ExpenseCategory, ItemizedExpense } from "@/types/api";
 
 type Props = {
   isOpen: boolean;
   onClose: () => void;
-  reportData: any;
+  reportData: ZReportData;
 };
 
 export default function ZReportModal({ isOpen, onClose, reportData }: Props) {
@@ -60,7 +61,7 @@ Difference:          PKR ${summary.difference.toLocaleString()} (${summary.discr
 EXPENSES BREAKDOWN:
 ${Object.entries(expensesByCategory || {})
   .map(
-    ([cat, val]: any) =>
+    ([cat, val]: [string, ExpenseCategory]) =>
       `• ${cat}: PKR ${val.total.toLocaleString()} (${val.count} entries)`,
   )
   .join("\n")}
@@ -76,7 +77,7 @@ Notes: ${session.notes || "None"}
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200">
+    <div data-testid="zreport-modal" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
@@ -190,7 +191,7 @@ Notes: ${session.notes || "None"}
                   PKR {summary.openingBalance.toLocaleString()}
                 </span>
               </div>
-              <div className="px-4 py-2.5 flex justify-between items-center bg-emerald-50/40">
+              <div data-testid="zreport-total-sales" className="px-4 py-2.5 flex justify-between items-center bg-emerald-50/40">
                 <span className="text-emerald-800 flex items-center gap-1.5">
                   <ArrowUpRight className="w-4 h-4 text-emerald-600" />
                   2. Cash Sales Inflows ({reportData.salesCount} orders)
@@ -209,7 +210,7 @@ Notes: ${session.notes || "None"}
                   -PKR {summary.cashExpenses.toLocaleString()}
                 </span>
               </div>
-              <div className="px-4 py-3 flex justify-between items-center bg-slate-900 text-white font-bold">
+              <div data-testid="zreport-expected-cash" className="px-4 py-3 flex justify-between items-center bg-slate-900 text-white font-bold">
                 <span>4. Expected Drawer Balance (1 + 2 - 3)</span>
                 <span className="font-mono text-base">
                   PKR {summary.expectedCash.toLocaleString()}
@@ -260,7 +261,7 @@ Notes: ${session.notes || "None"}
               </p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {Object.entries(expensesByCategory).map(([cat, val]: any) => (
+                {Object.entries(expensesByCategory).map(([cat, val]: [string, ExpenseCategory]) => (
                   <div
                     key={cat}
                     className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs"
@@ -298,7 +299,7 @@ Notes: ${session.notes || "None"}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-mono">
-                    {itemizedExpenses.map((exp: any) => (
+                    {itemizedExpenses.map((exp: ItemizedExpense) => (
                       <tr key={exp.id} className="hover:bg-slate-50/50">
                         <td className="py-2 px-3 text-slate-500 font-sans">
                           {new Date(exp.createdAt).toLocaleTimeString([], {
@@ -329,7 +330,7 @@ Notes: ${session.notes || "None"}
 
         {/* Footer */}
         <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex justify-end">
-          <button
+          <button data-testid="zreport-close"
             onClick={onClose}
             className="px-5 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors shadow-sm"
           >

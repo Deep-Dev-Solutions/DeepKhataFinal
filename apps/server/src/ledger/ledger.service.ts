@@ -1,45 +1,49 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
+import { round2, sum, isZero } from '../common/money';
 
 @Injectable()
 export class LedgerService {
   constructor(private prisma: PrismaService) {}
 
-  async createBalancedTransaction(dto: CreateTransactionDto) {
-    // Explicitly validate that postings sum to exactly zero
-    const totalAmount = dto.postings.reduce(
-      (sum, posting) => sum + posting.amount,
-      0,
-    );
+  /**
+   * Creates a transaction with postings that must sum to exactly zero (2 dp).
+   * If `tx` is given, writes with it (joining the caller's transaction);
+   * otherwise wraps the write in its own $transaction.
+   */
+  async createBalancedTransaction(
+    dto: CreateTransactionDto,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const postings = dto.postings.map((p) => ({
+      accountId: p.accountId,
+      accountType: p.accountType,
+      amount: round2(p.amount),
+    }));
 
-    if (Math.abs(totalAmount) > 0.001) {
+    const total = sum(postings.map((p) => p.amount));
+    if (!isZero(total)) {
       throw new BadRequestException(
-        'Transaction postings must balance to zero (debits + credits = 0).',
+        `Unbalanced transaction: postings sum to ${total.toFixed(2)}`,
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const transaction = await tx.transaction.create({
+    const write = (client: Prisma.TransactionClient) =>
+      client.transaction.create({
         data: {
           businessId: dto.businessId,
           referenceId: dto.referenceId,
           type: dto.type,
           description: dto.description,
-          postings: {
-            create: dto.postings.map((p) => ({
-              accountId: p.accountId,
-              accountType: p.accountType,
-              amount: p.amount,
-            })),
-          },
+          dueDate: dto.dueDate,
+          postings: { create: postings },
         },
-        include: {
-          postings: true,
-        },
+        include: { postings: true },
       });
 
-      return transaction;
-    });
+    if (tx) return write(tx);
+    return this.prisma.$transaction((client) => write(client));
   }
 }

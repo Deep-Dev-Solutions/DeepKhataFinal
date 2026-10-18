@@ -9,25 +9,57 @@ import * as crypto from 'crypto';
 import { sendInviteEmail } from '../utils/mailer.js';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
+import { Role } from '@prisma/client';
+import { getAccessTokenSecret } from '../auth/jwt-secrets';
+import { RedisService } from '../redis/redis.service';
+import { TenantCacheService } from '../tenant/tenant-cache.service';
 
 @Injectable()
 export class TeamService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private redis: RedisService,
+    private tenantCache: TenantCacheService,
   ) {}
 
-  async inviteStaff(data: any) {
-    const { email, role, businessId } = data;
+  async getUserBusinessId(userId: string): Promise<string | null> {
+    const u = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true },
+    });
+    return u?.businessId ?? null;
+  }
+
+  async inviteStaff(
+    inviter: { id: string; role: Role; businessId: string },
+    data: { email: string; role: Role },
+  ) {
+    const { email, role } = data;
+    const businessId = inviter.businessId;
     if (!email || !role || !businessId)
       throw new BadRequestException('Missing required fields');
 
-    // Enforce base tier limit (Max 5 accounts)
-    const userCount = await this.prisma.user.count({
-      where: { businessId },
-    });
+    // Role rules: OWNER -> MANAGER|STAFF, MANAGER -> STAFF only.
+    const allowedTargets: Role[] =
+      inviter.role === 'OWNER'
+        ? ['MANAGER', 'STAFF']
+        : inviter.role === 'MANAGER'
+          ? ['STAFF']
+          : [];
+    if (!allowedTargets.includes(role)) {
+      throw new ForbiddenException(
+        'You are not allowed to invite users with this role.',
+      );
+    }
 
-    if (userCount >= 5) {
+    // Enforce base tier limit (Max 5 accounts, pending invites count)
+    const [userCount, pendingCount] = await Promise.all([
+      this.prisma.user.count({ where: { businessId } }),
+      this.prisma.invitation.count({ where: { businessId } }),
+    ]);
+
+    if (userCount + pendingCount >= 5) {
       throw new ForbiddenException(
         'Base plan limit reached (5 accounts). Contact administration to upgrade.',
       );
@@ -52,6 +84,7 @@ export class TeamService {
     });
 
     await sendInviteEmail(email, role, token);
+    await this.redis.delete(`team:pending:${businessId}`);
 
     return { success: true, message: 'Invitation sent successfully!' };
   }
@@ -80,6 +113,16 @@ export class TeamService {
     if (!invitation)
       throw new BadRequestException('Invalid or expired invitation link.');
 
+    // The invitation itself is still in the table, so it is not counted here.
+    const memberCount = await this.prisma.user.count({
+      where: { businessId: invitation.businessId },
+    });
+    if (memberCount >= 5) {
+      throw new BadRequestException(
+        'Base plan limit reached (5 accounts). Contact administration to upgrade.',
+      );
+    }
+
     const result = await this.prisma.$transaction(async (tx) => {
       const hashPassword = await bcrypt.hash(password, 10);
       const newUser = await tx.user.create({
@@ -98,10 +141,16 @@ export class TeamService {
     const accessToken = this.jwtService.sign(
       { id: result.id, role: result.role, businessId: result.businessId },
       {
-        secret: process.env.ACCESS_TOKEN_SECRET,
+        secret: getAccessTokenSecret(),
+        jwtid: crypto.randomUUID(),
         expiresIn: (process.env.ACCESS_TOKEN_EXPIRATION || '1h') as any,
       },
     );
+
+    await Promise.all([
+      this.redis.delete(`team:active:${invitation.businessId}`),
+      this.redis.delete(`team:pending:${invitation.businessId}`),
+    ]);
 
     return {
       success: true,
@@ -119,16 +168,23 @@ export class TeamService {
     if (!currentUser?.businessId)
       throw new BadRequestException('User not found.');
 
+    const cacheKey = `team:active:${currentUser.businessId}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
     const activeMembers = await this.prisma.user.findMany({
       where: { businessId: currentUser.businessId },
       select: { name: true, email: true, role: true },
     });
 
-    return {
+    const result = {
       success: true,
       businessId: currentUser.businessId,
       members: activeMembers,
     };
+
+    await this.redis.set(cacheKey, result, 3600);
+    return result;
   }
 
   async pendingInvites(userId: string) {
@@ -139,16 +195,23 @@ export class TeamService {
     if (!currentUser?.businessId)
       throw new BadRequestException('User not found.');
 
+    const cacheKey = `team:pending:${currentUser.businessId}`;
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
     const pendingInvitations = await this.prisma.invitation.findMany({
       where: { businessId: currentUser.businessId },
       select: { email: true, role: true, createdAt: true },
     });
 
-    return {
+    const result = {
       success: true,
       businessId: currentUser.businessId,
       pendingInvites: pendingInvitations,
     };
+
+    await this.redis.set(cacheKey, result, 3600);
+    return result;
   }
 
   async updateRole(userId: string, data: any) {
@@ -179,6 +242,13 @@ export class TeamService {
       select: { id: true, name: true, email: true, role: true },
     });
 
+    this.tenantCache.invalidateUser(updatedUser.id);
+
+    await Promise.all([
+      this.redis.delete(`team:active:${currentUser.businessId}`),
+      this.redis.delete(`team:pending:${currentUser.businessId}`),
+    ]);
+
     return {
       success: true,
       message: 'Role updated successfully.',
@@ -206,6 +276,8 @@ export class TeamService {
       );
 
     await this.prisma.user.delete({ where: { email } });
+    this.tenantCache.invalidateUser(targetUser.id);
+    await this.redis.delete(`team:active:${currentUser.businessId}`);
     return { success: true, message: 'Member removed successfully.' };
   }
 
@@ -270,6 +342,7 @@ export class TeamService {
         email_businessId: { email, businessId: currentUser.businessId },
       },
     });
+    await this.redis.delete(`team:pending:${currentUser.businessId}`);
     return { success: true, message: 'Invitation canceled successfully.' };
   }
 }

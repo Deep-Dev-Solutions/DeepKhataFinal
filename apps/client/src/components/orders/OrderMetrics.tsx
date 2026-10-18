@@ -1,4 +1,9 @@
-export default function OrderMetrics({ orders, activeTab }: { orders: any[], activeTab: string }) {
+interface OrderSummaryItem {
+  total?: number;
+  pendingBalance?: number;
+}
+
+export default function OrderMetrics({ orders, activeTab }: { orders: OrderSummaryItem[], activeTab: string }) {
   // 1. Safely calculate totals ensuring they are treated as Numbers
   const totalValue = orders.reduce((sum, order) => sum + (Number(order.total) || 0), 0);
   const unpaidValue = orders.reduce((sum, order) => sum + (Number(order.pendingBalance) || 0), 0);

@@ -23,7 +23,7 @@ export function deleteCookie(name: string) {
   document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
 }
 
-export function decodeJwt<T = any>(token: string): T | null {
+export function decodeJwt<T = Record<string, unknown>>(token: string): T | null {
   try {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
@@ -79,10 +79,22 @@ export function clearAuthToken() {
   deleteCookie("accessToken");
 }
 
-export const getAuthHeaders = () => {
+export const getAuthHeaders = (selectedBranchId?: string | null) => {
   const accessToken = getAuthToken();
+  let branchId = selectedBranchId || null;
+
+  if (!branchId && typeof window !== "undefined") {
+    try {
+      const user = JSON.parse(localStorage.getItem("user") || "null");
+      if (user?.businessId) {
+        branchId = localStorage.getItem(`activeBranch_${user.businessId}`);
+      }
+    } catch {}
+  }
+
   return {
     "Content-Type": "application/json",
     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    ...(branchId ? { "x-branch-id": branchId } : {}),
   };
 };

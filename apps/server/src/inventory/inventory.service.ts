@@ -1,21 +1,21 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-
-const VALID_CONDITIONS = [
-  'ORIGINAL_PULL',
-  'COPY',
-  'MINOR_SCRATCHES',
-  'WORKING',
-  'DEAD_DONOR',
-  'DEFECTIVE',
-];
+import { RedisService } from '../redis/redis.service';
+import * as M from '../common/money';
+import * as D from '../common/dates';
+import { LedgerService } from '../ledger/ledger.service';
 
 @Injectable()
 export class InventoryService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+    private ledgerService: LedgerService,
+  ) {}
 
   async restock(userId: string, data: any) {
     const { items } = data;
+    const paidNow = data.paidNow === true || data.paidNow === 'true';
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       throw new BadRequestException('Restock batch is empty');
@@ -31,8 +31,25 @@ export class InventoryService {
       );
     const businessId = currentUser.businessId;
 
+    // Due date for credit purchases: explicit (not in the past) or the
+    // business default payable terms.
+    const today = D.startOfKarachiDay();
+    let explicitDueDate: Date | undefined;
+    if (data.dueDate) {
+      explicitDueDate = new Date(data.dueDate);
+      if (Number.isNaN(explicitDueDate.getTime()))
+        throw new BadRequestException('Invalid due date');
+      if (explicitDueDate.getTime() < today.getTime())
+        throw new BadRequestException('Due date cannot be in the past');
+    }
+
     const result = await this.prisma.$transaction(async (tx) => {
       const createdMovements: any[] = [];
+      // Per-vendor purchase cost + the first movement id (used as ledger ref).
+      const vendorCosts = new Map<
+        string,
+        { total: M.Money; refId: string | null }
+      >();
       let totalUnits = 0;
 
       for (const item of items) {
@@ -40,7 +57,6 @@ export class InventoryService {
           productId,
           cabinetId,
           branchId,
-          condition,
           quantity,
           notes,
           vendorId,
@@ -96,18 +112,13 @@ export class InventoryService {
           finalCabinetId = general.id;
         }
 
-        const sanitizedCondition = VALID_CONDITIONS.includes(condition)
-          ? condition
-          : 'ORIGINAL_PULL';
-
         await tx.productInstance.createMany({
           data: Array.from({ length: qty }).map(() => ({
             productId: product.id,
             cabinetId: finalCabinetId,
             branchId,
             vendorId: vendorId || null,
-            unitCost: unitCost ? Number(unitCost) : null,
-            condition: sanitizedCondition as any,
+            unitCost: unitCost ? M.round2(unitCost) : null,
             status: 'AVAILABLE' as any,
           })),
         });
@@ -116,8 +127,6 @@ export class InventoryService {
           data: {
             productId: product.id,
             cabinetId: finalCabinetId,
-            fromCondition: null,
-            toCondition: sanitizedCondition as any,
             quantity: qty,
             direction: 'IN',
             referenceType: 'RESTOCK',
@@ -131,6 +140,67 @@ export class InventoryService {
 
         createdMovements.push(movement);
         totalUnits += qty;
+
+        if (vendorId) {
+          const lineCost = M.mul(M.round2(unitCost || 0), qty);
+          const prev = vendorCosts.get(vendorId);
+          vendorCosts.set(vendorId, {
+            total: M.add(prev?.total ?? 0, lineCost),
+            refId: prev?.refId ?? movement.id,
+          });
+        }
+      }
+
+      // Record each vendor's purchase in the ledger (on credit by default).
+      for (const [vId, { total, refId }] of vendorCosts) {
+        const vendor = await tx.vendor.findFirst({
+          where: { id: vId, businessId },
+          select: { id: true, businessName: true },
+        });
+        if (!vendor) throw new BadRequestException('Vendor not found');
+        if (!M.gt(total, 0)) continue;
+
+        let dueDate: Date | undefined;
+        if (!paidNow) {
+          if (explicitDueDate) {
+            dueDate = explicitDueDate;
+          } else {
+            const business = await tx.business.findUnique({
+              where: { id: businessId },
+              select: { defaultPayableDays: true },
+            });
+            dueDate = D.addDays(today, business?.defaultPayableDays ?? 15);
+          }
+        }
+
+        await this.ledgerService.createBalancedTransaction(
+          {
+            businessId,
+            referenceId: refId ?? undefined,
+            type: 'VENDOR_PURCHASE',
+            description: `Restock from ${vendor.businessName}`,
+            dueDate,
+            postings: [
+              {
+                accountId: 'INVENTORY_ACCOUNT',
+                accountType: 'INVENTORY',
+                amount: total,
+              },
+              paidNow
+                ? {
+                    accountId: 'CASH',
+                    accountType: 'ASSET',
+                    amount: M.neg(total),
+                  }
+                : {
+                    accountId: vId,
+                    accountType: 'VENDOR_PAYABLE',
+                    amount: M.neg(total),
+                  },
+            ],
+          },
+          tx,
+        );
       }
 
       return {
@@ -140,6 +210,36 @@ export class InventoryService {
       };
     });
 
+    // Invalidate caches for all target branches and global
+    const targetBranchIds = Array.from(
+      new Set(items.map((i: any) => i.branchId).filter(Boolean)),
+    ) as string[];
+
+    const branchInvalidations: Promise<void>[] = [];
+    for (const targetBranchId of targetBranchIds) {
+      branchInvalidations.push(
+        this.redis.deleteByPattern(`products:${targetBranchId}:*`),
+        this.redis.deleteByPattern(`cabinets:${targetBranchId}:*`),
+        this.redis.deleteByPattern(
+          `products:${businessId}:branch:${targetBranchId}:*`,
+        ),
+        this.redis.deleteByPattern(
+          `cabinets:${businessId}:branch:${targetBranchId}:*`,
+        ),
+        this.redis.deleteByPattern(
+          `restock:${businessId}:branch:${targetBranchId}:*`,
+        ),
+      );
+    }
+
+    await Promise.all([
+      this.redis.deleteByPattern(`restock:${businessId}:*`),
+      this.redis.deleteByPattern(`products:${businessId}:*`),
+      this.redis.deleteByPattern(`cabinets:${businessId}:*`),
+      this.redis.deleteByPattern(`dashboard:${businessId}*`),
+      ...branchInvalidations,
+    ]);
+
     return {
       success: true,
       message: `Restocked ${result.totalUnits} units across ${result.lineCount} line(s).`,
@@ -147,8 +247,8 @@ export class InventoryService {
     };
   }
 
-  async getMovements(userId: string, query: any) {
-    const { productId, limit = 50 } = query;
+  async getLowStock(userId: string, query: any = {}) {
+    const { branchId, threshold = 5 } = query;
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { businessId: true },
@@ -156,10 +256,129 @@ export class InventoryService {
     if (!currentUser?.businessId)
       throw new BadRequestException('No business found.');
 
+    const businessId = currentUser.businessId;
+    const cacheKey = branchId
+      ? `restock:${businessId}:branch:${branchId}:low-stock`
+      : `restock:${businessId}:low-stock`;
+
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
+    const products = await this.prisma.product.findMany({
+      where: {
+        businessId,
+        deletedAt: null,
+      },
+      include: {
+        category: { select: { name: true } },
+        instances: {
+          where: {
+            status: 'AVAILABLE',
+            ...(branchId ? { branchId } : {}),
+          },
+          include: {
+            cabinet: { select: { name: true } },
+          },
+        },
+      },
+    });
+
+    const lowStockProducts = products
+      .map((p) => {
+        const availableStock = p.instances.length;
+        const cabinetName = p.instances[0]?.cabinet?.name || null;
+        return {
+          id: p.id,
+          name: p.name,
+          sku: p.sku,
+          category: p.category?.name || 'Uncategorized',
+          cabinet: cabinetName,
+          availableStock,
+          price: p.basePrice,
+          costPrice: p.defaultCostPrice,
+        };
+      })
+      .filter((p) => p.availableStock <= Number(threshold));
+
+    const result = {
+      success: true,
+      count: lowStockProducts.length,
+      products: lowStockProducts,
+    };
+    await this.redis.set(cacheKey, result, 3600);
+    return result;
+  }
+
+  async getRestockHistory(userId: string, query: any = {}) {
+    const { branchId, limit = 50, page = 1 } = query;
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true },
+    });
+    if (!currentUser?.businessId)
+      throw new BadRequestException('No business found.');
+
+    const businessId = currentUser.businessId;
+    const parsedLimit = Math.min(parseInt(String(limit)) || 50, 200);
+    const parsedPage = Math.max(parseInt(String(page)) || 1, 1);
+    const skip = (parsedPage - 1) * parsedLimit;
+
+    const cacheKey = branchId
+      ? `restock:${businessId}:branch:${branchId}:history:p${parsedPage}:l${parsedLimit}`
+      : `restock:${businessId}:history:p${parsedPage}:l${parsedLimit}`;
+
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
+    const history = await this.prisma.inventoryMovement.findMany({
+      where: {
+        businessId,
+        referenceType: 'RESTOCK',
+        direction: 'IN',
+        ...(branchId ? { cabinet: { branchId } } : {}),
+      },
+      include: {
+        product: { select: { name: true, sku: true } },
+        cabinet: { select: { name: true, location: true, branchId: true } },
+        user: { select: { name: true } },
+        vendor: { select: { businessName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: parsedLimit,
+    });
+
+    const result = { success: true, history };
+    await this.redis.set(cacheKey, result, 3600);
+    return result;
+  }
+
+  async getMovements(userId: string, query: any) {
+    const { productId, branchId, limit = 50, page = 1 } = query;
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true },
+    });
+    if (!currentUser?.businessId)
+      throw new BadRequestException('No business found.');
+
+    const businessId = currentUser.businessId;
+    const parsedLimit = Math.min(parseInt(String(limit)) || 50, 200);
+    const parsedPage = Math.max(parseInt(String(page)) || 1, 1);
+    const skip = (parsedPage - 1) * parsedLimit;
+
+    const cacheKey = branchId
+      ? `restock:${businessId}:branch:${branchId}:movements:${productId || 'all'}:p${parsedPage}:l${parsedLimit}`
+      : `restock:${businessId}:movements:${productId || 'all'}:p${parsedPage}:l${parsedLimit}`;
+
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
     const movements = await this.prisma.inventoryMovement.findMany({
       where: {
-        businessId: currentUser.businessId,
+        businessId,
         ...(productId ? { productId } : {}),
+        ...(branchId ? { cabinet: { branchId } } : {}),
       },
       include: {
         product: { select: { name: true, sku: true } },
@@ -168,9 +387,12 @@ export class InventoryService {
         vendor: { select: { businessName: true } },
       },
       orderBy: { createdAt: 'desc' },
-      take: Math.min(parseInt(String(limit)) || 50, 200),
+      skip,
+      take: parsedLimit,
     });
 
-    return { success: true, movements };
+    const result = { success: true, movements };
+    await this.redis.set(cacheKey, result, 3600);
+    return result;
   }
 }

@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { X, User, Phone, Store, Tag, Loader2 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { Customer } from "@/types/api";
 
 interface NewCustomerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreated: (customer: any) => void | Promise<void>;
+  onCreated: (customer: Customer) => void | Promise<void>;
   title?: string;
 }
 
@@ -65,7 +66,7 @@ export default function NewCustomerModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div data-testid="new-customer-modal" className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200"
         onClick={onClose}
@@ -105,7 +106,7 @@ export default function NewCustomerModal({
               </label>
               <div className="relative">
                 <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                <input
+                <input data-testid="new-customer-name"
                   type="text"
                   required
                   autoFocus
@@ -122,7 +123,7 @@ export default function NewCustomerModal({
               </label>
               <div className="relative">
                 <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                <input
+                <input data-testid="new-customer-phone"
                   type="text"
                   required
                   value={phone}
@@ -163,7 +164,7 @@ export default function NewCustomerModal({
               >
                 Cancel
               </button>
-              <button
+              <button data-testid="new-customer-submit"
                 type="submit"
                 disabled={isSubmitting}
                 className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-md shadow-blue-200 disabled:opacity-70 cursor-pointer"

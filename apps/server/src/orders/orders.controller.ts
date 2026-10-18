@@ -9,6 +9,8 @@ import {
   Patch,
   UseGuards,
   Req,
+  Headers,
+  BadRequestException,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -18,12 +20,13 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { BranchId } from '../auth/decorators/branch-id.decorator';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { SettleMemoDto } from './dto/settle-memo.dto';
 import { RecordPaymentDto } from './dto/record-payment.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
 
-@Controller('order')
+@Controller(['order', 'orders'])
 @UseGuards(ThrottlerGuard)
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
@@ -31,15 +34,29 @@ export class OrdersController {
   @Post('neworder')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('create:order')
-  async newOrder(@Req() req: any, @Body() body: CreateOrderDto) {
-    return this.ordersService.newOrder(req.user.id, body);
+  async newOrder(
+    @Req() req: any,
+    @BranchId({ required: false }) branchId: string | undefined,
+    @Body() body: CreateOrderDto,
+  ) {
+    return this.ordersService.newOrder(req.user.id, {
+      ...body,
+      branchId: body.branchId || branchId,
+    });
   }
 
   @Get('getallorders')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('read:orders')
-  async getAllOrders(@Req() req: any, @Query() query: any) {
-    return this.ordersService.getAllOrders(req.user.id, query);
+  async getAllOrders(
+    @Req() req: any,
+    @BranchId() branchId: string,
+    @Query() query: any,
+  ) {
+    return this.ordersService.getAllOrders(req.user.id, {
+      ...query,
+      branchId,
+    });
   }
 
   @Get(':id')
@@ -50,25 +67,37 @@ export class OrdersController {
   }
 
   @Patch(':id/status')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard, RolesGuard)
+  @Roles('OWNER', 'MANAGER', 'STAFF')
   @RequirePermissions('update:order')
   async updateOrderStatusPatch(
     @Req() req: any,
     @Param('id') id: string,
     @Body() body: UpdateOrderStatusDto,
   ) {
-    return this.ordersService.updateOrderStatus(req.user.id, id, body);
+    return this.ordersService.updateOrderStatus(
+      id,
+      body.status,
+      req.user?.businessId,
+      req.user?.id,
+    );
   }
 
   @Put('updatestatus/:id')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard, RolesGuard)
+  @Roles('OWNER', 'MANAGER', 'STAFF')
   @RequirePermissions('update:order')
   async updateOrderStatus(
     @Req() req: any,
     @Param('id') id: string,
     @Body() body: UpdateOrderStatusDto,
   ) {
-    return this.ordersService.updateOrderStatus(req.user.id, id, body);
+    return this.ordersService.updateOrderStatus(
+      id,
+      body.status,
+      req.user?.businessId,
+      req.user?.id,
+    );
   }
 
   @Patch(':id/settle-memo')
