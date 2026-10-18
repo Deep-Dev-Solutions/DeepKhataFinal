@@ -23,10 +23,13 @@ export interface DuesSummary {
   aging: { receivable: AgingBuckets; payable: AgingBuckets };
 }
 
+/** Direction as the server returns it on items (upper case). */
+export type DueItemDirection = "RECEIVABLE" | "PAYABLE";
+
 export interface DueItem {
   entityType: DueEntityType;
   entityId: string;
-  direction: DueDirection;
+  direction: DueItemDirection;
   partyType: string;
   partyId: string;
   partyName: string;

@@ -215,6 +215,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
             </h3>
             <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200/80">
               <button
+                data-testid="pos-customer-mode-walkin"
                 onClick={() => {
                   setCustomerMode("walk-in");
                   setSelectedCustomer(null);
@@ -229,6 +230,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                 Walk-in Customer
               </button>
               <button
+                data-testid="pos-customer-mode-existing"
                 onClick={() => setCustomerMode("existing")}
                 className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                   customerMode === "existing"
@@ -338,6 +340,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                     <div className="mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
                       {customerResults.map((c) => (
                         <button
+                          data-testid="pos-customer-option"
                           key={c.id}
                           onClick={() => {
                             setSelectedCustomer(c);

@@ -46,7 +46,7 @@ export default function DuePayModal({ item, onClose, onSubmit }: Props) {
         <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50/50">
           <div>
             <h2 className="text-base font-bold text-slate-900">
-              {item.direction === "receivable" ? "Payment mili" : "Payment di"}
+              {item.direction === "RECEIVABLE" ? "Payment mili" : "Payment di"}
             </h2>
             <p className="text-xs text-slate-500">
               {item.partyName} · Baqi {formatRs(item.amountOpen)}

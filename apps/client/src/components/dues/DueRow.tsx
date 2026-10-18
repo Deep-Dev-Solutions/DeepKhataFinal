@@ -36,7 +36,7 @@ export default function DueRow({
   onPromise,
   onSnooze,
 }: Props) {
-  const isReceivable = item.direction === "receivable";
+  const isReceivable = item.direction === "RECEIVABLE";
   return (
     <div
       data-testid="dues-row"
