@@ -3,19 +3,28 @@ import { storage } from '../../helpers/auth';
 import { db } from '../../helpers/db';
 import { expectLedgerBalanced } from '../../helpers/ledger';
 import { useBranch } from '../../helpers/branch';
-import { catalog } from '../../fixtures/catalog';
+import { createProduct, HALL_ROAD } from '../pos/support';
 import { tenants } from '../../fixtures/users';
 
 test.use({ storageState: storage('staffA') });
 
-test('staff cannot sell below the minimum price; a price at or above it succeeds', async ({ page }) => {
-  const screen = catalog.minPriceScreen;
+test('staff cannot sell below the minimum price; a price at or above it succeeds', async ({ page, request }) => {
+  // Own product (list 9,000, minimum 8,000, 2 units at Hall Road) so no other suite or repeat run can sell,
+  // reserve or count the instances this test asserts on.
+  const screen = await createProduct(request, {
+    price: 9000,
+    minSalePrice: 8000,
+    cost: 6500,
+    qty: 2,
+    branchId: HALL_ROAD,
+    label: 'Screen',
+  });
   await useBranch(page.context(), tenants.A.branches.hallRoad.id);
   const ordersBefore = await db.order.findMany({ where: { businessId: tenants.A.id }, select: { id: true } });
   const excluded = ordersBefore.map((o) => o.id);
   const newOrdersWithProduct = () =>
     db.order.findMany({
-      where: { businessId: tenants.A.id, id: { notIn: excluded }, items: { some: { productId: screen.productId } } },
+      where: { businessId: tenants.A.id, id: { notIn: excluded }, items: { some: { productId: screen.id } } },
       include: { items: true },
     });
 
@@ -36,7 +45,7 @@ test('staff cannot sell below the minimum price; a price at or above it succeeds
   await page.getByTestId('checkout-submit').click();
   await expect(page.getByTestId('checkout-error')).toContainText('Minimum price');
   expect(await newOrdersWithProduct()).toHaveLength(0);
-  expect(await db.productInstance.count({ where: { productId: screen.productId, status: 'SOLD' } })).toBe(0);
+  expect(await db.productInstance.count({ where: { productId: screen.id, status: 'SOLD' } })).toBe(0);
 
   // Close the drawer and fix the price.
   await page.keyboard.press('Escape');
@@ -54,7 +63,7 @@ test('staff cannot sell below the minimum price; a price at or above it succeeds
   expect(Number(order.totalAmount)).toBe(8500);
   expect(order.paymentStatus).toBe('PAID');
   expect(Number(order.items[0].price)).toBe(8500);
-  const sold = await db.productInstance.findMany({ where: { productId: screen.productId, status: 'SOLD' } });
+  const sold = await db.productInstance.findMany({ where: { productId: screen.id, status: 'SOLD' } });
   expect(sold).toHaveLength(1);
   expect(sold[0].branchId).toBe(tenants.A.branches.hallRoad.id);
   await expectLedgerBalanced(tenants.A.id);
