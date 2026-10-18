@@ -29,6 +29,7 @@ async function bootstrapServer() {
       exposedHeaders: ['X-Next-Cursor'],
     });
 
+    app.getHttpAdapter().getInstance().set('trust proxy', process.env.TRUST_PROXY || 'loopback');
     app.use(cookieParser());
 
     await app.init();

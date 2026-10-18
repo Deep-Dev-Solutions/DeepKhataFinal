@@ -12,6 +12,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Role } from '@prisma/client';
 import { getAccessTokenSecret } from '../auth/jwt-secrets';
 import { RedisService } from '../redis/redis.service';
+import { TenantCacheService } from '../tenant/tenant-cache.service';
 
 @Injectable()
 export class TeamService {
@@ -19,6 +20,7 @@ export class TeamService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private redis: RedisService,
+    private tenantCache: TenantCacheService,
   ) {}
 
   async getUserBusinessId(userId: string): Promise<string | null> {
@@ -240,6 +242,8 @@ export class TeamService {
       select: { id: true, name: true, email: true, role: true },
     });
 
+    this.tenantCache.invalidateUser(updatedUser.id);
+
     await Promise.all([
       this.redis.delete(`team:active:${currentUser.businessId}`),
       this.redis.delete(`team:pending:${currentUser.businessId}`),
@@ -272,6 +276,7 @@ export class TeamService {
       );
 
     await this.prisma.user.delete({ where: { email } });
+    this.tenantCache.invalidateUser(targetUser.id);
     await this.redis.delete(`team:active:${currentUser.businessId}`);
     return { success: true, message: 'Member removed successfully.' };
   }

@@ -5,13 +5,7 @@ import { ThrottlerGuard } from '@nestjs/throttler';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 function extractClientIp(req: Request): string {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string') {
-    return forwarded.split(',')[0].trim();
-  }
-  if (Array.isArray(forwarded)) {
-    return forwarded[0].trim();
-  }
+  // req.ip honours X-Forwarded-For only from proxies listed in `trust proxy`.
   return req.ip || req.socket?.remoteAddress || '127.0.0.1';
 }
 

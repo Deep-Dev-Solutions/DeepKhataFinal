@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BusinessStatus } from '@prisma/client';
+import { BusinessStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 const TTL_MS = 60_000;
@@ -9,6 +9,13 @@ export interface BusinessStatusInfo {
   status: BusinessStatus;
   subscriptionExpiresAt: Date | null;
 }
+
+export interface UserAuthInfo {
+  role: Role;
+  businessId: string | null;
+}
+
+const USER_TTL_MS = 30_000;
 
 interface Entry<T> {
   value: T;
@@ -29,6 +36,7 @@ export class TenantCacheService {
     string,
     Entry<Set<string>> & { loadedAt: number }
   >();
+  private readonly users = new Map<string, Entry<UserAuthInfo | null>>();
   private readonly revoked = new Map<string, Entry<boolean>>();
 
   constructor(private readonly prisma: PrismaService) {}
@@ -79,6 +87,33 @@ export class TenantCacheService {
       this.branches.set(businessId, entry);
     }
     return entry.value.has(branchId);
+  }
+
+  /** Live role/business of a user (30 s cache, 5 s for missing users). */
+  async getUserAuth(userId: string): Promise<UserAuthInfo | null> {
+    const now = Date.now();
+    const hit = this.users.get(userId);
+    if (hit && hit.expiresAt > now) return hit.value;
+
+    const row = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, businessId: true },
+    });
+    const value = row ? { role: row.role, businessId: row.businessId } : null;
+    this.users.set(userId, {
+      value,
+      expiresAt: now + (value ? USER_TTL_MS : NEGATIVE_TTL_MS),
+    });
+    if (this.users.size > 10_000) {
+      for (const [k, v] of this.users) {
+        if (v.expiresAt <= now) this.users.delete(k);
+      }
+    }
+    return value;
+  }
+
+  invalidateUser(userId: string): void {
+    this.users.delete(userId);
   }
 
   invalidateBusiness(businessId: string): void {

@@ -46,6 +46,21 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       throw new UnauthorizedException('Session has ended');
     }
 
+    // (a2) Role and business come from the database (30 s cache), not the
+    // token, so demotion/removal takes effect without waiting for expiry.
+    let live = await this.tenantCache.getUserAuth(user.id);
+    // A token minted after onboarding may carry a business the cached row does
+    // not know yet; confirm against the database once before trusting the cache.
+    if (live && (live.businessId ?? null) !== (user.businessId ?? null)) {
+      this.tenantCache.invalidateUser(user.id);
+      live = await this.tenantCache.getUserAuth(user.id);
+    }
+    if (!live) {
+      throw new UnauthorizedException('Session has ended');
+    }
+    user.role = live.role;
+    user.businessId = live.businessId;
+
     // (b) Super admins have no tenant.
     if (user.role === Role.SUPER_ADMIN) return true;
 

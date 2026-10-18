@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
+import { TenantCacheService } from '../tenant/tenant-cache.service';
 import { getAccessTokenSecret } from '../auth/jwt-secrets';
 
 @Injectable()
@@ -14,6 +15,7 @@ export class OnboardingService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private tenantCache: TenantCacheService,
   ) {}
 
   async businessOnboarding(ownerId: string, data: any) {
@@ -76,6 +78,9 @@ export class OnboardingService {
 
       return newBusiness;
     });
+
+    // The user now has a business and OWNER role; drop the cached pre-onboarding row.
+    this.tenantCache.invalidateUser(ownerId);
 
     const accessToken = this.jwtService.sign(
       {
