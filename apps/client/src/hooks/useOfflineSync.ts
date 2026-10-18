@@ -1,69 +1,34 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { offlineDb } from "@/lib/db";
+import { useCallback, useEffect } from "react";
 import { flushSyncQueue, initOfflineSyncListener } from "@/lib/sync";
+import { syncEngine } from "@/lib/sync/engine";
+import { useSyncState } from "@/components/sync/useSyncState";
 
+/**
+ * Backward compatible facade over the app-wide sync engine
+ * (`{ isOnline, pendingCount, triggerSync, refreshPendingCount }`).
+ */
 export function useOfflineSync() {
-  const [isOnline, setIsOnline] = useState<boolean>(true);
-  const [pendingCount, setPendingCount] = useState<number>(0);
-
-  const refreshPendingCount = useCallback(async () => {
-    try {
-      const count = await offlineDb.syncQueue
-        .filter((i) => i.status === "pending" || i.status === "failed")
-        .count();
-      setPendingCount(count);
-    } catch {
-      // Ignore errors when DB not initialized yet
-    }
-  }, []);
+  const state = useSyncState();
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    // Idempotent: SyncProvider normally started it already.
+    return initOfflineSyncListener();
+  }, []);
 
-    setIsOnline(navigator.onLine);
-
-    const handleOnline = () => {
-      setIsOnline(true);
-      void refreshPendingCount();
-    };
-
-    const handleOffline = () => {
-      setIsOnline(false);
-      void refreshPendingCount();
-    };
-
-    const handleSyncQueueUpdated = () => {
-      void refreshPendingCount();
-    };
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    window.addEventListener("sync-queue-updated", handleSyncQueueUpdated);
-
-    // Initial sync listener
-    const cleanupSync = initOfflineSyncListener();
-    void refreshPendingCount();
-
-    const interval = window.setInterval(() => {
-      void refreshPendingCount();
-    }, 5000);
-
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-      window.removeEventListener("sync-queue-updated", handleSyncQueueUpdated);
-      cleanupSync();
-      window.clearInterval(interval);
-    };
-  }, [refreshPendingCount]);
+  const refreshPendingCount = useCallback(() => syncEngine.refresh(), []);
 
   const triggerSync = useCallback(async () => {
     const result = await flushSyncQueue();
-    await refreshPendingCount();
+    await syncEngine.refresh();
     return result;
-  }, [refreshPendingCount]);
+  }, []);
 
-  return { isOnline, pendingCount, triggerSync, refreshPendingCount };
+  return {
+    isOnline: state.online,
+    pendingCount: state.pending,
+    triggerSync,
+    refreshPendingCount,
+  };
 }

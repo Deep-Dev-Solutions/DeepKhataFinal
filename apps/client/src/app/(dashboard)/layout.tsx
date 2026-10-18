@@ -8,6 +8,7 @@ import { SidebarProvider, useSidebar } from "@/context/SidebarContext";
 import { POSProvider, usePOS } from "@/context/POSContext";
 import { useAuth } from "@/context/AuthContext";
 import QueryProvider from "@/providers/QueryProvider";
+import SyncProvider from "@/components/sync/SyncProvider";
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { isCollapsed } = useSidebar();
@@ -63,11 +64,13 @@ export default function DashboardLayout({
 
   return (
     <QueryProvider>
-      <SidebarProvider>
-        <POSProvider>
-          <DashboardContent>{children}</DashboardContent>
-        </POSProvider>
-      </SidebarProvider>
+      <SyncProvider>
+        <SidebarProvider>
+          <POSProvider>
+            <DashboardContent>{children}</DashboardContent>
+          </POSProvider>
+        </SidebarProvider>
+      </SyncProvider>
     </QueryProvider>
   );
 }
