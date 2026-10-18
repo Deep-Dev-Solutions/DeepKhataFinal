@@ -128,15 +128,14 @@ test.describe.serial('I: team - invite, accept, role change, removal', () => {
   });
 
   test('team tab role dropdown changes the role in the database', async ({ browser }) => {
-    test.fail(true, 'TeamTab.tsx role <select> has no onChange handler; Revoke button has no onClick (UI is not wired)');
     await db.user.update({ where: { email: staffEmail }, data: { role: 'STAFF' } });
     const ctx = await browser.newContext({ storageState: storage('ownerA') });
     const page = await ctx.newPage();
     await page.goto('/settings?tab=team');
-    // MISSING testid: member row + role select (fallback: row containing the email).
-    const row = page.locator('tr', { hasText: staffEmail });
+    const row = page.getByTestId('team-member-row').filter({ hasText: staffEmail });
     await expect(row).toBeVisible();
-    await row.locator('select').selectOption('MANAGER');
+    await row.getByTestId('team-member-role-select').selectOption('MANAGER');
+    await page.getByRole('button', { name: 'Change Role' }).click();
     await expect
       .poll(async () => (await db.user.findUniqueOrThrow({ where: { email: staffEmail } })).role, { timeout: 5_000 })
       .toBe('MANAGER');

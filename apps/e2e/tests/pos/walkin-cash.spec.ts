@@ -66,13 +66,13 @@ test('walk-in full cash sale: order, stock, instance status, ledger and invoice'
 
   await page.goto(`/invoice/${order.id}`);
   await expect(page.getByText(product.name)).toBeVisible();
-  await expect(page.getByText('Walk-in Customer')).toBeVisible();
+  await expect(page.getByText('Walk In Wasim')).toBeVisible();
   await expect(page.getByText('1,500').first()).toBeVisible();
 });
 
-// S4 (cosmetic): the name typed at checkout is stored (order.walkInName) but the invoice only prints the generic
-// "Walk-in Customer" (apps/client/src/app/invoice/[id]/page.tsx:216 uses customer?.name only).
-test.fail('walk-in name entered at checkout is printed on the invoice', async ({ page, request }) => {
+// Regression (S4, fixed): the walk-in name typed at checkout used to be dropped from the invoice
+// (invoice/[id]/page.tsx now falls back to invoice.walkInName).
+test('walk-in name entered at checkout is printed on the invoice', async ({ page, request }) => {
   const product = await createProduct(request, { price: 700, qty: 2, label: 'WalkName' });
   const before = await orderIdsBefore();
   await useBranch(page.context(), HALL_ROAD);
