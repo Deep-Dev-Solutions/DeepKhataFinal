@@ -89,6 +89,11 @@ export class TenantCacheService {
     this.branches.delete(businessId);
   }
 
+  /** Record a revocation locally so this process rejects the token at once. */
+  markRevoked(jti: string): void {
+    this.revoked.set(jti, { value: true, expiresAt: Date.now() + TTL_MS });
+  }
+
   async isRevoked(jti: string): Promise<boolean> {
     const now = Date.now();
     const hit = this.revoked.get(jti);

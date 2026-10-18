@@ -12,6 +12,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
+import { TenantCacheService } from '../tenant/tenant-cache.service';
 import { Response } from 'express';
 import { Role } from '@prisma/client';
 
@@ -36,6 +37,7 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private tenantCache: TenantCacheService,
   ) {}
 
   private async checkLockout(ip: string, email?: string) {
@@ -391,6 +393,7 @@ export class AuthService {
         update: {},
         create: { jti: user.jti, userId: user.id, expiresAt },
       });
+      this.tenantCache.markRevoked(user.jti);
     }
     await this.prisma.revokedToken.deleteMany({
       where: { expiresAt: { lt: new Date() } },
