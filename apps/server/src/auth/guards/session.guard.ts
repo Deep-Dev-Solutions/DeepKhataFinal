@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   ExecutionContext,
   CanActivate,
@@ -124,7 +125,7 @@ export class SessionGuard implements CanActivate {
 
     // (e) A supplied branch header must belong to the user's business.
     const rawBranch = request.headers?.['x-branch-id'];
-    const branchId =
+    let branchId =
       typeof rawBranch === 'string' && rawBranch.trim()
         ? rawBranch.trim()
         : null;
@@ -136,10 +137,20 @@ export class SessionGuard implements CanActivate {
     }
 
     // (e2) Branch-restricted members may only act on their assigned branches.
-    if (branchId && user.role !== Role.OWNER) {
+    // Without a header they default to their only branch; with several they
+    // must choose, so an unset branch never means "all branches" for them.
+    if (user.role !== Role.OWNER) {
       const access = await getUserBranchAccess(user.id);
-      if (access && !access.allBranches && !access.branchIds.has(branchId)) {
-        throw new ForbiddenException('No access to this branch');
+      if (access && !access.allBranches) {
+        if (branchId) {
+          if (!access.branchIds.has(branchId)) {
+            throw new ForbiddenException('No access to this branch');
+          }
+        } else if (access.branchIds.size === 1) {
+          branchId = [...access.branchIds][0];
+        } else {
+          throw new BadRequestException('Select a branch');
+        }
       }
     }
 

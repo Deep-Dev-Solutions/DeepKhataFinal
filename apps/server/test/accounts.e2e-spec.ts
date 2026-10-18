@@ -550,6 +550,65 @@ describe('Accounts: signup, verification, reset, staff accounts (e2e)', () => {
       await http().get('/cash/register/status').set(bearer(token, own)).expect(200);
     });
 
+    it('defaults to the only assigned branch without a header, and demands a choice with several', async () => {
+      const extra = await prisma.branch.create({
+        data: { name: `Extra ${uniq()}`, businessId: tenants.A.id },
+      });
+      const mk = (from: string, to: string) =>
+        prisma.stockTransferRequest.create({
+          data: {
+            businessId: tenants.A.id,
+            fromBranchId: from,
+            toBranchId: to,
+            requestedById: users.ownerA.id,
+          },
+        });
+      let ownTransfer: { id: string } | undefined;
+      let farTransfer: { id: string } | undefined;
+      try {
+        ownTransfer = await mk(other, own);
+        farTransfer = await mk(other, extra.id);
+
+        await http()
+          .patch(`/team/members/${memberId}`)
+          .set(authHeader('ownerA'))
+          .send({ allBranches: false, branchIds: [own] })
+          .expect(200);
+
+        // One assigned branch and no header: scoped to that branch, not everything.
+        const one = await http().get('/stock-transfers').set(bearer(token));
+        expect(one.status).toBe(200);
+        const ids = one.body.items.map((t: { id: string }) => t.id);
+        expect(ids).toContain(ownTransfer.id);
+        expect(ids).not.toContain(farTransfer.id);
+        // Instances need an active branch; the default supplies it.
+        await http().get('/sync/pull?entity=instances').set(bearer(token)).expect(200);
+
+        // Two assigned branches and no header: must choose.
+        await http()
+          .patch(`/team/members/${memberId}`)
+          .set(authHeader('ownerA'))
+          .send({ branchIds: [own, other] })
+          .expect(200);
+        const many = await http().get('/stock-transfers').set(bearer(token));
+        expect(many.status).toBe(400);
+        expect(many.body.message).toBe('Select a branch');
+        await http().get('/stock-transfers').set(bearer(token, own)).expect(200);
+
+        // Owners and unrestricted staff are unaffected.
+        await http().get('/stock-transfers').set(authHeader('ownerA')).expect(200);
+      } finally {
+        await prisma.stockTransferRequest.deleteMany({
+          where: { id: { in: [ownTransfer?.id, farTransfer?.id].filter(Boolean) as string[] } },
+        });
+        await prisma.branch.delete({ where: { id: extra.id } });
+        await http()
+          .patch(`/team/members/${memberId}`)
+          .set(authHeader('ownerA'))
+          .send({ allBranches: true });
+      }
+    });
+
     it('keeps team creation away from managers (no manage:team) and enforces the plan limit', async () => {
       // Tenant A holds 4 of 5 users here; free a seat first.
       await http()

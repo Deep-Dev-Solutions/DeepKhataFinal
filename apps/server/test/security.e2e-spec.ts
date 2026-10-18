@@ -52,6 +52,8 @@ describe('Phase 1 security regressions (e2e)', () => {
   /** Registers a user, onboards a fresh business, then logs in for a token that carries the businessId. */
   async function newOwnerWithBusiness() {
     const reg = await registerUser('own');
+    // Owners must verify their email before inviting anyone.
+    await prisma.user.update({ where: { id: reg.id }, data: { emailVerified: true } });
     const res = await http()
       .post('/onboard/onboarding')
       .set('Authorization', `Bearer ${reg.token}`)
