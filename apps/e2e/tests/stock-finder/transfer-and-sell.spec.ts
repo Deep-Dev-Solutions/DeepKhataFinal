@@ -3,7 +3,8 @@ import { storage } from '../../helpers/auth';
 import { db } from '../../helpers/db';
 import { expectLedgerBalanced } from '../../helpers/ledger';
 import { useBranch } from '../../helpers/branch';
-import { catalog } from '../../fixtures/catalog';
+import { apiAs } from '../../helpers/api';
+import { createProduct, HAFEEZ } from '../pos/support';
 import { tenants } from '../../fixtures/users';
 
 const hall = tenants.A.branches.hallRoad;
@@ -31,8 +32,23 @@ test.use({ storageState: storage('staffA') });
 test('staff finds the keyboard at Hafeez, requests a transfer, manager dispatches, Hall Road receives, staff sells it', async ({
   page,
   browser,
+  request,
 }) => {
-  const productId = catalog.keyboard840.productId;
+  // Seven page loads against the Next dev server (each one a cold on-demand compile of 4-6 s, plus the POS
+  // checkout) add up to about 30 s, which is the default test timeout. Proven from the failed run's trace: every
+  // assertion up to the checkout passed with correct data, the clock simply ran out.
+  test.setTimeout(120_000);
+
+  // Own product (3 units at Hafeez, 2 ORIGINAL_PULL + 1 MINOR_SCRATCHES) so no other suite can sell, reserve
+  // or transfer the stock this test counts.
+  const kb = await createProduct(request, { price: 4500, minSalePrice: 3800, qty: 3, branchId: HAFEEZ, label: 'Keyboard' });
+  const productId = kb.id;
+  const seeded = await db.productInstance.findMany({ where: { productId }, orderBy: { id: 'asc' } });
+  expect(seeded).toHaveLength(3);
+  const owner = await apiAs('ownerA', request);
+  const patched = await owner.patch(`/product/instances/${seeded[2].id}`, { condition: 'MINOR_SCRATCHES' });
+  expect(patched.ok(), await patched.text()).toBeTruthy();
+  const query = kb.name;
   const transfersBefore = await db.stockTransferRequest.findMany({
     where: { businessId: tenants.A.id },
     select: { id: true },
@@ -43,14 +59,14 @@ test('staff finds the keyboard at Hafeez, requests a transfer, manager dispatche
   await page.goto('/stock-finder');
   await expect(page.getByTestId('stock-finder-page')).toBeVisible();
 
-  const findResponse = page.waitForResponse(isFindFor('840 keyboard'));
-  await page.getByTestId('stock-finder-search').fill('840 keyboard');
+  const findResponse = page.waitForResponse(isFindFor(query));
+  await page.getByTestId('stock-finder-search').fill(query);
   const body = await (await findResponse).json();
   expect(findForbiddenKeys(body)).toEqual([]);
 
   const card = page.locator(`[data-testid="stock-result"][data-product-id="${productId}"]`);
   await expect(card).toBeVisible();
-  await expect(card.getByTestId('stock-result-name')).toContainText(catalog.keyboard840.name);
+  await expect(card.getByTestId('stock-result-name')).toContainText(kb.name);
 
   const ownRow = card.locator('[data-testid="stock-branch-row"][data-own="true"]');
   await expect(ownRow).toHaveCount(1);
@@ -106,7 +122,10 @@ test('staff finds the keyboard at Hafeez, requests a transfer, manager dispatche
     const mp = await mgrHafeez.newPage();
     await mp.goto('/dashboard');
     await expect(mp.getByTestId('notif-count')).toBeVisible();
-    expect(Number((await mp.getByTestId('notif-count').innerText()).trim())).toBeGreaterThanOrEqual(1);
+    // The badge caps at "9+" once more than 9 notifications are unread (other suites also notify this manager).
+    const badge = (await mp.getByTestId('notif-count').innerText()).trim();
+    expect(badge).toMatch(/^(\d+|9\+)$/);
+    expect(Number.parseInt(badge, 10)).toBeGreaterThanOrEqual(1);
     await mp.getByTestId('notif-bell').click();
     await expect(mp.getByTestId('notif-item').filter({ hasText: /transfer/i }).first()).toBeVisible();
 
@@ -149,8 +168,8 @@ test('staff finds the keyboard at Hafeez, requests a transfer, manager dispatche
 
   // 5. Staff at Hall Road now sees 1 available and sells it.
   await page.goto('/stock-finder');
-  const findAgain = page.waitForResponse(isFindFor('840 keyboard'));
-  await page.getByTestId('stock-finder-search').fill('840 keyboard');
+  const findAgain = page.waitForResponse(isFindFor(query));
+  await page.getByTestId('stock-finder-search').fill(query);
   await findAgain;
   await expect(card).toBeVisible();
   await expect(ownRow).toHaveCount(1);
@@ -162,9 +181,9 @@ test('staff finds the keyboard at Hafeez, requests a transfer, manager dispatche
   await expect(page).toHaveURL(/\/orders\/new/);
   const cartRow = page.getByTestId('pos-cart-row');
   await expect(cartRow).toHaveCount(1);
-  await expect(cartRow).toContainText(catalog.keyboard840.name);
+  await expect(cartRow).toContainText(kb.name);
   const price = Number(await cartRow.getByTestId('pos-cart-price').inputValue());
-  expect(price).toBe(catalog.keyboard840.basePrice);
+  expect(price).toBe(kb.price);
 
   await page.getByTestId('pos-checkout').click();
   await expect(page.getByTestId('checkout-drawer')).toBeVisible();
