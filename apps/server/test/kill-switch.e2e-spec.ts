@@ -3,7 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import { BusinessStatus, PrismaClient } from '@prisma/client';
 import request from 'supertest';
 import { createTestApp, closeTestApp } from './setup/app';
-import { authHeader, tenants, users } from './setup/auth';
+import { authHeader, freshSessionToken, tenants, users } from './setup/auth';
 import { TEST_PASSWORD } from '../../e2e/fixtures/users';
 
 const BIZ_A = tenants.A.id;
@@ -210,7 +210,11 @@ describe('Oversell race and tenant kill switch (e2e)', () => {
       expect(put.body.message).toBe(READ_ONLY_MESSAGE);
       expect((await prisma.customer.findUniqueOrThrow({ where: { id: anyCustomer.id } })).name).toBe(anyCustomer.name);
 
-      const out = await http().post('/auth/logout').set(authHeader('ownerB', MAIN_B));
+      // Logout revokes the session row, so use a throwaway session, not ownerB's shared seeded token.
+      const logoutToken = await freshSessionToken(prisma, users.ownerB.id);
+      const out = await http()
+        .post('/auth/logout')
+        .set({ Authorization: `Bearer ${logoutToken}`, 'x-branch-id': MAIN_B });
       expect(out.status).toBeLessThan(300);
     });
 

@@ -162,6 +162,12 @@ describe('Phase 1 security regressions (e2e)', () => {
 
     it('enforces the 5 account limit (users plus pending invitations)', async () => {
       const biz = await newOwnerWithBusiness();
+      // Self-onboarding starts on the TRIAL plan (2 users). The user cap comes from the plan,
+      // so raise this tenant's custom limit to 5 for the test setup.
+      await prisma.subscription.update({
+        where: { businessId: biz.businessId },
+        data: { customLimits: { maxBranches: 2, maxUsers: 5, maxProducts: null } },
+      });
       const count = async () =>
         (await prisma.user.count({ where: { businessId: biz.businessId } })) +
         (await prisma.invitation.count({ where: { businessId: biz.businessId } }));
