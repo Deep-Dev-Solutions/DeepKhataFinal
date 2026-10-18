@@ -84,7 +84,7 @@ export class KhataEntriesService {
     return entry;
   }
 
-  async create(t: TenantContext, dto: CreateKhataEntryDto) {
+  async create(t: TenantContext, dto: CreateKhataEntryDto, id?: string) {
     const amount = M.round2(dto.amount);
     const counterAccount = dto.counterAccount ?? 'ASSET';
     if (
@@ -147,6 +147,7 @@ export class KhataEntriesService {
     return this.prisma.$transaction(async (tx) => {
       const entry = await tx.khataEntry.create({
         data: {
+          ...(id ? { id } : {}),
           businessId: t.businessId,
           branchId: t.branchId,
           direction: dto.direction,

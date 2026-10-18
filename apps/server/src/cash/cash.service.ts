@@ -43,7 +43,7 @@ export class CashService {
    * Step 1: Log Daily Operational Cash Expense & Post to Double-Entry Ledger
    * Debits EXPENSE account, Credits CASH asset account. Postings sum to 0.
    */
-  async logExpense(userId: string, dto: LogExpenseDto) {
+  async logExpense(userId: string, dto: LogExpenseDto, id?: string) {
     const user = await this.getUserWithBusiness(userId);
 
     let parsedAmount: M.Money;
@@ -72,6 +72,7 @@ export class CashService {
       // 1. Create the Expense record
       const expense = await tx.expense.create({
         data: {
+          ...(id ? { id } : {}),
           businessId: user.businessId,
           branchId: dto.branchId || null,
           amount: parsedAmount,

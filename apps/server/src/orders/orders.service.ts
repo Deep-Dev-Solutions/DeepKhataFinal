@@ -949,7 +949,7 @@ export class OrdersService {
     };
   }
 
-  async recordPayment(userId: string, data: any) {
+  async recordPayment(userId: string, data: any, id?: string) {
     const { orderId, amount, method } = data;
     if (!orderId) throw new BadRequestException('Order ID is required');
     const parsedAmount = M.money(parseFloat(amount) || 0);
@@ -997,6 +997,7 @@ export class OrdersService {
     await this.prisma.$transaction(async (tx) => {
       await tx.payment.create({
         data: {
+          ...(id ? { id } : {}),
           orderId: order.id,
           amount: parsedAmount,
           method: method as any,
