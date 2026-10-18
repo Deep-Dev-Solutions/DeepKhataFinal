@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it } from 'vitest';
 import { Injectable } from '@nestjs/common';
 import { InstanceStatus, ItemCondition, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -224,8 +225,12 @@ export class StockFinderService {
   }
 
   /**
-   * Ordered product ids. Rank 0: exact sku/partNumber/alias/serial; rank 1: all
-   * tokens present in searchText; rank 2: fuzzy trigram match.
+   * Ordered product ids, resolved in tiers so cheap indexed lookups run first
+   * and the fuzzy scan only runs when they find nothing.
+   * Tier 0: exact sku/partNumber/alias/serial (btree + trigram-prefiltered).
+   * Tier 1: every token present in searchText (trigram GIN via ILIKE).
+   * Tier 2: fuzzy trigram match (`<%` / `%`, GIN), only when tiers 0 and 1
+   * found nothing. Within a tier: best similarity, then name, then id.
    */
   private async rankedProductIds(
     businessId: string,
@@ -233,40 +238,76 @@ export class StockFinderService {
     take: number,
   ): Promise<string[]> {
     const tokens = q.split(/\s+/).filter(Boolean).slice(0, MAX_TOKENS);
-    const tokenClauses = tokens.map((tok) => {
-      const like = `%${tok.replace(/[\\%_]/g, '\\$&')}%`;
-      return Prisma.sql`p."searchText" ILIKE ${like}`;
-    });
-    const allTokens = Prisma.join(tokenClauses, ' AND ');
+    const likeOf = (tok: string) => `%${tok.replace(/[\\%_]/g, '\\$&')}%`;
+    const qLike = likeOf(q);
+    const allTokens = Prisma.join(
+      tokens.map((tok) => Prisma.sql`p."searchText" ILIKE ${likeOf(tok)}`),
+      ' AND ',
+    );
+    const order = Prisma.sql`ORDER BY greatest(word_similarity(${q}, p."searchText"), similarity(p."searchText", ${q})) DESC, p."name" ASC, p."id" ASC`;
 
-    const rows = await this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
-      SELECT s.id FROM (
-        SELECT
-          p."id" AS id,
-          p."name" AS name,
-          CASE
-            WHEN lower(p."sku") = ${q}
-              OR lower(p."partNumber") = ${q}
-              OR EXISTS (SELECT 1 FROM unnest(p."aliases") a WHERE lower(a) = ${q})
-              OR EXISTS (
-                SELECT 1 FROM "ProductInstance" i
-                WHERE i."productId" = p."id" AND lower(i."serialNumber") = ${q}
-              )
-              THEN 0
-            WHEN ${allTokens} THEN 1
-            ELSE 2
-          END AS rank,
-          word_similarity(${q}, p."searchText") AS wsim,
-          similarity(p."searchText", ${q}) AS sim
-        FROM "Product" p
+    return this.prisma.$transaction(async (tx) => {
+      // JIT costs ~30 ms on a query that runs in a few ms. The thresholds
+      // match the former full-scan filter (word_similarity > 0.3).
+      await tx.$queryRaw`SELECT
+        set_config('jit', 'off', true),
+        set_config('pg_trgm.word_similarity_threshold', '0.3', true)`;
+
+      const found: string[] = [];
+      const exclude = () =>
+        found.length
+          ? Prisma.sql`AND p."id" NOT IN (${Prisma.join(found)})`
+          : Prisma.empty;
+
+      // Tier 0: exact. Alias/sku/partNumber equality implies q is a substring
+      // of searchText, so the GIN trigram index prefilters the alias check.
+      const t0 = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+        SELECT p."id" FROM "Product" p
         WHERE p."businessId" = ${businessId}
           AND p."deletedAt" IS NULL
-      ) s
-      WHERE s.rank < 2 OR s.wsim > 0.3 OR s.sim > 0.2
-      ORDER BY s.rank ASC, greatest(s.wsim, s.sim) DESC, s.name ASC, s.id ASC
-      LIMIT ${take}
-    `);
-    return rows.map((r) => r.id);
+          AND (
+            lower(p."sku") = ${q}
+            OR lower(p."partNumber") = ${q}
+            OR (
+              p."searchText" ILIKE ${qLike}
+              AND EXISTS (SELECT 1 FROM unnest(p."aliases") a WHERE lower(a) = ${q})
+            )
+            OR p."id" IN (
+              SELECT i."productId" FROM "ProductInstance" i
+              WHERE lower(i."serialNumber") = ${q}
+            )
+          )
+        ${order}
+        LIMIT ${take}
+      `);
+      found.push(...t0.map((r) => r.id));
+      if (found.length >= take) return found;
+
+      const t1 = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+        SELECT p."id" FROM "Product" p
+        WHERE p."businessId" = ${businessId}
+          AND p."deletedAt" IS NULL
+          AND ${allTokens}
+          ${exclude()}
+        ${order}
+        LIMIT ${take - found.length}
+      `);
+      found.push(...t1.map((r) => r.id));
+      // Fuzzy is only a fallback for queries that matched nothing exactly or by
+      // token: filling the list with loosely similar neighbours is both noise
+      // for the user and the single most expensive step (it scores every row).
+      if (found.length > 0) return found;
+
+      const t2 = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+        SELECT p."id" FROM "Product" p
+        WHERE p."businessId" = ${businessId}
+          AND p."deletedAt" IS NULL
+          AND ${q} <% p."searchText"
+        ORDER BY word_similarity(${q}, p."searchText") DESC, p."name" ASC, p."id" ASC
+        LIMIT ${take}
+      `);
+      return t2.map((r) => r.id);
+    });
   }
 
   private async recentSoldPrices(

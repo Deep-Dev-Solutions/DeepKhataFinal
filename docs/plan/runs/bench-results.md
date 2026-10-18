@@ -36,3 +36,22 @@ Single-VU baseline (5 s each, same box): stock-finder p50 ~256-304 ms (p95 ~420 
 - Turn JIT off for these queries (`SET LOCAL jit = off` or `jit = off` on the role/database); it costs ~30 ms on a query that runs in ~100 ms.
 - Rerun this bench after those changes; expected: exact and prefix well under 100 ms p95.
 - Reproduce: seed `deepkhata_bench` with `tsx prisma/seed.ts --large`, start the API from `apps/server/dist` with `DATABASE_URL` pointed at it and `PORT=5199`, then `BASE_URL=http://localhost:5199 node apps/bench/run.mjs` (options `--duration=60 --vus=10 --only=<name>`).
+
+## After PERF (2026-10-18)
+
+Same box, dataset, runner and settings as above (10 VUs, 60 s per scenario, zero errors). API compiled to a throwaway `dist-perf` (removed afterwards) and run on port 5199 against `deepkhata_bench` after `migrate deploy` of `0008_p5_search_perf`; `prisma migrate status` clean.
+
+Changes: `rankedProductIds` is now tiered (exact via indexes, then all-tokens ILIKE served by the trigram GIN, then fuzzy `<%` only when both found nothing), runs inside a transaction with `SET LOCAL jit = off` and `pg_trgm.word_similarity_threshold = 0.3`; new indexes `OrderItem(productId)`, `Product(businessId, lower(sku))`, `Product(businessId, lower(partNumber))`, `ProductInstance(lower(serialNumber))`.
+
+| Scenario | p50 before | p95 before | p50 after | p95 after | p99 after | rps after | p95 < 300 ms |
+|---|---|---|---|---|---|---|---|
+| stock-finder exact SKU | 563.7 | 759.0 | 33.5 | 46.3 | 51.1 | 291.1 | PASS |
+| stock-finder prefix | 573.5 | 779.8 | 51.8 | 67.5 | 73.9 | 192.6 | PASS |
+| stock-finder typo / fuzzy | 565.4 | 795.1 | 186.3 | 239.6 | 249.8 | 53.0 | PASS |
+| `GET /product/getproducts?limit=50` page 1 | 116.2 | 175.3 | 100.9 | 147.9 | 163.6 | 96.2 | PASS |
+| `GET /product/getproducts?search=<sku>` | 399.8 | 521.7 | 297.2 | 401.5 | 416.2 | 32.6 | FAIL (not touched by this task) |
+
+Notes:
+- The typo scenario is the worst case on this dataset (every product name shares "Bench Part A-", so the fuzzy tier scores all ~5,000 tenant rows; ~60 ms per query single-user). On a real catalogue the GIN index prunes candidates and this tier is much cheaper. It only runs when the exact and all-token tiers return nothing.
+- Behaviour change: when tier 0 or 1 has hits, the result list is no longer topped up with loosely similar fuzzy neighbours (previously an exact SKU also returned up to 19 fuzzy neighbours). The fuzzy filter is now `word_similarity > 0.3` only (the former `OR similarity > 0.2` branch was dropped; it cost an extra scoring pass).
+- `getproducts?search=` is still above target; its search predicate in `findProductIdPage` is the next thing to tier the same way.
