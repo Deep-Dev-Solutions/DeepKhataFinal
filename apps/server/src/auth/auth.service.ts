@@ -32,6 +32,17 @@ function formatRemainingTime(ms: number): string {
   return `${totalMinutes} minute${totalMinutes > 1 ? 's' : ''}`;
 }
 
+/** Refresh-token cookie options; COOKIE_DOMAIN shares it across app/api/admin subdomains. */
+function refreshCookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: process.env.NODE_ENV === 'production',
+    domain: process.env.COOKIE_DOMAIN || undefined,
+    path: '/',
+  };
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -264,11 +275,7 @@ export class AuthService {
       },
     );
 
-    res.cookie('jwt', refreshtoken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-    });
+    res.cookie('jwt', refreshtoken, refreshCookieOptions());
 
     const { password: _, ...userWithoutPassword } = existinguser;
 
@@ -336,11 +343,7 @@ export class AuthService {
       },
     );
 
-    res.cookie('jwt', refreshtoken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-    });
+    res.cookie('jwt', refreshtoken, refreshCookieOptions());
 
     const { password: _, ...userWithoutPassword } = existinguser;
 
@@ -398,7 +401,8 @@ export class AuthService {
     await this.prisma.revokedToken.deleteMany({
       where: { expiresAt: { lt: new Date() } },
     });
-    res.clearCookie('jwt');
+    // Same domain/path as when set, or the browser keeps the cookie.
+    res.clearCookie('jwt', refreshCookieOptions());
     return res.json({ message: 'Logout successful' });
   }
 }

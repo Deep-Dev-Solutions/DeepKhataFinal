@@ -1,0 +1,4 @@
+# m h dom mon dow command   (container TZ = Asia/Karachi). Output goes to PID 1 stdout/stderr.
+SHELL=/bin/bash
+30 2 * * * . /etc/deepkhata-env; /usr/local/bin/backup.sh > /proc/1/fd/1 2>&1
+0 4 * * 0 . /etc/deepkhata-env; /usr/local/bin/restore-test.sh > /proc/1/fd/1 2>&1

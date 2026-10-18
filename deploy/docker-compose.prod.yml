@@ -30,7 +30,7 @@ services:
     build:
       context: ..
       dockerfile: apps/server/Dockerfile
-    image: deepkhata-api:local
+    image: ghcr.io/${GHCR_OWNER:-local}/deepkhata-api:${IMAGE_TAG:-latest}
     restart: unless-stopped
     mem_limit: 768m
     env_file: .env
@@ -48,7 +48,7 @@ services:
       args:
         NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
         NEXT_PUBLIC_AGENCY_URL: https://admin.${DOMAIN}
-    image: deepkhata-client:local
+    image: ghcr.io/${GHCR_OWNER:-local}/deepkhata-client:${IMAGE_TAG:-latest}
     restart: unless-stopped
     mem_limit: 512m
     environment:
@@ -62,7 +62,7 @@ services:
       dockerfile: apps/agency-admin/Dockerfile
       args:
         NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
-    image: deepkhata-admin:local
+    image: ghcr.io/${GHCR_OWNER:-local}/deepkhata-admin:${IMAGE_TAG:-latest}
     restart: unless-stopped
     mem_limit: 384m
     environment:
@@ -88,12 +88,17 @@ services:
       - api
       - admin
 
-  # Placeholder: task D2 adds the pg_dump -> R2 cron script here.
+  # Nightly pg_dump -> R2 (02:30 PKT), weekly restore test (Sun 04:00). See deploy/backup.
   backup:
-    image: postgres:17
+    build:
+      context: ./backup
+    image: deepkhata-backup:local
     restart: unless-stopped
     env_file: .env
-    entrypoint: ["sleep", "infinity"]
+    environment:
+      TZ: Asia/Karachi
+    volumes:
+      - backups:/backups
     depends_on:
       postgres:
         condition: service_healthy
@@ -102,3 +107,4 @@ volumes:
   pgdata:
   caddy_data:
   caddy_config:
+  backups:
