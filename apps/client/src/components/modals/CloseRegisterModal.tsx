@@ -150,6 +150,7 @@ export default function CloseRegisterModal({
               </button>
               <button
                 type="button"
+                data-testid="close-register-mode-total"
                 onClick={() => setUseDenominations(false)}
                 className={`px-3 py-1 rounded-lg transition-all ${
                   !useDenominations ? "bg-white text-blue-700 shadow-sm font-semibold" : "text-slate-600 hover:text-slate-900"

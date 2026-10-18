@@ -1373,6 +1373,7 @@ function CreateOrderPOSContent() {
                     <LayoutGrid className="w-4 h-4" />
                   </button>
                   <button
+                    data-testid="pos-view-compact"
                     onClick={() => setCatalogView("list")}
                     title="Compact list view"
                     className={`p-1.5 sm:p-2 rounded-lg transition-colors cursor-pointer ${catalogView === "list" ? "bg-slate-900 text-white shadow-sm" : "text-slate-400 hover:text-slate-700"}`}
@@ -1401,6 +1402,7 @@ function CreateOrderPOSContent() {
                 <div className="flex items-center gap-1.5 shrink-0 pl-2 border-l border-slate-200">
                   <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                   <select
+                    data-testid="pos-catalog-branch"
                     value={viewingBranchId}
                     onChange={(e) => setViewingBranchId(e.target.value)}
                     className="text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg px-2.5 py-1 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-xs hover:border-slate-300 transition-colors"
@@ -1574,7 +1576,10 @@ function CreateOrderPOSContent() {
                             {product.category?.name || "General"}
                           </span>
                           {isRemoteBranch ? (
-                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 shrink-0">
+                            <span
+                              data-testid="pos-remote-badge"
+                              className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 shrink-0"
+                            >
                               Remote Stock
                             </span>
                           ) : isOutOfStock ? (

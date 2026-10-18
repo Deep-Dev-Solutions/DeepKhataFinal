@@ -740,7 +740,13 @@ export default function CashHubPage() {
       <AlertDialog
         isOpen={messageAlert !== null}
         title={messageAlert?.title || ""}
-        description={messageAlert?.description || ""}
+        description={
+          <div data-testid="cash-alert">
+            <span data-testid="cash-alert-description">
+              {messageAlert?.description || ""}
+            </span>
+          </div>
+        }
         icon={<AlertTriangle className="w-6 h-6" />}
         onClose={() => setMessageAlert(null)}
       />
