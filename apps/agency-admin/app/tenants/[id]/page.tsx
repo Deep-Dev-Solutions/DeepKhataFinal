@@ -199,7 +199,7 @@ export default function TenantDetailPage() {
   ];
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div data-testid="tenant-detail" className="space-y-6 animate-in fade-in duration-500">
       {/* ── Back / Page Header ───────────────────────────────────────────── */}
       <div>
         <Link
@@ -286,6 +286,7 @@ export default function TenantDetailPage() {
               <select
                 value={tenant.status}
                 onChange={handleStatusChange}
+                data-testid="tenant-status-select"
                 disabled={statusUpdating}
                 className={`flex-1 px-3 py-2.5 border rounded-lg font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer disabled:opacity-60 ${statusMeta.select}`}
               >
@@ -306,7 +307,7 @@ export default function TenantDetailPage() {
             <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
               <BadgeCheck size={14} className="text-emerald-500" />
               Current status:{" "}
-              <span className="font-semibold text-slate-800">
+              <span data-testid="tenant-status" className="font-semibold text-slate-800">
                 {statusMeta.label}
               </span>
               . Changes apply immediately to all users of this business.
@@ -325,7 +326,7 @@ export default function TenantDetailPage() {
               <CalendarClock size={18} className="text-indigo-600 shrink-0" />
               <div className="text-sm">
                 <span className="text-slate-500">Subscription expires on </span>
-                <span className="font-bold text-slate-900">
+                <span data-testid="tenant-expiry" className="font-bold text-slate-900">
                   {formatDate(tenant.subscriptionExpiresAt)}
                 </span>
               </div>
@@ -353,6 +354,7 @@ export default function TenantDetailPage() {
                     min="1"
                     step="any"
                     value={amount}
+                    data-testid="tenant-payment-amount"
                     onChange={(e) => setAmount(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     placeholder="e.g. 15000"
@@ -386,6 +388,7 @@ export default function TenantDetailPage() {
               <button
                 type="submit"
                 disabled={billingSubmitting}
+                data-testid="tenant-payment-submit"
                 className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-60 shadow-sm"
               >
                 {billingSubmitting ? (
@@ -431,7 +434,7 @@ export default function TenantDetailPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {tenant.billingLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+                  <tr data-testid="tenant-billing-row" key={log.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-3 font-medium text-slate-900">
                       {formatDate(log.paymentDate)}
                     </td>

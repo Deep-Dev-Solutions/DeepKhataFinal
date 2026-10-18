@@ -119,6 +119,7 @@ export default function AgencyLoginPage() {
                 </div>
                 <input
                   id="admin-email"
+                  data-testid="agency-login-email"
                   name="email"
                   type="email"
                   autoComplete="email"
@@ -145,6 +146,7 @@ export default function AgencyLoginPage() {
                 </div>
                 <input
                   id="admin-password"
+                  data-testid="agency-login-password"
                   name="password"
                   type="password"
                   autoComplete="current-password"
@@ -160,6 +162,7 @@ export default function AgencyLoginPage() {
             {/* Error Display */}
             {error && (
               <div
+                data-testid="agency-login-error"
                 className={`p-3.5 rounded-xl border flex items-start gap-2.5 ${
                   isLockedOut
                     ? "bg-rose-950/60 border-rose-600/50 text-rose-200"
@@ -186,6 +189,7 @@ export default function AgencyLoginPage() {
             <div className="pt-2">
               <button
                 type="submit"
+                data-testid="agency-login-submit"
                 disabled={loading}
                 className="w-full flex justify-center items-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-indigo-500 transition-all shadow-lg shadow-indigo-600/25 disabled:opacity-50 cursor-pointer"
               >

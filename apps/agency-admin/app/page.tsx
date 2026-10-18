@@ -162,7 +162,7 @@ export default function AgencyAdminPage() {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div data-testid="tenants-page" className="space-y-6 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
@@ -174,6 +174,7 @@ export default function AgencyAdminPage() {
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
+          data-testid="tenant-onboard"
           className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors shadow-sm"
         >
           <Plus size={18} />
@@ -210,7 +211,7 @@ export default function AgencyAdminPage() {
               ) : (
                 tenants.map((t) => (
                   <React.Fragment key={t.id}>
-                    <tr className="hover:bg-slate-50 transition-colors">
+                    <tr data-testid="tenant-row" className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="h-10 w-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center">
@@ -224,6 +225,7 @@ export default function AgencyAdminPage() {
                               /{t.slug}
                               {t.status && (
                                 <span
+                                  data-testid="tenant-row-status"
                                   className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
                                     STATUS_BADGES[t.status] ||
                                     STATUS_BADGES.ACTIVE
@@ -275,6 +277,7 @@ export default function AgencyAdminPage() {
                         <div className="flex items-center gap-2">
                           <Link
                             href={`/tenants/${t.id}`}
+                            data-testid="tenant-open"
                             className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200/80 rounded-lg transition-colors"
                             title="Billing, subscription & access control"
                           >
@@ -283,6 +286,7 @@ export default function AgencyAdminPage() {
                           </Link>
                           <button
                             onClick={() => setBranchModalFor(t)}
+                            data-testid="tenant-add-branch"
                             className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
                             title="Add a new branch to this business"
                           >
@@ -383,6 +387,7 @@ export default function AgencyAdminPage() {
                     required
                     type="text"
                     value={formData.businessName}
+                    data-testid="tenant-onboard-name"
                     onChange={(e) =>
                       setFormData({ ...formData, businessName: e.target.value })
                     }
@@ -414,6 +419,7 @@ export default function AgencyAdminPage() {
                       required
                       type="email"
                       value={formData.ownerEmail}
+                      data-testid="tenant-onboard-email"
                       onChange={(e) =>
                         setFormData({ ...formData, ownerEmail: e.target.value })
                       }
@@ -431,6 +437,7 @@ export default function AgencyAdminPage() {
                       required
                       type="password"
                       value={formData.ownerPassword}
+                      data-testid="tenant-onboard-password"
                       onChange={(e) =>
                         setFormData({
                           ...formData,
@@ -469,6 +476,7 @@ export default function AgencyAdminPage() {
                 <button
                   type="submit"
                   disabled={submitLoading}
+                  data-testid="tenant-onboard-submit"
                   className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
                 >
                   {submitLoading ? "Provisioning..." : "Create Tenant"}
@@ -522,6 +530,7 @@ export default function AgencyAdminPage() {
                   required
                   type="text"
                   value={branchName}
+                  data-testid="tenant-branch-name"
                   onChange={(e) => setBranchName(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   placeholder="e.g. Gulberg Branch"
@@ -552,6 +561,7 @@ export default function AgencyAdminPage() {
                 </button>
                 <button
                   type="submit"
+                  data-testid="tenant-branch-submit"
                   disabled={branchSubmitLoading || !branchName.trim()}
                   className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
