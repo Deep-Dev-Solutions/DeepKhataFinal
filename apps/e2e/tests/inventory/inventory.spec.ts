@@ -82,8 +82,8 @@ test.describe('inventory: products and conditions', () => {
 });
 
 test.describe('inventory: restock', () => {
-  // bug: apps/server/src/inventory/inventory.service.ts:158 selects Vendor.name (field is businessName), so every vendor restock with a cost returns 500.
-  test.fail('restock from a vendor on credit through the UI: stock, movement, VENDOR_PAYABLE and INVENTORY postings', async ({ page, request }) => {
+  // Regression: inventory.service.ts selected Vendor.name (field is businessName), so every vendor restock with a cost returned 500.
+  test('restock from a vendor on credit through the UI: stock, movement, VENDOR_PAYABLE and INVENTORY postings', async ({ page, request }) => {
     const product = await createProduct(request, { price: 800, qty: 1, label: 'Restock' });
     const vendor = await createVendor(request, 'Credit');
 
@@ -132,8 +132,8 @@ test.describe('inventory: restock', () => {
     );
   });
 
-  // bug: apps/server/src/inventory/inventory.service.ts:158 selects Vendor.name (field is businessName), so every vendor restock with a cost returns 500.
-  test.fail('restock paid now posts against CASH, not VENDOR_PAYABLE', async ({ request }) => {
+  // Regression: see vendor field fix above (paid-now path).
+  test('restock paid now posts against CASH, not VENDOR_PAYABLE', async ({ request }) => {
     const product = await createProduct(request, { price: 500, qty: 1, label: 'Cash' });
     const vendor = await createVendor(request, 'Cash');
     const res = await restockApi(request, {
@@ -292,9 +292,8 @@ test.describe('inventory: product import', () => {
     expect(await db.productInstance.count({ where: { serialNumber: { startsWith: `IMP-BAD-${t}` } } })).toBe(0);
   });
 
-  // bug: apps/server/src/products/products.service.ts:887 rows with no name are skipped silently; the response
-  // has no per-row error, so the user is never told which CSV row was rejected.
-  test.fail('a rejected row is reported back with a row error', async ({ request }) => {
+  // Regression: rows with no name used to be skipped silently with no per-row error.
+  test('a rejected row is reported back with a row error', async ({ request }) => {
     const owner = await apiAs('ownerA', request);
     const t = uniq();
     const res = await owner.post('/product/import', {

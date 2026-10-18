@@ -155,7 +155,7 @@ export class InventoryService {
       for (const [vId, { total, refId }] of vendorCosts) {
         const vendor = await tx.vendor.findFirst({
           where: { id: vId, businessId },
-          select: { id: true, name: true },
+          select: { id: true, businessName: true },
         });
         if (!vendor) throw new BadRequestException('Vendor not found');
         if (!M.gt(total, 0)) continue;
@@ -178,7 +178,7 @@ export class InventoryService {
             businessId,
             referenceId: refId ?? undefined,
             type: 'VENDOR_PURCHASE',
-            description: `Restock from ${vendor.name}`,
+            description: `Restock from ${vendor.businessName}`,
             dueDate,
             postings: [
               {

@@ -865,6 +865,7 @@ export class ProductsService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       let importedCount = 0;
+      const errors: { row: number; error: string }[] = [];
 
       const categoriesCache = new Map<string, string>();
       const existingCategories = await tx.category.findMany({
@@ -882,9 +883,32 @@ export class ProductsService {
         {},
       );
 
-      for (const item of productsData) {
+      for (const [index, item] of productsData.entries()) {
+        const row = index + 1;
         const name = item.name || item.Name;
-        if (!name || !name.trim()) continue;
+        if (!name || !String(name).trim()) {
+          errors.push({ row, error: 'Name is required' });
+          continue;
+        }
+
+        // A bad number fails the whole import (one transaction), naming the row.
+        const numericFields: [string, unknown][] = [
+          ['price', item.basePrice ?? item.price],
+          ['stock', item.stock ?? item.quantity],
+          ['cost price', item.defaultCostPrice],
+        ];
+        for (const [label, raw] of numericFields) {
+          if (
+            raw !== undefined &&
+            raw !== null &&
+            raw !== '' &&
+            !Number.isFinite(Number(raw))
+          ) {
+            throw new BadRequestException(
+              `Row ${row}: ${label} must be a number`,
+            );
+          }
+        }
 
         let categoryId: string | null = null;
         const catName = (item.category || item.Category)?.trim();
@@ -988,7 +1012,7 @@ export class ProductsService {
         importedCount++;
       }
 
-      return { importedCount };
+      return { importedCount, errors };
     });
 
     await this.invalidateProducts(businessId);
@@ -997,6 +1021,7 @@ export class ProductsService {
       success: true,
       message: `Successfully imported ${result.importedCount} products`,
       importedCount: result.importedCount,
+      errors: result.errors,
     };
   }
 
