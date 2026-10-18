@@ -4,6 +4,7 @@ import { AppModule } from '../src/app.module';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import express from 'express';
 import cookieParser from 'cookie-parser';
+import { getCorsOrigins } from '../src/config/cors';
 import { installDecimalJson } from '../src/common/money';
 
 installDecimalJson();
@@ -34,12 +35,7 @@ async function bootstrap() {
     app.use(cookieParser());
 
     app.enableCors({
-      origin: [
-        'https://deepkhata.vercel.app',
-        'https://agency-admin-deepkhata.vercel.app',
-        'http://localhost:3000',
-        'http://localhost:3001',
-      ],
+      origin: getCorsOrigins(),
       credentials: true,
       exposedHeaders: ['X-Next-Cursor'],
     });

@@ -1,7 +1,9 @@
 import type { APIRequestContext } from '@playwright/test';
 import { TEST_PASSWORD, users, type RoleKey } from '../fixtures/users';
 
-const API_URL = 'http://localhost:5000';
+import { E2E } from '../env';
+
+const API_URL = E2E.apiUrl;
 const tokens = new Map<string, string>();
 
 export interface ApiOpts {

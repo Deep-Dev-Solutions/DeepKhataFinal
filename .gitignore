@@ -18,3 +18,4 @@ others/*
 **/sw.js
 
 tsconfig.build.tsbuildinfo
+**/.next-e2e*/

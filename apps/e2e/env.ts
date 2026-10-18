@@ -19,3 +19,25 @@ export function getE2eDatabaseUrl(): string {
   }
   return url;
 }
+
+/**
+ * Ports and per-run directories. Defaults match the single local run; set
+ * E2E_API_PORT / E2E_WEB_PORT / E2E_RUN_ID (plus E2E_DATABASE_URL) to run
+ * several suites side by side without sharing servers, DB or auth state.
+ */
+const runId = process.env.E2E_RUN_ID || '';
+const suffix = runId ? `-${runId}` : '';
+export const E2E = {
+  apiPort: Number(process.env.E2E_API_PORT || 5000),
+  webPort: Number(process.env.E2E_WEB_PORT || 3000),
+  get apiUrl() {
+    return `http://localhost:${this.apiPort}`;
+  },
+  get webUrl() {
+    return `http://localhost:${this.webPort}`;
+  },
+  authDir: `.auth${suffix}`,
+  outputDir: `test-results${suffix}`,
+  reportDir: `playwright-report${suffix}`,
+  clientDistDir: runId ? `.next-e2e${suffix}` : '.next',
+};

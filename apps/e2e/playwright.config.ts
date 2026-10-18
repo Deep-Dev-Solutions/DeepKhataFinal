@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 import path from 'node:path';
-import { getE2eDatabaseUrl } from './env';
+import { E2E, getE2eDatabaseUrl } from './env';
 
 const dbUrl = getE2eDatabaseUrl();
 const repoRoot = path.resolve(__dirname, '../..');
@@ -10,10 +10,11 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,
-  reporter: [['list'], ['html', { open: 'never' }]],
+  outputDir: E2E.outputDir,
+  reporter: [['list'], ['html', { open: 'never', outputFolder: E2E.reportDir }]],
   globalSetup: './global-setup.ts',
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: E2E.webUrl,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
@@ -27,21 +28,34 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'npm run build -w server && npm run start:prod -w server',
+      // Parallel runs share one prebuilt server dist: set E2E_SKIP_SERVER_BUILD=1.
+      command: process.env.E2E_SKIP_SERVER_BUILD
+        ? 'npm run start:prod -w server'
+        : 'npm run build -w server && npm run start:prod -w server',
       cwd: repoRoot,
-      url: 'http://localhost:5000/health',
+      url: `${E2E.apiUrl}/health`,
       reuseExistingServer: !process.env.CI,
       timeout: 180000,
-      env: { PORT: '5000', DATABASE_URL: dbUrl, DIRECT_URL: dbUrl },
+      env: {
+        PORT: String(E2E.apiPort),
+        DATABASE_URL: dbUrl,
+        DIRECT_URL: dbUrl,
+        ENABLE_TEST_ENDPOINTS: 'true',
+        CORS_ORIGINS: `${E2E.webUrl},http://localhost:3001`,
+      },
     },
     {
       command: 'npm run dev -w client',
       cwd: repoRoot,
-      url: 'http://localhost:3000',
+      url: E2E.webUrl,
       reuseExistingServer: !process.env.CI,
       timeout: 180000,
       // PORT is loaded from apps/server/.env into process.env; Next would pick it up, so pin it.
-      env: { PORT: '3000', NEXT_PUBLIC_API_URL: 'http://localhost:5000' },
+      env: {
+        PORT: String(E2E.webPort),
+        NEXT_PUBLIC_API_URL: E2E.apiUrl,
+        NEXT_DIST_DIR: E2E.clientDistDir,
+      },
     },
   ],
 });
