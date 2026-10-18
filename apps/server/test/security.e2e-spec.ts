@@ -240,9 +240,11 @@ describe('Phase 1 security regressions (e2e)', () => {
   describe('permission guards', () => {
     let vendorId: string;
     beforeAll(async () => {
-      const vendor = await prisma.vendor.findFirst({ where: { businessId: tenants.A.id } });
-      expect(vendor).not.toBeNull();
-      vendorId = vendor!.id;
+      // Own vendor so payments here never shift seeded vendor balances used by other specs.
+      const vendor = await prisma.vendor.create({
+        data: { businessName: `Security Spec Vendor ${Date.now()}`, businessId: tenants.A.id },
+      });
+      vendorId = vendor.id;
     });
 
     it('lets staff read vendors', async () => {
