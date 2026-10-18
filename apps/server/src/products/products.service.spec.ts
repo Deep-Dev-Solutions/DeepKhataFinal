@@ -4,6 +4,7 @@ import { ProductsService } from './products.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { LedgerService } from '../ledger/ledger.service';
+import { PlanLimitsService } from '../plans/plan-limits.service';
 
 describe('ProductsService', () => {
   let service: ProductsService;
@@ -15,6 +16,7 @@ describe('ProductsService', () => {
         { provide: PrismaService, useValue: {} },
         { provide: RedisService, useValue: {} },
         { provide: LedgerService, useValue: {} },
+        { provide: PlanLimitsService, useValue: {} },
       ],
     }).compile();
 

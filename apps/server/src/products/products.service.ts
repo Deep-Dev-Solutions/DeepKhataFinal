@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { LedgerService } from '../ledger/ledger.service';
 import * as M from '../common/money';
+import { PlanLimitsService } from '../plans/plan-limits.service';
 
 const COST_KEYS = new Set(['defaultCostPrice', 'unitCost']);
 
@@ -68,6 +69,7 @@ export class ProductsService {
     private prisma: PrismaService,
     private redis: RedisService,
     private readonly ledgerService: LedgerService,
+    private readonly planLimits: PlanLimitsService,
   ) {}
 
   // getProducts is no longer cached; this stays as a no-op-safe hook for
@@ -232,6 +234,7 @@ export class ProductsService {
         : null;
 
     const result = await this.prisma.$transaction(async (tx) => {
+      await this.planLimits.assert(businessId, 'products', 1, tx);
       const branch = await this.resolveBranchId(tx, businessId, branchId);
       const targetCabinetId = await this.resolveCabinetId(
         tx,
@@ -863,7 +866,16 @@ export class ProductsService {
       throw new BadRequestException('No products provided for import');
     }
 
+    // Whole-batch capacity check first: rows that will be created (named rows).
+    const creatable = productsData.filter((item) => {
+      const n = item?.name || item?.Name;
+      return n && String(n).trim();
+    }).length;
+
     const result = await this.prisma.$transaction(async (tx) => {
+      if (creatable > 0) {
+        await this.planLimits.assert(businessId, 'products', creatable, tx);
+      }
       let importedCount = 0;
       const errors: { row: number; error: string }[] = [];
 

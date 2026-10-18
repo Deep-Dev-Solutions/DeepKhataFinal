@@ -33,10 +33,12 @@ import { ReservationsModule } from './reservations/reservations.module';
 import { StockTransfersModule } from './stock-transfers/stock-transfers.module';
 import { RemindersModule } from './reminders/reminders.module';
 import { MailModule } from './mail/mail.module';
+import { PlansModule } from './plans/plans.module';
 
 @Module({
   imports: [
     TenantModule,
+    PlansModule,
     ScheduleModule.forRoot(),
     MailModule,
     NotificationsModule,

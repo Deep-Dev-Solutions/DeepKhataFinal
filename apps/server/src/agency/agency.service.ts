@@ -10,6 +10,8 @@ import * as bcrypt from 'bcrypt';
 import * as M from '../common/money';
 import { BusinessStatus, Role } from '@prisma/client';
 import { TenantCacheService } from '../tenant/tenant-cache.service';
+import { PlanLimitsService } from '../plans/plan-limits.service';
+import { SubscriptionsService } from '../plans/subscriptions.service';
 
 const TRIAL_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -24,6 +26,8 @@ export class AgencyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantCache: TenantCacheService,
+    private readonly planLimits: PlanLimitsService,
+    private readonly subscriptions: SubscriptionsService,
   ) {}
 
   async onboardTenant(data: any) {
@@ -99,6 +103,9 @@ export class AgencyService {
             businessId: business.id,
           },
         });
+
+        // Trial plan; also mirrors Business.status/subscriptionExpiresAt.
+        await this.subscriptions.startTrial(business.id, tx);
 
         return { user, business, branch };
       });
@@ -264,6 +271,13 @@ export class AgencyService {
           },
         });
 
+        // Subscription follows the same paid-through date (period end = paymentDate).
+        await this.subscriptions.extend(
+          businessId,
+          { until: paymentDate },
+          tx,
+        );
+
         return { billingLog, updatedBusiness };
       },
     );
@@ -291,6 +305,11 @@ export class AgencyService {
 
     if (!business) {
       throw new NotFoundException(`Business with ID ${businessId} not found`);
+    }
+
+    // The agency is SUPER_ADMIN by definition; exceeding the plan needs an explicit override.
+    if (data?.override !== true) {
+      await this.planLimits.assert(businessId, 'branches');
     }
 
     const branch = await this.prisma.branch.create({
