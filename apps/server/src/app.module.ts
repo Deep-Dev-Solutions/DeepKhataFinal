@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { CustomersModule } from './customers/customers.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
+import { LifecycleModule } from './lifecycle/lifecycle.module';
 import { OrdersModule } from './orders/orders.module';
 import { ProductsModule } from './products/products.module';
 import { ReportsModule } from './reports/reports.module';
@@ -34,11 +35,13 @@ import { StockTransfersModule } from './stock-transfers/stock-transfers.module';
 import { RemindersModule } from './reminders/reminders.module';
 import { MailModule } from './mail/mail.module';
 import { PlansModule } from './plans/plans.module';
+import { BillingModule } from './billing/billing.module';
 
 @Module({
   imports: [
     TenantModule,
     PlansModule,
+    BillingModule,
     ScheduleModule.forRoot(),
     MailModule,
     NotificationsModule,
@@ -59,6 +62,7 @@ import { PlansModule } from './plans/plans.module';
     CustomersModule,
     DashboardModule,
     OnboardingModule,
+    LifecycleModule,
     OrdersModule,
     ProductsModule,
     ReportsModule,
