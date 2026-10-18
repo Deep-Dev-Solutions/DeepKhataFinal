@@ -5,7 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Store, Mail, Lock, ArrowRight } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { API_BASE_URL, AGENCY_APP_URL } from "@/lib/auth";
+import { API_BASE_URL, AGENCY_APP_URL, apiFetch } from "@/lib/auth";
+
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "DeepKhata";
+
+// Staff usernames look like "ali@shop-slug" (no dot after the @); emails have a dotted domain.
+const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -23,10 +28,14 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/login`, {
+      const identifier = email.trim();
+      const credentials = EMAIL_PATTERN.test(identifier)
+        ? { email: identifier, password }
+        : { username: identifier, password };
+      const res = await apiFetch(`${API_BASE_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(credentials),
       });
 
       const data = await res.json();
@@ -43,10 +52,8 @@ export default function LoginPage() {
         throw new Error(errorMsg);
       }
 
-      // 1. Save credentials and hydrate global auth context & cookies
-      if (data?.accessToken) {
-        setSession(data.accessToken, data.user);
-      }
+      // 1. The API set the httpOnly session cookie; hydrate the auth context
+      setSession(data?.user);
 
       // 2. 🟢 SMART ROUTING LOGIC
       if (data?.user?.role === "SUPER_ADMIN") {
@@ -73,7 +80,7 @@ export default function LoginPage() {
             <Store className="w-6 h-6 text-white" />
           </div>
           <span className="text-2xl font-bold tracking-tight text-slate-900">
-            BizFlow
+            {APP_NAME}
           </span>
         </div>
 
@@ -94,7 +101,7 @@ export default function LoginPage() {
                 htmlFor="email"
                 className="block text-sm font-medium text-slate-700"
               >
-                Email address
+                Email or username
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -104,13 +111,14 @@ export default function LoginPage() {
                   id="email"
                   name="email"
                   data-testid="login-email"
-                  type="email"
-                  autoComplete="email"
+                  type="text"
+                  autoComplete="username"
+                  autoCapitalize="none"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-10 sm:text-sm border-slate-300 rounded-xl py-3 text-slate-900 focus:ring-blue-500 focus:border-blue-500 border outline-none transition-colors"
-                  placeholder="you@example.com"
+                  placeholder="you@example.com or ali@your-shop"
                 />
               </div>
             </div>
@@ -160,12 +168,13 @@ export default function LoginPage() {
               </div>
 
               <div className="text-sm">
-                <a
-                  href="#"
+                <Link
+                  href="/forgot-password"
+                  data-testid="login-forgot-link"
                   className="font-medium text-blue-600 hover:text-blue-500 transition-colors"
                 >
                   Forgot password?
-                </a>
+                </Link>
               </div>
             </div>
 

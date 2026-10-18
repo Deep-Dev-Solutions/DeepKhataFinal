@@ -13,11 +13,13 @@ import {
   Wallet,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { API_BASE_URL, getAuthToken } from "@/lib/auth";
+import { API_BASE_URL, apiFetch } from "@/lib/auth";
+
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "DeepKhata";
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { setSession } = useAuth();
+  const { refreshUser } = useAuth();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -26,6 +28,9 @@ export default function OnboardingPage() {
   // Form State
   const [formData, setFormData] = useState({
     businessName: "",
+    city: "",
+    market: "",
+    branchName: "Main Branch",
     industry: "",
     currency: "PKR",
     teamSize: "",
@@ -33,6 +38,8 @@ export default function OnboardingPage() {
     phone: "",
     slug: "",
   });
+  const [loadSampleData, setLoadSampleData] = useState(true);
+  const [acceptTerms, setAcceptTerms] = useState(false);
 
   const updateForm = (key: keyof typeof formData, value: string) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
@@ -44,53 +51,38 @@ export default function OnboardingPage() {
     setIsSubmitting(true);
 
     try {
-      const token = getAuthToken();
-      if (!token) throw new Error("Please log in again");
-
+      const trim = (v: string) => v.trim();
       const payload = {
-        name: formData.businessName,
-        industry: formData.industry,
-        teamSize: formData.teamSize,
-        currency: formData.currency,
-        phone: formData.phone,
-        address: formData.address,
-        slug: formData.slug,
+        shopName: trim(formData.businessName),
+        city: trim(formData.city),
+        ...(trim(formData.market) ? { market: trim(formData.market) } : {}),
+        phone: trim(formData.phone),
+        branchName: trim(formData.branchName) || "Main Branch",
+        loadSampleData,
+        acceptTerms: true as const,
+        ...(formData.industry ? { industry: formData.industry } : {}),
+        ...(formData.teamSize ? { teamSize: formData.teamSize } : {}),
+        ...(formData.currency ? { currency: formData.currency } : {}),
+        ...(trim(formData.address) ? { address: trim(formData.address) } : {}),
+        ...(trim(formData.slug) ? { slug: trim(formData.slug) } : {}),
       };
 
-      const res = await fetch(`${API_BASE_URL}/onboard/onboarding`, {
+      const res = await apiFetch(`${API_BASE_URL}/onboard/onboarding`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Onboarding failed");
-
-      const storedUser = localStorage.getItem("user");
-      let currentUser: any = {};
-      if (storedUser) {
-        try {
-          currentUser = JSON.parse(storedUser);
-        } catch {}
+      if (!res.ok) {
+        const msg = Array.isArray(data?.message)
+          ? data.message.join(", ")
+          : data?.message;
+        throw new Error(msg || "Onboarding failed");
       }
 
-      const updatedUser = {
-        ...currentUser,
-        businessId: data?.business?.id || currentUser.businessId,
-        role: "OWNER",
-      };
-
-      if (data?.accessToken) {
-        setSession(data.accessToken, updatedUser);
-      } else {
-        const existingToken = localStorage.getItem("accessToken");
-        if (existingToken) {
-          setSession(existingToken, updatedUser);
-        }
-      }
+      // The session cookie is unchanged; refresh the profile (now has a business).
+      await refreshUser();
 
       setSuccess(data?.message || "Onboarding successful");
       setIsSubmitting(false);
@@ -148,11 +140,41 @@ export default function OnboardingPage() {
                 </label>
                 <input
                   type="text"
+                  data-testid="onboarding-shop-name"
                   value={formData.businessName}
                   onChange={(e) => updateForm("businessName", e.target.value)}
                   className="w-full border border-slate-300 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                   placeholder="e.g. Al-Fatah Electronics"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    City *
+                  </label>
+                  <input
+                    type="text"
+                    data-testid="onboarding-city"
+                    value={formData.city}
+                    onChange={(e) => updateForm("city", e.target.value)}
+                    className="w-full border border-slate-300 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    placeholder="e.g. Lahore"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Market / Bazaar
+                  </label>
+                  <input
+                    type="text"
+                    data-testid="onboarding-market"
+                    value={formData.market}
+                    onChange={(e) => updateForm("market", e.target.value)}
+                    className="w-full border border-slate-300 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    placeholder="e.g. Hall Road"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -229,12 +251,27 @@ export default function OnboardingPage() {
                   </label>
                   <input
                     type="tel"
+                    data-testid="onboarding-phone"
                     value={formData.phone}
                     onChange={(e) => updateForm("phone", e.target.value)}
                     className="w-full border border-slate-300 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                    placeholder="+92 300 1234567"
+                    placeholder="03XX XXXXXXX"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  First Branch Name *
+                </label>
+                <input
+                  type="text"
+                  data-testid="onboarding-branch-name"
+                  value={formData.branchName}
+                  onChange={(e) => updateForm("branchName", e.target.value)}
+                  className="w-full border border-slate-300 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  placeholder="Main Branch"
+                />
               </div>
 
               <div>
@@ -262,18 +299,18 @@ export default function OnboardingPage() {
 
               <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-4">
                 <p className="text-sm text-blue-800">
-                  BizFlow gives you a public link to share invoices and let
+                  {APP_NAME} gives you a public link to share invoices and let
                   customers place orders directly. Let's claim your unique URL.
                 </p>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Portal URL Slug *
+                  Portal URL Slug (optional)
                 </label>
                 <div className="flex rounded-xl shadow-sm border border-slate-300 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-shadow">
                   <span className="inline-flex items-center px-4 bg-slate-50 text-slate-500 text-sm border-r border-slate-300">
-                    bizflow.com/p/
+                    deepkhata.com/p/
                   </span>
                   <input
                     type="text"
@@ -290,15 +327,57 @@ export default function OnboardingPage() {
                 </div>
               </div>
 
+              <label className="flex items-start gap-3 text-sm text-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  data-testid="onboarding-sample-data"
+                  checked={loadSampleData}
+                  onChange={(e) => setLoadSampleData(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600"
+                />
+                <span>
+                  Load sample data (products, customers and a few udhar
+                  entries) so I can try the app. I can wipe it later.
+                </span>
+              </label>
+
+              <label className="flex items-start gap-3 text-sm text-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  data-testid="onboarding-accept-terms"
+                  checked={acceptTerms}
+                  onChange={(e) => setAcceptTerms(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600"
+                />
+                <span>I accept the Terms of Service and Privacy Policy. *</span>
+              </label>
+
               {/* Real-time preview */}
               {formData.slug && (
                 <div className="flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 p-3 rounded-lg border border-emerald-100">
                   <CheckCircle2 className="w-4 h-4" />
                   Your portal will be live at{" "}
-                  <strong>bizflow.com/p/{formData.slug}</strong>
+                  <strong>deepkhata.com/p/{formData.slug}</strong>
                 </div>
               )}
             </div>
+          )}
+
+          {error && (
+            <p
+              data-testid="onboarding-error"
+              className="mt-4 text-sm text-rose-600 font-medium"
+            >
+              {error}
+            </p>
+          )}
+          {success && (
+            <p
+              data-testid="onboarding-success"
+              className="mt-4 text-sm text-emerald-600 font-medium"
+            >
+              {success}
+            </p>
           )}
 
           {/* 🟢 NAVIGATION BUTTONS */}
@@ -318,8 +397,11 @@ export default function OnboardingPage() {
 
             {step < 3 ? (
               <button
+                data-testid="onboarding-next"
                 onClick={() => setStep(step + 1)}
-                disabled={!formData.businessName && step === 1}
+                disabled={
+                  step === 1 && (!formData.businessName.trim() || !formData.city.trim())
+                }
                 className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium bg-slate-900 text-white hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Next Step
@@ -327,8 +409,14 @@ export default function OnboardingPage() {
               </button>
             ) : (
               <button
+                data-testid="onboarding-submit"
                 onClick={handleComplete}
-                disabled={!formData.slug || isSubmitting}
+                disabled={
+                  !acceptTerms ||
+                  !formData.phone.trim() ||
+                  !formData.branchName.trim() ||
+                  isSubmitting
+                }
                 className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 disabled:opacity-50"
               >
                 {isSubmitting ? "Provisioning Workspace..." : "Go to Dashboard"}

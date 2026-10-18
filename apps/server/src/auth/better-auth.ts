@@ -132,6 +132,7 @@ const lockoutAfter = createAuthMiddleware(async (ctx) => {
 const baseURL =
   process.env.BETTER_AUTH_URL || `http://localhost:${process.env.PORT || 5000}`;
 const cookieDomain = process.env.COOKIE_DOMAIN || undefined;
+const isProduction = process.env.NODE_ENV === 'production';
 
 export const auth = betterAuth({
   appName: process.env.APP_NAME || 'DeepKhata',
@@ -178,6 +179,13 @@ export const auth = betterAuth({
   advanced: {
     database: { generateId: () => randomUUID() },
     ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER] },
+    // Session cookie is read by the Next middlewares (existence check only).
+    useSecureCookies: isProduction,
+    defaultCookieAttributes: {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: isProduction,
+    },
     ...(cookieDomain
       ? { crossSubDomainCookies: { enabled: true, domain: cookieDomain } }
       : {}),

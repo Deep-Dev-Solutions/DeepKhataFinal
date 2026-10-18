@@ -11,7 +11,7 @@ import BranchesTab from "@/components/settings/BranchesTab";
 import NotificationsTab from "@/components/settings/NotificationsTab";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Loader2, AlertCircle } from "lucide-react";
-import { API_BASE_URL } from "@/lib/auth";
+import { API_BASE_URL, apiFetch, getAuthHeaders } from "@/lib/auth";
 
 function SettingsPageContent() {
   const searchParams = useSearchParams();
@@ -43,16 +43,12 @@ function SettingsPageContent() {
   useEffect(() => {
     const fetchSettingsData = async () => {
       try {
-        const token = localStorage.getItem("accessToken");
-        const headers = {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        };
+        const headers = getAuthHeaders();
 
         // Fetch Profile & Business simultaneously for speed
         const [profileRes, businessRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/settings/profileinfo`, { headers }),
-          fetch(`${API_BASE_URL}/settings/businessinfo`, { headers }),
+          apiFetch(`${API_BASE_URL}/settings/profileinfo`, { headers }),
+          apiFetch(`${API_BASE_URL}/settings/businessinfo`, { headers }),
         ]);
 
         const profileData = await profileRes.json();

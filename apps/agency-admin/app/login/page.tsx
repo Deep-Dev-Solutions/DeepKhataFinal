@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/lib/api";
-import { CLIENT_APP_URL, API_BASE_URL } from "@/lib/auth";
+import { CLIENT_APP_URL, API_BASE_URL, apiFetch } from "@/lib/auth";
 
 export default function AgencyLoginPage() {
   const router = useRouter();
@@ -30,7 +30,7 @@ export default function AgencyLoginPage() {
   useEffect(() => {
     const checkBackend = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/health`, { method: "GET" });
+        const res = await apiFetch(`${API_BASE_URL}/health`, { method: "GET" });
         if (res.ok) {
           setBackendStatus("connected");
         } else {
@@ -51,13 +51,11 @@ export default function AgencyLoginPage() {
 
     try {
       const result = await api.post<{
-        accessToken?: string;
         user?: { id?: string; name?: string; email?: string; role?: string };
       }>("/auth/agency-login", { email, password });
 
-      if (result?.accessToken) {
-        setSession(result.accessToken, result.user);
-      }
+      // The API set the httpOnly session cookie; hydrate the auth context.
+      setSession(result?.user);
 
       router.push("/");
     } catch (err: unknown) {
