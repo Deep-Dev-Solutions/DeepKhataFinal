@@ -6,14 +6,14 @@ import {
   Req,
 } from '@nestjs/common';
 import { ReportsService } from './reports.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SessionGuard } from '../auth/guards/session.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { BranchId } from '../auth/decorators/branch-id.decorator';
 
 @Controller('reports')
-@UseGuards(ThrottlerGuard, JwtAuthGuard, PermissionsGuard)
+@UseGuards(ThrottlerGuard, SessionGuard, PermissionsGuard)
 @RequirePermissions('read:reports')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}

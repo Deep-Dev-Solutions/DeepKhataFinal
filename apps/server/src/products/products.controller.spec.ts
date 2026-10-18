@@ -5,7 +5,7 @@ import { ProductsService } from './products.service';
 import { CategoryService } from '../category/category.service';
 import { CabinetService } from '../cabinet/cabinet.service';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SessionGuard } from '../auth/guards/session.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 
@@ -23,7 +23,7 @@ describe('ProductsController', () => {
     })
       .overrideGuard(ThrottlerGuard)
       .useValue({ canActivate: () => true })
-      .overrideGuard(JwtAuthGuard)
+      .overrideGuard(SessionGuard)
       .useValue({ canActivate: () => true })
       .overrideGuard(PermissionsGuard)
       .useValue({ canActivate: () => true })

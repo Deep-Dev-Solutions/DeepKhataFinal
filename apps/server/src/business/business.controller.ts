@@ -1,8 +1,8 @@
 import { Controller, Get, Req, UseGuards } from '@nestjs/common';
 import { BusinessService } from './business.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SessionGuard } from '../auth/guards/session.guard';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(SessionGuard)
 @Controller('businessinfo')
 export class BusinessController {
   constructor(private readonly businessService: BusinessService) {}

@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { TenantContext } from './tenant.types';
 
-/** Resolves the validated tenant context set by JwtAuthGuard (req.tenant). */
+/** Resolves the validated tenant context set by SessionGuard (req.tenant). */
 export const Tenant = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): TenantContext => {
     const request = ctx.switchToHttp().getRequest();

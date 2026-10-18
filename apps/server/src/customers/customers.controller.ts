@@ -11,13 +11,13 @@ import {
   Req,
 } from '@nestjs/common';
 import { CustomersService } from './customers.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SessionGuard } from '../auth/guards/session.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { ThrottlerGuard } from '@nestjs/throttler';
 
 @Controller('customer')
-@UseGuards(ThrottlerGuard, JwtAuthGuard, PermissionsGuard)
+@UseGuards(ThrottlerGuard, SessionGuard, PermissionsGuard)
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 

@@ -2,7 +2,7 @@ import { Controller, Post, Body, Res, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import type { Request, Response } from 'express';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { SessionGuard } from './guards/session.guard';
 
 @Controller('auth')
 @UseGuards(ThrottlerGuard)
@@ -29,7 +29,7 @@ export class AuthController {
   }
 
   @Post('logout')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(SessionGuard)
   async logout(@Req() req: any, @Res() res: Response) {
     return this.authService.logout(req.session, res);
   }

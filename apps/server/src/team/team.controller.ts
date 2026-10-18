@@ -12,7 +12,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { TeamService } from './team.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SessionGuard } from '../auth/guards/session.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
@@ -25,7 +25,7 @@ export class TeamController {
   constructor(private readonly teamService: TeamService) {}
 
   @Post('invite')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(SessionGuard, PermissionsGuard)
   @RequirePermissions('manage:team')
   async inviteStaff(@Req() req: any, @Body() body: any) {
     let businessId: string | null | undefined = req.user.businessId;
@@ -58,49 +58,49 @@ export class TeamController {
   }
 
   @Get('activemembers')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(SessionGuard, PermissionsGuard)
   @RequirePermissions('manage:team')
   async activeMembersTeam(@Req() req: any) {
     return this.teamService.activeMembers(req.user.id);
   }
 
   @Get('active')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(SessionGuard, PermissionsGuard)
   @RequirePermissions('manage:team')
   async activeMembers(@Req() req: any) {
     return this.teamService.activeMembers(req.user.id);
   }
 
   @Get('pendinginvites')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(SessionGuard, PermissionsGuard)
   @RequirePermissions('manage:team')
   async pendingInvitesTeam(@Req() req: any) {
     return this.teamService.pendingInvites(req.user.id);
   }
 
   @Get('pending')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(SessionGuard, PermissionsGuard)
   @RequirePermissions('manage:team')
   async pendingInvites(@Req() req: any) {
     return this.teamService.pendingInvites(req.user.id);
   }
 
   @Patch('updaterole')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(SessionGuard, PermissionsGuard)
   @RequirePermissions('manage:team')
   async updateRolePatch(@Req() req: any, @Body() body: any) {
     return this.teamService.updateRole(req.user.id, body);
   }
 
   @Put('role')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(SessionGuard, PermissionsGuard)
   @RequirePermissions('manage:team')
   async updateRole(@Req() req: any, @Body() body: any) {
     return this.teamService.updateRole(req.user.id, body);
   }
 
   @Delete('removemember')
-  @UseGuards(JwtAuthGuard, PermissionsGuard, RolesGuard)
+  @UseGuards(SessionGuard, PermissionsGuard, RolesGuard)
   @Roles('OWNER')
   @RequirePermissions('manage:team')
   async removeMemberTeam(@Req() req: any, @Body() body: any) {
@@ -108,7 +108,7 @@ export class TeamController {
   }
 
   @Delete('remove')
-  @UseGuards(JwtAuthGuard, PermissionsGuard, RolesGuard)
+  @UseGuards(SessionGuard, PermissionsGuard, RolesGuard)
   @Roles('OWNER')
   @RequirePermissions('manage:team')
   async removeMember(@Req() req: any, @Body() body: any) {
@@ -116,21 +116,21 @@ export class TeamController {
   }
 
   @Post('resendinvite')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(SessionGuard, PermissionsGuard)
   @RequirePermissions('manage:team')
   async resendInviteTeam(@Req() req: any, @Body() body: any) {
     return this.teamService.resendInvite(req.user.id, body);
   }
 
   @Post('resend-invite')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(SessionGuard, PermissionsGuard)
   @RequirePermissions('manage:team')
   async resendInvite(@Req() req: any, @Body() body: any) {
     return this.teamService.resendInvite(req.user.id, body);
   }
 
   @Delete('cancelinvite')
-  @UseGuards(JwtAuthGuard, PermissionsGuard, RolesGuard)
+  @UseGuards(SessionGuard, PermissionsGuard, RolesGuard)
   @Roles('OWNER')
   @RequirePermissions('manage:team')
   async cancelInviteTeam(@Req() req: any, @Body() body: any) {
@@ -138,7 +138,7 @@ export class TeamController {
   }
 
   @Delete('cancel-invite')
-  @UseGuards(JwtAuthGuard, PermissionsGuard, RolesGuard)
+  @UseGuards(SessionGuard, PermissionsGuard, RolesGuard)
   @Roles('OWNER')
   @RequirePermissions('manage:team')
   async cancelInvite(@Req() req: any, @Body() body: any) {

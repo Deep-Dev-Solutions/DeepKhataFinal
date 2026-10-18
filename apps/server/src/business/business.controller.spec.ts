@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BusinessController } from './business.controller';
 import { BusinessService } from './business.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SessionGuard } from '../auth/guards/session.guard';
 
 describe('BusinessController', () => {
   let controller: BusinessController;
@@ -14,7 +14,7 @@ describe('BusinessController', () => {
         { provide: BusinessService, useValue: {} },
       ],
     })
-      .overrideGuard(JwtAuthGuard)
+      .overrideGuard(SessionGuard)
       .useValue({ canActivate: () => true })
       .compile();
 

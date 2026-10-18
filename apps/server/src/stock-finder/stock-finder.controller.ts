@@ -1,6 +1,6 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SessionGuard } from '../auth/guards/session.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { Tenant } from '../tenant/tenant.decorator';
@@ -9,7 +9,7 @@ import { StockFindQueryDto } from './stock-finder.dto';
 import { StockFinderService } from './stock-finder.service';
 
 @Controller('stock')
-@UseGuards(ThrottlerGuard, JwtAuthGuard, PermissionsGuard)
+@UseGuards(ThrottlerGuard, SessionGuard, PermissionsGuard)
 export class StockFinderController {
   constructor(private readonly stockFinder: StockFinderService) {}
 

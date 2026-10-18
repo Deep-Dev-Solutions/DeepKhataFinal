@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { CustomersController } from './customers.controller.js';
 import { CustomersService } from './customers.service';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SessionGuard } from '../auth/guards/session.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 
 describe('CustomersController', () => {
@@ -18,7 +18,7 @@ describe('CustomersController', () => {
     })
       .overrideGuard(ThrottlerGuard)
       .useValue({ canActivate: () => true })
-      .overrideGuard(JwtAuthGuard)
+      .overrideGuard(SessionGuard)
       .useValue({ canActivate: () => true })
       .overrideGuard(PermissionsGuard)
       .useValue({ canActivate: () => true })

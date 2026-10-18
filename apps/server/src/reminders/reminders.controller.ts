@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SessionGuard } from '../auth/guards/session.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Tenant } from '../tenant/tenant.decorator';
@@ -16,7 +16,7 @@ import { RemindersService } from './reminders.service';
 import { RunRemindersDto } from './dto/run-reminders.dto';
 
 @Controller('reminders')
-@UseGuards(ThrottlerGuard, JwtAuthGuard, RolesGuard)
+@UseGuards(ThrottlerGuard, SessionGuard, RolesGuard)
 export class RemindersController {
   constructor(private readonly reminders: RemindersService) {}
 

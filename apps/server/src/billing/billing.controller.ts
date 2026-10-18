@@ -15,7 +15,7 @@ import {
 import { Role } from '@prisma/client';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Response } from 'express';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SessionGuard } from '../auth/guards/session.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { BillingService } from './billing.service';
@@ -36,7 +36,7 @@ function sendPdf(res: Response, file: { filename: string; buffer: Buffer }): Str
 }
 
 /** SUPER_ADMIN acting on a tenant: businessId comes from the body/param and is validated to exist. */
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(SessionGuard, RolesGuard)
 @Roles(Role.SUPER_ADMIN)
 @Controller('agency/billing')
 export class BillingController {

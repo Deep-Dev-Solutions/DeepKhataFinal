@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DashboardController } from './dashboard.controller.js';
 import { DashboardService } from './dashboard.service';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SessionGuard } from '../auth/guards/session.guard';
 
 describe('DashboardController', () => {
   let controller: DashboardController;
@@ -17,7 +17,7 @@ describe('DashboardController', () => {
     })
       .overrideGuard(ThrottlerGuard)
       .useValue({ canActivate: () => true })
-      .overrideGuard(JwtAuthGuard)
+      .overrideGuard(SessionGuard)
       .useValue({ canActivate: () => true })
       .compile();
 

@@ -8,7 +8,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { CashService } from './cash.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SessionGuard } from '../auth/guards/session.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { ThrottlerGuard } from '@nestjs/throttler';
@@ -18,7 +18,7 @@ import { CloseRegisterDto } from './dto/close-register.dto';
 import { BranchId } from '../auth/decorators/branch-id.decorator';
 
 @Controller('cash')
-@UseGuards(ThrottlerGuard, JwtAuthGuard, PermissionsGuard)
+@UseGuards(ThrottlerGuard, SessionGuard, PermissionsGuard)
 export class CashController {
   constructor(private readonly cashService: CashService) {}
 

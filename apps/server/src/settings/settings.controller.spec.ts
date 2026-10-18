@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { SettingsController } from './settings.controller.js';
 import { SettingsService } from './settings.service';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SessionGuard } from '../auth/guards/session.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 
 describe('SettingsController', () => {
@@ -18,7 +18,7 @@ describe('SettingsController', () => {
     })
       .overrideGuard(ThrottlerGuard)
       .useValue({ canActivate: () => true })
-      .overrideGuard(JwtAuthGuard)
+      .overrideGuard(SessionGuard)
       .useValue({ canActivate: () => true })
       .overrideGuard(RolesGuard)
       .useValue({ canActivate: () => true })
