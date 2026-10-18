@@ -116,7 +116,6 @@ test.describe.serial('I: team - invite, accept, role change, removal', () => {
   });
 
   test('role change is effective on the staff member\'s already-issued token', async ({ request }) => {
-    test.fail(true, 'Role is baked into the JWT (jwt.strategy.ts validate); per-user revocation/refresh lands in Phase 6');
     // Token issued while the user was still STAFF: take a token, demote, change, compare.
     const owner = await apiAs('ownerA', request);
     await owner.patch('/team/updaterole', { email: staffEmail, role: 'STAFF' });
@@ -170,7 +169,6 @@ test.describe.serial('I: team - invite, accept, role change, removal', () => {
   });
 
   test('removed member\'s token is rejected with 401/403 (not a 400 from a missing user row)', async ({ request }) => {
-    test.fail(true, 'JWT stays structurally valid after user deletion; guard does not check the user exists (per-user revocation lands in Phase 6)');
     const res = await request.get(`${E2E.apiUrl}/customer/getallcustomers`, {
       headers: { Authorization: `Bearer ${removedMemberToken}` },
     });

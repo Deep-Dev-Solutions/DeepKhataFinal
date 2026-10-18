@@ -62,7 +62,7 @@ test.describe('A: role matrix UI - denied pages (staffA)', () => {
 
 test.describe('A: role matrix API', () => {
   const cases: { name: string; method: 'get' | 'post'; path: string; body?: unknown; allowed: Record<string, boolean>; bug?: Partial<Record<string, string>> }[] = [
-    { name: 'reports', method: 'get', path: '/reports/financial', allowed: { ownerA: true, managerA: true, staffA: false }, bug: { managerA: 'reports.controller.ts @Roles(OWNER, SUPER_ADMIN) blocks MANAGER although permissions.ts grants read:reports and the sidebar shows Reports to managers' } },
+    { name: 'reports', method: 'get', path: '/reports/financial', allowed: { ownerA: true, managerA: true, staffA: false } },
     { name: 'dues list', method: 'get', path: '/dues', allowed: { ownerA: true, managerA: true, staffA: false } },
     { name: 'dues summary', method: 'get', path: '/dues/summary', allowed: { ownerA: true, managerA: true, staffA: false } },
     { name: 'team members', method: 'get', path: '/team/activemembers', allowed: { ownerA: true, managerA: false, staffA: false } },
