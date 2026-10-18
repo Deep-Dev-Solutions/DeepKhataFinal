@@ -6,6 +6,7 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import { getCorsOrigins } from '../src/config/cors';
 import { installDecimalJson } from '../src/common/money';
+import { mountAuth } from '../src/auth/mount-auth';
 
 installDecimalJson();
 
@@ -22,6 +23,7 @@ async function bootstrap() {
     const app = await NestFactory.create(
       AppModule,
       new ExpressAdapter(expressApp),
+      { bodyParser: false },
     );
 
     app.useGlobalPipes(
@@ -40,6 +42,7 @@ async function bootstrap() {
       credentials: true,
       exposedHeaders: ['X-Next-Cursor'],
     });
+    mountAuth(app);
 
     await app.init();
     cachedApp = expressApp;

@@ -1,6 +1,5 @@
 import { INestApplication } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
-import { JwtService } from '@nestjs/jwt';
 import request from 'supertest';
 import { createTestApp, closeTestApp } from './setup/app';
 import { authHeader, users, tenants } from './setup/auth';
@@ -64,12 +63,9 @@ describe('Phase 1 security regressions (e2e)', () => {
     return { ...reg, token: login.body.accessToken as string, businessId: dbUser!.businessId! };
   }
 
-  describe('K1 hardcoded JWT secret', () => {
-    it('rejects a token forged with the old default secret', async () => {
-      const forged = new JwtService({}).sign(
-        { id: users.ownerA.id, role: 'OWNER', businessId: tenants.A.id },
-        { secret: 'hellosecretaccesstoken1122', expiresIn: '1h' },
-      );
+  describe('K1 forged credentials', () => {
+    it('rejects a forged bearer token (no matching session)', async () => {
+      const forged = `forged-${uniq()}-${'x'.repeat(32)}`;
       await http()
         .get('/customer/getallcustomers')
         .set('Authorization', `Bearer ${forged}`)
@@ -198,19 +194,14 @@ describe('Phase 1 security regressions (e2e)', () => {
       return token;
     }
 
-    it('persists a revocation row for the logged-out token', async () => {
+    it('removes the session row of the logged-out token', async () => {
       const token = await loginOwner();
-      const jti = new JwtService({}).decode(token)?.jti as string;
-      expect(jti).toBeTruthy();
+      expect(await prisma.session.findUnique({ where: { token } })).not.toBeNull();
       const out = await http().post('/auth/logout').set('Authorization', `Bearer ${token}`);
       expect(out.status).toBeLessThan(300);
-      expect(await prisma.revokedToken.findUnique({ where: { jti } })).not.toBeNull();
+      expect(await prisma.session.findUnique({ where: { token } })).toBeNull();
     });
 
-    // Known bug: JwtAuthGuard on the logout request itself calls
-    // TenantCacheService.isRevoked(jti), which caches "not revoked" for 5 s, and
-    // AuthService.logout never invalidates that entry. The token therefore keeps
-    // working for up to 5 s after logout even though the DB row exists.
     it('rejects the same token immediately after logout', async () => {
       const token = await loginOwner();
       await http().get('/customer/getallcustomers').set('Authorization', `Bearer ${token}`).expect(200);

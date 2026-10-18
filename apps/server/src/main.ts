@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import { getCorsOrigins } from './config/cors';
 import * as dotenv from 'dotenv';
 import { installDecimalJson } from './common/money';
+import { mountAuth } from './auth/mount-auth';
 
 dotenv.config();
 installDecimalJson();
@@ -13,7 +14,9 @@ let cachedApp: any;
 
 async function bootstrapServer() {
   if (!cachedApp) {
-    const app = await NestFactory.create(AppModule);
+    // Better Auth reads the raw body, so Nest's own body parser is replaced by
+    // mountAuth(), which mounts /api/auth/* first and the JSON parsers after it.
+    const app = await NestFactory.create(AppModule, { bodyParser: false });
 
     app.useGlobalPipes(
       new ValidationPipe({
@@ -31,6 +34,7 @@ async function bootstrapServer() {
 
     app.getHttpAdapter().getInstance().set('trust proxy', process.env.TRUST_PROXY || 'loopback');
     app.use(cookieParser());
+    mountAuth(app);
 
     await app.init();
     cachedApp = app.getHttpAdapter().getInstance();

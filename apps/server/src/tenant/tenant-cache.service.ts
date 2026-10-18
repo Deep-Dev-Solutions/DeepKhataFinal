@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { BusinessStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -13,6 +14,9 @@ export interface BusinessStatusInfo {
 export interface UserAuthInfo {
   role: Role;
   businessId: string | null;
+  banned: boolean;
+  banExpires: Date | null;
+  deactivatedAt: Date | null;
 }
 
 const USER_TTL_MS = 30_000;
@@ -37,9 +41,12 @@ export class TenantCacheService {
     Entry<Set<string>> & { loadedAt: number }
   >();
   private readonly users = new Map<string, Entry<UserAuthInfo | null>>();
-  private readonly revoked = new Map<string, Entry<boolean>>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // SubscriptionsService depends on this service, so it is resolved lazily.
+    private readonly moduleRef: ModuleRef,
+  ) {}
 
   async getBusinessStatus(
     businessId: string,
@@ -48,13 +55,22 @@ export class TenantCacheService {
     const hit = this.businesses.get(businessId);
     if (hit && hit.expiresAt > now) return hit.value;
 
-    const row = await this.prisma.business.findUnique({
-      where: { id: businessId },
-      select: { status: true, subscriptionExpiresAt: true },
-    });
-    const value = row
-      ? { status: row.status, subscriptionExpiresAt: row.subscriptionExpiresAt }
-      : null;
+    let value: BusinessStatusInfo | null = null;
+    try {
+      // Imported lazily: subscriptions.service imports this file (cycle).
+      const { SubscriptionsService: Subs } = await import(
+        '../plans/subscriptions.service'
+      );
+      const eff = await this.moduleRef
+        .get(Subs, { strict: false })
+        .getEffectiveStatus(businessId, new Date(now));
+      value = {
+        status: eff.status,
+        subscriptionExpiresAt: eff.subscriptionExpiresAt,
+      };
+    } catch (e) {
+      if (!(e instanceof NotFoundException)) throw e;
+    }
     this.businesses.set(businessId, {
       value,
       expiresAt: now + (value ? TTL_MS : NEGATIVE_TTL_MS),
@@ -97,9 +113,23 @@ export class TenantCacheService {
 
     const row = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { role: true, businessId: true },
+      select: {
+        role: true,
+        businessId: true,
+        banned: true,
+        banExpires: true,
+        deactivatedAt: true,
+      },
     });
-    const value = row ? { role: row.role, businessId: row.businessId } : null;
+    const value = row
+      ? {
+          role: row.role,
+          businessId: row.businessId,
+          banned: !!row.banned,
+          banExpires: row.banExpires,
+          deactivatedAt: row.deactivatedAt,
+        }
+      : null;
     this.users.set(userId, {
       value,
       expiresAt: now + (value ? USER_TTL_MS : NEGATIVE_TTL_MS),
@@ -122,35 +152,5 @@ export class TenantCacheService {
 
   invalidateBranches(businessId: string): void {
     this.branches.delete(businessId);
-  }
-
-  /** Record a revocation locally so this process rejects the token at once. */
-  markRevoked(jti: string): void {
-    this.revoked.set(jti, { value: true, expiresAt: Date.now() + TTL_MS });
-  }
-
-  async isRevoked(jti: string): Promise<boolean> {
-    const now = Date.now();
-    const hit = this.revoked.get(jti);
-    if (hit && hit.expiresAt > now) return hit.value;
-
-    const row = await this.prisma.revokedToken.findUnique({
-      where: { jti },
-      select: { jti: true },
-    });
-    const value = !!row;
-    // Revocations are permanent for the token's life; negatives expire fast.
-    this.revoked.set(jti, {
-      value,
-      expiresAt: now + (value ? TTL_MS : NEGATIVE_TTL_MS),
-    });
-    if (this.revoked.size > 10_000) this.sweepRevoked(now);
-    return value;
-  }
-
-  private sweepRevoked(now: number): void {
-    for (const [k, v] of this.revoked) {
-      if (v.expiresAt <= now) this.revoked.delete(k);
-    }
   }
 }

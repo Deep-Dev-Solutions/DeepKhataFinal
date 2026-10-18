@@ -3,6 +3,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import { AppModule } from '../../src/app.module.js';
 import { installDecimalJson } from '../../src/common/money';
+import { mountAuth } from '../../src/auth/mount-auth';
 
 installDecimalJson();
 
@@ -11,7 +12,7 @@ export async function createTestApp(): Promise<INestApplication> {
     imports: [AppModule],
   }).compile();
 
-  const app = moduleRef.createNestApplication();
+  const app = moduleRef.createNestApplication({ bodyParser: false });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -20,6 +21,7 @@ export async function createTestApp(): Promise<INestApplication> {
     }),
   );
   app.use(cookieParser());
+  mountAuth(app);
   await app.init();
   return app;
 }

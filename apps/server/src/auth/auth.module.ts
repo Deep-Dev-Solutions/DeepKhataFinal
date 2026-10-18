@@ -2,25 +2,13 @@ import { Module, Global } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { UserController } from './user.controller';
-import { JwtModule } from '@nestjs/jwt';
-import { PassportModule } from '@nestjs/passport';
-import { JwtStrategy } from './strategies/jwt.strategy';
-import { assertJwtSecrets, getAccessTokenSecret } from './jwt-secrets';
+import { AuthSessionsService } from './auth-sessions.service';
+import { SessionGuard } from './guards/session.guard';
 
 @Global()
 @Module({
-  imports: [
-    PassportModule.register({ defaultStrategy: 'jwt' }),
-    JwtModule.registerAsync({
-      global: true,
-      useFactory: () => {
-        assertJwtSecrets();
-        return { secret: getAccessTokenSecret() };
-      },
-    }),
-  ],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, AuthSessionsService, SessionGuard],
   controllers: [AuthController, UserController],
-  exports: [AuthService, JwtStrategy, JwtModule, PassportModule],
+  exports: [AuthService, AuthSessionsService, SessionGuard],
 })
 export class AuthModule {}
