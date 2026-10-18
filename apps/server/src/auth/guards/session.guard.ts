@@ -13,6 +13,7 @@ import { ALLOW_WITHOUT_BUSINESS_KEY } from '../../tenant/allow-without-business.
 import { TenantContext } from '../../tenant/tenant.types';
 import { authDb } from '../auth-db';
 import { auth } from '../better-auth';
+import { getUserBranchAccess } from '../branch-access';
 
 const READ_ONLY_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const ACTIVITY_THROTTLE_MS = 5 * 60 * 1000;
@@ -132,6 +133,14 @@ export class SessionGuard implements CanActivate {
       !(await this.tenantCache.isBranchInBusiness(user.businessId, branchId))
     ) {
       throw new ForbiddenException('Invalid branch');
+    }
+
+    // (e2) Branch-restricted members may only act on their assigned branches.
+    if (branchId && user.role !== Role.OWNER) {
+      const access = await getUserBranchAccess(user.id);
+      if (access && !access.allBranches && !access.branchIds.has(branchId)) {
+        throw new ForbiddenException('No access to this branch');
+      }
     }
 
     // (f) Expose the validated tenant context.

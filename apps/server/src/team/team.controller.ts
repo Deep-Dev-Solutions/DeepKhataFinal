@@ -12,6 +12,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { TeamService } from './team.service';
+import { InviteStaffDto } from './dto/team.dto';
 import { SessionGuard } from '../auth/guards/session.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -27,7 +28,7 @@ export class TeamController {
   @Post('invite')
   @UseGuards(SessionGuard, PermissionsGuard)
   @RequirePermissions('manage:team')
-  async inviteStaff(@Req() req: any, @Body() body: any) {
+  async inviteStaff(@Req() req: any, @Body() body: InviteStaffDto) {
     let businessId: string | null | undefined = req.user.businessId;
     if (!businessId) {
       const dbUser = await this.teamService.getUserBusinessId(req.user.id);
@@ -38,7 +39,12 @@ export class TeamController {
     }
     return this.teamService.inviteStaff(
       { id: req.user.id, role: req.user.role, businessId },
-      { email: body?.email, role: body?.role },
+      {
+        email: body.email,
+        role: body.role,
+        allBranches: body.allBranches,
+        branchIds: body.branchIds,
+      },
     );
   }
 

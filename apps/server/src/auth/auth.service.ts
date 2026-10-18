@@ -10,11 +10,13 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import type { Request, Response } from 'express';
-import { isAPIError } from 'better-auth/api';
+import { createEmailVerificationToken, isAPIError } from 'better-auth/api';
 import { fromNodeHeaders } from 'better-auth/node';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthSessionsService } from './auth-sessions.service';
+import { sendVerificationMail } from './auth-mail';
+import type { RegisterDto } from './dto/register.dto';
 import {
   auth,
   CLIENT_IP_HEADER,
@@ -51,11 +53,12 @@ export class AuthService {
     }
   }
 
-  async register(data: any, req?: Request) {
-    const { name, email, password } = data;
+  async register(data: RegisterDto, req?: Request) {
+    const { name, password, phone } = data;
+    const email = data.email.trim().toLowerCase();
 
     const existinguser = await this.prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
+      where: { email },
     });
 
     if (existinguser) {
@@ -66,7 +69,7 @@ export class AuthService {
 
     const newUser = await this.prisma.$transaction(async (tx) => {
       const created = await tx.user.create({
-        data: { name, email: email.toLowerCase() },
+        data: { name, email, phone: phone?.trim() || null, emailVerified: false },
       });
       await tx.account.create({
         data: {
@@ -85,8 +88,42 @@ export class AuthService {
       userAgent: req?.headers['user-agent'],
     });
 
+    await this.sendVerification(newUser);
+
     const { password: _, ...userWithoutPassword } = newUser;
     return { user: userWithoutPassword, accessToken: token };
+  }
+
+  /** Mails a fresh 24 h verification link; mail failures never fail the caller. */
+  private async sendVerification(user: {
+    email: string;
+    name: string;
+  }): Promise<void> {
+    try {
+      const ctx = await auth.$context;
+      const token = await createEmailVerificationToken(
+        ctx.secret,
+        user.email,
+        undefined,
+        60 * 60 * 24,
+      );
+      await sendVerificationMail(user, token);
+    } catch {
+      // MailService already logs and retries delivery failures.
+    }
+  }
+
+  async resendVerification(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, name: true, emailVerified: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.emailVerified) {
+      throw new BadRequestException('Email is already verified');
+    }
+    await this.sendVerification(user);
+    return { success: true, message: 'Verification email sent' };
   }
 
   /**
@@ -109,7 +146,9 @@ export class AuthService {
     headers.set(CLIENT_IP_HEADER, ip);
     if (opts.requiredRole) headers.set(REQUIRE_ROLE_HEADER, opts.requiredRole);
 
-    const { email, username, password } = data ?? {};
+    const { email, username: rawUsername, password } = data ?? {};
+    const username =
+      typeof rawUsername === 'string' ? rawUsername.trim() : rawUsername;
     let out;
     try {
       out =

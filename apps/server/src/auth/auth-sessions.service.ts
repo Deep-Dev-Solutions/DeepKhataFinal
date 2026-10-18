@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TenantCacheService } from '../tenant/tenant-cache.service';
 import { bindAuthDb } from './auth-db';
 import { assertAuthSecret, auth } from './better-auth';
+import { invalidateUserBranches } from './branch-access';
 
 export interface SessionRequestInfo {
   ip?: string | null;
@@ -23,6 +24,7 @@ export class AuthSessionsService {
   async revokeAllForUser(userId: string): Promise<void> {
     await this.prisma.session.deleteMany({ where: { userId } });
     this.tenantCache.invalidateUser(userId);
+    invalidateUserBranches(userId);
   }
 
   /** Ends one session by its token (logout). */

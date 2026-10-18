@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import type { Request, Response } from 'express';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { SessionGuard } from './guards/session.guard';
+import { RegisterDto } from './dto/register.dto';
 
 @Controller('auth')
 @UseGuards(ThrottlerGuard)
@@ -10,8 +11,14 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  async register(@Body() body: any, @Req() req: Request) {
+  async register(@Body() body: RegisterDto, @Req() req: Request) {
     return this.authService.register(body, req);
+  }
+
+  @Post('resend-verification')
+  @UseGuards(SessionGuard)
+  async resendVerification(@Req() req: any) {
+    return this.authService.resendVerification(req.user.id);
   }
 
   @Post('login')

@@ -7,6 +7,7 @@ import { APIError, createAuthMiddleware, isAPIError } from 'better-auth/api';
 import { admin, bearer, username } from 'better-auth/plugins';
 import { adminAc, userAc } from 'better-auth/plugins/admin/access';
 import { getCorsOrigins } from '../config/cors';
+import { sendResetPasswordMail, sendVerificationMail } from './auth-mail';
 import { authDb, authDbProxy } from './auth-db';
 import {
   checkLockout,
@@ -33,6 +34,9 @@ export function assertAuthSecret(): void {
     );
   }
 }
+
+/** Staff usernames look like "<handle>@<business-slug>" (stored lowercase). */
+const USERNAME_PATTERN = /^[a-z0-9._-]{1,40}@[a-z0-9-]{1,60}$/i;
 
 const SIGN_IN_PATHS = new Set(['/sign-in/email', '/sign-in/username']);
 
@@ -100,6 +104,18 @@ const lockoutAfter = createAuthMiddleware(async (ctx) => {
     }
   }
 
+  // Deactivated or banned members cannot open a session, even with the right password.
+  const standing = await db.user.findUnique({
+    where: { id: userId },
+    select: { deactivatedAt: true, banned: true, banExpires: true },
+  });
+  const bannedNow =
+    !!standing?.banned && (!standing.banExpires || standing.banExpires > new Date());
+  if (standing?.deactivatedAt || bannedNow) {
+    await ctx.context.internalAdapter.deleteSession(sessionToken);
+    raise(401, 'Account deactivated. Contact your shop owner.');
+  }
+
   await resetFailedAttempts(db, ip, who);
 
   // Kill switch: suspended businesses cannot sign in at all.
@@ -127,11 +143,23 @@ export const auth = betterAuth({
     enabled: true,
     // Accounts are created server-side (register, invite, onboarding, agency).
     disableSignUp: true,
+    // Unverified owners may log in; only team creation is gated (TeamService).
     requireEmailVerification: false,
+    resetPasswordTokenExpiresIn: 60 * 60,
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: async ({ user, token }: { user: { email?: string; name: string }; token: string }) => {
+      await sendResetPasswordMail(user, token);
+    },
     password: {
       hash: (password: string) => bcrypt.hash(password, 10),
       verify: ({ hash, password }: { hash: string; password: string }) =>
         bcrypt.compare(password, hash),
+    },
+  },
+  emailVerification: {
+    expiresIn: 60 * 60 * 24,
+    sendVerificationEmail: async ({ user, token }: { user: { email?: string; name: string }; token: string }) => {
+      await sendVerificationMail(user, token);
     },
   },
   session: {
@@ -155,7 +183,11 @@ export const auth = betterAuth({
       : {}),
   },
   plugins: [
-    username(),
+    username({
+      minUsernameLength: 3,
+      maxUsernameLength: 120,
+      usernameValidator: (value: string) => USERNAME_PATTERN.test(value),
+    }),
     admin({
       roles: {
         SUPER_ADMIN: adminAc,

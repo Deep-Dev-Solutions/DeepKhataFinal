@@ -13,6 +13,13 @@ import { AuthSessionsService } from '../auth/auth-sessions.service';
 import { RedisService } from '../redis/redis.service';
 import { TenantCacheService } from '../tenant/tenant-cache.service';
 import { PlanLimitsService } from '../plans/plan-limits.service';
+import { invalidateUserBranches } from '../auth/branch-access';
+import { randomUUID } from 'node:crypto';
+import {
+  assertBranchesInBusiness,
+  assertOwnerVerified,
+  resolveAccess,
+} from './team-access';
 
 const INVITE_TTL_MS = 72 * 60 * 60 * 1000;
 
@@ -36,9 +43,15 @@ export class TeamService {
 
   async inviteStaff(
     inviter: { id: string; role: Role; businessId: string },
-    data: { email: string; role: Role },
+    data: {
+      email: string;
+      role: Role;
+      allBranches?: boolean;
+      branchIds?: string[];
+    },
   ) {
-    const { email, role } = data;
+    const role = data.role;
+    const email = data.email?.trim().toLowerCase();
     const businessId = inviter.businessId;
     if (!email || !role || !businessId)
       throw new BadRequestException('Missing required fields');
@@ -56,7 +69,15 @@ export class TeamService {
       );
     }
 
+    await assertOwnerVerified(this.prisma, inviter);
     await this.planLimits.assert(businessId, 'users');
+
+    // Only specific branches are stored; no ids means access to every branch.
+    const access = resolveAccess({
+      allBranches: data.allBranches,
+      branchIds: data.branchIds,
+    });
+    await assertBranchesInBusiness(this.prisma, businessId, access.branchIds);
 
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
@@ -74,7 +95,14 @@ export class TeamService {
 
     const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
     await this.prisma.invitation.create({
-      data: { email, role, businessId, token, expiresAt },
+      data: {
+        email,
+        role,
+        businessId,
+        token,
+        expiresAt,
+        branchIds: access.branchIds,
+      },
     });
 
     await sendInviteEmail(
@@ -141,8 +169,24 @@ export class TeamService {
     // The invitation itself is still in the table, so it is not counted here.
     await this.planLimits.assert(invitation.businessId, 'users', 0);
 
+    const hashPassword = await bcrypt.hash(password, 10);
     const result = await this.prisma.$transaction(async (tx) => {
-      const hashPassword = await bcrypt.hash(password, 10);
+      // Branches deleted since the invite was sent are dropped.
+      const branches = invitation.branchIds.length
+        ? await tx.branch.findMany({
+            where: {
+              businessId: invitation.businessId,
+              deletedAt: null,
+              id: { in: invitation.branchIds },
+            },
+            select: { id: true },
+          })
+        : [];
+      if (invitation.branchIds.length > 0 && branches.length === 0) {
+        throw new BadRequestException(
+          'The branches in this invitation no longer exist. Ask the owner to send a new invite.',
+        );
+      }
       const newUser = await tx.user.create({
         data: {
           name,
@@ -150,12 +194,30 @@ export class TeamService {
           password: hashPassword,
           role: invitation.role,
           businessId: invitation.businessId,
+          // The invite link was delivered to this address.
+          emailVerified: true,
+          allBranches: branches.length === 0,
         },
       });
+      await tx.account.create({
+        data: {
+          id: randomUUID(),
+          accountId: newUser.id,
+          providerId: 'credential',
+          userId: newUser.id,
+          password: hashPassword,
+        },
+      });
+      if (branches.length > 0) {
+        await tx.userBranch.createMany({
+          data: branches.map((b) => ({ userId: newUser.id, branchId: b.id })),
+        });
+      }
       await tx.invitation.delete({ where: { id: invitation.id } });
       return newUser;
     });
 
+    invalidateUserBranches(result.id);
     const { token: accessToken } = await this.authSessions.createSessionFor(
       result.id,
     );
