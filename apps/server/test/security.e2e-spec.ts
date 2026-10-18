@@ -35,8 +35,11 @@ describe('Phase 1 security regressions (e2e)', () => {
   function onboardingBody(extra: Record<string, unknown> = {}) {
     const u = uniq();
     return {
-      name: `Sec Biz ${u}`,
+      shopName: `Sec Biz ${u}`,
       slug: `sec-biz-${u}`,
+      city: 'Lahore',
+      branchName: 'Main Branch',
+      acceptTerms: true,
       industry: 'Electronics',
       teamSize: '1-5',
       currency: 'PKR',

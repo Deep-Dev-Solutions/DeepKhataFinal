@@ -8,10 +8,17 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import * as M from '../common/money';
-import { BusinessStatus, Role } from '@prisma/client';
+import { BusinessStatus, Role, SubscriptionStatus } from '@prisma/client';
 import { TenantCacheService } from '../tenant/tenant-cache.service';
 import { PlanLimitsService } from '../plans/plan-limits.service';
 import { SubscriptionsService } from '../plans/subscriptions.service';
+import {
+  SignupsQueryDto,
+  TasksQueryDto,
+  UpdateSignupDto,
+  UpdateTaskDto,
+} from '../lifecycle/dto/agency-signups.dto';
+import { daysBetween } from '../common/dates';
 
 const TRIAL_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -209,9 +216,17 @@ export class AgencyService {
       );
     }
 
-    await this.prisma.business.update({
-      where: { id: businessId },
-      data: { status: status as BusinessStatus },
+    // The kill switch reads the Subscription, so its status moves together with
+    // Business.status. Dates are left alone: an agency status change is not a renewal.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.subscription.updateMany({
+        where: { businessId },
+        data: { status: status as SubscriptionStatus },
+      });
+      await tx.business.update({
+        where: { id: businessId },
+        data: { status: status as BusinessStatus },
+      });
     });
     this.tenantCache.invalidateBusiness(businessId);
 
@@ -323,5 +338,112 @@ export class AgencyService {
     this.tenantCache.invalidateBranches(businessId);
 
     return { message: 'Branch provisioned successfully', branch };
+  }
+
+  /** Signup feed for the agency: newest first, with owner contact and trial days left. */
+  async getSignups(query: SignupsQueryDto) {
+    const now = new Date();
+    const businesses = await this.prisma.business.findMany({
+      where: {
+        ...(query.status ? { followUpStatus: query.status } : {}),
+        ...(query.from || query.to
+          ? {
+              createdAt: {
+                ...(query.from ? { gte: new Date(query.from) } : {}),
+                ...(query.to ? { lte: new Date(query.to) } : {}),
+              },
+            }
+          : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+      select: {
+        id: true,
+        name: true,
+        city: true,
+        market: true,
+        source: true,
+        phone: true,
+        createdAt: true,
+        followUpStatus: true,
+        followUpNotes: true,
+        owner: { select: { name: true, email: true, phone: true } },
+        subscription: {
+          select: { status: true, trialEndsAt: true, plan: { select: { code: true } } },
+        },
+      },
+    });
+    return businesses.map((b) => {
+      const trialEndsAt = b.subscription?.trialEndsAt ?? null;
+      const onTrial = b.subscription?.status === 'TRIALING';
+      return {
+        businessId: b.id,
+        businessName: b.name,
+        ownerName: b.owner.name,
+        ownerEmail: b.owner.email,
+        phone: b.phone ?? b.owner.phone ?? null,
+        city: b.city,
+        market: b.market,
+        source: b.source,
+        createdAt: b.createdAt,
+        followUpStatus: b.followUpStatus,
+        followUpNotes: b.followUpNotes,
+        subscriptionStatus: b.subscription?.status ?? null,
+        trialEndsAt,
+        trialDaysLeft:
+          onTrial && trialEndsAt ? Math.max(0, daysBetween(now, trialEndsAt)) : null,
+      };
+    });
+  }
+
+  async updateSignup(businessId: string, body: UpdateSignupDto) {
+    const exists = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true },
+    });
+    if (!exists) throw new NotFoundException('Business not found');
+    const updated = await this.prisma.business.update({
+      where: { id: businessId },
+      data: {
+        ...(body.followUpStatus !== undefined
+          ? { followUpStatus: body.followUpStatus }
+          : {}),
+        ...(body.followUpNotes !== undefined
+          ? { followUpNotes: body.followUpNotes }
+          : {}),
+      },
+      select: { id: true, followUpStatus: true, followUpNotes: true },
+    });
+    return {
+      businessId: updated.id,
+      followUpStatus: updated.followUpStatus,
+      followUpNotes: updated.followUpNotes,
+    };
+  }
+
+  async getTasks(query: TasksQueryDto) {
+    return this.prisma.agencyTask.findMany({
+      where: query.status ? { status: query.status } : {},
+      orderBy: [{ dueAt: 'asc' }, { createdAt: 'asc' }],
+      take: 500,
+      include: {
+        business: {
+          select: { id: true, name: true, phone: true, city: true, market: true },
+        },
+      },
+    });
+  }
+
+  async completeTask(id: string, body: UpdateTaskDto) {
+    const task = await this.prisma.agencyTask.findUnique({ where: { id } });
+    if (!task) throw new NotFoundException('Task not found');
+    return this.prisma.agencyTask.update({
+      where: { id },
+      data: {
+        status: 'DONE',
+        doneAt: task.doneAt ?? new Date(),
+        ...(body.notes !== undefined ? { notes: body.notes } : {}),
+      },
+    });
   }
 }
