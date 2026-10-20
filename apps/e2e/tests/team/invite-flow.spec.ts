@@ -86,7 +86,9 @@ test.describe.serial('I: team - invite, accept, role change, removal', () => {
     for (const hidden of ['reports', 'dues', 'settings']) {
       await expect(page.getByTestId(`nav-${hidden}`)).toHaveCount(0);
     }
-    const token = await page.evaluate(() => localStorage.getItem('accessToken'));
+    const cookies = await ctx.cookies();
+    const sessionCookie = cookies.find((c) => c.name.includes('session_token'));
+    const token = sessionCookie ? decodeURIComponent(sessionCookie.value).split('.')[0] : '';
     const denied = await request.get(`${E2E.apiUrl}/reports/financial`, { headers: { Authorization: `Bearer ${token}` } });
     expect(denied.status()).toBe(403);
     const allowed = await request.get(`${E2E.apiUrl}/customer/getallcustomers`, { headers: { Authorization: `Bearer ${token}` } });

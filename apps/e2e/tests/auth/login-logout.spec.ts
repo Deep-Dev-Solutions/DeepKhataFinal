@@ -18,8 +18,10 @@ test.describe('A: login / logout', () => {
     await expect(page).toHaveURL(/\/dashboard$/, { timeout: 60_000 });
     await expect(page.getByTestId('sidebar-root')).toBeVisible();
 
-    const token = await page.evaluate(() => localStorage.getItem('accessToken'));
-    expect(token).toBeTruthy();
+    const cookies = await page.context().cookies();
+    const sessionCookie = cookies.find((c) => c.name.includes('session_token'));
+    expect(sessionCookie).toBeTruthy();
+    const token = decodeURIComponent(sessionCookie!.value).split('.')[0];
     const me = await request.get(`${E2E.apiUrl}/customer/getallcustomers`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -27,7 +29,12 @@ test.describe('A: login / logout', () => {
 
     await page.getByTestId('sidebar-logout').click();
     await expect(page).toHaveURL(/\/login/);
-    await expect.poll(() => page.evaluate(() => localStorage.getItem('accessToken'))).toBeNull();
+    await expect
+      .poll(async () => {
+        const c = await page.context().cookies();
+        return c.find((x) => x.name.includes('session_token') && x.value);
+      })
+      .toBeFalsy();
 
     // The token that was live before logout must be rejected by the API (jti revoked).
     const after = await request.get(`${E2E.apiUrl}/customer/getallcustomers`, {
@@ -44,7 +51,9 @@ test.describe('A: login / logout', () => {
     await uiLogin(page, users.staffA.email, 'definitely-wrong-password');
     await expect(page.getByTestId('login-error')).toContainText(/invalid email or password/i);
     await expect(page).toHaveURL(/\/login/);
-    expect(await page.evaluate(() => localStorage.getItem('accessToken'))).toBeNull();
+    const cookies = await page.context().cookies();
+    const sessionCookie = cookies.find((c) => c.name.includes('session_token') && c.value);
+    expect(sessionCookie).toBeFalsy();
   });
 
   test('unknown email gets the same generic error (no account enumeration)', async ({ page }) => {
