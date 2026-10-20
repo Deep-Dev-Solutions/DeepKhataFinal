@@ -1,110 +1,115 @@
-# Run: Phases 4 + 5 (Lena/Dena reminders + Stock finder)
+# Run: Phases 1-5 (unblock, bug bash, correctness, VPS artifacts, Lena/Dena, Stock finder)
 
-Status: DRAFT task graph prepared by Claude on 2026-10-11 from a code audit.
-The orchestrator must confirm it against fresh scout maps, adjust, then ask the user once to approve.
+Status: task graph confirmed by 4 scouts on 2026-10-11 (maps in `scouts-1-5.md`). Branch `phase-4-5-dues-stockfinder` from `final-fixes` (b350413).
+Local stack for this worktree: Postgres on **5433** (host 5432 is taken by a non-docker Postgres), Mailpit 1025/8025, `apps/server/.env` local only. Never use the main checkout's `.env` (points at Supabase).
 
-## Facts already verified (paste into briefs; don't re-scout these)
+## Facts (verified; corrections to the draft marked ✱)
 
-- Branch: `final-fixes`. Server is NestJS 12 + Prisma 6 (Float money today). Client is Next 16 (read `node_modules/next/dist/docs/` before Next changes).
-- Ledger: `LedgerService.createBalancedTransaction(dto)` in `apps/server/src/ledger/ledger.service.ts` (balance check `|sum| > 0.001` rejects). Account types in use: `REVENUE`, `ASSET` (cash/bank), `CUSTOMER_AR` (accountId = customerId), `VENDOR_PAYABLE` (accountId = vendorId), `INVENTORY`.
-- Credit sales: `OrdersService.newOrder` (`orders.service.ts:55`), postings built in `postDoubleEntrySequence` (`:290`); customer payments in `recordPayment` (`:742`). Orders carry `paymentStatus` (UNPAID/PARTIAL/PAID) and `payments[]`.
-- Vendor credit: there is **no bill model**. A purchase is a `Transaction` with `type: 'VENDOR_PURCHASE'` (`vendors.service.ts:353`); payments are `type: 'VENDOR_PAYMENT'` (`:402`). Vendor balance = sum of `VENDOR_PAYABLE` postings.
-- Cross-branch stock today: `GET /products/global-stock` → `ProductsService.getGlobalStock` (`products.service.ts:406`), UI `components/modals/GlobalStockLookupModal.tsx`. No transfer feature exists (`/products/move-stock` is only for deleted branches).
-- Command palette entries: array in `apps/client/src/components/dashboard/Header.tsx` (~lines 35-130, `keywords: string[]`). A `Bell` icon exists in Header (~line 550) but is static.
-- Sidebar nav: `apps/client/src/components/dashboard/Sidebar.tsx` lines 33-59.
-- Settings notifications placeholder: `apps/client/src/components/settings/NotificationsTab.tsx` (836 bytes, "coming soon").
-- Module registry: `apps/server/src/app.module.ts`. Permissions: `apps/server/src/config/permissions.ts`.
-- Seed users and tenants: `apps/e2e/fixtures/users.ts` (GM Traders with branches Hafeez Centre and Hall Road; Shahzaib Electronics for isolation).
+- Ledger: `LedgerService.createBalancedTransaction(dto)` ledger.service.ts:9-20, float sum, tolerance 0.001. Accounts: REVENUE, ASSET/CASH, CUSTOMER_AR (accountId=customerId), VENDOR_PAYABLE (accountId=vendorId), INVENTORY.
+- Orders: newOrder :55-270, postDoubleEntrySequence :290, recordPayment :742, processReturn :864. ✱ Ledger postings run after the order tx (non-atomic); product lookup :115-117 has no businessId; header branchId trusted :161; count-then-update stock race.
+- Vendor credit: no bill model; VENDOR_PURCHASE (vendors.service.ts:375) and VENDOR_PAYMENT (:424) written with prisma directly. ✱ `inventory.restock` posts no ledger at all (credit restock creates no payable). ✱ vendors and cash controllers have JwtAuthGuard only.
+- Stock: getGlobalStock products.service.ts:406 (route `GET product/global-stock`). No transfer feature. ✱ No general product update endpoint (only `PATCH product/updateprice/:id`); import is a JSON body, no CSV parser.
+- ✱ No command palette / Ctrl+K: Header.tsx `searchIndex` :42-132 (`{keywords,label,description,href,icon}`) is the palette. Bell :545-554 uses mock data.
+- ✱ No branch-manager concept (User has no branchId). ✱ `@nestjs/schedule` not installed.
+- ✱ ItemCondition exists only in the baseline migration and the client TS union, not in schema.prisma; no UI selects it.
+- ✱ data-testid count in client: 0. apps/e2e has only fixtures/users.ts.
+- ✱ Two customer balance definitions (getAllCustomers orders-minus-payments incl. CANCELLED vs posting-based).
 
 ## Design decisions (fixed for this run)
 
-- Payables due dates: add `dueDate DateTime?` to `Transaction`, set only for `VENDOR_PURCHASE`. Open amount per vendor uses FIFO: payments settle the oldest purchases first. Aging uses each purchase's unsettled remainder.
-- Receivables: `Order.dueDate`, open amount = `totalAmount - discount - sum(payments)`.
-- KhataEntry postings:
-  - RECEIVABLE create: Dr `CUSTOMER_AR` (customer) or `OTHER_AR` (accountId = entry id) / Cr `ASSET` (cash lent out).
-  - PAYABLE create: Dr `ASSET` (cash received) / Cr `VENDOR_PAYABLE` (vendor) or `OTHER_AP`.
-  - Settle receivable: Dr `ASSET` / Cr the AR account. Settle payable: Dr the AP account / Cr `ASSET`.
-  - Write-off receivable: Dr `BAD_DEBT_EXPENSE` / Cr the AR account (owner only).
-  - Flag for the user: if the informal entry was goods rather than cash, the counter-account differs. For now an optional `counterAccount` field (`ASSET` default, `REVENUE` allowed) handles it.
-- New money columns are `Decimal @db.Decimal(14,2)` even though old ones are Float (Phase 2 migrates the rest). Convert at the ledger boundary with `Number(decimal.toFixed(2))` until Phase 2.
-- Scheduler: `@nestjs/schedule`, every 15 minutes, Asia/Karachi. Idempotency: unique `NotificationLog(ruleKey, entityId, fireDate)`.
-- Search: enable `pg_trgm`; a generated `search_text` column on Product (name, sku, partNumber, aliases, compatibleWith) with a GIN trigram index.
-- Staff responses never include cost fields (`unitCost`, `defaultCostPrice`).
+1. **Baseline**: `0000_baseline` is regenerated from the current `final-fixes` schema.prisma (assumed to be what production was `db push`ed from), then `0001_restore_item_condition` adds ItemCondition back (ProductInstance.condition default ORIGINAL_PULL, InventoryMovement.fromCondition?, toCondition default ORIGINAL_PULL). The user verifies Supabase matches before `migrate resolve --applied 0000_baseline`.
+2. **One schema task (S1)** carries every model change for phases 1-5.
+3. **Money**: Phase 2 runs before P4/P5 features, so all money is `Decimal(14,2)` and server code uses `src/common/money.ts`. API JSON emits money as **numbers rounded to 2 dp** (one `Prisma.Decimal.prototype.toJSON` override installed at bootstrap) so the client needs no rewrite now; strings deferred to Phase 9.
+4. **Ledger** `createBalancedTransaction(dto, tx?)`: Decimal sum must be exactly 0; called inside the caller's `$transaction`.
+5. **Tenancy**: global `TenantGuard` sets `req.tenant = {businessId, branchId}` from the JWT + validated `x-branch-id` (60 s cache). New modules use `@Tenant()`. Refactoring existing services off `requireBusinessId` is deferred (perf only).
+6. **K7**: access tokens get a `jti`; logout writes `RevokedToken`; JwtAuthGuard rejects revoked jti.
+7. **Notifications** fan out one row per recipient (`userId` required). "Managers of a branch" = all OWNER+MANAGER users of the business; `Notification.branchId` records the branch.
+8. **Dues entities**: `entityType` ∈ `ORDER | KHATA_ENTRY | VENDOR_PURCHASE` (Transaction id). Vendor open amounts FIFO. Promise and snooze are `PromiseToPay` rows with `kind` PROMISE|SNOOZE. Manual reminders in `DueReminder`.
+9. **KhataEntry postings** as in the draft (OTHER_AR / OTHER_AP accountId = entry id, BAD_DEBT_EXPENSE for write-off, `counterAccount` ASSET|REVENUE).
+10. **Stock**: InstanceStatus gains `RESERVED` and `IN_TRANSIT`; existing AVAILABLE counts exclude them automatically. InventoryMovement gains `branchId?`. Transfers log OUT+IN movements with referenceType TRANSFER.
+11. **Search**: `pg_trgm` via `postgresqlExtensions`; `Product.searchText` column kept by a DB trigger; GIN trigram indexes on searchText, name, sku.
+12. **Scheduler** runs in-process (`@nestjs/schedule`); valid on the VPS, not on Vercel.
+13. Out of scope (production): running deploys, R2, DNS, Cloudflare smoke Worker, Supabase rehearsal, deleting vercel.json/api/index.ts.
 
-## Task graph (draft)
+## Task graph
 
-Legend: Q = quick-implementer (haiku), I = implementer (sonnet), T = test-writer (sonnet), O = orchestrator (opus).
+Agents: Q quick-implementer (haiku), I implementer (sonnet), T test-writer (sonnet), O orchestrator.
 
-### Wave 0: unblock (sequential)
+| Wave | Id | Task | Agent | Depends | Routing reason |
+| --- | --- | --- | --- | --- | --- |
+| 0a | W0.1 | Baseline regen + 0001_restore_item_condition | I | - | migration |
+| 0a | W0.3 | Redis optional (no-op w/o REDIS_URL, lazyConnect, SCAN, try/catch) | I | - | error-handling logic |
+| 0a | W0.5 | K1-K3: no JWT fallback (fail fast), onboarding auth + req.user, team invite from req.user, limit counts invites | I | - | auth/tenancy |
+| 0b | W0.2 | seed.ts matches schema (conditions, category key) | I | W0.1 | data invariants in 1.2k-line script |
+| 0b | F1 | K5 sync: per-item results, UPDATE_ORDER_STATUS, client per-item status | I | - | idempotency across client+server |
+| 0b | W0.7 | Root CLAUDE.md, server AGENTS.md rewrite, ci.yml | Q | - | content pasted, no logic |
+| 0c | W0.4 | apps/e2e workspace, config, helpers, smoke spec | T | W0.2 | test harness |
+| 0c | W0.6 | API test harness on deepkhata_test | T | W0.2 | test harness |
+| 0c | D1 | Dockerfiles x3, Next standalone, compose.prod, Caddyfile, deploy/.env.example | I | - | multi-stage build judgment |
+| 1 | S1 | Schema+migrations for P1-P5 | I | W0.2 | migration (Opus reviews SQL) |
+| 1 | TID1 | testids: login, Sidebar, Header, settings/team | Q | - | mechanical attrs |
+| 1 | TID2 | testids: POS new order, CheckoutDrawer, invoice, orders list/returns | Q | - | mechanical attrs |
+| 2 | M1 | money.ts, Decimal toJSON, ledger Decimal+tx, verify-ledger.ts | I | S1 | money |
+| 2 | M1b | orders.service Decimal + atomic ledger + tenant/branch/race fixes | I | S1 (M1 interface) | money+tenancy |
+| 2 | M2 | Decimal: vendors, cash, customers, inventory, products services | I | S1 | money |
+| 2b | M3 | Decimal: dashboard, reports, agency, sync, leftovers | I | M1 | money |
+| 2b | TID3 | testids: cash, customers, vendors | Q | - | mechanical |
+| 2b | TID4 | testids: products, restock, cabinets, agency-admin | Q | - | mechanical |
+| 3 | G1 | TenantGuard + @Tenant + branch cache + kill-switch cache + revoked jti | I | M* | auth/tenancy |
+| 3 | F2 | K7 logout, K8 APP_NAME, K9 register, PermissionsGuard on vendors/cash | I | M* | auth |
+| 3 | P25 | getProducts rewrite (paginated, groupBy, trigram, no cache) | I | M2 | query perf |
+| 4 | A1 | NotificationsModule | I | S1,G1 | service+settings logic |
+| 4 | A2 | KhataEntriesModule | I | M1,G1 | ledger postings |
+| 4 | B1 | StockFinderModule | I | P25 | ranked search query |
+| 5 | A3 | DuesModule (summary, list, FIFO, promise, reminded, wa link) | I | A1,A2 | money aggregation |
+| 5 | A4 | RemindersJob scheduler | I | A1,A3 | scheduler/idempotency |
+| 5 | B2 | Reservations + transfers (+ expiry job) | I | A1,B1 | stock state machine |
+| 6 | E1 | orders: dueDate, reserved block/convert, minSalePrice guard | I | A3,B2 | money/auth |
+| 6 | E2 | vendors purchase dueDate; credit restock posts VENDOR_PURCHASE | I | M2 | ledger |
+| 6 | E3 | product fields in create/import, PATCH product/:id, instance photo/notes | I | M2 | DTO+service |
+| 7 | C1 | /dues page | I | A3 | React state |
+| 7 | C2 | QuickKhataModal | I | A2 | form logic |
+| 7 | C3 | NotificationBell | I | A1 | polling state |
+| 8 | C4 | Settings → Notifications | I | A1 | form state |
+| 8 | C5 | /stock-finder + waiting view + reserve/request | I | B1,B2 | React state |
+| 8 | C6 | Dashboard widgets: Aaj wasooli/dena, transfers inbox | I | A3,B2 | data widgets |
+| 9 | C7 | Product form fields + EditProductModal | I | E3 | form state |
+| 9 | C8 | Checkout due date + min-price error + reservation sell | I | E1 | checkout logic |
+| 9 | D2 | bootstrap.sh, backup, deploy.yml, MIGRATION.md, CORS_ORIGINS/cookies | I | D1 | security config |
+| 10 | T0 | API: security regressions (K1-K3,K7,K9, perms) | T | F2 | tests |
+| 10 | T1 | API: P4 (aging, ledger, idempotency, promise, wa, isolation) | T | A4 | tests |
+| 10 | T2 | API: P5 (ranking, no cost for STAFF, reservation, transfer, isolation) | T | B2,E1 | tests |
+| 11 | T3 | API: P2 (rounding, verify-ledger, branch 403, products counts) | T | P25 | tests |
+| 11 | T4 | E2E dues flow | T | C1-C3 | tests |
+| 11 | T5 | E2E stock finder + min price | T | C5,C8 | tests |
+| 12 | TE1 | E2E suites A auth/tenancy, I team, J agency | T | TID* | tests |
+| 12 | TE2 | E2E suites B POS, C galla, F returns | T | TID* | tests |
+| 12 | TE3 | E2E suites D khata, E inventory, G offline, H billing | T | TID* | tests |
+| 13 | FIX* | Triage into BUGS.md, fix S1→S4 (tasks created from failures) | I | 12 | per bug |
+| 13 | BENCH | seed --large, apps/bench k6 script, results | I | P25 | data gen + perf |
+| 14 | CLOSE | full lint/build/API/E2E x3, STATUS.md | O+verifier | all | - |
 
-| Id | Task | Agent | OWNS | Acceptance |
-| --- | --- | --- | --- | --- |
-| W0.1 | Reconcile schema with the baseline migration and seed per the user's item-condition decision; regenerate the baseline from the final `schema.prisma` and add a follow-up migration if needed | I | `apps/server/prisma/schema.prisma`, `prisma/migrations/**` | `npm run db:reset` then `npx prisma migrate status` clean |
-| W0.2 | Make `seed.ts` match the schema and run green | I | `apps/server/prisma/seed.ts` | `npm run db:reset && npm run db:seed` exits 0 |
-| W0.3 | Redis optional (no-op without `REDIS_URL`, `lazyConnect`, 500 ms timeout, `SCAN` instead of `KEYS`) | I | `apps/server/src/redis/redis.service.ts` | `REDIS_URL= npm run build -w server` + server boots without Redis |
-| W0.4 | `apps/e2e` workspace: `package.json`, `playwright.config.ts` (setup project with storageState per role, chromium project, webServer for API + client on test DB), `helpers/api.ts`, `helpers/db.ts`, `helpers/ledger.ts`, `tests/smoke.spec.ts` (each role reaches the dashboard) | I | `apps/e2e/**` (except fixtures) | `npm run test:e2e -- tests/smoke.spec.ts` |
-| W0.5 | Security K1-K3: remove JWT fallback secret (fail fast at boot); `/onboard/onboarding` requires auth and uses `req.user.id`; `/team/invite` takes businessId from `req.user` | I | `jwt.strategy.ts`, `onboarding.controller.ts`, `onboarding.service.ts`, `team.controller.ts`, `team.service.ts` | API test proving each hole is closed |
-
-### Wave 1: one schema change for both phases
-
-| Id | Task | Agent | OWNS | Acceptance |
-| --- | --- | --- | --- | --- |
-| S1 | Migration `p4_p5_dues_stockfinder`: `Order.dueDate`; `Transaction.dueDate`; `Business.defaultReceivableDays (7)`, `defaultPayableDays (15)`; `Customer.paymentTermsDays?`; models `KhataEntry`, `PromiseToPay`, `Notification`, `NotificationSetting`, `NotificationLog`; Product `partNumber`, `aliases String[]`, `compatibleWith String[]`, `minSalePrice Decimal?`, `lowStockThreshold Int?`, generated `search_text` + trigram index; ProductInstance `photoUrl`, `notes`; models `StockReservation`, `StockTransferRequest` + items; `pg_trgm` extension; all indexes on `(businessId, ...)` | I | `schema.prisma`, `prisma/migrations/**` | `npm run db:reset && npm run db:seed && npx prisma migrate status` |
-
-### Wave 2: server core (3 parallel writers)
-
-| Id | Task | Agent | OWNS | Depends |
-| --- | --- | --- | --- | --- |
-| A1 | `NotificationsModule`: service `notify({businessId, userId?, type, title, body, link, entityType?, entityId?})`, `GET /notifications`, `POST /notifications/read`, `GET/PUT /notification-settings` with defaults from the phase 4 rules table | I | `src/notifications/**` | S1 |
-| A2 | `KhataEntriesModule`: create, update, settle (partial), write-off, using the posting rules above | I | `src/khata-entries/**` | S1 |
-| B1 | `StockFinderModule`: `GET /stock/find?q=` ranked by exact partNumber > trigram similarity; per-branch counts; own-branch cabinet locations; last 5 sold prices; no cost fields for STAFF | I | `src/stock-finder/**` | S1 |
-
-Orchestrator after the wave: register modules in `app.module.ts`; add `read:dues`, `manage:dues`, `read:stock-finder`, `manage:transfers` to `permissions.ts`.
-
-### Wave 3: server features (3 parallel)
-
-| Id | Task | Agent | OWNS | Depends |
-| --- | --- | --- | --- | --- |
-| A3 | `DuesModule`: `GET /dues/summary`, `GET /dues` (orders + VENDOR_PURCHASE FIFO + khata entries), promise endpoint, `reminded` endpoint, `whatsapp-link` builder with 03xx→923xx normalisation and Roman Urdu/English templates | I | `src/dues/**` | A1, A2 |
-| A4 | Scheduler: install `@nestjs/schedule`, a `RemindersJob` evaluating every rule key, idempotent via NotificationLog, calling `NotificationsService.notify` | I | `src/reminders/**`, `apps/server/package.json` | A1 |
-| B2 | Reservations (create, release, expiry job) and transfers (request, dispatch, receive moving instances, InventoryMovement rows, notify the other branch's managers via `NotificationsService.notify`) | I | `src/stock-transfers/**`, `src/reservations/**` | A1, S1 |
-
-### Wave 4: touch existing services (sequential: same file)
-
-| Id | Task | Agent | OWNS | Depends |
-| --- | --- | --- | --- | --- |
-| E1 | `orders.service.ts`: set `dueDate` on credit sales (from body or customer/business terms); block sale of reserved instances; block STAFF price below `minSalePrice` (owner/manager allowed with a `priceOverrideReason`) | I | `orders.service.ts`, order DTOs | A3, B2 |
-| E2 | `vendors.service.ts recordPurchase`: accept and store `dueDate` (default business payable days) | Q | `vendors.service.ts`, its DTO | S1 |
-| E3 | Product create/update and CSV import accept the new product fields | I | `products.service.ts`, product DTOs, `products.controller.ts` | S1 |
-
-### Wave 5: client (3 parallel per batch, two batches)
-
-| Id | Task | Agent | OWNS |
-| --- | --- | --- | --- |
-| C1 | `/dues` page (cards, Lena/Dena tabs, aging chips, row actions incl. WhatsApp, record payment, promise, snooze) | I | `app/(dashboard)/dues/**`, `components/dues/**` |
-| C2 | Quick lena/dena modal (open from header button and palette) | I | `components/modals/QuickKhataModal.tsx` |
-| C3 | Notification bell dropdown + polling (TanStack Query not yet in the repo: plain fetch with a 60 s interval) | I | `components/dashboard/NotificationBell.tsx` |
-| C4 | Settings → Notifications (replace placeholder) | I | `components/settings/NotificationsTab.tsx` |
-| C5 | `/stock-finder` page + customer-waiting view + reserve + request transfer | I | `app/(dashboard)/stock-finder/**`, `components/stock-finder/**` |
-| C6 | Transfers inbox widget + dashboard "Aaj wasooli" and "Aaj dena hai" widgets | I | `components/dashboard/widgets/{Transfers,DuesToday}*.tsx` |
-| C7 | Product form fields (partNumber, aliases, compatibleWith, minSalePrice, lowStockThreshold) mirroring existing inputs | Q | `components/modals/AddProductModal.tsx`, product edit page |
-| C8 | Checkout: due-date field when a balance remains; min-price error display | I | `components/pos/CheckoutDrawer.tsx` |
-
-Orchestrator between batches: mount `NotificationBell` and the quick-entry button in `Header.tsx`; add palette entries (lena, dena, wasooli, udhar, maal, stock, dhoondo) and sidebar links; add F2 hotkey.
-
-### Wave 6: tests (3 parallel)
-
-| Id | Task | Agent |
-| --- | --- | --- |
-| T1 | API tests: aging buckets with a fixed clock, KhataEntry ledger balance (create, settle, write-off), reminder idempotency, WhatsApp normalisation, isolation for every new `:id` route | T |
-| T2 | E2E dues: quick entry Rs 2,000 "Rana Electronics" due in 7 days → listed → clock +8 days → overdue notification → WhatsApp URL correct → record payment → settled | T |
-| T3 | E2E stock finder: staff at Hall Road finds "840 keyboard" at Hafeez Centre, no cost fields in the network response, requests transfer → manager dispatches → receive → sellable; staff below min price blocked | T |
-
-### Wave 7: close
-
-`verifier` on lint, build (server, client, admin), API tests, full E2E. Opus reviews money/tenancy hunks, updates STATUS.md, reports.
+Orchestrator-owned edits between waves: `app.module.ts`, `main.ts` bootstrap lines, `config/permissions.ts` (+ client `usePermissions.ts` mirror), `Header.tsx` (bell, quick-entry button, searchIndex keywords, Ctrl+K, F2), `Sidebar.tsx`, `apps/server/package.json` deps.
 
 ## Wave log
 
 | Wave | Started | Result | Notes |
 | --- | --- | --- | --- |
+| 0a | 2026-10-11 | W0.1 cbcd7f8.. 1eab02c, W0.3 cbcd7f8, W0.5 1a9b0ce | Prisma AI guard blocks `migrate reset`; user consented in chat ("Yes, local 5433 only") to resets of local 5433 DBs; workers pass PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION at runtime only. Lockfile resynced 9aa9044. |
+| 0b | 2026-10-11 | W0.2 4ecca1b, W0.7 416d067, F1 4933f79 | Seed: 2 businesses, 3 branches, 6 conditions. Sync idempotency scoped to business. Client re-sent failed items every 20 s before; now pending only. |
+| 0c | 2026-10-11 | running: W0.4, W0.6, D1 | E2E uses its own DB deepkhata_e2e (E2E_DATABASE_URL) so API and E2E harnesses don't collide. unplugin-swc + @swc/core added to server devDeps for vitest. |
+| 0c | 2026-10-11 | W0.6 a5da864, W0.4 c9cbfff, D1 c57e1e1 (+a94912f) | API harness on deepkhata_test, E2E on deepkhata_e2e (smoke 7/7). Server+admin images build; client image blocked by BUG: bad-merge duplicate declarations in components/reports (prod build broken on final-fixes) → FIX-CB. Removed glibc-only @tailwindcss/oxide pin. vite added as vitest peer. |
+| 1 | 2026-10-11 | S1 b112f9c, TID1 12ea776, TID2a 7703627 | 6 migrations (0002-0007), zero drift, seed OK. pg_trgm extension emitted in 0002. Server tsc: 57 Decimal errors in cash, customers, orders, products, reports, vendors, seed.ts:298. |
+| 2 | 2026-10-11 | running: M1, M1b, FIX-CB | M2 (vendors, cash, customers, inventory, products, seed) and M3 (reports, dashboard, agency) follow. |
+| 2 | 2026-10-11 | M1 840c2bf, M1b 27aec24, M2 2c80119, M3 4075088, FIX-CB a043d92, bootstrap f933c18 | Server compiles on Decimal. Walk-in unpaid balances now post to OTHER_AR (were dropped / credited to fake 'REVENUE' customer). Customer list/detail share one balance. Client prod build fixed. Open: customer balance clamps negatives (overpayment) to 0 — check in khata E2E. settleMemo/processReturn/cancel still claim instances without status guard. |
+| 3 | 2026-10-11 | G1 30bb234, F2 5e7eecd, P25 b363f4b, perms 5af6378 | Tenant context in JwtAuthGuard; K7/K8/K9/K10 fixed. Decision: products with branchId NULL are business-wide (listed in every branch). getProducts: 10 ms warm on seed. Known gap: removed staff keep a valid token until expiry (no per-user revocation). |
+| 4 | 2026-10-11 | A1 0377e76; running A2, B1, C3 | |
+| 4 | 2026-10-11 | A2 0757401, B1 5b8bccb, C3 3d03d72, schedule 7f90a55 | API suite 8/8 green after money+guard changes (run by orchestrator with user consent; haiku verifier declined second-hand consent, correctly). B1: fuzzy tier scans all products of a business (fine at 60; re-check at large seed). Seed has no partNumber/aliases and no vendor purchases → extend seed before T2/T5. |
+| 5 | 2026-10-11 | A3 096aa18; running A4, B2, C1 | E2E dues flow must advance ≥10 days (default overdue offsets 3,7,14,30), not 8. |
+| 5-6 | 2026-10-11 | B2 24c65d9, A4 d9a152f, E1 e7b9d2c, C1 a916e0e, E3 d99dad2, E2 4650c80, C2+nav 3dd9bba | Reservations/transfers, reminders cron (+ test-only POST /reminders/run behind ENABLE_TEST_ENDPOINTS), orders due date/reservation/min price, dues page, product fields + PATCH, vendor/restock payables, quick entry + Ctrl+K/F2/sidebar. Restock now posts VENDOR_PURCHASE per vendor. Photo upload hits Cloudinary before ownership check (orphan upload on 404) — minor, deferred. |
+| 7-8 | 2026-10-11 | running: C5, C4, C6 | |
+| 7-9 | 2026-10-11 | C5 47a4016, C6 d0a1bf9, C4 caa5692, TID3 3b7aac9, C8 be4affc, SEED45 e1d1310, C7 a741b1f | All client tasks done. Seed extended (catalog fixture). |
+| 10 | 2026-10-11 | STOPPED (usage limit) | T0 + T1 test writers were stopped mid-task; any untracked files under apps/server/test/{security,sync,khata,dues,reminders}.e2e-spec.ts and test/helpers/ are partial — review or delete before resuming. |
+
+## Resume here
+Remaining: T0, T1 (rerun fresh), T2 (P5 API), T3 (P2 API), TID4 (products/restock/cabinets/agency-admin testids), D2 (bootstrap.sh, backup, deploy.yml, MIGRATION.md, CORS_ORIGINS env), T4/T5 (E2E dues + stock finder; advance clock ≥10 days; G5 keyboard at Hall Road also matches "840 keyboard"), TE1-TE3 (P1 suites A-J), FIX* + BUGS.md, BENCH (seed --large, k6; re-check stock-finder fuzzy scan), CLOSE (full verify ×3, STATUS.md).
