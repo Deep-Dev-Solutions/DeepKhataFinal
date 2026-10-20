@@ -218,6 +218,29 @@ function RegisterPageContent() {
 
             {success && <p className="text-sm text-green-600">{success}</p>}
 
+            {/* Terms and Privacy Checkbox */}
+            <div className="flex items-start gap-2 pt-1">
+              <input
+                id="terms"
+                name="terms"
+                type="checkbox"
+                data-testid="terms-checkbox"
+                required
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="terms" className="text-xs text-slate-600">
+                I agree to the{" "}
+                <Link
+                  href="/terms"
+                  target="_blank"
+                  className="text-blue-600 underline hover:text-blue-500"
+                >
+                  Terms of Service and Privacy Policy
+                </Link>
+                .
+              </label>
+            </div>
+
             <div className="pt-2">
               <button
                 type="submit"

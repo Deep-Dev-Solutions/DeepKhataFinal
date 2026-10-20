@@ -10,6 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import QueryProvider from "@/providers/QueryProvider";
 import SyncProvider from "@/components/sync/SyncProvider";
 import EmailVerifyBanner from "@/components/auth/EmailVerifyBanner";
+import ViewAsBanner from "@/components/auth/ViewAsBanner";
 import PlanLimitListener from "@/components/billing/PlanLimitListener";
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
@@ -32,6 +33,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
         {/* 3. The Page Content */}
         <main className="flex-1 p-3 sm:p-4 lg:p-6 min-h-0 flex flex-col">
+          <ViewAsBanner />
           <EmailVerifyBanner />
           {children}
         </main>

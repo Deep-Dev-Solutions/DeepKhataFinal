@@ -369,7 +369,7 @@ describe('Tenant analytics (e2e)', () => {
       const res = await http().post(`/agency/tenants/${tenants.A.id}/view-as`).set(admin());
       expect(res.status).toBe(201);
       expect(typeof res.body.token).toBe('string');
-      expect(res.body.url).toMatch(/\/dashboard\?viewAs=1$/);
+      expect(res.body.url).toMatch(/\/view-as\?token=[0-9a-f]{64}$/);
 
       const session = await prisma.session.findUnique({ where: { token: res.body.token } });
       expect(session?.impersonatedBy).toBe(users.superAdmin.id);

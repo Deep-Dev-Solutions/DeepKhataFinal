@@ -278,7 +278,7 @@ export class AgencyService {
       },
     });
     const frontend = (process.env.FRONTEND_URL ?? 'http://localhost:3000').replace(/\/$/, '');
-    return { token, url: `${frontend}/dashboard?viewAs=1`, expiresAt };
+    return { token, url: `${frontend}/view-as?token=${token}`, expiresAt };
   }
 
   async updateTenantStatus(businessId: string, status: string) {

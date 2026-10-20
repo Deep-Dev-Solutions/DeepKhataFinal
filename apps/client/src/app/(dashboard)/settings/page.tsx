@@ -10,6 +10,7 @@ import PlanUsageTab from "@/components/settings/PlanUsageTab";
 import PortalTab from "@/components/settings/PortalTab";
 import BranchesTab from "@/components/settings/BranchesTab";
 import NotificationsTab from "@/components/settings/NotificationsTab";
+import AccessLogTab from "@/components/settings/AccessLogTab";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Loader2, AlertCircle } from "lucide-react";
 import { API_BASE_URL, apiFetch, getAuthHeaders } from "@/lib/auth";
@@ -133,6 +134,9 @@ function SettingsPageContent() {
         )}
         {activeTab === "portal" && hasPermission("manage:business") && (
           <PortalTab user={userProfile} />
+        )}
+        {activeTab === "access-log" && hasPermission("manage:business") && (
+          <AccessLogTab />
         )}
 
         {activeTab === "notifications" && <NotificationsTab />}
