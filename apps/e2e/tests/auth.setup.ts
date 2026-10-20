@@ -14,9 +14,7 @@ for (const key of keys) {
     await page.getByTestId('login-password').fill(TEST_PASSWORD);
     await page.getByTestId('login-submit').click();
     await expect(page).toHaveURL(/\/dashboard$/, { timeout: 60_000 });
-    await expect
-      .poll(() => page.evaluate(() => localStorage.getItem('accessToken')))
-      .not.toBeNull();
+    await expect(page.getByTestId('sidebar-root')).toBeVisible({ timeout: 60_000 });
     await page.context().storageState({ path: storage(key) });
   });
 }

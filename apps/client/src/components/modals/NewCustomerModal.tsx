@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { X, User, Phone, Store, Tag, Loader2 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { enqueue } from "@/lib/sync/queue";
+import { offlineDb } from "@/lib/db";
 import { Customer } from "@/types/api";
 
 interface NewCustomerModalProps {
@@ -35,6 +37,26 @@ export default function NewCustomerModal({
     setIsSubmitting(true);
     setError("");
 
+    const localId = crypto.randomUUID();
+    const customerPayload = {
+      id: localId,
+      name: nameTrimmed,
+      phone: phoneTrimmed,
+      shopName: shopName.trim() || undefined,
+    };
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      await enqueue("UPSERT_CUSTOMER", customerPayload, localId);
+      await offlineDb.customers.put(customerPayload as any);
+      setName("");
+      setPhone("");
+      setShopName("");
+      await onCreated(customerPayload as any);
+      onClose();
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const response = await fetch(`${API_BASE_URL}/customer/newcustomer`, {
         credentials: "include",
@@ -60,6 +82,19 @@ export default function NewCustomerModal({
       await onCreated(data.customer);
       onClose();
     } catch (err) {
+      const isNetworkErr =
+        err instanceof TypeError ||
+        (typeof navigator !== "undefined" && !navigator.onLine);
+      if (isNetworkErr) {
+        await enqueue("UPSERT_CUSTOMER", customerPayload, localId);
+        await offlineDb.customers.put(customerPayload as any);
+        setName("");
+        setPhone("");
+        setShopName("");
+        await onCreated(customerPayload as any);
+        onClose();
+        return;
+      }
       setError(err instanceof Error ? err.message : "Failed to add customer");
     } finally {
       setIsSubmitting(false);

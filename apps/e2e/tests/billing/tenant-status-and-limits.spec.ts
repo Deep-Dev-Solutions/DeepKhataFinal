@@ -240,7 +240,7 @@ test.describe('H: base plan limits', () => {
 
     const sixth = await api.post('/team/invite', { email: `lim5-${Date.now()}@deepkhata.test`, role: 'STAFF' });
     expect(sixth.status()).toBe(403);
-    expect(await sixth.text()).toContain('Base plan limit reached (5 accounts)');
+    expect(await sixth.text()).toContain('Plan limit reached: 5 users on');
     expect(await db.invitation.count({ where: { businessId: tenant.businessId } })).toBe(4);
 
     // The settings alias enforces the same cap (counts members only: owner = 1 here, so check via a full roster below).
@@ -267,7 +267,7 @@ test.describe('H: base plan limits', () => {
     await page.getByTestId('invite-email').fill(`over-${Date.now()}@deepkhata.test`);
     await page.getByTestId('invite-role').selectOption('STAFF');
     await page.getByTestId('invite-submit').click();
-    await expect(page.getByTestId('invite-error')).toContainText('Base plan limit reached (5 accounts)');
+    await expect(page.getByTestId('invite-error')).toContainText(/Plan limit reached: 5 users/);
     expect(await db.invitation.count({ where: { businessId: tenant.businessId } })).toBe(4);
   });
 
@@ -282,7 +282,7 @@ test.describe('H: base plan limits', () => {
 
     const third = await api.post('/settings/branch', { name: 'Third Shop' });
     expect(third.status()).toBe(403);
-    expect(await third.text()).toContain('Base plan limit reached (2 branches)');
+    expect(await third.text()).toContain('Plan limit reached: 2 branches on');
     expect(await db.branch.count({ where: { businessId: tenant.businessId, deletedAt: null } })).toBe(2);
     expect(await db.branch.count({ where: { businessId: tenant.businessId, name: 'Third Shop' } })).toBe(0);
   });
@@ -305,7 +305,7 @@ test.describe('H: base plan limits', () => {
     }
     const res = await api.post('/team/invite', { email: `roster-${Date.now()}@deepkhata.test`, role: 'STAFF' });
     expect(res.status()).toBe(403);
-    expect(await res.text()).toContain('Base plan limit reached (5 accounts)');
+    expect(await res.text()).toContain('Plan limit reached: 5 users on');
     expect(await db.invitation.count({ where: { businessId: tenant.businessId } })).toBe(0);
   });
 });

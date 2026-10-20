@@ -49,10 +49,14 @@ test.describe('A: forged and malformed tokens are rejected', () => {
       data: { email: users.staffA.email, password: 'DeepKhata#Test1' },
     });
     const { accessToken } = await login.json();
-    const [h, p, s] = accessToken.split('.');
-    const claims = JSON.parse(Buffer.from(p, 'base64url').toString());
-    claims.role = 'OWNER';
-    const tampered = `${h}.${b64url(JSON.stringify(claims))}.${s}`;
+    const tampered = accessToken.includes('.')
+      ? (() => {
+          const [h, p, s] = accessToken.split('.');
+          const claims = JSON.parse(Buffer.from(p, 'base64url').toString());
+          claims.role = 'OWNER';
+          return `${h}.${b64url(JSON.stringify(claims))}.${s}`;
+        })()
+      : `${accessToken}-tampered`;
     const res = await request.get(`${E2E.apiUrl}/reports/financial`, { headers: { Authorization: `Bearer ${tampered}` } });
     expect(res.status()).toBe(401);
   });

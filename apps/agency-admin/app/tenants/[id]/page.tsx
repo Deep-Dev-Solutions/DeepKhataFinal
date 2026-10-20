@@ -17,21 +17,36 @@ import {
   ArrowLeft,
   Loader2,
   Wallet,
-  BadgeCheck,
+  ExternalLink,
+  Download,
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
-import {
+import type {
   TenantDetail,
   LogPaymentResponse,
+  TenantAnalyticsDetail,
 } from "@/types/agency";
 
 const STATUS_META: Record<
-  TenantDetail["status"],
+  string,
   { label: string; badge: string; select: string }
 > = {
   ACTIVE: {
     label: "Active",
     badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
     select: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  },
+  TRIALING: {
+    label: "Trialing",
+    badge: "bg-blue-50 text-blue-700 border-blue-200",
+    select: "bg-blue-50 text-blue-700 border-blue-200",
+  },
+  PAST_DUE: {
+    label: "Past Due",
+    badge: "bg-amber-50 text-amber-700 border-amber-200",
+    select: "bg-amber-50 text-amber-700 border-amber-200",
   },
   READ_ONLY: {
     label: "Read-Only",
@@ -45,6 +60,8 @@ const STATUS_META: Record<
   },
 };
 
+const DOW_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 function formatDate(value: string | null | undefined) {
   if (!value) return "Not set";
   const date = new Date(value);
@@ -54,6 +71,12 @@ function formatDate(value: string | null | undefined) {
     month: "short",
     year: "numeric",
   });
+}
+
+function formatAmount(value: number | string | undefined | null) {
+  if (value === undefined || value === null) return "0";
+  const num = typeof value === "string" ? parseFloat(value) : value;
+  return num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
 function addMonths(date: Date, months: number): Date {
@@ -68,6 +91,7 @@ export default function TenantDetailPage() {
   const { token, isLoading: isAuthLoading } = useAuth();
 
   const [tenant, setTenant] = useState<TenantDetail | null>(null);
+  const [analytics, setAnalytics] = useState<TenantAnalyticsDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -84,14 +108,22 @@ export default function TenantDetailPage() {
   const [billingSuccess, setBillingSuccess] = useState("");
   const [billingSubmitting, setBillingSubmitting] = useState(false);
 
+  // View-as and PDF loading
+  const [viewAsLoading, setViewAsLoading] = useState(false);
+  const [pdfDownloading, setPdfDownloading] = useState(false);
+
   const fetchTenant = useCallback(async () => {
     if (!tenantId || !token) {
       if (!isAuthLoading) setLoading(false);
       return;
     }
     try {
-      const data = await api.get<TenantDetail>(`/agency/tenants/${tenantId}`);
-      setTenant(data);
+      const [tData, aData] = await Promise.all([
+        api.get<TenantDetail>(`/agency/tenants/${tenantId}`),
+        api.get<TenantAnalyticsDetail>(`/agency/analytics/tenants/${tenantId}`).catch(() => null),
+      ]);
+      setTenant(tData);
+      setAnalytics(aData);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load tenant");
     } finally {
@@ -107,7 +139,6 @@ export default function TenantDetailPage() {
         setLoading(false);
       }
     };
-
     load().catch(console.error);
   }, [tenantId, token, isAuthLoading, fetchTenant]);
 
@@ -150,15 +181,53 @@ export default function TenantDetailPage() {
       setBillingSuccess(
         `Payment of Rs. ${formatAmount(data.billingLog.amount)} logged. Subscription extended to ${formatDate(data.subscriptionExpiresAt)}.`,
       );
-      // Refresh tenant state to show new expiry + billing history
-      const fresh = await api.get<TenantDetail>(
-        `/agency/tenants/${tenant.id}`,
-      );
-      setTenant(fresh);
+      await fetchTenant();
     } catch (err: unknown) {
       setBillingError(err instanceof Error ? err.message : "Failed to log payment");
     } finally {
       setBillingSubmitting(false);
+    }
+  };
+
+  const handleViewAs = async () => {
+    if (!tenant) return;
+    setViewAsLoading(true);
+    try {
+      const res = await api.post<{ token: string; url: string; expiresAt: string }>(
+        `/agency/tenants/${tenant.id}/view-as`
+      );
+      if (res?.url) {
+        window.open(res.url, "_blank");
+      }
+    } catch (err) {
+      console.error("View as failed:", err);
+    } finally {
+      setViewAsLoading(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!tenant) return;
+    setPdfDownloading(true);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      const res = await fetch(`${apiUrl}/agency/analytics/tenants/${tenant.id}/usage-statement.pdf`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("PDF download failed");
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = `usage-statement-${tenant.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      console.error("Failed to download PDF:", err);
+    } finally {
+      setPdfDownloading(false);
     }
   };
 
@@ -190,13 +259,18 @@ export default function TenantDetailPage() {
 
   if (!tenant) return null;
 
-  const statusMeta = STATUS_META[tenant.status];
+  const statusMeta = STATUS_META[tenant.status] || STATUS_META.ACTIVE;
   const kpis = [
-    { label: "Branches", value: tenant._count.branches, icon: GitBranch, tint: "bg-indigo-50 text-indigo-600" },
-    { label: "Users", value: tenant._count.users, icon: Users, tint: "bg-blue-50 text-blue-600" },
-    { label: "Master Products", value: tenant._count.products, icon: ShoppingBag, tint: "bg-violet-50 text-violet-600" },
-    { label: "Lifetime Orders", value: tenant._count.orders, icon: Receipt, tint: "bg-emerald-50 text-emerald-600" },
+    { label: "Branches", value: tenant._count?.branches ?? 0, icon: GitBranch, tint: "bg-indigo-50 text-indigo-600" },
+    { label: "Users", value: tenant._count?.users ?? 0, icon: Users, tint: "bg-blue-50 text-blue-600" },
+    { label: "Master Products", value: tenant._count?.products ?? 0, icon: ShoppingBag, tint: "bg-violet-50 text-violet-600" },
+    { label: "Lifetime Orders", value: tenant._count?.orders ?? 0, icon: Receipt, tint: "bg-emerald-50 text-emerald-600" },
   ];
+
+  // Calculate 90d chart max for sparkline scaling
+  const maxDailyOrders = analytics?.series
+    ? Math.max(1, ...analytics.series.map((s) => s.orders))
+    : 1;
 
   return (
     <div data-testid="tenant-detail" className="space-y-6 animate-in fade-in duration-500">
@@ -211,7 +285,7 @@ export default function TenantDetailPage() {
         </Link>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
+            <div className="h-12 w-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
               <Building2 size={24} />
             </div>
             <div>
@@ -227,9 +301,33 @@ export default function TenantDetailPage() {
                 </span>
               </div>
               <p className="text-sm text-slate-500 mt-0.5 font-mono">
-                /{tenant.slug} · Owner: {tenant.owner.name} ({tenant.owner.email})
+                /{tenant.slug} · Owner: {tenant.owner?.name} ({tenant.owner?.email})
               </p>
             </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={pdfDownloading}
+              data-testid="tenant-usage-pdf"
+              className="inline-flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-3.5 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50"
+            >
+              {pdfDownloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+              Usage Statement PDF
+            </button>
+
+            <button
+              type="button"
+              onClick={handleViewAs}
+              disabled={viewAsLoading}
+              data-testid="tenant-view-as"
+              className="inline-flex items-center gap-2 bg-indigo-600 text-white px-3.5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+            >
+              {viewAsLoading ? <Loader2 size={16} className="animate-spin" /> : <ExternalLink size={16} />}
+              View As Tenant
+            </button>
           </div>
         </div>
       </div>
@@ -265,8 +363,278 @@ export default function TenantDetailPage() {
         })}
       </div>
 
+      {/* ── 90-Day Volume Trend Chart ────────────────────────────────────── */}
+      {analytics?.series && analytics.series.length > 0 && (
+        <div
+          data-testid="tenant-daily-chart"
+          className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-bold text-slate-900">90-Day Order Activity Trend</h3>
+              <p className="text-xs text-slate-500">Continuous daily orders recorded across all branches</p>
+            </div>
+            <div className="text-right">
+              <span className="text-xs font-semibold text-slate-700">
+                Total: {analytics.series.reduce((acc, s) => acc + s.orders, 0).toLocaleString()} orders
+              </span>
+            </div>
+          </div>
+
+          <div className="h-28 flex items-end gap-[2px] pt-4">
+            {analytics.series.map((s) => {
+              const heightPct = Math.max(4, Math.round((s.orders / maxDailyOrders) * 100));
+              return (
+                <div
+                  key={s.date}
+                  className="flex-1 bg-indigo-100 hover:bg-indigo-600 rounded-t transition-colors relative group"
+                  style={{ height: `${heightPct}%` }}
+                >
+                  <div className="hidden group-hover:block absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-1 rounded shadow-lg whitespace-nowrap z-20 pointer-events-none">
+                    {s.date}: {s.orders} orders ({formatAmount(s.gmv)} Rs)
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex justify-between text-[10px] text-slate-400 mt-2 border-t pt-1">
+            <span>90 days ago ({analytics.series[0]?.date})</span>
+            <span>Today ({analytics.series[analytics.series.length - 1]?.date})</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Activity Heatmap & Top Products ─────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* ── Access Control Card ────────────────────────────────────────── */}
+        {/* Heatmap */}
+        {analytics?.heatmap && (
+          <div
+            data-testid="tenant-activity-heatmap"
+            className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm"
+          >
+            <h3 className="font-bold text-slate-900 mb-1">Hour-of-Day Activity Heatmap</h3>
+            <p className="text-xs text-slate-500 mb-4">Peak operating hours (Pakistan Standard Time)</p>
+            <div className="space-y-1">
+              {analytics.heatmap.map((hours, dow) => {
+                const maxInHeatmap = Math.max(1, ...analytics.heatmap.flat());
+                return (
+                  <div key={DOW_LABELS[dow]} className="flex items-center gap-1.5 text-xs">
+                    <span className="w-8 text-[11px] font-medium text-slate-500">
+                      {DOW_LABELS[dow]}
+                    </span>
+                    <div className="flex-1 flex gap-0.5">
+                      {hours.map((val, hr) => {
+                        const intensity = val === 0 ? 0 : Math.ceil((val / maxInHeatmap) * 4);
+                        const bgColors = [
+                          "bg-slate-100",
+                          "bg-indigo-100",
+                          "bg-indigo-300",
+                          "bg-indigo-500",
+                          "bg-indigo-700",
+                        ];
+                        return (
+                          <div
+                            key={hr}
+                            title={`${DOW_LABELS[dow]} ${hr}:00 — ${val} orders`}
+                            className={`flex-1 h-4 rounded-sm ${bgColors[intensity]} cursor-pointer`}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex justify-between text-[10px] text-slate-400 mt-2 pl-9">
+              <span>12 AM</span>
+              <span>6 AM</span>
+              <span>12 PM</span>
+              <span>6 PM</span>
+              <span>11 PM</span>
+            </div>
+          </div>
+        )}
+
+        {/* Top 10 Products */}
+        {analytics?.topProducts && (
+          <div
+            data-testid="tenant-top-products"
+            className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm overflow-hidden"
+          >
+            <h3 className="font-bold text-slate-900 mb-1">Top Products by Revenue</h3>
+            <p className="text-xs text-slate-500 mb-4">Last 90 days completed order items</p>
+            {analytics.topProducts.length === 0 ? (
+              <p className="text-xs text-slate-400 italic">No sales recorded yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="border-b text-slate-500">
+                    <tr>
+                      <th className="pb-2">Product</th>
+                      <th className="pb-2 text-center">Qty Sold</th>
+                      <th className="pb-2 text-right">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {analytics.topProducts.map((p) => (
+                      <tr key={p.productId} className="hover:bg-slate-50">
+                        <td className="py-2 font-medium text-slate-900 truncate max-w-[180px]">
+                          {p.name}
+                        </td>
+                        <td className="py-2 text-center text-slate-600">{p.qty}</td>
+                        <td className="py-2 text-right font-semibold text-slate-900">
+                          Rs {formatAmount(p.revenue)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Limit Meters & Branch Split ──────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Usage Limits */}
+        {analytics?.limits && analytics?.usage && (
+          <div
+            data-testid="tenant-limits"
+            className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4"
+          >
+            <h3 className="font-bold text-slate-900 mb-1">Plan Limit Meters</h3>
+            <p className="text-xs text-slate-500">Current resource utilization against subscription quotas</p>
+
+            <div className="space-y-3">
+              <div>
+                <div className="flex justify-between text-xs font-medium mb-1">
+                  <span className="text-slate-700">Branches</span>
+                  <span className="text-slate-500">
+                    {analytics.usage.branches} / {analytics.limits.maxBranches ?? "Unlimited"}
+                  </span>
+                </div>
+                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-indigo-600 rounded-full"
+                    style={{
+                      width: `${analytics.limits.maxBranches ? Math.min(100, (analytics.usage.branches / analytics.limits.maxBranches) * 100) : 20}%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs font-medium mb-1">
+                  <span className="text-slate-700">Staff Accounts & Invites</span>
+                  <span className="text-slate-500">
+                    {analytics.usage.users} / {analytics.limits.maxUsers ?? "Unlimited"}
+                  </span>
+                </div>
+                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-600 rounded-full"
+                    style={{
+                      width: `${analytics.limits.maxUsers ? Math.min(100, (analytics.usage.users / analytics.limits.maxUsers) * 100) : 20}%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs font-medium mb-1">
+                  <span className="text-slate-700">Catalog Products</span>
+                  <span className="text-slate-500">
+                    {analytics.usage.products} / {analytics.limits.maxProducts ?? "Unlimited"}
+                  </span>
+                </div>
+                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-violet-600 rounded-full"
+                    style={{
+                      width: `${analytics.limits.maxProducts ? Math.min(100, (analytics.usage.products / analytics.limits.maxProducts) * 100) : 10}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Branch Split */}
+        {analytics?.branchSplit && (
+          <div
+            data-testid="tenant-branch-split"
+            className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm overflow-hidden"
+          >
+            <h3 className="font-bold text-slate-900 mb-1">Branch Volume Split</h3>
+            <p className="text-xs text-slate-500 mb-4">Volume breakdown across store locations</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="border-b text-slate-500">
+                  <tr>
+                    <th className="pb-2">Branch</th>
+                    <th className="pb-2 text-center">Orders</th>
+                    <th className="pb-2 text-right">GMV</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {analytics.branchSplit.map((b) => (
+                    <tr key={b.branchId || "main"} className="hover:bg-slate-50">
+                      <td className="py-2 font-medium text-slate-900">{b.name}</td>
+                      <td className="py-2 text-center text-slate-600">{b.orders}</td>
+                      <td className="py-2 text-right font-semibold text-slate-900">
+                        Rs {formatAmount(b.gmv)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Team Users & Sessions ────────────────────────────────────────── */}
+      {analytics?.users && (
+        <div
+          data-testid="tenant-users-list"
+          className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm"
+        >
+          <h3 className="font-bold text-slate-900 mb-1">Team Members & Activity</h3>
+          <p className="text-xs text-slate-500 mb-4">Registered team members and recent sessions</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead className="border-b text-slate-500">
+                <tr>
+                  <th className="pb-2">Name</th>
+                  <th className="pb-2">Role</th>
+                  <th className="pb-2">Last Active</th>
+                  <th className="pb-2 text-right">90d Sessions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {analytics.users.map((u) => (
+                  <tr key={u.id} className="hover:bg-slate-50">
+                    <td className="py-2.5 font-semibold text-slate-900">{u.name}</td>
+                    <td className="py-2.5">
+                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
+                        {u.role}
+                      </span>
+                    </td>
+                    <td className="py-2.5 text-slate-500">{formatDate(u.lastActiveAt)}</td>
+                    <td className="py-2.5 text-right font-medium text-slate-700">{u.sessions}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Access Control & Log Payment (Legacy Preserved) ───────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Access Control Card */}
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2">
             <ShieldCheck size={16} className="text-indigo-600" />
@@ -278,153 +646,128 @@ export default function TenantDetailPage() {
               <span className="font-semibold text-slate-700">Suspended</span>{" "}
               blocks all logins,{" "}
               <span className="font-semibold text-slate-700">Read-Only</span>{" "}
-              blocks new sales and edits, and{" "}
-              <span className="font-semibold text-slate-700">Active</span>{" "}
-              restores full access.
+              disallows POS operations and writes.
             </p>
-            <div className="flex items-center gap-3">
+
+            <div className="flex items-center gap-4">
+              <label className="text-sm font-medium text-slate-700 shrink-0">
+                Status:
+              </label>
               <select
+                data-testid="tenant-status-select"
                 value={tenant.status}
                 onChange={handleStatusChange}
-                data-testid="tenant-status-select"
                 disabled={statusUpdating}
-                className={`flex-1 px-3 py-2.5 border rounded-lg font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer disabled:opacity-60 ${statusMeta.select}`}
+                className={`text-sm font-semibold rounded-lg px-3 py-2 border shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 ${statusMeta.select} disabled:opacity-50`}
               >
-                <option value="ACTIVE" className="bg-white text-slate-900">
-                  Active
-                </option>
-                <option value="READ_ONLY" className="bg-white text-slate-900">
-                  Read-Only (Paused)
-                </option>
-                <option value="SUSPENDED" className="bg-white text-slate-900">
-                  Suspended (Soft Delete)
-                </option>
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="READ_ONLY">READ_ONLY</option>
+                <option value="SUSPENDED">SUSPENDED</option>
               </select>
               {statusUpdating && (
-                <Loader2 size={18} className="animate-spin text-slate-400" />
+                <Loader2 size={16} className="animate-spin text-slate-400" />
               )}
             </div>
-            <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
-              <BadgeCheck size={14} className="text-emerald-500" />
-              Current status:{" "}
-              <span data-testid="tenant-status" className="font-semibold text-slate-800">
-                {statusMeta.label}
-              </span>
-              . Changes apply immediately to all users of this business.
-            </div>
-          </div>
-        </div>
 
-        {/* ── Billing & Renewal Card ─────────────────────────────────────── */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2">
-            <CreditCard size={16} className="text-indigo-600" />
-            <h3 className="font-bold text-slate-900">Billing &amp; Renewal</h3>
-          </div>
-          <div className="p-6 space-y-4">
-            <div className="flex items-center gap-3 p-3 bg-indigo-50/60 border border-indigo-100 rounded-lg">
-              <CalendarClock size={18} className="text-indigo-600 shrink-0" />
-              <div className="text-sm">
-                <span className="text-slate-500">Subscription expires on </span>
-                <span data-testid="tenant-expiry" className="font-bold text-slate-900">
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 text-xs text-slate-600 space-y-1">
+              <div>
+                Current Status:{" "}
+                <span data-testid="tenant-status" className="font-semibold text-slate-800">
+                  {tenant.status}
+                </span>
+              </div>
+              <div>
+                Expiry:{" "}
+                <span data-testid="tenant-expiry" className="font-semibold text-slate-800">
                   {formatDate(tenant.subscriptionExpiresAt)}
                 </span>
               </div>
             </div>
-
-            <form onSubmit={handleLogPayment} className="space-y-4">
-              {billingError && (
-                <div className="p-3 bg-rose-50 text-rose-700 rounded-lg text-sm font-medium border border-rose-100">
-                  {billingError}
-                </div>
-              )}
-              {billingSuccess && (
-                <div className="p-3 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-medium border border-emerald-100">
-                  {billingSuccess}
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Amount Received (PKR)
-                  </label>
-                  <input
-                    required
-                    type="number"
-                    min="1"
-                    step="any"
-                    value={amount}
-                    data-testid="tenant-payment-amount"
-                    onChange={(e) => setAmount(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                    placeholder="e.g. 15000"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    New Expiration Date
-                  </label>
-                  <input
-                    required
-                    type="date"
-                    value={paymentDate}
-                    onChange={(e) => setPaymentDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Notes (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  placeholder="e.g. 4-month renewal via bank transfer"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={billingSubmitting}
-                data-testid="tenant-payment-submit"
-                className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-60 shadow-sm"
-              >
-                {billingSubmitting ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <Wallet size={16} />
-                )}
-                {billingSubmitting
-                  ? "Logging payment..."
-                  : "Log Payment & Extend Subscription"}
-              </button>
-            </form>
           </div>
+        </div>
+
+        {/* Log Payment Form */}
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2">
+            <Wallet size={16} className="text-emerald-600" />
+            <h3 className="font-bold text-slate-900">Log Cash / Offline Payment</h3>
+          </div>
+          <form onSubmit={handleLogPayment} className="p-6 space-y-4">
+            {billingError && (
+              <div className="bg-rose-50 text-rose-700 border border-rose-200 rounded-lg p-3 text-sm">
+                {billingError}
+              </div>
+            )}
+            {billingSuccess && (
+              <div className="bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg p-3 text-sm">
+                {billingSuccess}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">
+                Amount (PKR) *
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                data-testid="tenant-payment-amount"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="e.g. 5000"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">
+                Next Expiry Date *
+              </label>
+              <input
+                type="date"
+                required
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">
+                Notes
+              </label>
+              <input
+                type="text"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="e.g. Paid in cash via field rep"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={billingSubmitting}
+              data-testid="tenant-payment-submit"
+              className="w-full py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
+            >
+              {billingSubmitting && <Loader2 size={16} className="animate-spin" />}
+              Log Payment & Extend Subscription
+            </button>
+          </form>
         </div>
       </div>
 
-      {/* ── Billing History ──────────────────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Wallet size={16} className="text-indigo-600" />
-            <h3 className="font-bold text-slate-900">Payment &amp; Billing History</h3>
+      {/* ── Billing History Table ────────────────────────────────────────── */}
+      {tenant.billingLogs && tenant.billingLogs.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60">
+            <h3 className="font-bold text-slate-900">Payment & Billing History</h3>
           </div>
-          <span className="text-xs font-semibold text-slate-500">
-            {tenant.billingLogs.length} record
-            {tenant.billingLogs.length === 1 ? "" : "s"}
-          </span>
-        </div>
-        {tenant.billingLogs.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-400">
-            No payments recorded yet for this tenant.
-          </div>
-        ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-slate-50 border-y border-slate-200 text-slate-600 font-medium">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
                 <tr>
                   <th className="px-6 py-3">Payment Date</th>
                   <th className="px-6 py-3">Amount</th>
@@ -434,36 +777,30 @@ export default function TenantDetailPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {tenant.billingLogs.map((log) => (
-                  <tr data-testid="tenant-billing-row" key={log.id} className="hover:bg-slate-50 transition-colors">
+                  <tr
+                    data-testid="tenant-billing-row"
+                    key={log.id}
+                    className="hover:bg-slate-50 transition-colors"
+                  >
                     <td className="px-6 py-3 font-medium text-slate-900">
                       {formatDate(log.paymentDate)}
                     </td>
-                    <td className="px-6 py-3">
-                      <span className="inline-flex px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full font-semibold text-xs">
-                        Rs. {formatAmount(log.amount)}
-                      </span>
+                    <td className="px-6 py-3 font-semibold text-emerald-700">
+                      Rs. {formatAmount(log.amount)}
                     </td>
                     <td className="px-6 py-3 text-slate-500">
                       {log.notes || "—"}
                     </td>
-                    <td className="px-6 py-3 text-slate-500">
-                      {new Date(log.createdAt).toLocaleString()}
+                    <td className="px-6 py-3 text-xs text-slate-400">
+                      {formatDate(log.createdAt)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
-}
-
-function formatAmount(value: number | string): string {
-  const num = typeof value === "string" ? parseFloat(value) : value;
-  if (isNaN(num)) return "0";
-  return num.toLocaleString("en-US", {
-    maximumFractionDigits: 2,
-  });
 }

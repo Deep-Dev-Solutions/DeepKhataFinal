@@ -12,6 +12,7 @@ interface RecordPaymentModalProps {
 }
 
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { enqueue } from "@/lib/sync/queue";
 
 export default function RecordPaymentModal({
   isOpen,
@@ -54,6 +55,18 @@ export default function RecordPaymentModal({
 
     setIsSubmitting(true);
 
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const paymentId = crypto.randomUUID();
+      await enqueue("RECORD_PAYMENT", {
+        orderId,
+        amount: paymentAmount,
+        method,
+      }, paymentId);
+      setIsSubmitting(false);
+      onSuccess();
+      return;
+    }
+
     try {
       // Send the payment to the backend
       const response = await fetch(`${API_BASE_URL}/order/recordpayment`, {
@@ -77,6 +90,19 @@ export default function RecordPaymentModal({
       setIsSubmitting(false);
       onSuccess(); // This will trigger refreshOrder() in the parent component!
     } catch (err: unknown) {
+      // If network failure, queue for offline sync
+      const isNetworkErr = err instanceof TypeError || (typeof navigator !== "undefined" && !navigator.onLine);
+      if (isNetworkErr) {
+        const paymentId = crypto.randomUUID();
+        await enqueue("RECORD_PAYMENT", {
+          orderId,
+          amount: paymentAmount,
+          method,
+        }, paymentId);
+        setIsSubmitting(false);
+        onSuccess();
+        return;
+      }
       setError((err instanceof Error ? err.message : "Something went wrong.") || "Something went wrong.");
       setIsSubmitting(false);
     }
