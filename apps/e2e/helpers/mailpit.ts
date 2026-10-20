@@ -39,3 +39,35 @@ export function inviteLinkFromEmail(text: string): string {
   const u = new URL(m[0]);
   return `${E2E.webUrl}${u.pathname}${u.search}`;
 }
+
+/**
+ * Polls Mailpit until a message to `to` contains a link whose path is `path` (e.g. `/verify-email`);
+ * returns the link with its origin rewritten to the E2E web URL. Ignores unrelated earlier mails.
+ */
+export async function waitForEmailLink(request: APIRequestContext, to: string, path: string): Promise<string> {
+  let link = '';
+  const escaped = path.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+  const re = new RegExp(`https?://[^\\s)<>"]+${escaped}\\?token=[^\\s)<>"]+`);
+  await expect
+    .poll(
+      async () => {
+        const res = await request.get(`${MAILPIT}/api/v1/search`, { params: { query: `to:${to}` } });
+        if (!res.ok()) return false;
+        const body = (await res.json()) as { messages: MailpitSummary[] };
+        for (const msg of body.messages ?? []) {
+          const full = await request.get(`${MAILPIT}/api/v1/message/${msg.ID}`);
+          if (!full.ok()) continue;
+          const m = ((await full.json()) as { Text: string }).Text.match(re);
+          if (m) {
+            link = m[0];
+            return true;
+          }
+        }
+        return false;
+      },
+      { message: `no ${path} email for ${to} in Mailpit`, timeout: 20_000 },
+    )
+    .toBe(true);
+  const u = new URL(link);
+  return `${E2E.webUrl}${u.pathname}${u.search}`;
+}
