@@ -37,6 +37,7 @@ import { MailModule } from './mail/mail.module';
 import { PlansModule } from './plans/plans.module';
 import { BillingModule } from './billing/billing.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { DesktopModule } from './desktop/desktop.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     PlansModule,
     BillingModule,
     AnalyticsModule,
+    DesktopModule,
     ScheduleModule.forRoot(),
     MailModule,
     NotificationsModule,
