@@ -28,12 +28,15 @@ export function getActiveBranchId(): string | null {
   return null;
 }
 
-/** True when there is anything to authenticate with (token now, cookie session later). */
+/** True when there is anything to authenticate with (session cookie, stored user, or bearer token). */
 export function hasSession(): boolean {
   if (typeof window === "undefined") return false;
   try {
     return Boolean(
-      localStorage.getItem("accessToken") || localStorage.getItem("user"),
+      localStorage.getItem("user") ||
+      localStorage.getItem("bearerToken") ||
+      localStorage.getItem("accessToken") ||
+      (typeof document !== "undefined" && document.cookie.includes("session_token"))
     );
   } catch {
     return false;
@@ -41,8 +44,8 @@ export function hasSession(): boolean {
 }
 
 /**
- * The ONE place every sync request goes through. Bearer headers today, cookie
- * session tomorrow: both are sent (`credentials: 'include'`).
+ * The ONE place every sync request goes through. Cookie session (credentials: 'include')
+ * plus bearer token fallback for desktop and test harnesses.
  */
 export function syncFetch(
   path: string,
@@ -50,6 +53,14 @@ export function syncFetch(
 ): Promise<Response> {
   const { branchId, headers: extra, ...rest } = init;
   const headers = new Headers(getAuthHeaders(branchId ?? null));
+  if (typeof window !== "undefined") {
+    const bearer =
+      localStorage.getItem("bearerToken") ||
+      sessionStorage.getItem("bearerToken");
+    if (bearer && !headers.has("Authorization")) {
+      headers.set("Authorization", `Bearer ${bearer}`);
+    }
+  }
   new Headers(extra).forEach((value, key) => headers.set(key, value));
   return fetch(`${API_BASE_URL}${path}`, {
     ...rest,

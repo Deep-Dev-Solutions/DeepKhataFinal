@@ -1,4 +1,6 @@
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { searchClient } from "@/lib/search/search-client";
+import { offlineDb } from "@/lib/db";
 
 export type StockCondition =
   | "ORIGINAL_PULL"
@@ -117,11 +119,73 @@ async function request<T>(
   return data as T;
 }
 
-export function findStock(
+export async function findStock(
   q: string,
   branchId: string | null | undefined,
   limit = 20,
-) {
+): Promise<StockFindResponse> {
+  const t0 = performance.now();
+  const hasWarmCache = await searchClient.isCacheWarm();
+  if (hasWarmCache || (typeof navigator !== "undefined" && !navigator.onLine)) {
+    const products = await searchClient.searchProducts(q, { limit });
+    if (products.length > 0 || (typeof navigator !== "undefined" && !navigator.onLine)) {
+      const results: StockResult[] = await Promise.all(
+        products.map(async (p) => {
+          const instances = await offlineDb.instances
+            .where("productId")
+            .equals(p.id)
+            .toArray();
+          const summaries = await offlineDb.stockSummary
+            .where("productId")
+            .equals(p.id)
+            .toArray();
+
+          const ownInstances = instances.filter((i) => !branchId || i.branchId === branchId);
+          const availableOwn = ownInstances.filter((i) => i.status === "AVAILABLE").length;
+          const otherAvailable = summaries.reduce((acc, s) => acc + s.available, 0);
+
+          return {
+            productId: p.id,
+            name: p.name,
+            sku: p.sku ?? null,
+            partNumber: p.partNumber ?? null,
+            aliases: [],
+            compatibleWith: [],
+            salePrice: p.price,
+            minSalePrice: null,
+            recentSoldPrices: [],
+            photos: [],
+            totalAvailable: availableOwn + otherAvailable,
+            branches: [
+              {
+                branchId: branchId || "current",
+                branchName: "Current Branch",
+                isOwnBranch: true,
+                available: availableOwn,
+                byCondition: {},
+                reserved: 0,
+                inTransit: 0,
+                locations: ownInstances.map((i) => ({
+                  instanceId: i.id,
+                  condition: (i.condition as StockCondition) || "WORKING",
+                  serialNumber: i.serialNumber ?? null,
+                  cabinetId: i.cabinetId ?? null,
+                  cabinetName: null,
+                  rack: null,
+                  shelf: null,
+                  bin: null,
+                  notes: null,
+                  photoUrl: null,
+                })),
+              },
+            ],
+          };
+        }),
+      );
+      return { results, tookMs: Math.round(performance.now() - t0) };
+    }
+  }
+
   const qs = new URLSearchParams({ q, limit: String(limit) });
   return request<StockFindResponse>(`/stock/find?${qs.toString()}`, branchId);
 }

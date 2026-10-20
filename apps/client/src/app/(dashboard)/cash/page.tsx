@@ -1,5 +1,6 @@
 "use client";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { enqueue } from "@/lib/sync/queue";
 
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -153,18 +154,34 @@ export default function CashHubPage() {
 
     setSubmittingExpense(true);
     setExpenseSuccessMsg(null);
+
+    const expenseId = crypto.randomUUID();
+    const expensePayload = {
+      amount: numAmount,
+      category,
+      description: description.trim() || undefined,
+      branchId: branchId || activeBranchId || undefined,
+    };
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      await enqueue("CREATE_EXPENSE", expensePayload, expenseId);
+      setAmount("");
+      setDescription("");
+      setExpenseSuccessMsg(
+        `✓ PKR ${numAmount.toLocaleString()} recorded & queued offline!`,
+      );
+      setTimeout(() => setExpenseSuccessMsg(null), 4000);
+      setSubmittingExpense(false);
+      return;
+    }
+
     try {
       const headers = getAuthHeaders(activeBranchId);
       const res = await fetch(`${API_BASE_URL}/cash/expense`, {
         credentials: "include",
         method: "POST",
         headers,
-        body: JSON.stringify({
-          amount: numAmount,
-          category,
-          description: description.trim() || undefined,
-          branchId: branchId || activeBranchId || undefined,
-        }),
+        body: JSON.stringify(expensePayload),
       });
 
       const data = await res.json();
@@ -183,6 +200,19 @@ export default function CashHubPage() {
         });
       }
     } catch (err) {
+      const isNetworkErr =
+        err instanceof TypeError ||
+        (typeof navigator !== "undefined" && !navigator.onLine);
+      if (isNetworkErr) {
+        await enqueue("CREATE_EXPENSE", expensePayload, expenseId);
+        setAmount("");
+        setDescription("");
+        setExpenseSuccessMsg(
+          `✓ PKR ${numAmount.toLocaleString()} recorded & queued offline!`,
+        );
+        setTimeout(() => setExpenseSuccessMsg(null), 4000);
+        return;
+      }
       console.error(err);
       setMessageAlert({
         title: "Connection Error",

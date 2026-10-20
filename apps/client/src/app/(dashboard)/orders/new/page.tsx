@@ -40,6 +40,7 @@ import CheckoutDrawer, {
 import { usePOS } from "@/context/POSContext";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { searchClient } from "@/lib/search/search-client";
 import { useToast } from "@/context/ToastContext";
 import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 
@@ -223,6 +224,21 @@ function CreateOrderPOSContent() {
   const fetchProducts = useCallback(async () => {
     setIsLoadingProducts(true);
     try {
+      // 1. If cache is warm or has products, query local MiniSearch/Dexie first (zero network calls)
+      const hasCachedProducts = (await offlineDb.products.count()) > 0;
+      if (hasCachedProducts && searchQuery) {
+        const results = await searchClient.searchProducts(searchQuery, {
+          category: activeCategory,
+        });
+        const normalized = (results || []).map((p: any) => ({
+          ...p,
+          price: Number(p.price ?? p.basePrice ?? 0),
+        }));
+        setProducts(normalized as Product[]);
+        setIsLoadingProducts(false);
+        return;
+      }
+
       // If navigator is offline, read directly from Dexie
       if (typeof navigator !== "undefined" && !navigator.onLine) {
         const cached = await offlineDb.products.toArray();
@@ -272,8 +288,8 @@ function CreateOrderPOSContent() {
           price: Number(p.price ?? p.basePrice ?? 0),
         }));
         setProducts(normalized);
-        // 🟢 Cache into IndexedDB
-        void offlineDb.products.bulkPut(normalized);
+        // 🟢 Cache into IndexedDB and warm MiniSearch
+        void offlineDb.products.bulkPut(normalized).then(() => searchClient.warm());
       } else {
         // Fallback to Dexie cache
         const cached = await offlineDb.products.toArray();
@@ -352,6 +368,14 @@ function CreateOrderPOSContent() {
     const delayDebounceFn = setTimeout(async () => {
       setIsSearchingCustomer(true);
       try {
+        const hasCachedCustomers = (await offlineDb.customers.count()) > 0;
+        if (hasCachedCustomers) {
+          const results = await searchClient.searchCustomers(customerSearch);
+          setCustomerResults(results);
+          setIsSearchingCustomer(false);
+          return;
+        }
+
         if (typeof navigator !== "undefined" && !navigator.onLine) {
           const q = customerSearch.toLowerCase();
           const cached = await offlineDb.customers
@@ -377,7 +401,7 @@ function CreateOrderPOSContent() {
         const data = await res.json();
         if (data.success) {
           setCustomerResults(data.customers);
-          void offlineDb.customers.bulkPut(data.customers);
+          void offlineDb.customers.bulkPut(data.customers).then(() => searchClient.warm());
         }
       } catch (error) {
         console.warn("Searching customers from IndexedDB fallback...", error);

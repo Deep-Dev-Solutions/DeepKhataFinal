@@ -6,6 +6,7 @@ import type { SyncQueueItem } from "@/lib/db";
 import { syncEngine } from "@/lib/sync/engine";
 import { SYNC_QUEUE_EVENT, listAttentionItems } from "@/lib/sync/queue";
 import { useSyncState } from "./useSyncState";
+import ConflictDialog from "./ConflictDialog";
 
 const TYPE_LABELS: Record<SyncQueueItem["type"], string> = {
   CREATE_ORDER: "Sale",
@@ -27,6 +28,7 @@ export default function SyncStatus() {
   const state = useSyncState();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<SyncQueueItem[]>([]);
+  const [conflictItem, setConflictItem] = useState<SyncQueueItem | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   // Keep the list in step with the queue while the panel is open.
@@ -180,14 +182,25 @@ export default function SyncStatus() {
                   {item.lastError || "No details from the server."}
                 </p>
                 <div className="mt-2 flex gap-2">
-                  <button
-                    type="button"
-                    data-testid="sync-retry"
-                    onClick={() => void syncEngine.retryItem(item.id)}
-                    className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold cursor-pointer"
-                  >
-                    Retry
-                  </button>
+                  {item.status === "conflict" ? (
+                    <button
+                      type="button"
+                      data-testid="sync-resolve-conflict"
+                      onClick={() => setConflictItem(item)}
+                      className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold cursor-pointer"
+                    >
+                      Resolve
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      data-testid="sync-retry"
+                      onClick={() => void syncEngine.retryItem(item.id)}
+                      className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold cursor-pointer"
+                    >
+                      Retry
+                    </button>
+                  )}
                   <button
                     type="button"
                     data-testid="sync-discard"
@@ -201,6 +214,17 @@ export default function SyncStatus() {
             ))}
           </ul>
         </div>
+      )}
+
+      {conflictItem && (
+        <ConflictDialog
+          item={conflictItem}
+          onClose={() => setConflictItem(null)}
+          onResolved={() => {
+            setConflictItem(null);
+            setOpen(false);
+          }}
+        />
       )}
     </div>
   );
