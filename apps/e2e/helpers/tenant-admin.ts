@@ -39,6 +39,7 @@ export async function createThrowawayTenant(request: APIRequestContext, label: s
       ownerName: `Owner ${token}`,
       ownerEmail,
       ownerPassword: TEST_PASSWORD,
+      customLimits: { maxBranches: 2, maxUsers: 5, maxProducts: null },
     },
   });
   expect(res.ok(), `onboard-tenant failed: ${res.status()} ${await res.text()}`).toBeTruthy();

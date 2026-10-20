@@ -224,19 +224,36 @@ function CreateOrderPOSContent() {
   const fetchProducts = useCallback(async () => {
     setIsLoadingProducts(true);
     try {
+      const isRemoteBranch = Boolean(
+        viewingBranchId && activeBranchId && viewingBranchId !== activeBranchId,
+      );
+
       // 1. If cache is warm or has products, query local MiniSearch/Dexie first (zero network calls)
+      // Only do this when browsing the active branch (remote branch catalogue must query the server).
       const hasCachedProducts = (await offlineDb.products.count()) > 0;
-      if (hasCachedProducts && searchQuery) {
+      if (hasCachedProducts && searchQuery && !isRemoteBranch) {
         const results = await searchClient.searchProducts(searchQuery, {
           category: activeCategory,
         });
-        const normalized = (results || []).map((p: any) => ({
-          ...p,
-          price: Number(p.price ?? p.basePrice ?? 0),
-        }));
-        setProducts(normalized as Product[]);
-        setIsLoadingProducts(false);
-        return;
+        if (results && results.length > 0) {
+          const isOnline = typeof navigator === "undefined" || navigator.onLine;
+          const hasAnyStock = results.some(
+            (p: any) =>
+              (p.stock ?? 0) > 0 ||
+              (Array.isArray(p.instances) && p.instances.length > 0),
+          );
+          if (!isOnline || hasAnyStock) {
+            const normalized = (results || []).map((p: any) => ({
+              ...p,
+              price: Number(p.price ?? p.basePrice ?? 0),
+              minSalePrice:
+                p.minSalePrice != null ? Number(p.minSalePrice) : null,
+            }));
+            setProducts(normalized as Product[]);
+            setIsLoadingProducts(false);
+            return;
+          }
+        }
       }
 
       // If navigator is offline, read directly from Dexie
@@ -259,6 +276,8 @@ function CreateOrderPOSContent() {
         const normalized = (filtered || []).map((p: any) => ({
           ...p,
           price: Number(p.price ?? p.basePrice ?? 0),
+          minSalePrice:
+            p.minSalePrice != null ? Number(p.minSalePrice) : null,
         }));
         setProducts(normalized as Product[]);
         setIsLoadingProducts(false);
@@ -286,10 +305,14 @@ function CreateOrderPOSContent() {
         const normalized = data.products.map((p: any) => ({
           ...p,
           price: Number(p.price ?? p.basePrice ?? 0),
+          minSalePrice:
+            p.minSalePrice != null ? Number(p.minSalePrice) : null,
         }));
         setProducts(normalized);
-        // 🟢 Cache into IndexedDB and warm MiniSearch
-        void offlineDb.products.bulkPut(normalized).then(() => searchClient.warm());
+        // 🟢 Cache into IndexedDB and warm MiniSearch only when on active branch
+        if (!isRemoteBranch) {
+          void offlineDb.products.bulkPut(normalized).then(() => searchClient.warm());
+        }
       } else {
         // Fallback to Dexie cache
         const cached = await offlineDb.products.toArray();
@@ -298,6 +321,8 @@ function CreateOrderPOSContent() {
             cached.map((p: any) => ({
               ...p,
               price: Number(p.price ?? p.basePrice ?? 0),
+              minSalePrice:
+                p.minSalePrice != null ? Number(p.minSalePrice) : null,
             })),
           );
         }
@@ -313,6 +338,8 @@ function CreateOrderPOSContent() {
           cached.map((p: any) => ({
             ...p,
             price: Number(p.price ?? p.basePrice ?? 0),
+            minSalePrice:
+              p.minSalePrice != null ? Number(p.minSalePrice) : null,
           })),
         );
       }
@@ -884,14 +911,16 @@ function CreateOrderPOSContent() {
         {
           ...product,
           price: Number(product.price ?? product.basePrice ?? 0),
+          minSalePrice:
+            product.minSalePrice != null ? Number(product.minSalePrice) : null,
           qty: 1,
         },
       ];
     });
 
-    const fromDeletedBranch = product.instances?.some(
-      (i) => i.branch?.deletedAt,
-    );
+    const fromDeletedBranch = Array.isArray(product.instances)
+      ? product.instances.some((i) => i.branch?.deletedAt)
+      : false;
     if (fromDeletedBranch) {
       toast.warning(
         `"${product.name}" has stock from a deleted branch. Move it to an active branch from the Products page before selling.`,
@@ -1053,10 +1082,13 @@ function CreateOrderPOSContent() {
       return;
     }
 
-    const availableInstances =
-      product.instances?.filter((i) => i.status === "AVAILABLE") || [];
+    const instancesList = Array.isArray(product.instances) ? product.instances : [];
+    const availableInstances = instancesList.filter((i) => i.status === "AVAILABLE");
+    const availableCount = Array.isArray(product.instances)
+      ? availableInstances.length
+      : (typeof product.stock === "number" ? product.stock : 0);
 
-    if (availableInstances.length === 0) {
+    if (availableCount === 0) {
       const activeBranchName =
         branches?.find((b: any) => b.id === activeBranchId)?.name ||
         "the active branch";
@@ -1478,11 +1510,11 @@ function CreateOrderPOSContent() {
                 </div>
               ) : catalogView === "list" ? (
                 products.map((product) => {
-                  const availableInstances =
-                    product.instances?.filter(
-                      (i) => i.status === "AVAILABLE",
-                    ) || [];
-                  const availableCount = availableInstances.length;
+                  const instancesList = Array.isArray(product.instances) ? product.instances : [];
+                  const availableInstances = instancesList.filter((i) => i.status === "AVAILABLE");
+                  const availableCount = Array.isArray(product.instances)
+                    ? availableInstances.length
+                    : Number(product.stock ?? 0);
                   const isOutOfStock = availableCount === 0;
 
                   return (
@@ -1533,7 +1565,9 @@ function CreateOrderPOSContent() {
                               <Box className="w-2.5 h-2.5 shrink-0 text-indigo-600" />
                               <span className="truncate">
                                 {product.cabinet?.name ||
-                                  product.instances?.[0]?.cabinet?.name ||
+                                  (Array.isArray(product.instances)
+                                    ? product.instances[0]?.cabinet?.name
+                                    : null) ||
                                   "No Cabinet"}
                               </span>
                             </span>
@@ -1555,8 +1589,8 @@ function CreateOrderPOSContent() {
                                   ? (product as any).otherBranchesWithStock
                                       ?.length > 0
                                     ? `In ${(product as any).otherBranchesWithStock[0]}`
-                                    : "Out"
-                                  : `${availableCount} left`}
+                                    : "Out of Stock"
+                                  : `${availableCount} in stock`}
                             </span>
                           </div>
 
@@ -1572,15 +1606,16 @@ function CreateOrderPOSContent() {
                 })
               ) : (
                 products.map((product) => {
-                  const availableInstances =
-                    product.instances?.filter(
-                      (i) => i.status === "AVAILABLE",
-                    ) || [];
-                  const availableCount = availableInstances.length;
+                  const instancesList = Array.isArray(product.instances) ? product.instances : [];
+                  const availableInstances = instancesList.filter((i) => i.status === "AVAILABLE");
+                  const availableCount = Array.isArray(product.instances)
+                    ? availableInstances.length
+                    : Number(product.stock ?? 0);
                   const isOutOfStock = availableCount === 0;
 
                   const primaryCabinet =
-                    product.cabinet || product.instances?.[0]?.cabinet;
+                    product.cabinet ||
+                    (Array.isArray(product.instances) ? product.instances[0]?.cabinet : null);
                   const loc =
                     primaryCabinet?.location ||
                     primaryCabinet?.name ||

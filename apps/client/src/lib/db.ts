@@ -6,7 +6,9 @@ export interface LocalProduct {
   name: string;
   sku?: string | null;
   price: number;
+  basePrice?: number;
   stock: number;
+  minSalePrice?: number | null;
   partNumber?: string | null;
   branchId?: string | null;
   updatedAt?: string;
@@ -16,7 +18,11 @@ export interface LocalProduct {
     id: string;
     status: string;
     cabinet?: { name?: string | null; location?: string | null } | null;
+    branch?: { id: string; name?: string; deletedAt?: string | null } | null;
   }>;
+  totalBusinessStock?: number;
+  otherBranchesWithStock?: string[];
+  hasDeletedBranchStock?: boolean;
 }
 
 export interface LocalCustomer {

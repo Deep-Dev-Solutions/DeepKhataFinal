@@ -106,7 +106,7 @@ export default function OnboardingPage() {
             </div>
           </div>
           <h2 className="text-3xl font-extrabold text-slate-900 mb-2">
-            Let's set up your workspace
+            Let&apos;s set up your workspace
           </h2>
           <p className="text-slate-600">Step {step} of 3</p>
 
@@ -300,7 +300,7 @@ export default function OnboardingPage() {
               <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-4">
                 <p className="text-sm text-blue-800">
                   {APP_NAME} gives you a public link to share invoices and let
-                  customers place orders directly. Let's claim your unique URL.
+                  customers place orders directly. Let&apos;s claim your unique URL.
                 </p>
               </div>
 

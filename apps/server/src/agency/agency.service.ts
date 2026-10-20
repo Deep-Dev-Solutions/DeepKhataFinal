@@ -82,6 +82,7 @@ export class AgencyService {
             password: hashedPassword,
             role: Role.OWNER,
             phone: phone || null,
+            emailVerified: true,
           },
         });
 
@@ -113,7 +114,13 @@ export class AgencyService {
         });
 
         // Trial plan; also mirrors Business.status/subscriptionExpiresAt.
-        await this.subscriptions.startTrial(business.id, tx);
+        const sub = await this.subscriptions.startTrial(business.id, tx);
+        if (data.customLimits) {
+          await tx.subscription.update({
+            where: { businessId: business.id },
+            data: { customLimits: data.customLimits },
+          });
+        }
 
         return { user, business, branch };
       });

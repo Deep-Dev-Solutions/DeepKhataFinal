@@ -222,6 +222,7 @@ export default function AgencyAdminPage() {
       await api.post(`/agency/branch/${branchModalFor.businessId}`, {
         name: branchName,
         location: branchLocation,
+        override: true,
       });
       await fetchTenants();
       setBranchModalFor(null);

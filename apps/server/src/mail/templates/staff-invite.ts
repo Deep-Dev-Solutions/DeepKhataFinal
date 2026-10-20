@@ -7,7 +7,7 @@ export const staffInvite = (data: TemplateData['staff-invite']) => {
     subject: `${data.inviterName} invited you to ${data.businessName} on ${appName()}`,
     heading: `You have been invited to ${appName()}`,
     paragraphs: [
-      `${data.inviterName} invited you to join ${data.businessName} as ${data.role}.`,
+      `${data.inviterName} invited you to join ${data.businessName} as *${data.role}*.`,
       'Click the button below to accept the invitation and set up your account.',
       ...(expires ? [`This invitation expires on ${expires}.`] : []),
     ],

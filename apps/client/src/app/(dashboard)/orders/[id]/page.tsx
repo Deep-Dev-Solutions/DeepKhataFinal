@@ -625,7 +625,7 @@ export default function OrderDetailsLedger() {
                   <code className="font-mono text-xs bg-amber-200/60 px-1 py-0.5 rounded text-amber-900">
                     MEMO_LOCKED
                   </code>
-                  ) and no monetary debt has been recorded in the customer's
+                  ) and no monetary debt has been recorded in the customer&apos;s
                   ledger. You can return the items back to inventory or convert
                   this into a permanent Final Sale.
                 </p>

@@ -70,14 +70,63 @@ class SearchClient {
     this.isWarming = true;
 
     try {
-      const [products, customers] = await Promise.all([
+      const [products, customers, instances, stockSummaries, branches] = await Promise.all([
         offlineDb.products.toArray(),
         offlineDb.customers.toArray(),
+        offlineDb.instances.toArray(),
+        offlineDb.stockSummary.toArray(),
+        offlineDb.branches.toArray(),
       ]);
+
+      const branchNameById = new Map<string, string>(
+        branches.map((b: any) => [b.id, b.name])
+      );
+
+      const availableInstancesByProd = new Map<string, any[]>();
+      for (const inst of instances) {
+        if (inst.status === "AVAILABLE") {
+          const list = availableInstancesByProd.get(inst.productId) || [];
+          list.push(inst);
+          availableInstancesByProd.set(inst.productId, list);
+        }
+      }
+
+      const otherBranchesByProd = new Map<string, string[]>();
+      for (const ss of stockSummaries) {
+        if (ss.available > 0) {
+          const bName = branchNameById.get(ss.branchId);
+          if (bName) {
+            const list = otherBranchesByProd.get(ss.productId) || [];
+            if (!list.includes(bName)) list.push(bName);
+            otherBranchesByProd.set(ss.productId, list);
+          }
+        }
+      }
+
+      const enrichedProducts = products.map((p) => {
+        const localInsts = availableInstancesByProd.get(p.id) || [];
+        const otherStock = otherBranchesByProd.get(p.id) || [];
+        const instancesList =
+          Array.isArray(p.instances) && p.instances.length > 0
+            ? p.instances
+            : localInsts;
+        const localStock = localInsts.length;
+        const totalStock = localStock > 0 ? localStock : (p.stock || 0);
+
+        return {
+          ...p,
+          instances: instancesList,
+          stock: totalStock,
+          otherBranchesWithStock:
+            p.otherBranchesWithStock && p.otherBranchesWithStock.length > 0
+              ? p.otherBranchesWithStock
+              : otherStock,
+        };
+      });
 
       if (this.worker) {
         await Promise.all([
-          this.sendRequest("INDEX_PRODUCTS", products),
+          this.sendRequest("INDEX_PRODUCTS", enrichedProducts),
           this.sendRequest("INDEX_CUSTOMERS", customers),
         ]);
       } else {
@@ -90,11 +139,16 @@ class SearchClient {
             "sku",
             "partNumber",
             "price",
+            "basePrice",
             "stock",
+            "minSalePrice",
             "branchId",
             "category",
             "cabinet",
             "instances",
+            "otherBranchesWithStock",
+            "totalBusinessStock",
+            "hasDeletedBranchStock",
           ],
           searchOptions: {
             boost: { name: 2, sku: 2, partNumber: 1.5 },
@@ -114,7 +168,7 @@ class SearchClient {
             return document[fieldName] ?? "";
           },
         });
-        if (products.length > 0) pMs.addAll(products);
+        if (enrichedProducts.length > 0) pMs.addAll(enrichedProducts);
         this.fallbackProductIndex = pMs;
 
         const cMs = new MiniSearch({

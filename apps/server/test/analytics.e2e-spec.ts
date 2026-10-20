@@ -197,7 +197,18 @@ describe('Tenant analytics (e2e)', () => {
       // Returns: one on the day, one the next day.
       for (const at of [karachi(DAY, '14:00:00'), karachi('2026-02-11', '14:00:00')]) {
         await prisma.transaction.create({
-          data: { businessId: t.businessId, type: 'RETURN', referenceId: `RET-${rand()}`, createdAt: at },
+          data: {
+            businessId: t.businessId,
+            type: 'RETURN',
+            referenceId: `RET-${rand()}`,
+            createdAt: at,
+            postings: {
+              create: [
+                { accountId: 'REVENUE', accountType: 'REVENUE', amount: '100.00' },
+                { accountId: 'CASH', accountType: 'ASSET', amount: '-100.00' },
+              ],
+            },
+          },
         });
       }
 
@@ -730,9 +741,11 @@ describe('Tenant analytics (e2e)', () => {
       expect(res.body.trialToPaid).toBeGreaterThanOrEqual(0);
       expect(res.body.trialToPaid).toBeLessThanOrEqual(1);
       expect(typeof res.body.totalGmv30).toBe('number');
+      const beforeLahore = before.signupsByCity?.find((c: { city: string }) => c.city === 'Lahore')?.count ?? 0;
+      const beforeMarket = before.signupsByMarket?.find((c: { market: string }) => c.market === 'Hafeez Centre')?.count ?? 0;
       const lahore = res.body.signupsByCity.find((c: { city: string }) => c.city === 'Lahore');
-      expect(lahore.count).toBe(2);
-      expect(res.body.signupsByMarket.find((c: { market: string }) => c.market === 'Hafeez Centre').count).toBe(2);
+      expect(lahore.count).toBe(beforeLahore + 2);
+      expect(res.body.signupsByMarket.find((c: { market: string }) => c.market === 'Hafeez Centre').count).toBe(beforeMarket + 2);
       expect(res.body.signupsByCity.some((c: { city: string }) => c.city === 'Unknown')).toBe(true);
     });
   });

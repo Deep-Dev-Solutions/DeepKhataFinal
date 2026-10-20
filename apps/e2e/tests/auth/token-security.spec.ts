@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
 import crypto from 'node:crypto';
-import jwt from 'jsonwebtoken';
 import { users, tenants } from '../../fixtures/users';
 import { apiAs } from '../../helpers/api';
 import { E2E } from '../../env';
@@ -12,6 +11,14 @@ function b64url(input: Buffer | string): string {
   return Buffer.from(input).toString('base64url');
 }
 
+function signHs256(data: object, secret: string, options: { expiresInSeconds: number; jti: string }): string {
+  const head = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const now = Math.floor(Date.now() / 1000);
+  const body = b64url(JSON.stringify({ ...data, iat: now, exp: now + options.expiresInSeconds, jti: options.jti }));
+  const sig = crypto.createHmac('sha256', secret).update(`${head}.${body}`).digest('base64url');
+  return `${head}.${body}.${sig}`;
+}
+
 const payload = {
   id: users.ownerA.id,
   role: 'OWNER',
@@ -21,7 +28,7 @@ const payload = {
 
 test.describe('A: forged and malformed tokens are rejected', () => {
   test('token signed with the old leaked secret -> 401', async ({ request }) => {
-    const forged = jwt.sign(payload, OLD_SECRET, { expiresIn: '1h', jwtid: 'forged-1' });
+    const forged = signHs256(payload, OLD_SECRET, { expiresInSeconds: 3600, jti: 'forged-1' });
     const res = await request.get(PROTECTED, { headers: { Authorization: `Bearer ${forged}` } });
     expect(res.status()).toBe(401);
   });
