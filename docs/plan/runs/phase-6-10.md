@@ -96,4 +96,23 @@ Waves (≤3 writers each): W1 S1, X1, Q1 · W2 A1, M1, P1 · W3 A1r, A2, O1 · W
 | Wave | Date | Result | Notes |
 |---|---|---|---|
 | W0 | 2026-10-18 | d7ddbc9 deps + desktop workspace | User: go; no session cookie cache (D2); defer Windows-only Phase 10 parts (D14). |
-| W1 | 2026-10-18 | running: S1 (schema 0009), X1 (desktop shell), Q1 (TanStack Query) | |
+| W1 | 2026-10-18 | complete: S1, X1, Q1 | Schema 0009, desktop shell, TanStack Query provider. |
+| W2 | 2026-10-18 | complete: A1, M1, P1 | Better Auth server, MailModule, PlanLimitsService. |
+| W3 | 2026-10-18 | complete: A1r, A2, O1 | SessionGuard rename, Better Auth test harness, sync pull. |
+| W4 | 2026-10-19 | complete: A3, B1, B2 | Account flows, onboarding wizard backend, invoices/billing engine. |
+| W5 | 2026-10-19 | complete: A4, U1, X2 | Client/admin auth switch, analytics engine, desktop server mode (36e3faf). |
+| W6 | 2026-10-19 | complete: B3, B4, O2 | Plan & Usage UI, agency signups/billing UI, Dexie v2 sync engine. |
+| W7 | 2026-10-20 | complete: U2, U3, O3 | Agency analytics UI (79dae30), terms/privacy/view-as banner (6d48e5f), MiniSearch worker & offline writes (f4d9bce). |
+| W8 | 2026-10-20 | complete: T6, T7, T10 | P6, P7, P10 tests passing. |
+| W9 | 2026-10-20 | complete: T8, T9 | P8, P9 tests passing, Better Auth cookie session migration in E2E (d8db0c1). |
+| CLOSE (first attempt) | 2026-10-21 | not finished | The worktree log claimed builds, 336 API tests and E2E green, but the close left 13 files uncommitted (kept on branch `salvage/phase-6-10-uncommitted`, e0951cb) and no run was recorded. Superseded by the close run below. |
+
+## Final-fixes close run (branch `hardening-close`, cut from `final-fixes`)
+
+Scope (user, 2026-10-21): docs truth, full verification, missing P6-P9 Playwright specs, `isOfflineSync`, Vercel cleanup, bot hardening, k6 scenarios, 3 green E2E runs, PR `hardening-close` into `final-fixes` (not merged). Nothing against Supabase or production; local Postgres :5433 only.
+Routing: Haiku for scouts, checks and mechanical edits; Sonnet for logic and all tests. Commit and log after each task.
+Note: a session hook blocks edits in the base checkout, so all work happens in the session worktree; BUGS.md and STATUS.md are git-excluded by repo convention and were force-added so they travel with the PR.
+
+| Task | Date | Result | Notes |
+|---|---|---|---|
+| 1 Docs | 2026-10-21 | done | BUGS.md restored (1-21, D1-D11) plus N1-N4; STATUS.md rewritten for phases 0-10 (phase 6-10 numbers filled only from the truth run); desktop uses embedded Postgres, not SQLite; this log copied from the worktree; old worktree removed after its WIP was kept on `salvage/phase-6-10-uncommitted`. |
