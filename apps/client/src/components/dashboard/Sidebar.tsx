@@ -20,6 +20,8 @@ import {
   Truck,
   Tags,
   LayoutGrid,
+  HandCoins,
+  ScanSearch,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { AGENCY_APP_URL } from "@/lib/auth";
@@ -38,6 +40,7 @@ const navGroups = [
   {
     title: "Stock & Catalog",
     items: [
+      { name: "Stock Finder", href: "/stock-finder", icon: ScanSearch },
       { name: "Products", href: "/products", icon: Package },
       { name: "Restock Hub", href: "/inventory/restock", icon: Warehouse },
       { name: "Categories", href: "/settings/categories", icon: Tags },
@@ -47,6 +50,7 @@ const navGroups = [
   {
     title: "Accounts",
     items: [
+      { name: "Lena / Dena", href: "/dues", icon: HandCoins },
       { name: "Customers (Udhar)", href: "/customers", icon: Users },
       { name: "Vendors", href: "/vendors", icon: Truck },
     ],
@@ -84,6 +88,7 @@ export default function Sidebar() {
 
   return (
     <aside
+      data-testid="sidebar-root"
       style={{ height: "100dvh", maxHeight: "100dvh" }}
       className={`hidden md:flex flex-col ${
         isCollapsed ? "w-20" : "w-64"
@@ -142,10 +147,10 @@ export default function Sidebar() {
           }
 
           const visibleItems = group.items.filter((item) => {
-            if (
-              item.name === "Reports" &&
-              !hasPermission("read:reports")
-            ) {
+            if (item.name === "Reports" && !hasPermission("read:reports")) {
+              return false;
+            }
+            if (item.name === "Lena / Dena" && !hasPermission("read:dues")) {
               return false;
             }
             if (item.name === "Store Settings" && user?.role === "STAFF") {
@@ -181,6 +186,7 @@ export default function Sidebar() {
                     <Link
                       key={item.name}
                       href={item.href}
+                      data-testid={`nav-${item.href.split("/").filter(Boolean).pop()}`}
                       title={item.name}
                       className={`flex ${
                         isCollapsed
@@ -235,6 +241,7 @@ export default function Sidebar() {
             </Link>
             <button
               onClick={handleLogout}
+              data-testid="sidebar-logout"
               className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
               title="Log out"
             >
@@ -266,6 +273,7 @@ export default function Sidebar() {
 
               <button
                 onClick={handleLogout}
+                data-testid="sidebar-logout"
                 className="flex items-center gap-1 px-2.5 py-1 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer text-xs font-semibold shrink-0 border border-slate-200"
                 title="Log out"
               >

@@ -1,43 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { Loader2, Plus } from "lucide-react";
 import StatsCards from "@/components/dashboard/widgets/StatsCards";
 import RevenueChart from "@/components/dashboard/widgets/RevenueChart";
 import PaymentHealth from "@/components/dashboard/widgets/PaymentHealth";
 import RecentOrdersTable from "@/components/dashboard/widgets/RecentOrdersTable";
-import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
-import { useAuth } from "@/context/AuthContext";
+import GettingStartedChecklist from "@/components/dashboard/GettingStartedChecklist";
+import DuesTodayWidget from "@/components/dashboard/widgets/DuesTodayWidget";
+import TransfersInboxWidget from "@/components/dashboard/widgets/TransfersInboxWidget";
+import { useDashboard } from "@/hooks/queries/useDashboard";
 
 export default function DashboardHomePage() {
-  const [dashboardData, setDashboardData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
-  const { activeBranchId } = useAuth();
+  const { data: dashboardData, isPending: isLoading, error: queryError } =
+    useDashboard();
+  const error = queryError
+    ? queryError.message || "Could not load dashboard data."
+    : "";
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/dashboard/dashboarddata`, {
-          headers: getAuthHeaders(activeBranchId),
-          cache: "no-store",
-        });
-
-        const data = await res.json();
-        if (!res.ok)
-          throw new Error(data?.message || "Failed to load dashboard data");
-
-        setDashboardData(data);
-      } catch (err: any) {
-        setError(err.message || "Could not load dashboard data.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchDashboardData();
-  }, [activeBranchId]);
+    if (isLoading || error) return;
+    if (new URLSearchParams(window.location.search).get("panel") !== "transfers")
+      return;
+    document
+      .querySelector('[data-testid="transfers-widget"]')
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [isLoading, error]);
 
   if (isLoading) {
     return (
@@ -56,14 +45,14 @@ export default function DashboardHomePage() {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-10">
+    <div data-testid="dashboard-root" className="space-y-6 animate-in fade-in duration-500 pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
             Dashboard Overview
           </h1>
           <p className="text-sm text-slate-500">
-            Here's what's happening with your business today.
+            Here&apos;s what&apos;s happening with your business today.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -77,7 +66,11 @@ export default function DashboardHomePage() {
         </div>
       </div>
 
+      <GettingStartedChecklist />
+
       <StatsCards kpis={dashboardData?.kpis} />
+
+      <DuesTodayWidget />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         <div className="lg:col-span-2">
@@ -88,6 +81,8 @@ export default function DashboardHomePage() {
           <PaymentHealth paymentHealth={dashboardData?.paymentHealth || []} />
         </div>
       </div>
+
+      <TransfersInboxWidget />
 
       <RecentOrdersTable orders={dashboardData?.recentOrders || []} />
     </div>

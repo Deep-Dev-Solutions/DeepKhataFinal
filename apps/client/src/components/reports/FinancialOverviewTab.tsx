@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { ArrowUpRight, ArrowDownRight, Loader2 } from "lucide-react";
 import {
   AreaChart,
@@ -15,10 +14,8 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { API_BASE_URL } from "@/lib/auth";
-import { FinancialReportData, PaymentFlowItem } from "@/types/api";
-import { getAuthHeaders } from "@/lib/auth";
-import { useAuth } from "@/context/AuthContext";
+import { PaymentFlowItem } from "@/types/api";
+import { useFinancialReport } from "@/hooks/queries/useReports";
 
 type FinancialOverviewTabProps = {
   days: number;
@@ -27,44 +24,12 @@ type FinancialOverviewTabProps = {
 export default function FinancialOverviewTab({
   days,
 }: FinancialOverviewTabProps) {
-  const [reportData, setReportData] = useState<FinancialReportData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
-  const { activeBranchId } = useAuth();
-
-  useEffect(() => {
-    let isActive = true;
-
-    const fetchFinancialReport = async () => {
-      setIsLoading(true);
-      setError("");
-
-      try {
-        const res = await fetch(
-          `${API_BASE_URL}/reports/financial?days=${days}`,
-          {
-            headers: getAuthHeaders(activeBranchId),
-          },
-        );
-
-        const json = await res.json();
-        if (!res.ok || !json?.success)
-          throw new Error(json?.message || "Failed to load financial report");
-
-        if (isActive) setReportData(json);
-      } catch {
-        if (isActive) setError("Could not load financial overview.");
-      } finally {
-        if (isActive) setIsLoading(false);
-      }
-    };
-
-    fetchFinancialReport();
-
-    return () => {
-      isActive = false;
-    };
-  }, [days, activeBranchId]);
+  const {
+    data: reportData,
+    isPending: isLoading,
+    isError,
+  } = useFinancialReport(days);
+  const error = isError ? "Could not load financial overview." : "";
 
   if (isLoading) {
     return (

@@ -7,6 +7,12 @@ import { LogOut, Loader2, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { CLIENT_APP_URL } from "@/lib/auth";
 
+const NAV_LINKS = [
+  { href: "/", label: "Tenants", testId: "nav-tenants" },
+  { href: "/signups", label: "New Signups", testId: "nav-signups" },
+  { href: "/billing", label: "Billing", testId: "nav-billing" },
+];
+
 export default function AppShell({
   children,
 }: {
@@ -58,6 +64,24 @@ export default function AppShell({
               Master Control
             </span>
           </div>
+          <nav className="flex items-center gap-1 ml-4">
+            {NAV_LINKS.map((item) => {
+              const isActive =
+                item.href === "/"
+                  ? pathname === "/"
+                  : pathname.startsWith(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  data-testid={item.testId}
+                  className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${isActive ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"}`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
         <div className="flex items-center gap-5">
           <Link

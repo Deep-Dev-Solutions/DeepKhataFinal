@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { CustomersModule } from './customers/customers.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
+import { LifecycleModule } from './lifecycle/lifecycle.module';
 import { OrdersModule } from './orders/orders.module';
 import { ProductsModule } from './products/products.module';
 import { ReportsModule } from './reports/reports.module';
@@ -23,9 +24,37 @@ import { AgencyModule } from './agency/agency.module';
 import { CategoryModule } from './category/category.module';
 import { CabinetModule } from './cabinet/cabinet.module';
 import { RedisModule } from './redis/redis.module';
+import { TenantModule } from './tenant/tenant.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { NotificationsModule } from './notifications/notifications.module';
+import { KhataEntriesModule } from './khata-entries/khata-entries.module';
+import { StockFinderModule } from './stock-finder/stock-finder.module';
+import { DuesModule } from './dues/dues.module';
+import { ReservationsModule } from './reservations/reservations.module';
+import { StockTransfersModule } from './stock-transfers/stock-transfers.module';
+import { RemindersModule } from './reminders/reminders.module';
+import { MailModule } from './mail/mail.module';
+import { PlansModule } from './plans/plans.module';
+import { BillingModule } from './billing/billing.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { DesktopModule } from './desktop/desktop.module';
 
 @Module({
   imports: [
+    TenantModule,
+    PlansModule,
+    BillingModule,
+    AnalyticsModule,
+    DesktopModule,
+    ScheduleModule.forRoot(),
+    MailModule,
+    NotificationsModule,
+    KhataEntriesModule,
+    StockFinderModule,
+    DuesModule,
+    ReservationsModule,
+    StockTransfersModule,
+    RemindersModule,
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
@@ -37,6 +66,7 @@ import { RedisModule } from './redis/redis.module';
     CustomersModule,
     DashboardModule,
     OnboardingModule,
+    LifecycleModule,
     OrdersModule,
     ProductsModule,
     ReportsModule,

@@ -63,6 +63,7 @@ export default function VendorProfilePage() {
     setPageError("");
     try {
       const response = await fetch(`${API_BASE_URL}/vendors/${id}`, {
+        credentials: "include",
         headers: getAuthHeaders(),
       });
       const data = await response.json();
@@ -115,6 +116,7 @@ export default function VendorProfilePage() {
           ? `/vendors/${id}/purchase`
           : `/vendors/${id}/payment`;
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        credentials: "include",
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -201,7 +203,7 @@ export default function VendorProfilePage() {
   });
 
   return (
-    <div className="flex flex-col gap-6 animate-in fade-in duration-500 pb-10">
+    <div data-testid="vendor-detail" className="flex flex-col gap-6 animate-in fade-in duration-500 pb-10">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl border bg-white border-slate-200 shadow-sm">
         <div className="flex items-center gap-4">
@@ -234,6 +236,7 @@ export default function VendorProfilePage() {
 
         <div className="flex items-center gap-2">
           <button
+            data-testid="vendor-purchase-open"
             onClick={() => {
               setActionType("purchase");
               const el = document.getElementById("tx-form");
@@ -244,6 +247,7 @@ export default function VendorProfilePage() {
             + Record Purchase
           </button>
           <button
+            data-testid="vendor-payment-open"
             onClick={() => {
               setActionType("payment");
               const el = document.getElementById("tx-form");
@@ -297,6 +301,7 @@ export default function VendorProfilePage() {
               Balance Due
             </p>
             <p
+              data-testid="vendor-balance"
               className={`text-base sm:text-lg font-black truncate ${vendor.balance > 0 ? "text-rose-600" : "text-emerald-700"}`}
             >
               Rs. {formatPrice(vendor.balance)}
@@ -451,6 +456,7 @@ export default function VendorProfilePage() {
                   type="number"
                   required
                   min="1"
+                  data-testid="vendor-amount"
                   value={txAmount}
                   onChange={(e) => setTxAmount(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
@@ -464,6 +470,7 @@ export default function VendorProfilePage() {
                 </label>
                 <input
                   type="text"
+                  data-testid="vendor-description"
                   value={txDescription}
                   onChange={(e) => setTxDescription(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
@@ -477,6 +484,7 @@ export default function VendorProfilePage() {
 
               <button
                 type="submit"
+                data-testid="vendor-submit"
                 disabled={isSubmittingTx || !txAmount}
                 className={`w-full py-2.5 text-white font-bold rounded-xl text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer shadow-sm ${
                   actionType === "purchase"
@@ -835,6 +843,7 @@ export default function VendorProfilePage() {
                     ) : (
                       vendor.ledger.map((item: any) => (
                         <tr
+                          data-testid="vendor-ledger-row"
                           key={item.id}
                           className="hover:bg-slate-50/70 transition-colors"
                         >

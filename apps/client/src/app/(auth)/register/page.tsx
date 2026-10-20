@@ -4,9 +4,11 @@ import React, { useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
-import { Store, Mail, Lock, User, ArrowRight } from "lucide-react";
+import { Store, Mail, Lock, User, Phone, ArrowRight } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { API_BASE_URL } from "@/lib/auth";
+import { API_BASE_URL, apiFetch } from "@/lib/auth";
+
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "DeepKhata";
 
 function RegisterPageContent() {
   const router = useRouter();
@@ -15,6 +17,7 @@ function RegisterPageContent() {
   const invitedEmail = searchParams.get("email") || "";
   const [name, setName] = useState("");
   const [email, setEmail] = useState(invitedEmail);
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -27,23 +30,43 @@ function RegisterPageContent() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/register`, {
+      const res = await apiFetch(`${API_BASE_URL}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          ...(phone.trim() ? { phone: phone.trim() } : {}),
+        }),
       });
 
       const data = await res.json();
 
-      if (!res.ok) throw new Error(data?.message || "Registration failed");
-
-      if (data?.accessToken) {
-        setSession(data.accessToken, data.user);
+      if (!res.ok) {
+        const msg = Array.isArray(data?.message)
+          ? data.message.join(", ")
+          : data?.message;
+        throw new Error(msg || "Registration failed");
       }
 
-      setSuccess(data?.message || "Account created successfully");
+      // Registration does not set the cookie; sign in to open the session.
+      const loginRes = await apiFetch(`${API_BASE_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const loginData = await loginRes.json();
+      if (!loginRes.ok) {
+        throw new Error(
+          loginData?.message || "Account created. Please sign in.",
+        );
+      }
 
-      if (data?.hasBusiness) {
+      setSession(loginData?.user);
+      setSuccess("Account created. Check your email to verify your address.");
+
+      if (loginData?.user?.businessId) {
         router.push("/dashboard");
       } else {
         router.push("/onboarding");
@@ -62,7 +85,7 @@ function RegisterPageContent() {
             <Store className="w-6 h-6 text-white" />
           </div>
           <span className="text-2xl font-bold tracking-tight text-slate-900">
-            BizFlow
+            {APP_NAME}
           </span>
         </div>
 
@@ -92,6 +115,7 @@ function RegisterPageContent() {
                 <input
                   id="name"
                   name="name"
+                  data-testid="register-name"
                   type="text"
                   required
                   value={name}
@@ -117,6 +141,7 @@ function RegisterPageContent() {
                 <input
                   id="email"
                   name="email"
+                  data-testid="register-email"
                   type="email"
                   autoComplete="email"
                   required
@@ -126,6 +151,32 @@ function RegisterPageContent() {
                   className="block w-full pl-10 sm:text-sm border-slate-300 rounded-xl py-3 text-slate-900 focus:ring-blue-500 focus:border-blue-500 border outline-none transition-colors disabled:bg-slate-100 disabled:text-slate-500"
                   placeholder="you@example.com"
                   disabled={Boolean(invitedEmail)}
+                />
+              </div>
+            </div>
+
+            {/* Phone Input */}
+            <div>
+              <label
+                htmlFor="phone"
+                className="block text-sm font-medium text-slate-700"
+              >
+                Mobile number (optional)
+              </label>
+              <div className="mt-1 relative rounded-md shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Phone className="h-5 w-5 text-slate-400" />
+                </div>
+                <input
+                  id="phone"
+                  name="phone"
+                  data-testid="register-phone"
+                  type="tel"
+                  autoComplete="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="block w-full pl-10 sm:text-sm border-slate-300 rounded-xl py-3 text-slate-900 focus:ring-blue-500 focus:border-blue-500 border outline-none transition-colors"
+                  placeholder="03XX XXXXXXX"
                 />
               </div>
             </div>
@@ -145,6 +196,8 @@ function RegisterPageContent() {
                 <input
                   id="password"
                   name="password"
+                  data-testid="register-password"
+                  minLength={8}
                   type="password"
                   autoComplete="new-password"
                   required
@@ -157,13 +210,41 @@ function RegisterPageContent() {
             </div>
 
             {/* Submit Button */}
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && (
+              <p data-testid="register-error" className="text-sm text-red-600">
+                {error}
+              </p>
+            )}
 
             {success && <p className="text-sm text-green-600">{success}</p>}
+
+            {/* Terms and Privacy Checkbox */}
+            <div className="flex items-start gap-2 pt-1">
+              <input
+                id="terms"
+                name="terms"
+                type="checkbox"
+                data-testid="terms-checkbox"
+                required
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="terms" className="text-xs text-slate-600">
+                I agree to the{" "}
+                <Link
+                  href="/terms"
+                  target="_blank"
+                  className="text-blue-600 underline hover:text-blue-500"
+                >
+                  Terms of Service and Privacy Policy
+                </Link>
+                .
+              </label>
+            </div>
 
             <div className="pt-2">
               <button
                 type="submit"
+                data-testid="register-submit"
                 disabled={loading}
                 className="w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all disabled:opacity-60"
               >

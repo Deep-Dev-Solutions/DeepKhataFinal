@@ -68,6 +68,7 @@ export default function OrderSuccessModal({
     const fetchBusiness = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/businessinfo`, {
+          credentials: "include",
           headers: getAuthHeaders(),
         });
         const data = await res.json();
@@ -242,6 +243,7 @@ export default function OrderSuccessModal({
               {!order.isOffline && onViewOrder && (
                 <button
                   type="button"
+                  data-testid="pos-success-view-order"
                   onClick={() => onViewOrder(order.id)}
                   className="flex items-center justify-center gap-2 py-2.5 px-3 border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 rounded-xl text-xs sm:text-sm font-semibold transition-colors"
                 >

@@ -9,14 +9,8 @@ import React, {
   useMemo,
 } from "react";
 import { useRouter } from "next/navigation";
-import {
-  getAuthToken,
-  setAuthToken,
-  clearAuthToken,
-  decodeJwt,
-  isTokenValid,
-} from "@/lib/auth";
-import { api } from "@/lib/api";
+import { clearAuthStorage, clearLegacyAuthStorage } from "@/lib/auth";
+import { api, ApiError } from "@/lib/api";
 import { useToast } from "@/context/ToastContext";
 
 export interface UserSession {
@@ -25,15 +19,6 @@ export interface UserSession {
   email?: string;
   role?: string;
   businessId?: string | null;
-}
-
-interface JwtPayload {
-  id: string;
-  name?: string;
-  email?: string;
-  role?: string;
-  businessId?: string | null;
-  exp?: number;
 }
 
 interface MeResponse {
@@ -46,15 +31,19 @@ interface MeResponse {
 
 interface AuthContextType {
   user: UserSession | null;
+  /** Non-secret marker ("session") while signed in; the credential is the cookie. */
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  setSession: (token: string, userData?: Partial<UserSession>) => void;
+  // Call after the API has set the session cookie (agency login).
+  setSession: (userData?: Partial<UserSession>) => void;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const SESSION_MARKER = "session";
 
 const UNAUTHORIZED_MESSAGE =
   "Your account is not authorized to access the Agency Console.";
@@ -75,34 +64,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   const cancelSession = useCallback(() => {
-    clearAuthToken();
+    clearAuthStorage();
     setTokenState(null);
     setUser(null);
   }, []);
 
   useEffect(() => {
     const initAuth = async () => {
-      let activeToken: string | null = null;
-
       try {
-        activeToken = getAuthToken();
+        clearLegacyAuthStorage();
 
-        if (!activeToken || !isTokenValid(activeToken)) {
-          cancelSession();
-          goToLogin();
-          return;
-        }
-
-        const decoded = decodeJwt<JwtPayload>(activeToken);
-        if (!decoded?.id || decoded.role !== "SUPER_ADMIN") {
-          cancelSession();
-          showToast(UNAUTHORIZED_MESSAGE, "error");
-          goToLogin();
-          return;
-        }
-
-        setTokenState(activeToken);
-
+        // The API is the authority: it validates the cookie session.
         const data = await api.get<MeResponse>("/user/me");
 
         if (!data?.id || data.role !== "SUPER_ADMIN") {
@@ -114,18 +86,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         const freshUser: UserSession = {
           id: data.id,
-          name: data.name || decoded.name || "Super Admin",
-          email: data.email || decoded.email || "",
+          name: data.name || "Super Admin",
+          email: data.email || "",
           role: data.role,
           businessId: data.businessId ?? null,
         };
 
+        setTokenState(SESSION_MARKER);
         setUser(freshUser);
         if (typeof window !== "undefined") {
           localStorage.setItem("user", JSON.stringify(freshUser));
         }
       } catch (err) {
-        console.error("Session verification failed:", err);
+        // 401 (no or revoked session) or network failure: back to login.
+        if (!(err instanceof ApiError) || err.status !== 401) {
+          console.error("Session verification failed:", err);
+        }
         cancelSession();
         goToLogin();
       } finally {
@@ -135,36 +111,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initAuth();
   }, [cancelSession, goToLogin, showToast]);
 
-  const setSession = useCallback(
-    (newToken: string, userData?: Partial<UserSession>) => {
-      setAuthToken(newToken);
-      setTokenState(newToken);
+  const setSession = useCallback((userData?: Partial<UserSession>) => {
+    const combinedUser: UserSession = {
+      id: userData?.id || "",
+      name: userData?.name || "Super Admin",
+      email: userData?.email || "",
+      role: userData?.role || "SUPER_ADMIN",
+      businessId: userData?.businessId || null,
+    };
 
-      const decoded = decodeJwt<JwtPayload>(newToken);
-      const combinedUser: UserSession = {
-        id: userData?.id || decoded?.id || "",
-        name: userData?.name || decoded?.name || "Super Admin",
-        email: userData?.email || decoded?.email || "",
-        role: userData?.role || decoded?.role || "SUPER_ADMIN",
-        businessId: userData?.businessId || decoded?.businessId || null,
-      };
-
-      setUser(combinedUser);
-      setIsLoading(false);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("user", JSON.stringify(combinedUser));
-      }
-    },
-    [],
-  );
+    setTokenState(SESSION_MARKER);
+    setUser(combinedUser);
+    setIsLoading(false);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("user", JSON.stringify(combinedUser));
+    }
+  }, []);
 
   const logout = useCallback(async () => {
-    const activeToken = token || getAuthToken();
-
     try {
-      if (activeToken) {
-        await api.post("/auth/logout");
-      }
+      await api.post("/auth/logout");
     } catch {
       // Ignore network errors during logout.
     }
@@ -172,7 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     cancelSession();
     setIsLoading(false);
     goToLogin();
-  }, [token, cancelSession, goToLogin]);
+  }, [cancelSession, goToLogin]);
 
   const refreshUser = useCallback(async () => {
     try {
@@ -203,7 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [cancelSession, goToLogin, showToast]);
 
   const isAuthenticated = useMemo(
-    () => Boolean(token && isTokenValid(token) && user && user.role === "SUPER_ADMIN"),
+    () => Boolean(token && user && user.role === "SUPER_ADMIN"),
     [token, user],
   );
 

@@ -39,7 +39,7 @@ export default function GlobalStockLookupModal({
     try {
       const response = await fetch(
         `${API_BASE_URL}/product/global-stock?search=${encodeURIComponent(query)}`,
-        { headers: getAuthHeaders(), cache: "no-store" },
+        { credentials: "include",  headers: getAuthHeaders(), cache: "no-store" },
       );
       const data = await response.json();
       if (!response.ok) {

@@ -1,53 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
-import { API_BASE_URL } from "@/lib/auth";
-import { Product } from "@/types/api";
-import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
-import { useAuth } from "@/context/AuthContext";
+import { useInventoryReport } from "@/hooks/queries/useReports";
 
 export default function InventoryInsightsTab() {
-  const [topProducts, setTopProducts] = useState<Product[]>([]);
-  const [deadStock, setDeadStock] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
-  const { activeBranchId } = useAuth();
-
-  useEffect(() => {
-    let isActive = true;
-
-    const fetchInventoryInsights = async () => {
-      setIsLoading(true);
-      setError("");
-
-      try {
-        const res = await fetch(`${API_BASE_URL}/reports/inventory`, {
-          headers: getAuthHeaders(activeBranchId),
-        });
-
-        const json = await res.json();
-        if (!res.ok || !json?.success)
-          throw new Error(json?.message || "Failed to load inventory report");
-
-        if (isActive) {
-          setTopProducts(json.topProducts || []);
-          setDeadStock(json.deadStock || []);
-        }
-      } catch (err: unknown) {
-        if (isActive)
-          setError((err instanceof Error ? err.message : "Could not load inventory insights.") || "Could not load inventory insights.");
-      } finally {
-        if (isActive) setIsLoading(false);
-      }
-    };
-
-    fetchInventoryInsights();
-
-    return () => {
-      isActive = false;
-    };
-  }, [activeBranchId]);
+  const { data, isPending: isLoading, error: queryError } = useInventoryReport();
+  const topProducts = data?.topProducts ?? [];
+  const deadStock = data?.deadStock ?? [];
+  const error = queryError
+    ? queryError.message || "Could not load inventory insights."
+    : "";
 
   if (isLoading) {
     return (

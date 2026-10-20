@@ -82,7 +82,7 @@ export default function CloseRegisterModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div data-testid="close-register-modal" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-200">
         
         {/* Header */}
@@ -150,6 +150,7 @@ export default function CloseRegisterModal({
               </button>
               <button
                 type="button"
+                data-testid="close-register-mode-total"
                 onClick={() => setUseDenominations(false)}
                 className={`px-3 py-1 rounded-lg transition-all ${
                   !useDenominations ? "bg-white text-blue-700 shadow-sm font-semibold" : "text-slate-600 hover:text-slate-900"
@@ -212,7 +213,7 @@ export default function CloseRegisterModal({
               </label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">PKR</span>
-                <input
+                <input data-testid="close-register-counted"
                   type="number"
                   min="0"
                   required
@@ -226,7 +227,7 @@ export default function CloseRegisterModal({
           )}
 
           {/* Counted vs Expected Reconciliation Status Card */}
-          <div className={`p-4 rounded-2xl border transition-all ${
+          <div data-testid="close-register-variance" className={`p-4 rounded-2xl border transition-all ${
             difference === 0
               ? "bg-emerald-50/80 border-emerald-200 text-emerald-900"
               : difference < 0
@@ -298,7 +299,7 @@ export default function CloseRegisterModal({
             >
               Cancel
             </button>
-            <button
+            <button data-testid="close-register-submit"
               type="button"
               onClick={handleSubmit}
               disabled={submitting}

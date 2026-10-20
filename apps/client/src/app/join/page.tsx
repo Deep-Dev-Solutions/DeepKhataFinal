@@ -29,7 +29,9 @@ function JoinForm() {
     const fetchInvitation = async () => {
       try {
         // Calling your new GET controller
-        const res = await fetch(`${API_BASE_URL}/team/invite/${token}`);
+        const res = await fetch(`${API_BASE_URL}/team/invite/${token}`, {
+          credentials: "include",
+        });
         const data = await res.json();
 
         if (!res.ok || !data.success) {
@@ -58,6 +60,7 @@ function JoinForm() {
 
     try {
       const res = await fetch(`${API_BASE_URL}/team/join`, {
+        credentials: "include",
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, name, password }),
@@ -104,6 +107,7 @@ function JoinForm() {
           <Mail className="w-5 h-5 text-slate-400 absolute left-3 top-2.5" />
           <input
             type="email"
+            data-testid="join-email"
             disabled
             value={email}
             className="w-full pl-10 pr-3 py-2.5 border border-slate-200 bg-slate-50 text-slate-500 rounded-xl text-sm font-medium cursor-not-allowed"
@@ -119,6 +123,7 @@ function JoinForm() {
           <User className="w-5 h-5 text-slate-400 absolute left-3 top-2.5" />
           <input
             type="text"
+            data-testid="join-name"
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -136,6 +141,7 @@ function JoinForm() {
           <Lock className="w-5 h-5 text-slate-400 absolute left-3 top-2.5" />
           <input
             type="password"
+            data-testid="join-password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -153,6 +159,7 @@ function JoinForm() {
 
       <button
         type="submit"
+        data-testid="join-submit"
         disabled={loading}
         className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all disabled:opacity-70 shadow-sm"
       >

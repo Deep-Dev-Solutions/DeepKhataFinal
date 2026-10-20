@@ -1,5 +1,6 @@
-import { IsString, IsNotEmpty, IsOptional, IsArray, ValidateNested, IsNumber, ArrayMinSize } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsArray, ValidateNested, ArrayMinSize } from 'class-validator';
 import { Type } from 'class-transformer';
+import type { MoneyInput } from '../../common/money';
 
 export class CreatePostingDto {
   @IsString()
@@ -10,8 +11,8 @@ export class CreatePostingDto {
   @IsNotEmpty()
   accountType: string;
 
-  @IsNumber()
-  amount: number;
+  // Internal-only DTO (no controller exposes it); amounts may be Decimal, number or string.
+  amount: MoneyInput;
 }
 
 export class CreateTransactionDto {
@@ -36,5 +37,8 @@ export class CreateTransactionDto {
   @ValidateNested({ each: true })
   @Type(() => CreatePostingDto)
   postings: CreatePostingDto[];
+
+  @IsOptional()
+  dueDate?: Date;
 }
 

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   Injectable,
   BadRequestException,
@@ -7,168 +8,57 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
-import { JwtService } from '@nestjs/jwt';
-import { Response } from 'express';
+import type { Request, Response } from 'express';
+import { createEmailVerificationToken, isAPIError } from 'better-auth/api';
+import { fromNodeHeaders } from 'better-auth/node';
 import { Role } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { AuthSessionsService } from './auth-sessions.service';
+import { sendVerificationMail } from './auth-mail';
+import type { RegisterDto } from './dto/register.dto';
+import {
+  auth,
+  CLIENT_IP_HEADER,
+  REQUIRE_ROLE_HEADER,
+} from './better-auth';
 
-const MAX_FAILED_ATTEMPTS = 10;
-const LOCKOUT_DURATION_MS = 3 * 60 * 60 * 1000; // 3 hours
-
-function formatRemainingTime(ms: number): string {
-  const totalMinutes = Math.ceil(ms / (60 * 1000));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours > 0 && minutes > 0) {
-    return `${hours} hour${hours > 1 ? 's' : ''} and ${minutes} minute${minutes > 1 ? 's' : ''}`;
-  }
-  if (hours > 0) {
-    return `${hours} hour${hours > 1 ? 's' : ''}`;
-  }
-  return `${totalMinutes} minute${totalMinutes > 1 ? 's' : ''}`;
+interface SignInOptions {
+  message: string;
+  requiredRole?: Role;
+  includeBusiness: boolean;
 }
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
-    private jwtService: JwtService,
+    private authSessions: AuthSessionsService,
   ) {}
 
-  private async checkLockout(ip: string, email?: string) {
-    const now = new Date();
-
-    // 1. Check IP lockout
-    if (ip) {
-      const ipRecord = await this.prisma.loginAttempt.findUnique({
-        where: { ip },
-      });
-      if (ipRecord?.lockoutUntil && ipRecord.lockoutUntil > now) {
-        const remainingMs = ipRecord.lockoutUntil.getTime() - now.getTime();
-        throw new HttpException(
-          `Too many failed login attempts from this IP address. Access has been restricted for security reasons. Please try again in ${formatRemainingTime(remainingMs)}.`,
-          HttpStatus.TOO_MANY_REQUESTS,
-        );
-      }
-    }
-
-    // 2. Check User email lockout
-    if (email) {
-      const user = await this.prisma.user.findUnique({
-        where: { email: email.toLowerCase() },
-        select: { id: true, lockoutUntil: true, failedAttempts: true },
-      });
-      if (user?.lockoutUntil && user.lockoutUntil > now) {
-        const remainingMs = user.lockoutUntil.getTime() - now.getTime();
-        throw new HttpException(
-          `This account has been temporarily locked due to multiple failed login attempts. Please try again in ${formatRemainingTime(remainingMs)}.`,
-          HttpStatus.TOO_MANY_REQUESTS,
-        );
-      }
+  /** Maps a Better Auth APIError onto the Nest exception the old routes threw. */
+  private toHttpException(err: unknown): never {
+    if (!isAPIError(err)) throw err;
+    const message =
+      (err.body as { message?: string } | undefined)?.message ?? err.message;
+    switch (err.statusCode) {
+      case 400:
+        throw new BadRequestException(message);
+      case 401:
+        throw new UnauthorizedException(message);
+      case 403:
+        throw new ForbiddenException(message);
+      default:
+        throw new HttpException(message, err.statusCode || HttpStatus.BAD_REQUEST);
     }
   }
 
-  private async recordFailedAttempt(ip: string, email?: string) {
-    const now = new Date();
-    let maxAttemptsReached = false;
-    let attemptsCount = 1;
-
-    // 1. Update IP attempt
-    if (ip) {
-      const existingIp = await this.prisma.loginAttempt.findUnique({
-        where: { ip },
-      });
-
-      const newAttempts = (existingIp?.attempts || 0) + 1;
-      const isLocked = newAttempts >= MAX_FAILED_ATTEMPTS;
-      const lockoutDate = isLocked
-        ? new Date(now.getTime() + LOCKOUT_DURATION_MS)
-        : null;
-
-      await this.prisma.loginAttempt.upsert({
-        where: { ip },
-        create: {
-          ip,
-          attempts: newAttempts,
-          lockoutUntil: lockoutDate,
-        },
-        update: {
-          attempts: newAttempts,
-          lockoutUntil: lockoutDate,
-        },
-      });
-
-      if (isLocked) maxAttemptsReached = true;
-      attemptsCount = Math.max(attemptsCount, newAttempts);
-    }
-
-    // 2. Update User email attempt if user exists
-    if (email) {
-      const user = await this.prisma.user.findUnique({
-        where: { email: email.toLowerCase() },
-        select: { id: true, failedAttempts: true },
-      });
-
-      if (user) {
-        const newAttempts = user.failedAttempts + 1;
-        const isLocked = newAttempts >= MAX_FAILED_ATTEMPTS;
-        const lockoutDate = isLocked
-          ? new Date(now.getTime() + LOCKOUT_DURATION_MS)
-          : null;
-
-        await this.prisma.user.update({
-          where: { id: user.id },
-          data: {
-            failedAttempts: newAttempts,
-            lockoutUntil: lockoutDate,
-          },
-        });
-
-        if (isLocked) maxAttemptsReached = true;
-        attemptsCount = Math.max(attemptsCount, newAttempts);
-      }
-    }
-
-    if (maxAttemptsReached) {
-      throw new HttpException(
-        `Security lockout triggered. Too many failed attempts (10/10). Access has been locked for 3 hours.`,
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    } else {
-      const remaining = Math.max(0, MAX_FAILED_ATTEMPTS - attemptsCount);
-      throw new UnauthorizedException(
-        `Invalid email or password. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining before a 3-hour lockout.`,
-      );
-    }
-  }
-
-  private async resetFailedAttempts(ip: string, email?: string) {
-    if (ip) {
-      await this.prisma.loginAttempt
-        .deleteMany({
-          where: { ip },
-        })
-        .catch(() => {});
-    }
-    if (email) {
-      await this.prisma.user
-        .updateMany({
-          where: { email: email.toLowerCase() },
-          data: {
-            failedAttempts: 0,
-            lockoutUntil: null,
-          },
-        })
-        .catch(() => {});
-    }
-  }
-
-  async register(data: any) {
-    const { name, email, password } = data;
+  async register(data: RegisterDto, req?: Request) {
+    const { name, password, phone } = data;
+    const email = data.email.trim().toLowerCase();
 
     const existinguser = await this.prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
+      where: { email },
     });
 
     if (existinguser) {
@@ -177,170 +67,141 @@ export class AuthService {
 
     const hashPassword = await bcrypt.hash(password, 10);
 
-    const NewUser = await this.prisma.user.create({
-      data: {
-        name,
-        email: email.toLowerCase(),
-        password: hashPassword,
-      },
+    const newUser = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: { name, email, phone: phone?.trim() || null, emailVerified: false },
+      });
+      await tx.account.create({
+        data: {
+          id: randomUUID(),
+          accountId: created.id,
+          providerId: 'credential',
+          userId: created.id,
+          password: hashPassword,
+        },
+      });
+      return created;
     });
 
-    const accesstoken = this.jwtService.sign(
-      {
-        id: NewUser.id,
-        name: NewUser.name,
-        email: NewUser.email,
-        role: NewUser.role,
-        businessId: NewUser.businessId,
-      },
-      {
-        secret: process.env.ACCESS_TOKEN_SECRET,
-        expiresIn: (process.env.ACCESS_TOKEN_EXPIRATION || '1h') as any,
-      },
-    );
+    const { token } = await this.authSessions.createSessionFor(newUser.id, {
+      ip: req?.ip,
+      userAgent: req?.headers['user-agent'],
+    });
 
-    return { user: NewUser, accessToken: accesstoken };
+    await this.sendVerification(newUser);
+
+    const { password: _, ...userWithoutPassword } = newUser;
+    return { user: userWithoutPassword, accessToken: token };
   }
 
-  async login(data: any, res: Response, ip: string = '127.0.0.1') {
-    const { email, password } = data;
-    const normalizedEmail = email ? email.toLowerCase().trim() : '';
+  /** Mails a fresh 24 h verification link; mail failures never fail the caller. */
+  private async sendVerification(user: {
+    email: string;
+    name: string;
+  }): Promise<void> {
+    try {
+      const ctx = await auth.$context;
+      const token = await createEmailVerificationToken(
+        ctx.secret,
+        user.email,
+        undefined,
+        60 * 60 * 24,
+      );
+      await sendVerificationMail(user, token);
+    } catch {
+      // MailService already logs and retries delivery failures.
+    }
+  }
 
-    await this.checkLockout(ip, normalizedEmail);
+  async resendVerification(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, name: true, emailVerified: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.emailVerified) {
+      throw new BadRequestException('Email is already verified');
+    }
+    await this.sendVerification(user);
+    return { success: true, message: 'Verification email sent' };
+  }
+
+  /**
+   * Compatibility shim over Better Auth sign-in. Lockouts and the suspended
+   * business check run in the Better Auth hooks (better-auth.ts); this sets the
+   * session cookie and returns the session token as `accessToken` (valid as
+   * `Authorization: Bearer`).
+   */
+  private async signIn(
+    data: any,
+    req: Request,
+    res: Response,
+    opts: SignInOptions,
+  ) {
+    const ip = req.ip || req.socket?.remoteAddress || '127.0.0.1';
+    const headers = fromNodeHeaders(req.headers);
+    headers.delete('authorization');
+    headers.delete('cookie');
+    headers.delete(REQUIRE_ROLE_HEADER);
+    headers.set(CLIENT_IP_HEADER, ip);
+    if (opts.requiredRole) headers.set(REQUIRE_ROLE_HEADER, opts.requiredRole);
+
+    const { email, username: rawUsername, password } = data ?? {};
+    const username =
+      typeof rawUsername === 'string' ? rawUsername.trim() : rawUsername;
+    let out;
+    try {
+      out =
+        typeof email !== 'string' && typeof username === 'string'
+          ? await auth.api.signInUsername({
+              body: { username, password },
+              headers,
+              returnHeaders: true,
+            })
+          : await auth.api.signInEmail({
+              body: {
+                email: typeof email === 'string' ? email.trim() : '',
+                password,
+              },
+              headers,
+              returnHeaders: true,
+            });
+    } catch (err) {
+      this.toHttpException(err);
+    }
+
+    const token = out.response.token as string;
+    for (const cookie of out.headers.getSetCookie()) {
+      res.append('Set-Cookie', cookie);
+    }
 
     const existinguser = await this.prisma.user.findUnique({
-      where: { email: normalizedEmail },
-      include: { business: { select: { status: true } } },
+      where: { id: out.response.user.id },
+      include: opts.includeBusiness
+        ? { business: { select: { status: true } } }
+        : undefined,
     });
-
-    if (!existinguser) {
-      await this.recordFailedAttempt(ip, normalizedEmail);
-      return;
-    }
-
-    const isFound = await bcrypt.compare(password, existinguser.password);
-    if (!isFound) {
-      await this.recordFailedAttempt(ip, normalizedEmail);
-      return;
-    }
-
-    // Reset failed attempts upon successful login
-    await this.resetFailedAttempts(ip, normalizedEmail);
-
-    // Kill switch: suspended businesses cannot sign in at all.
-    if (existinguser.business?.status === 'SUSPENDED') {
-      throw new UnauthorizedException(
-        'Account suspended. Contact DeepKhata administration.',
-      );
-    }
-
-    const accesstoken = this.jwtService.sign(
-      {
-        id: existinguser.id,
-        name: existinguser.name,
-        email: existinguser.email,
-        role: existinguser.role,
-        businessId: existinguser.businessId,
-      },
-      {
-        secret: process.env.ACCESS_TOKEN_SECRET,
-        expiresIn: (process.env.ACCESS_TOKEN_EXPIRATION || '1h') as any,
-      },
-    );
-
-    const refreshtoken = this.jwtService.sign(
-      {
-        id: existinguser.id,
-      },
-      {
-        secret: process.env.REFRESH_TOKEN_SECRET,
-        expiresIn: (process.env.REFRESH_TOKEN_EXPIRATION || '7d') as any,
-      },
-    );
-
-    res.cookie('jwt', refreshtoken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-    });
-
     const { password: _, ...userWithoutPassword } = existinguser;
 
     return res.json({
+      message: opts.message,
+      accessToken: token,
+      user: userWithoutPassword,
+    });
+  }
+
+  async login(data: any, req: Request, res: Response) {
+    return this.signIn(data, req, res, {
       message: 'Login successful',
-      accessToken: accesstoken,
-      user: userWithoutPassword,
+      includeBusiness: true,
     });
   }
 
-  async agencyLogin(data: any, res: Response, ip: string = '127.0.0.1') {
-    const { email, password } = data;
-    const normalizedEmail = email ? email.toLowerCase().trim() : '';
-
-    await this.checkLockout(ip, normalizedEmail);
-
-    const existinguser = await this.prisma.user.findUnique({
-      where: { email: normalizedEmail },
-    });
-
-    if (!existinguser) {
-      await this.recordFailedAttempt(ip, normalizedEmail);
-      return;
-    }
-
-    const isFound = await bcrypt.compare(password, existinguser.password);
-    if (!isFound) {
-      await this.recordFailedAttempt(ip, normalizedEmail);
-      return;
-    }
-
-    if (existinguser.role !== Role.SUPER_ADMIN) {
-      // Record failed attempt to deter enumeration of user accounts against agency portal
-      await this.recordFailedAttempt(ip, normalizedEmail);
-      throw new ForbiddenException(
-        'Access denied: This portal is strictly restricted to DeepKhata Super Admins.',
-      );
-    }
-
-    // Reset failed attempts upon successful Super Admin authentication
-    await this.resetFailedAttempts(ip, normalizedEmail);
-
-    const accesstoken = this.jwtService.sign(
-      {
-        id: existinguser.id,
-        name: existinguser.name,
-        email: existinguser.email,
-        role: existinguser.role,
-        businessId: existinguser.businessId,
-      },
-      {
-        secret: process.env.ACCESS_TOKEN_SECRET,
-        expiresIn: (process.env.ACCESS_TOKEN_EXPIRATION || '1h') as any,
-      },
-    );
-
-    const refreshtoken = this.jwtService.sign(
-      {
-        id: existinguser.id,
-      },
-      {
-        secret: process.env.REFRESH_TOKEN_SECRET,
-        expiresIn: (process.env.REFRESH_TOKEN_EXPIRATION || '7d') as any,
-      },
-    );
-
-    res.cookie('jwt', refreshtoken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-    });
-
-    const { password: _, ...userWithoutPassword } = existinguser;
-
-    return res.json({
+  async agencyLogin(data: any, req: Request, res: Response) {
+    return this.signIn(data, req, res, {
       message: 'Agency login successful',
-      accessToken: accesstoken,
-      user: userWithoutPassword,
+      requiredRole: Role.SUPER_ADMIN,
+      includeBusiness: false,
     });
   }
 
@@ -373,8 +234,20 @@ export class AuthService {
     return user;
   }
 
-  logout(res: Response) {
-    res.clearCookie('jwt');
+  async logout(session: { token?: string } | undefined, res: Response) {
+    if (session?.token) {
+      await this.authSessions.revokeSession(session.token);
+    }
+    const ctx = await auth.$context;
+    const cookie = ctx.authCookies.sessionToken;
+    // Same name/domain/path as when set, or the browser keeps the cookie.
+    res.clearCookie(cookie.name, {
+      path: cookie.attributes.path ?? '/',
+      domain: cookie.attributes.domain,
+      httpOnly: cookie.attributes.httpOnly,
+      secure: cookie.attributes.secure,
+      sameSite: cookie.attributes.sameSite as 'lax' | 'strict' | 'none' | undefined,
+    });
     return res.json({ message: 'Logout successful' });
   }
 }

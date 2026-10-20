@@ -4,6 +4,11 @@ import { AppModule } from '../src/app.module';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import express from 'express';
 import cookieParser from 'cookie-parser';
+import { getCorsOrigins } from '../src/config/cors';
+import { installDecimalJson } from '../src/common/money';
+import { mountAuth } from '../src/auth/mount-auth';
+
+installDecimalJson();
 
 // Catch any unhandled rejections so they appear in Vercel Runtime Logs
 process.on('unhandledRejection', (reason, promise) => {
@@ -18,6 +23,7 @@ async function bootstrap() {
     const app = await NestFactory.create(
       AppModule,
       new ExpressAdapter(expressApp),
+      { bodyParser: false },
     );
 
     app.useGlobalPipes(
@@ -28,17 +34,15 @@ async function bootstrap() {
       }),
     );
 
+    app.getHttpAdapter().getInstance().set('trust proxy', process.env.TRUST_PROXY || 'loopback');
     app.use(cookieParser());
 
     app.enableCors({
-      origin: [
-        'https://deepkhata.vercel.app',
-        'https://agency-admin-deepkhata.vercel.app',
-        'http://localhost:3000',
-        'http://localhost:3001',
-      ],
+      origin: getCorsOrigins(),
       credentials: true,
+      exposedHeaders: ['X-Next-Cursor'],
     });
+    mountAuth(app);
 
     await app.init();
     cachedApp = expressApp;

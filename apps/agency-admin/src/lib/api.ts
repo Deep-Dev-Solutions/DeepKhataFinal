@@ -1,4 +1,4 @@
-import { API_BASE_URL, getAuthToken } from "@/lib/auth";
+import { API_BASE_URL } from "@/lib/auth";
 
 export class ApiError extends Error {
   status: number;
@@ -24,12 +24,8 @@ interface ApiOptions extends Omit<RequestInit, "body" | "headers"> {
 }
 
 function buildHeaders(extra?: HeadersInit): Headers {
-  const headers = new Headers(extra ?? {});
-  const token = getAuthToken();
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-  return headers;
+  // Auth is the httpOnly session cookie (credentials: "include" below).
+  return new Headers(extra ?? {});
 }
 
 function isFormData(value: JsonValue | FormData): value is FormData {
@@ -55,6 +51,7 @@ export async function apiFetch<T = unknown>(
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...rest,
     method,
+    credentials: "include",
     headers,
     body: requestBody,
   });

@@ -8,32 +8,76 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as crypto from 'crypto';
 import { sendInviteEmail } from '../utils/mailer.js';
 import * as bcrypt from 'bcrypt';
-import { JwtService } from '@nestjs/jwt';
+import { Role } from '@prisma/client';
+import { AuthSessionsService } from '../auth/auth-sessions.service';
 import { RedisService } from '../redis/redis.service';
+import { TenantCacheService } from '../tenant/tenant-cache.service';
+import { PlanLimitsService } from '../plans/plan-limits.service';
+import { invalidateUserBranches } from '../auth/branch-access';
+import { randomUUID } from 'node:crypto';
+import {
+  assertBranchesInBusiness,
+  assertOwnerVerified,
+  resolveAccess,
+} from './team-access';
+
+const INVITE_TTL_MS = 72 * 60 * 60 * 1000;
 
 @Injectable()
 export class TeamService {
   constructor(
     private prisma: PrismaService,
-    private jwtService: JwtService,
+    private authSessions: AuthSessionsService,
     private redis: RedisService,
+    private tenantCache: TenantCacheService,
+    private planLimits: PlanLimitsService,
   ) {}
 
-  async inviteStaff(data: any) {
-    const { email, role, businessId } = data;
+  async getUserBusinessId(userId: string): Promise<string | null> {
+    const u = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true },
+    });
+    return u?.businessId ?? null;
+  }
+
+  async inviteStaff(
+    inviter: { id: string; role: Role; businessId: string },
+    data: {
+      email: string;
+      role: Role;
+      allBranches?: boolean;
+      branchIds?: string[];
+    },
+  ) {
+    const role = data.role;
+    const email = data.email?.trim().toLowerCase();
+    const businessId = inviter.businessId;
     if (!email || !role || !businessId)
       throw new BadRequestException('Missing required fields');
 
-    // Enforce base tier limit (Max 5 accounts)
-    const userCount = await this.prisma.user.count({
-      where: { businessId },
-    });
-
-    if (userCount >= 5) {
+    // Role rules: OWNER -> MANAGER|STAFF, MANAGER -> STAFF only.
+    const allowedTargets: Role[] =
+      inviter.role === 'OWNER'
+        ? ['MANAGER', 'STAFF']
+        : inviter.role === 'MANAGER'
+          ? ['STAFF']
+          : [];
+    if (!allowedTargets.includes(role)) {
       throw new ForbiddenException(
-        'Base plan limit reached (5 accounts). Contact administration to upgrade.',
+        'You are not allowed to invite users with this role.',
       );
     }
+
+    await assertOwnerVerified(this.prisma, inviter);
+    await this.planLimits.assert(businessId, 'users');
+
+    // Only specific branches are stored; no ids means access to every branch.
+    const access = resolveAccess({
+      allBranches: data.allBranches,
+      branchIds: data.branchIds,
+    });
+    await assertBranchesInBusiness(this.prisma, businessId, access.branchIds);
 
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
@@ -49,14 +93,50 @@ export class TeamService {
 
     const token = crypto.randomBytes(32).toString('hex');
 
+    const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
     await this.prisma.invitation.create({
-      data: { email, role, businessId, token },
+      data: {
+        email,
+        role,
+        businessId,
+        token,
+        expiresAt,
+        branchIds: access.branchIds,
+      },
     });
 
-    await sendInviteEmail(email, role, token);
+    await sendInviteEmail(
+      email,
+      role,
+      token,
+      await this.inviteContext(inviter.id, businessId, expiresAt),
+    );
     await this.redis.delete(`team:pending:${businessId}`);
 
     return { success: true, message: 'Invitation sent successfully!' };
+  }
+
+  private async inviteContext(
+    inviterId: string,
+    businessId: string,
+    expiresAt: Date,
+  ) {
+    const [inviter, business] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: inviterId },
+        select: { name: true },
+      }),
+      this.prisma.business.findUnique({
+        where: { id: businessId },
+        select: { name: true },
+      }),
+    ]);
+    return {
+      inviterName: inviter?.name,
+      businessName: business?.name,
+      businessId,
+      expiresAt,
+    };
   }
 
   async invitedByToken(token: string) {
@@ -83,8 +163,30 @@ export class TeamService {
     if (!invitation)
       throw new BadRequestException('Invalid or expired invitation link.');
 
+    if (invitation.expiresAt && invitation.expiresAt.getTime() < Date.now())
+      throw new BadRequestException('Invalid or expired invitation link.');
+
+    // The invitation itself is still in the table, so it is not counted here.
+    await this.planLimits.assert(invitation.businessId, 'users', 0);
+
+    const hashPassword = await bcrypt.hash(password, 10);
     const result = await this.prisma.$transaction(async (tx) => {
-      const hashPassword = await bcrypt.hash(password, 10);
+      // Branches deleted since the invite was sent are dropped.
+      const branches = invitation.branchIds.length
+        ? await tx.branch.findMany({
+            where: {
+              businessId: invitation.businessId,
+              deletedAt: null,
+              id: { in: invitation.branchIds },
+            },
+            select: { id: true },
+          })
+        : [];
+      if (invitation.branchIds.length > 0 && branches.length === 0) {
+        throw new BadRequestException(
+          'The branches in this invitation no longer exist. Ask the owner to send a new invite.',
+        );
+      }
       const newUser = await tx.user.create({
         data: {
           name,
@@ -92,18 +194,32 @@ export class TeamService {
           password: hashPassword,
           role: invitation.role,
           businessId: invitation.businessId,
+          // The invite link was delivered to this address.
+          emailVerified: true,
+          allBranches: branches.length === 0,
         },
       });
+      await tx.account.create({
+        data: {
+          id: randomUUID(),
+          accountId: newUser.id,
+          providerId: 'credential',
+          userId: newUser.id,
+          password: hashPassword,
+        },
+      });
+      if (branches.length > 0) {
+        await tx.userBranch.createMany({
+          data: branches.map((b) => ({ userId: newUser.id, branchId: b.id })),
+        });
+      }
       await tx.invitation.delete({ where: { id: invitation.id } });
       return newUser;
     });
 
-    const accessToken = this.jwtService.sign(
-      { id: result.id, role: result.role, businessId: result.businessId },
-      {
-        secret: process.env.ACCESS_TOKEN_SECRET,
-        expiresIn: (process.env.ACCESS_TOKEN_EXPIRATION || '1h') as any,
-      },
+    invalidateUserBranches(result.id);
+    const { token: accessToken } = await this.authSessions.createSessionFor(
+      result.id,
     );
 
     await Promise.all([
@@ -201,6 +317,9 @@ export class TeamService {
       select: { id: true, name: true, email: true, role: true },
     });
 
+    // A role change ends the member's sessions so the new role applies at once.
+    await this.authSessions.revokeAllForUser(updatedUser.id);
+
     await Promise.all([
       this.redis.delete(`team:active:${currentUser.businessId}`),
       this.redis.delete(`team:pending:${currentUser.businessId}`),
@@ -233,6 +352,7 @@ export class TeamService {
       );
 
     await this.prisma.user.delete({ where: { email } });
+    await this.authSessions.revokeAllForUser(targetUser.id);
     await this.redis.delete(`team:active:${currentUser.businessId}`);
     return { success: true, message: 'Member removed successfully.' };
   }
@@ -261,13 +381,19 @@ export class TeamService {
       );
 
     const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
     await this.prisma.invitation.update({
       where: {
         email_businessId: { email, businessId: currentUser.businessId },
       },
-      data: { token },
+      data: { token, expiresAt },
     });
-    await sendInviteEmail(email, targetInvite.role, token);
+    await sendInviteEmail(
+      email,
+      targetInvite.role,
+      token,
+      await this.inviteContext(userId, currentUser.businessId, expiresAt),
+    );
 
     return { success: true, message: 'Invitation resent successfully!' };
   }

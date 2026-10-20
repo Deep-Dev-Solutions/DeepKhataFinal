@@ -62,6 +62,7 @@ export default function CustomerProfilePage() {
     setPageError("");
     try {
       const response = await fetch(`${API_BASE_URL}/customer/${id}`, {
+        credentials: "include",
         headers: getAuthHeaders(),
       });
       const data = await response.json();
@@ -129,6 +130,7 @@ export default function CustomerProfilePage() {
       const response = await fetch(
         `${API_BASE_URL}/customer/customerrisk/${id}`,
         {
+          credentials: "include",
           method: "PATCH",
           headers: getAuthHeaders(),
           body: JSON.stringify({
@@ -192,6 +194,7 @@ export default function CustomerProfilePage() {
       const response = await fetch(
         `${API_BASE_URL}/customer/customerdetails/${id}`,
         {
+          credentials: "include",
           method: "PUT",
           headers: getAuthHeaders(),
           body: JSON.stringify({

@@ -51,6 +51,7 @@ function VendorsPageContent() {
 
     try {
       const response = await fetch(`${API_BASE_URL}/vendors`, {
+        credentials: "include",
         headers: getAuthHeaders(),
       });
 
@@ -108,7 +109,7 @@ function VendorsPageContent() {
   }, [vendors, filterMode, searchQuery]);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-10 font-sans">
+    <div data-testid="vendors-page" className="space-y-6 animate-in fade-in duration-500 pb-10 font-sans">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -121,7 +122,7 @@ function VendorsPageContent() {
             purchased.
           </p>
         </div>
-        <button
+        <button data-testid="vendors-new"
           onClick={() => setIsAddModalOpen(true)}
           className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm shadow-indigo-200 w-full sm:w-auto cursor-pointer"
         >
@@ -304,7 +305,7 @@ function VendorsPageContent() {
                 </tr>
               ) : (
                 filteredVendors.map((vendor) => (
-                  <tr
+                  <tr data-testid="vendor-row"
                     key={vendor.id}
                     className="hover:bg-slate-50/70 transition-colors group cursor-pointer"
                     onClick={() => router.push(`/vendors/${vendor.id}`)}
@@ -361,7 +362,7 @@ function VendorsPageContent() {
                       Rs. {(vendor.totalPaid || 0).toLocaleString()}
                     </td>
 
-                    <td className="px-6 py-4 text-right">
+                    <td data-testid="vendor-row-balance" className="px-6 py-4 text-right">
                       {vendor.balance > 0 ? (
                         <span className="inline-flex items-center py-1 px-2.5 rounded-lg text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
                           Owe Rs. {vendor.balance.toLocaleString()}

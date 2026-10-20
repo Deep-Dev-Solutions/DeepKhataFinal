@@ -5,6 +5,7 @@ import { Archive, Barcode, Layers, Loader2, Lock, MapPin, X } from "lucide-react
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import { useAuth, type Branch } from "@/context/AuthContext";
 import { useIsReadOnly } from "@/hooks/useIsReadOnly";
+import TagInput from "@/components/ui/TagInput";
 
 type CabinetOption = {
   id: string;
@@ -35,6 +36,9 @@ const initialForm = {
   cabinetId: "",
   vendorId: "",
   quantity: "1",
+  partNumber: "",
+  minSalePrice: "",
+  lowStockThreshold: "",
 };
 
 export default function AddProductModal({
@@ -51,10 +55,14 @@ export default function AddProductModal({
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [aliases, setAliases] = useState<string[]>([]);
+  const [compatibleWith, setCompatibleWith] = useState<string[]>([]);
 
   useEffect(() => {
     if (!isOpen) {
       setForm(initialForm);
+      setAliases([]);
+      setCompatibleWith([]);
       setError("");
       setIsSubmitting(false);
       return;
@@ -74,12 +82,14 @@ export default function AddProductModal({
         const [branchResponse, cabinetResponse, vendorResponse] =
           await Promise.all([
             fetch(`${API_BASE_URL}/product/getbranches`, {
+              credentials: "include",
               headers: getAuthHeaders(),
             }),
             fetch(`${API_BASE_URL}/product/getcabinets`, {
+              credentials: "include",
               headers: getAuthHeaders(),
             }),
-            fetch(`${API_BASE_URL}/vendors`, { headers: getAuthHeaders() }),
+            fetch(`${API_BASE_URL}/vendors`, { credentials: "include",  headers: getAuthHeaders() }),
           ]);
         const branchData = await branchResponse.json();
         const cabinetData = await cabinetResponse.json();
@@ -133,11 +143,16 @@ export default function AddProductModal({
       setError("Select an existing cabinet for this product stock.");
       return;
     }
+    if (form.minSalePrice && Number(form.minSalePrice) > Number(form.price)) {
+      setError("Minimum price cannot be above the sale price");
+      return;
+    }
 
     setIsSubmitting(true);
     setError("");
     try {
       const response = await fetch(`${API_BASE_URL}/product/addproduct`, {
+        credentials: "include",
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -150,6 +165,13 @@ export default function AddProductModal({
           cabinetId: form.cabinetId,
           quantity: Math.max(1, Number(form.quantity) || 1),
           vendorId: form.vendorId || undefined,
+          partNumber: form.partNumber.trim() || undefined,
+          aliases: aliases.length ? aliases : undefined,
+          compatibleWith: compatibleWith.length ? compatibleWith : undefined,
+          minSalePrice: form.minSalePrice ? Number(form.minSalePrice) : undefined,
+          lowStockThreshold: form.lowStockThreshold
+            ? Number(form.lowStockThreshold)
+            : undefined,
         }),
       });
       const data = await response.json();
@@ -240,6 +262,26 @@ export default function AddProductModal({
             <div>
               <label className={labelClass}>Physical Instances *</label>
               <input type="number" min="1" required value={form.quantity} onChange={(event) => updateField("quantity", event.target.value)} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Part Number</label>
+              <input data-testid="product-part-number" value={form.partNumber} onChange={(event) => updateField("partNumber", event.target.value)} className={`${inputClass} font-mono`} placeholder="Manufacturer part number" />
+            </div>
+            <div>
+              <label className={labelClass}>Minimum Sale Price (Rs)</label>
+              <input data-testid="product-min-price" type="number" min="0" value={form.minSalePrice} onChange={(event) => updateField("minSalePrice", event.target.value)} className={inputClass} placeholder="Floor price (optional)" />
+            </div>
+            <div>
+              <label className={labelClass}>Low Stock Threshold</label>
+              <input data-testid="product-low-stock" type="number" min="0" step="1" value={form.lowStockThreshold} onChange={(event) => updateField("lowStockThreshold", event.target.value)} className={inputClass} placeholder="Optional" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelClass}>Aliases / Shop Names</label>
+              <TagInput testId="product-aliases" value={aliases} onChange={setAliases} placeholder="Type a name and press Enter" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelClass}>Compatible Models</label>
+              <TagInput testId="product-compatible" value={compatibleWith} onChange={setCompatibleWith} placeholder="e.g. iPhone 13, iPhone 13 Pro" />
             </div>
           </div>
 

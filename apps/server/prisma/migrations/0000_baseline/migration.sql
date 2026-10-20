@@ -2,10 +2,7 @@
 CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateEnum
-CREATE TYPE "OrderStatus" AS ENUM ('ESTIMATE', 'MEMO', 'FINAL', 'CANCELLED', 'RETURNED');
-
--- CreateEnum
-CREATE TYPE "ItemCondition" AS ENUM ('ORIGINAL_PULL', 'COPY', 'MINOR_SCRATCHES', 'WORKING', 'DEAD_DONOR', 'DEFECTIVE');
+CREATE TYPE "OrderStatus" AS ENUM ('ESTIMATE', 'MEMO', 'FINAL', 'COMPLETED', 'PENDING', 'CANCELLED', 'RETURNED');
 
 -- CreateEnum
 CREATE TYPE "InstanceStatus" AS ENUM ('AVAILABLE', 'MEMO_LOCKED', 'SOLD', 'DEFECTIVE', 'RETURNED_WORKING', 'RETURNED_DEFECTIVE', 'CONSUMED');
@@ -145,6 +142,7 @@ CREATE TABLE "Product" (
     "deletedAt" TIMESTAMP(3),
     "categoryId" TEXT,
     "businessId" TEXT NOT NULL,
+    "branchId" TEXT,
 
     CONSTRAINT "Product_pkey" PRIMARY KEY ("id")
 );
@@ -157,7 +155,6 @@ CREATE TABLE "ProductInstance" (
     "branchId" TEXT NOT NULL,
     "vendorId" TEXT,
     "unitCost" DOUBLE PRECISION,
-    "condition" "ItemCondition" NOT NULL DEFAULT 'ORIGINAL_PULL',
     "status" "InstanceStatus" NOT NULL DEFAULT 'AVAILABLE',
     "serialNumber" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -171,6 +168,7 @@ CREATE TABLE "Category" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "businessId" TEXT NOT NULL,
+    "branchId" TEXT,
 
     CONSTRAINT "Category_pkey" PRIMARY KEY ("id")
 );
@@ -180,8 +178,6 @@ CREATE TABLE "InventoryMovement" (
     "id" TEXT NOT NULL,
     "productId" TEXT NOT NULL,
     "cabinetId" TEXT,
-    "fromCondition" "ItemCondition",
-    "toCondition" "ItemCondition" NOT NULL,
     "quantity" INTEGER NOT NULL,
     "direction" "InventoryDirection" NOT NULL,
     "referenceType" TEXT,
@@ -344,7 +340,7 @@ CREATE UNIQUE INDEX "Invitation_token_key" ON "Invitation"("token");
 CREATE UNIQUE INDEX "Invitation_email_businessId_key" ON "Invitation"("email", "businessId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Category_name_businessId_key" ON "Category"("name", "businessId");
+CREATE UNIQUE INDEX "Category_name_branchId_key" ON "Category"("name", "branchId");
 
 -- CreateIndex
 CREATE INDEX "InventoryMovement_productId_idx" ON "InventoryMovement"("productId");
@@ -395,6 +391,9 @@ ALTER TABLE "Product" ADD CONSTRAINT "Product_categoryId_fkey" FOREIGN KEY ("cat
 ALTER TABLE "Product" ADD CONSTRAINT "Product_businessId_fkey" FOREIGN KEY ("businessId") REFERENCES "Business"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "Product" ADD CONSTRAINT "Product_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "ProductInstance" ADD CONSTRAINT "ProductInstance_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -408,6 +407,9 @@ ALTER TABLE "ProductInstance" ADD CONSTRAINT "ProductInstance_vendorId_fkey" FOR
 
 -- AddForeignKey
 ALTER TABLE "Category" ADD CONSTRAINT "Category_businessId_fkey" FOREIGN KEY ("businessId") REFERENCES "Business"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Category" ADD CONSTRAINT "Category_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "InventoryMovement" ADD CONSTRAINT "InventoryMovement_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

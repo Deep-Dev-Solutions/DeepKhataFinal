@@ -5,16 +5,20 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantCacheService } from '../tenant/tenant-cache.service';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { sendInviteEmail } from '../utils/mailer';
 import { RedisService } from '../redis/redis.service';
+import { PlanLimitsService } from '../plans/plan-limits.service';
 
 @Injectable()
 export class SettingsService {
   constructor(
     private prisma: PrismaService,
     private redis: RedisService,
+    private tenantCache: TenantCacheService,
+    private planLimits: PlanLimitsService,
   ) {}
 
   async profileInfo(userId: string) {
@@ -205,15 +209,9 @@ export class SettingsService {
       );
     }
 
-    // Tier limit enforcement: Max 2 branches
-    const branchCount = await this.prisma.branch.count({
-      where: { businessId: currentUser.businessId, deletedAt: null },
-    });
-
-    if (branchCount >= 2 && currentUser.role !== 'SUPER_ADMIN') {
-      throw new ForbiddenException(
-        'Base plan limit reached (2 branches). Contact administration to upgrade.',
-      );
+    // Plan limit (Plan + Subscription.customLimits); SUPER_ADMIN bypasses.
+    if (currentUser.role !== 'SUPER_ADMIN') {
+      await this.planLimits.assert(currentUser.businessId, 'branches');
     }
 
     const loc = address !== undefined ? address : location;
@@ -292,6 +290,8 @@ export class SettingsService {
       });
     });
 
+    this.tenantCache.invalidateBranches(currentUser.businessId);
+
     return {
       success: true,
       message: 'Branch deleted. Its physical inventory is preserved and can be moved to another branch.',
@@ -309,15 +309,9 @@ export class SettingsService {
       throw new BadRequestException('No business found.');
     }
 
-    // Tier limit enforcement: Max 5 accounts
-    const userCount = await this.prisma.user.count({
-      where: { businessId: currentUser.businessId },
-    });
-
-    if (userCount >= 5 && currentUser.role !== 'SUPER_ADMIN') {
-      throw new ForbiddenException(
-        'Base plan limit reached (5 accounts). Contact administration to upgrade.',
-      );
+    // Plan limit: active members + pending invites; SUPER_ADMIN bypasses.
+    if (currentUser.role !== 'SUPER_ADMIN') {
+      await this.planLimits.assert(currentUser.businessId, 'users');
     }
 
     const { email, role } = data;

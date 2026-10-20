@@ -7,6 +7,11 @@ import Header from "@/components/dashboard/Header";
 import { SidebarProvider, useSidebar } from "@/context/SidebarContext";
 import { POSProvider, usePOS } from "@/context/POSContext";
 import { useAuth } from "@/context/AuthContext";
+import QueryProvider from "@/providers/QueryProvider";
+import SyncProvider from "@/components/sync/SyncProvider";
+import EmailVerifyBanner from "@/components/auth/EmailVerifyBanner";
+import ViewAsBanner from "@/components/auth/ViewAsBanner";
+import PlanLimitListener from "@/components/billing/PlanLimitListener";
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { isCollapsed } = useSidebar();
@@ -28,6 +33,8 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
         {/* 3. The Page Content */}
         <main className="flex-1 p-3 sm:p-4 lg:p-6 min-h-0 flex flex-col">
+          <ViewAsBanner />
+          <EmailVerifyBanner />
           {children}
         </main>
       </div>
@@ -61,10 +68,15 @@ export default function DashboardLayout({
   }
 
   return (
-    <SidebarProvider>
-      <POSProvider>
-        <DashboardContent>{children}</DashboardContent>
-      </POSProvider>
-    </SidebarProvider>
+    <QueryProvider>
+      <SyncProvider>
+        <SidebarProvider>
+          <POSProvider>
+            <DashboardContent>{children}</DashboardContent>
+            <PlanLimitListener />
+          </POSProvider>
+        </SidebarProvider>
+      </SyncProvider>
+    </QueryProvider>
   );
 }

@@ -6,9 +6,26 @@ import {
   PaymentMethod,
   Prisma,
 } from '@prisma/client';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { hash } from 'bcrypt';
 import { users, tenants, TEST_PASSWORD } from '../../e2e/fixtures/users';
+import { catalog } from '../../e2e/fixtures/catalog';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const daysFromNow = (days: number) => new Date(Date.now() + days * DAY_MS);
+
+// Part numbers and search aliases for a few existing tenant-A products
+// (keyed by their index in PRODUCTS_A; ids are unchanged).
+const PRODUCT_SEARCH_META: Record<
+  number,
+  { partNumber: string; aliases: string[] }
+> = {
+  0: { partNumber: 'E7470-FHD-PNL', aliases: ['e7470 screen', 'latitude 7470 lcd'] },
+  5: { partNumber: 'MX-BLK-CH', aliases: ['cherry mx', 'mechanical keyboard'] },
+  10: { partNumber: 'DL7000-BAT-4C', aliases: ['latitude battery'] },
+  15: { partNumber: 'DA65W-USBC', aliases: ['dell 65w', 'dell type-c charger'] },
+  20: { partNumber: 'DL-MLB-LAT', aliases: ['latitude motherboard', 'dell mobo'] },
+};
 
 const prisma = new PrismaClient();
 
@@ -211,6 +228,36 @@ async function seedTenant(
     });
   }
 
+  // Subscription: CUSTOM plan (created by migration 0009), ACTIVE.
+  const customPlan = await prisma.plan.findUnique({
+    where: { code: 'CUSTOM' },
+  });
+  if (!customPlan) {
+    throw new Error('Plan CUSTOM missing: run prisma migrate deploy first');
+  }
+  await prisma.subscription.upsert({
+    where: { businessId: business.id },
+    update: {},
+    create: {
+      businessId: business.id,
+      planId: customPlan.id,
+      status: 'ACTIVE',
+      currentPeriodStart: business.createdAt,
+      customLimits: { maxBranches: 2, maxUsers: 5, maxProducts: null },
+    },
+  });
+
+  // One username-login user per tenant: the first staff user, else the owner.
+  const usernameUser = staffUsers[0] ?? ownerUser;
+  const handle = staffUsers[0] ? 'counter1' : 'owner';
+  await prisma.user.update({
+    where: { id: usernameUser.id },
+    data: {
+      displayUsername: handle,
+      username: `${handle}@${tenantData.slug}`.toLowerCase(),
+    },
+  });
+
   const branchIds: Record<string, string> = {};
   for (const [branchKey, branchData] of Object.entries(tenantData.branches)) {
     const branch = await prisma.branch.upsert({
@@ -255,15 +302,15 @@ async function seedTenant(
   const categoriesToSeed =
     tenantKey === 'A' ? CATEGORIES_A : CATEGORIES_A.slice(0, 3);
   for (const catName of categoriesToSeed) {
+    const categoryId = detId(`category-${tenantKey}-${catName}`);
     const category = await prisma.category.upsert({
-      where: {
-        name_businessId: { name: catName, businessId: business.id },
-      },
+      where: { id: categoryId },
       update: {},
       create: {
-        id: detId(`category-${tenantKey}-${catName}`),
+        id: categoryId,
         name: catName,
         businessId: business.id,
+        branchId: null,
       },
     });
     categoryMap[catName] = category.id;
@@ -289,13 +336,16 @@ async function seedTenant(
         defaultCostPrice: prod.basePrice * 0.6,
         businessId: business.id,
         categoryId: categoryMap[categoryName],
+        ...(tenantKey === 'A' && PRODUCT_SEARCH_META[productIndex]
+          ? PRODUCT_SEARCH_META[productIndex]
+          : {}),
       },
     });
     products.push({
       id: product.id,
       name: product.name,
       sku: product.sku,
-      basePrice: product.basePrice,
+      basePrice: Number(product.basePrice),
       categoryId: categoryMap[categoryName],
     });
     productIndex++;
@@ -369,6 +419,87 @@ async function seedTenant(
             cabinetId: cabinet,
             condition: CONDITIONS[Math.floor(seededRng() * CONDITIONS.length)],
             status: 'AVAILABLE',
+          },
+        });
+      }
+    }
+  }
+
+  // Phase 4/5 fixtures (tenant A). These products are deliberately NOT added
+  // to `products`, so the seeded RNG sequence and order generation are unchanged.
+  if (tenantKey === 'A') {
+    const kb = catalog.keyboard840;
+    await prisma.product.upsert({
+      where: { id: kb.productId },
+      update: {},
+      create: {
+        id: kb.productId,
+        name: kb.name,
+        sku: kb.sku,
+        partNumber: kb.partNumber,
+        aliases: [...kb.aliases],
+        compatibleWith: [...kb.compatibleWith],
+        basePrice: kb.basePrice,
+        minSalePrice: kb.minSalePrice,
+        defaultCostPrice: kb.unitCost,
+        businessId: business.id,
+        categoryId: categoryMap['Keyboards'],
+      },
+    });
+    const kbConditions: ItemCondition[] = [
+      'ORIGINAL_PULL',
+      'ORIGINAL_PULL',
+      'MINOR_SCRATCHES',
+    ];
+    for (let i = 0; i < kb.hafeezCentreInstanceIds.length; i++) {
+      await prisma.productInstance.upsert({
+        where: { id: kb.hafeezCentreInstanceIds[i] },
+        update: {},
+        create: {
+          id: kb.hafeezCentreInstanceIds[i],
+          productId: kb.productId,
+          branchId: branchIds['hafeezCentre'],
+          cabinetId: cabinetsByBranch[branchIds['hafeezCentre']][0],
+          condition: kbConditions[i],
+          status: 'AVAILABLE',
+          unitCost: kb.unitCost,
+          notes: i === 0 ? 'Left Ctrl thora loose' : null,
+        },
+      });
+    }
+
+    const scr = catalog.minPriceScreen;
+    await prisma.product.upsert({
+      where: { id: scr.productId },
+      update: {},
+      create: {
+        id: scr.productId,
+        name: scr.name,
+        sku: scr.sku,
+        basePrice: scr.basePrice,
+        minSalePrice: scr.minSalePrice,
+        defaultCostPrice: scr.unitCost,
+        lowStockThreshold: scr.lowStockThreshold,
+        businessId: business.id,
+        categoryId: categoryMap['Screens'],
+      },
+    });
+    for (const [branchKey, ids] of [
+      ['hallRoad', scr.hallRoadInstanceIds],
+      ['hafeezCentre', scr.hafeezCentreInstanceIds],
+    ] as const) {
+      for (const instanceId of ids) {
+        await prisma.productInstance.upsert({
+          where: { id: instanceId },
+          update: {},
+          create: {
+            id: instanceId,
+            productId: scr.productId,
+            branchId: branchIds[branchKey],
+            cabinetId: cabinetsByBranch[branchIds[branchKey]][0],
+            condition: 'ORIGINAL_PULL',
+            status: 'AVAILABLE',
+            unitCost: scr.unitCost,
           },
         });
       }
@@ -543,6 +674,11 @@ async function seedTenant(
             status: orderStatus,
             createdBy: ownerUser.id,
             createdAt: orderDate,
+            // Credit orders fall due 7 days after they were placed.
+            dueDate:
+              orderStatus === 'FINAL' && paymentStatus !== 'PAID'
+                ? new Date(orderDate.getTime() + 7 * DAY_MS)
+                : null,
             items: {
               create: items.map((item) => ({
                 productId: item.productId,
@@ -823,6 +959,235 @@ async function seedTenant(
     }
   }
 
+  if (tenantKey === 'A') {
+    // Vendor purchases (payables) with due dates, one partly paid via FIFO.
+    const vp = catalog.vendorPurchases;
+    const purchases = [
+      {
+        id: vp.partlyPaidPurchaseId,
+        amount: vp.partlyPaidPurchaseAmount,
+        createdAt: daysFromNow(-20),
+        dueDate: daysFromNow(-5),
+        description: 'Inbound stock purchase (overdue, partly paid)',
+      },
+      {
+        id: vp.openPurchaseId,
+        amount: vp.openPurchaseAmount,
+        createdAt: daysFromNow(-3),
+        dueDate: daysFromNow(12),
+        description: 'Inbound stock purchase',
+      },
+    ];
+    for (const p of purchases) {
+      await prisma.transaction.upsert({
+        where: { id: p.id },
+        update: {},
+        create: {
+          id: p.id,
+          businessId: business.id,
+          type: 'VENDOR_PURCHASE',
+          description: p.description,
+          dueDate: p.dueDate,
+          createdAt: p.createdAt,
+          postings: {
+            create: [
+              {
+                accountId: 'INVENTORY_ACCOUNT',
+                accountType: 'INVENTORY',
+                amount: p.amount,
+                createdAt: p.createdAt,
+              },
+              {
+                accountId: vp.vendorId,
+                accountType: 'VENDOR_PAYABLE',
+                amount: -p.amount,
+                createdAt: p.createdAt,
+              },
+            ],
+          },
+        },
+      });
+    }
+    const paymentAt = daysFromNow(-2);
+    await prisma.transaction.upsert({
+      where: { id: vp.paymentId },
+      update: {},
+      create: {
+        id: vp.paymentId,
+        businessId: business.id,
+        type: 'VENDOR_PAYMENT',
+        description: 'Payment to vendor',
+        createdAt: paymentAt,
+        postings: {
+          create: [
+            {
+              accountId: vp.vendorId,
+              accountType: 'VENDOR_PAYABLE',
+              amount: vp.paymentAmount,
+              createdAt: paymentAt,
+            },
+            {
+              accountId: 'CASH',
+              accountType: 'ASSET',
+              amount: -vp.paymentAmount,
+              createdAt: paymentAt,
+            },
+          ],
+        },
+      },
+    });
+
+    // Informal khata entry (lena from a non-customer party), overdue.
+    const ke = catalog.khataOther;
+    const keAt = daysFromNow(-10);
+    await prisma.khataEntry.upsert({
+      where: { id: ke.entryId },
+      update: {},
+      create: {
+        id: ke.entryId,
+        businessId: business.id,
+        branchId: hafeezCentreId,
+        direction: 'RECEIVABLE',
+        partyType: 'OTHER',
+        partyName: ke.partyName,
+        partyPhone: ke.partyPhone,
+        amount: ke.amount,
+        settledAmount: 0,
+        status: 'OPEN',
+        dueDate: daysFromNow(-3),
+        createdById: ownerUser.id,
+        createdAt: keAt,
+      },
+    });
+    await prisma.transaction.upsert({
+      where: { id: ke.transactionId },
+      update: {},
+      create: {
+        id: ke.transactionId,
+        businessId: business.id,
+        referenceId: ke.entryId,
+        type: 'KHATA_ENTRY',
+        description: `Khata lena: ${ke.partyName}`,
+        createdAt: keAt,
+        postings: {
+          create: [
+            {
+              accountId: ke.entryId,
+              accountType: 'OTHER_AR',
+              amount: ke.amount,
+              createdAt: keAt,
+            },
+            {
+              accountId: 'CASH',
+              accountType: 'ASSET',
+              amount: -ke.amount,
+              createdAt: keAt,
+            },
+          ],
+        },
+      },
+    });
+
+    // A partly paid credit order that is already overdue.
+    const co = catalog.creditOrder;
+    if (!(await prisma.order.findUnique({ where: { id: co.orderId } }))) {
+      const coAt = daysFromNow(-9);
+      const coProductId = products[0].id;
+      await prisma.$transaction(async (tx) => {
+        await tx.order.create({
+          data: {
+            id: co.orderId,
+            businessId: business.id,
+            branchId: hallRoadId,
+            customerId: co.customerId,
+            totalAmount: co.total,
+            discount: 0,
+            paymentStatus: 'PARTIAL',
+            status: 'FINAL',
+            createdBy: ownerUser.id,
+            createdAt: coAt,
+            dueDate: daysFromNow(-2),
+            items: {
+              create: [
+                { productId: coProductId, quantity: 1, price: co.total },
+              ],
+            },
+          },
+        });
+        const instance = await tx.productInstance.findFirst({
+          where: {
+            productId: coProductId,
+            branchId: hallRoadId,
+            status: 'AVAILABLE',
+          },
+        });
+        if (instance) {
+          await tx.productInstance.update({
+            where: { id: instance.id },
+            data: { status: 'SOLD' },
+          });
+          await tx.inventoryMovement.create({
+            data: {
+              id: detId(`inventory-movement-${co.orderId}-${coProductId}`),
+              productId: coProductId,
+              cabinetId: instance.cabinetId,
+              toCondition: instance.condition,
+              quantity: 1,
+              direction: 'OUT',
+              referenceType: 'ORDER',
+              referenceId: co.orderId,
+              userId: ownerUser.id,
+              businessId: business.id,
+              createdAt: coAt,
+            },
+          });
+        }
+        await tx.payment.create({
+          data: {
+            id: detId(`payment-${co.orderId}`),
+            orderId: co.orderId,
+            amount: co.paid,
+            method: 'CASH' as PaymentMethod,
+            receivedBy: ownerUser.id,
+            createdAt: coAt,
+          },
+        });
+        await tx.transaction.create({
+          data: {
+            id: detId(`transaction-${co.orderId}`),
+            businessId: business.id,
+            referenceId: co.orderId,
+            type: 'SALE',
+            description: `Sale for Order ${co.orderId}`,
+            createdAt: coAt,
+            postings: {
+              create: [
+                {
+                  accountId: 'REVENUE',
+                  accountType: 'REVENUE',
+                  amount: -co.total,
+                  createdAt: coAt,
+                },
+                {
+                  accountId: 'CASH',
+                  accountType: 'ASSET',
+                  amount: co.paid,
+                  createdAt: coAt,
+                },
+                {
+                  accountId: co.customerId,
+                  accountType: 'CUSTOMER_AR',
+                  amount: co.total - co.paid,
+                  createdAt: coAt,
+                },
+              ],
+            },
+          },
+        });
+      });
+    }
+  }
+
   if (tenantKey === 'A' && managerUser) {
     const sessionId = detId(`register-session-${tenantKey}`);
     await prisma.cashRegisterSession.upsert({
@@ -1056,7 +1421,7 @@ async function main() {
 
   const hashedPassword = await hash(TEST_PASSWORD, 10);
 
-  await prisma.user.upsert({
+  const superAdminUser = await prisma.user.upsert({
     where: { id: users.superAdmin.id },
     update: {},
     create: {
@@ -1115,6 +1480,29 @@ async function main() {
       role: 'OWNER',
     },
   });
+
+  // Better Auth credential accounts (same bcrypt hash) + verified email.
+  for (const u of [superAdminUser, ownerA, managerA, staffA, ownerB]) {
+    await prisma.user.update({
+      where: { id: u.id },
+      data: { emailVerified: true },
+    });
+    const existing = await prisma.account.findFirst({
+      where: { userId: u.id, providerId: 'credential' },
+      select: { id: true },
+    });
+    if (!existing) {
+      await prisma.account.create({
+        data: {
+          id: randomUUID(),
+          accountId: u.id,
+          providerId: 'credential',
+          userId: u.id,
+          password: hashedPassword,
+        },
+      });
+    }
+  }
 
   console.log(`Seeded users`);
 

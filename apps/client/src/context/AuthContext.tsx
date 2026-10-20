@@ -11,13 +11,12 @@ import React, {
 import {
   API_BASE_URL,
   AGENCY_APP_URL,
-  getAuthToken,
   getAuthHeaders,
-  setAuthToken,
-  clearAuthToken,
-  decodeJwt,
-  isTokenValid,
+  apiFetch,
+  clearAuthStorage,
+  clearLegacyAuthStorage,
 } from "@/lib/auth";
+import { authClient } from "@/lib/auth-client";
 
 export interface UserSession {
   id: string;
@@ -27,6 +26,7 @@ export interface UserSession {
   businessId?: string | null;
   phone?: string | null;
   avatarUrl?: string | null;
+  emailVerified?: boolean;
 }
 
 export interface BusinessSubscription {
@@ -41,18 +41,14 @@ export interface Branch {
   createdAt?: string;
 }
 
-interface JwtPayload {
-  id: string;
-  name?: string;
-  email?: string;
-  role?: string;
-  businessId?: string | null;
-  exp?: number;
-}
-
 interface AuthContextType {
   user: UserSession | null;
   role: "OWNER" | "STAFF" | string | null;
+  /**
+   * In-memory session token (never persisted). Only kept for legacy callers that
+   * still gate on it or send it as a Bearer; the real credential is the
+   * httpOnly session cookie.
+   */
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -65,7 +61,8 @@ interface AuthContextType {
   activeBranchId: string | null;
   setActiveBranch: (branchId: string) => void;
   // Auth actions
-  setSession: (token: string, userData?: Partial<UserSession>) => void;
+  // Call after the API has set the session cookie (login / register / onboarding).
+  setSession: (userData?: Partial<UserSession>) => void;
   logout: (customRedirect?: string) => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -83,48 +80,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   >(null);
 
   // ── Fetch branches for the current user's business ──────────────────────
-  const fetchBranches = useCallback(
-    async (activeToken: string, businessId: string) => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/product/getbranches`, {
-          headers: getAuthHeaders(),
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.success && Array.isArray(data.branches)) {
-          const fetchedBranches: Branch[] = data.branches;
-          setBranches(fetchedBranches);
+  const fetchBranches = useCallback(async (businessId: string) => {
+    try {
+      const res = await apiFetch(`${API_BASE_URL}/product/getbranches`, {
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.success && Array.isArray(data.branches)) {
+        const fetchedBranches: Branch[] = data.branches;
+        setBranches(fetchedBranches);
 
-          // Restore or default activeBranchId
-          const storageKey = `activeBranch_${businessId}`;
-          const stored = localStorage.getItem(storageKey);
-          const validStored =
-            stored && fetchedBranches.some((b) => b.id === stored);
-          const resolved = validStored
-            ? stored
-            : fetchedBranches[0]?.id ?? null;
-          setActiveBranchId(resolved);
-        }
-      } catch (err) {
-        console.warn("Could not fetch branches:", err);
+        // Restore or default activeBranchId
+        const storageKey = `activeBranch_${businessId}`;
+        const stored = localStorage.getItem(storageKey);
+        const validStored =
+          stored && fetchedBranches.some((b) => b.id === stored);
+        const resolved = validStored ? stored : fetchedBranches[0]?.id ?? null;
+        setActiveBranchId(resolved);
       }
-    },
-    [],
-  );
+    } catch (err) {
+      console.warn("Could not fetch branches:", err);
+    }
+  }, []);
+
+  const dropSession = useCallback(() => {
+    clearAuthStorage();
+    setTokenState(null);
+    setUser(null);
+    setBranches([]);
+    setActiveBranchId(null);
+    setBusinessSubscription(null);
+  }, []);
+
+  // ── Resolve the cookie session (token kept in memory, emailVerified) ─────
+  const fetchSession = useCallback(async (): Promise<{
+    ok: boolean;
+    emailVerified?: boolean;
+  }> => {
+    try {
+      const { data, error } = await authClient.getSession();
+      if (error) {
+        // Only an explicit 401 ends the session; 5xx / offline keep the cache.
+        return { ok: error.status !== 401 };
+      }
+      if (!data?.session) return { ok: false };
+      setTokenState(data.session.token ?? null);
+      return { ok: true, emailVerified: Boolean(data.user?.emailVerified) };
+    } catch {
+      // Network failure: keep whatever we have (offline-first).
+      return { ok: true };
+    }
+  }, []);
 
   // ── Fetch full user profile from /user/me ────────────────────────────────
   const fetchUserProfile = useCallback(
-    async (activeToken: string) => {
+    async (emailVerified?: boolean) => {
       try {
-        const res = await fetch(`${API_BASE_URL}/user/me`, {
-          headers: { Authorization: `Bearer ${activeToken}` },
-        });
+        const res = await apiFetch(`${API_BASE_URL}/user/me`);
 
         if (res.status === 401) {
-          clearAuthToken();
-          setTokenState(null);
-          setUser(null);
-          setBusinessSubscription(null);
+          dropSession();
           return;
         }
 
@@ -139,6 +155,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               businessId: data.businessId,
               phone: data.phone,
               avatarUrl: data.avatarUrl,
+              emailVerified:
+                typeof data.emailVerified === "boolean"
+                  ? data.emailVerified
+                  : emailVerified,
             };
             setUser(freshUser);
             localStorage.setItem("user", JSON.stringify(freshUser));
@@ -159,7 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             // Fetch branches once we have a confirmed businessId
             if (data.businessId) {
-              await fetchBranches(activeToken, data.businessId);
+              await fetchBranches(data.businessId);
             }
           }
         }
@@ -167,73 +187,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.warn("Could not refresh user session from /user/me:", err);
       }
     },
-    [fetchBranches],
+    [fetchBranches, dropSession],
   );
+
+  const loadSession = useCallback(async () => {
+    const session = await fetchSession();
+    if (!session.ok) {
+      dropSession();
+      return false;
+    }
+    await fetchUserProfile(session.emailVerified);
+    return true;
+  }, [fetchSession, fetchUserProfile, dropSession]);
 
   // ── Hydrate on mount ─────────────────────────────────────────────────────
   useEffect(() => {
-    const activeToken = getAuthToken();
+    // Tokens from the pre-cookie login flow must not linger in the browser.
+    clearLegacyAuthStorage();
 
-    if (!activeToken || !isTokenValid(activeToken)) {
-      clearAuthToken();
-      setTokenState(null);
-      setUser(null);
-      setIsLoading(false);
-      return;
-    }
-
-    setTokenState(activeToken);
-
-    // 1. Immediate hydration from decoded JWT and cached localStorage
-    let initialUser: UserSession | null = null;
-    const decoded = decodeJwt<JwtPayload>(activeToken);
-
-    if (decoded?.id) {
-      let cached: Record<string, unknown> | null = null;
-      try {
-        const raw = localStorage.getItem("user");
-        if (raw) cached = JSON.parse(raw);
-      } catch {}
-
-      const cachedName = typeof cached?.name === "string" ? cached.name : undefined;
-      const cachedEmail = typeof cached?.email === "string" ? cached.email : undefined;
-      const cachedRole = typeof cached?.role === "string" ? cached.role : undefined;
-      const cachedBusinessId = typeof cached?.businessId === "string" ? cached.businessId : undefined;
-      const cachedPhone = typeof cached?.phone === "string" ? cached.phone : undefined;
-      const cachedAvatarUrl = typeof cached?.avatarUrl === "string" ? cached.avatarUrl : undefined;
-
-      initialUser = {
-        id: decoded.id,
-        name: (typeof decoded.name === "string" ? decoded.name : undefined) || cachedName || "User",
-        email: (typeof decoded.email === "string" ? decoded.email : undefined) || cachedEmail || "",
-        role: ((typeof decoded.role === "string" ? decoded.role : undefined) || cachedRole || "OWNER").toUpperCase(),
-        businessId: (typeof decoded.businessId === "string" ? decoded.businessId : undefined) || cachedBusinessId || null,
-        phone: cachedPhone || null,
-        avatarUrl: cachedAvatarUrl || null,
-      };
-      setUser(initialUser);
-
-      // Hydrate cached subscription state immediately (banner shows instantly)
-      try {
+    // 1. Immediate hydration from the cached profile (offline-friendly)
+    try {
+      const raw = localStorage.getItem("user");
+      const cached = raw ? (JSON.parse(raw) as Partial<UserSession>) : null;
+      if (cached && typeof cached.id === "string" && cached.id) {
+        setUser({
+          id: cached.id,
+          name: cached.name || "User",
+          email: cached.email || "",
+          role: String(cached.role || "OWNER").toUpperCase(),
+          businessId: cached.businessId ?? null,
+          phone: cached.phone ?? null,
+          avatarUrl: cached.avatarUrl ?? null,
+          emailVerified: cached.emailVerified,
+        });
         const rawSub = localStorage.getItem("businessSubscription");
-        if (rawSub) {
-          setBusinessSubscription(JSON.parse(rawSub));
+        if (rawSub) setBusinessSubscription(JSON.parse(rawSub));
+        if (cached.businessId) {
+          const stored = localStorage.getItem(
+            `activeBranch_${cached.businessId}`,
+          );
+          if (stored) setActiveBranchId(stored);
         }
-      } catch {}
-
-      // Restore activeBranchId from localStorage immediately (best-effort)
-      if (initialUser.businessId) {
-        const storageKey = `activeBranch_${initialUser.businessId}`;
-        const stored = localStorage.getItem(storageKey);
-        if (stored) setActiveBranchId(stored);
+        setIsLoading(false);
       }
-    }
+    } catch {}
 
-    setIsLoading(false);
-
-    // 2. Fetch fresh user details + branches from server
-    fetchUserProfile(activeToken);
-  }, [fetchUserProfile]);
+    // 2. Confirm with the API (cookie session) and refresh profile + branches
+    loadSession().finally(() => setIsLoading(false));
+  }, [loadSession]);
 
   const setActiveBranch = useCallback(
     (branchId: string) => {
@@ -246,74 +247,71 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const setSession = useCallback(
-    (newToken: string, userData?: Partial<UserSession>) => {
-      setAuthToken(newToken);
-      setTokenState(newToken);
-
-      const decoded = decodeJwt<JwtPayload>(newToken);
-      const combinedUser: UserSession = {
-        id: userData?.id || decoded?.id || "",
-        name: userData?.name || decoded?.name || "User",
-        email: userData?.email || decoded?.email || "",
-        role: (userData?.role || decoded?.role || "OWNER").toUpperCase(),
-        businessId: userData?.businessId || decoded?.businessId || null,
-        phone: userData?.phone || null,
-        avatarUrl: userData?.avatarUrl || null,
-      };
-
-      setUser(combinedUser);
-      localStorage.setItem("user", JSON.stringify(combinedUser));
-
-      // Sync fresh details + branches
-      fetchUserProfile(newToken);
+    (userData?: Partial<UserSession>) => {
+      if (userData?.id) {
+        const combinedUser: UserSession = {
+          id: userData.id,
+          name: userData.name || "User",
+          email: userData.email || "",
+          role: (userData.role || "OWNER").toUpperCase(),
+          businessId: userData.businessId || null,
+          phone: userData.phone || null,
+          avatarUrl: userData.avatarUrl || null,
+          emailVerified: userData.emailVerified,
+        };
+        setUser(combinedUser);
+        localStorage.setItem("user", JSON.stringify(combinedUser));
+      }
+      setIsLoading(false);
+      // Sync token, fresh details and branches
+      void loadSession();
     },
-    [fetchUserProfile],
+    [loadSession],
   );
 
   const logout = useCallback(
     async (customRedirect?: string) => {
-      const activeToken = token || getAuthToken();
       const isSuperAdmin = user?.role === "SUPER_ADMIN";
 
-      // Clear client-side state & tokens first
-      clearAuthToken();
-      setTokenState(null);
-      setUser(null);
-      setBranches([]);
-      setActiveBranchId(null);
-      setBusinessSubscription(null);
-      localStorage.removeItem("businessSubscription");
-
-      // Best-effort notify backend to clear cookie/session
+      // Revoke the server session and clear the cookie (best effort).
       try {
-        if (activeToken) {
-          await fetch(`${API_BASE_URL}/auth/logout`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${activeToken}` },
-          });
-        }
+        const res = await apiFetch(`${API_BASE_URL}/auth/logout`, {
+          method: "POST",
+        });
+        if (!res.ok) await authClient.signOut();
       } catch {
-        // Ignore network errors during logout
+        try {
+          await authClient.signOut();
+        } catch {
+          // Ignore network errors during logout
+        }
       }
+
+      // Wipe the offline cache (unsynced sales stay in the write queue).
+      try {
+        const { clearOfflineData } = await import("@/lib/sync/clear");
+        await clearOfflineData();
+      } catch (err) {
+        console.warn("Could not clear offline data on logout:", err);
+      }
+
+      dropSession();
 
       // Force hard redirect to appropriate login
       window.location.href =
         customRedirect || (isSuperAdmin ? `${AGENCY_APP_URL}/login` : "/login");
     },
-    [token, user],
+    [user, dropSession],
   );
 
   const refreshUser = useCallback(async () => {
-    const activeToken = token || getAuthToken();
-    if (activeToken && isTokenValid(activeToken)) {
-      await fetchUserProfile(activeToken);
-    }
-  }, [token, fetchUserProfile]);
+    await loadSession();
+  }, [loadSession]);
 
   const role = useMemo(() => user?.role || null, [user]);
   const isAuthenticated = useMemo(
-    () => Boolean(token && isTokenValid(token) && user),
-    [token, user],
+    () => Boolean(user),
+    [user],
   );
 
   const isReadOnly = useMemo(() => {

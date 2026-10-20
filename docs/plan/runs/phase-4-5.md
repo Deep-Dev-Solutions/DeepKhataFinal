@@ -1,5 +1,20 @@
 # Run: Phases 1-5 (unblock, bug bash, correctness, VPS artifacts, Lena/Dena, Stock finder)
+# Run: Phases 1-5 (unblock, bug bash, correctness, VPS artifacts, Lena/Dena, Stock finder)
 
+Status: task graph confirmed by 4 scouts on 2026-10-11 (maps in `scouts-1-5.md`). Branch `phase-4-5-dues-stockfinder` from `final-fixes` (b350413).
+Local stack for this worktree: Postgres on **5433** (host 5432 is taken by a non-docker Postgres), Mailpit 1025/8025, `apps/server/.env` local only. Never use the main checkout's `.env` (points at Supabase).
+
+## Facts (verified; corrections to the draft marked ✱)
+
+- Ledger: `LedgerService.createBalancedTransaction(dto)` ledger.service.ts:9-20, float sum, tolerance 0.001. Accounts: REVENUE, ASSET/CASH, CUSTOMER_AR (accountId=customerId), VENDOR_PAYABLE (accountId=vendorId), INVENTORY.
+- Orders: newOrder :55-270, postDoubleEntrySequence :290, recordPayment :742, processReturn :864. ✱ Ledger postings run after the order tx (non-atomic); product lookup :115-117 has no businessId; header branchId trusted :161; count-then-update stock race.
+- Vendor credit: no bill model; VENDOR_PURCHASE (vendors.service.ts:375) and VENDOR_PAYMENT (:424) written with prisma directly. ✱ `inventory.restock` posts no ledger at all (credit restock creates no payable). ✱ vendors and cash controllers have JwtAuthGuard only.
+- Stock: getGlobalStock products.service.ts:406 (route `GET product/global-stock`). No transfer feature. ✱ No general product update endpoint (only `PATCH product/updateprice/:id`); import is a JSON body, no CSV parser.
+- ✱ No command palette / Ctrl+K: Header.tsx `searchIndex` :42-132 (`{keywords,label,description,href,icon}`) is the palette. Bell :545-554 uses mock data.
+- ✱ No branch-manager concept (User has no branchId). ✱ `@nestjs/schedule` not installed.
+- ✱ ItemCondition exists only in the baseline migration and the client TS union, not in schema.prisma; no UI selects it.
+- ✱ data-testid count in client: 0. apps/e2e has only fixtures/users.ts.
+- ✱ Two customer balance definitions (getAllCustomers orders-minus-payments incl. CANCELLED vs posting-based).
 Status: task graph confirmed by 4 scouts on 2026-10-11 (maps in `scouts-1-5.md`). Branch `phase-4-5-dues-stockfinder` from `final-fixes` (b350413).
 Local stack for this worktree: Postgres on **5433** (host 5432 is taken by a non-docker Postgres), Mailpit 1025/8025, `apps/server/.env` local only. Never use the main checkout's `.env` (points at Supabase).
 
@@ -30,11 +45,82 @@ Local stack for this worktree: Postgres on **5433** (host 5432 is taken by a non
 11. **Search**: `pg_trgm` via `postgresqlExtensions`; `Product.searchText` column kept by a DB trigger; GIN trigram indexes on searchText, name, sku.
 12. **Scheduler** runs in-process (`@nestjs/schedule`); valid on the VPS, not on Vercel.
 13. Out of scope (production): running deploys, R2, DNS, Cloudflare smoke Worker, Supabase rehearsal, deleting vercel.json/api/index.ts.
+1. **Baseline**: `0000_baseline` is regenerated from the current `final-fixes` schema.prisma (assumed to be what production was `db push`ed from), then `0001_restore_item_condition` adds ItemCondition back (ProductInstance.condition default ORIGINAL_PULL, InventoryMovement.fromCondition?, toCondition default ORIGINAL_PULL). The user verifies Supabase matches before `migrate resolve --applied 0000_baseline`.
+2. **One schema task (S1)** carries every model change for phases 1-5.
+3. **Money**: Phase 2 runs before P4/P5 features, so all money is `Decimal(14,2)` and server code uses `src/common/money.ts`. API JSON emits money as **numbers rounded to 2 dp** (one `Prisma.Decimal.prototype.toJSON` override installed at bootstrap) so the client needs no rewrite now; strings deferred to Phase 9.
+4. **Ledger** `createBalancedTransaction(dto, tx?)`: Decimal sum must be exactly 0; called inside the caller's `$transaction`.
+5. **Tenancy**: global `TenantGuard` sets `req.tenant = {businessId, branchId}` from the JWT + validated `x-branch-id` (60 s cache). New modules use `@Tenant()`. Refactoring existing services off `requireBusinessId` is deferred (perf only).
+6. **K7**: access tokens get a `jti`; logout writes `RevokedToken`; JwtAuthGuard rejects revoked jti.
+7. **Notifications** fan out one row per recipient (`userId` required). "Managers of a branch" = all OWNER+MANAGER users of the business; `Notification.branchId` records the branch.
+8. **Dues entities**: `entityType` ∈ `ORDER | KHATA_ENTRY | VENDOR_PURCHASE` (Transaction id). Vendor open amounts FIFO. Promise and snooze are `PromiseToPay` rows with `kind` PROMISE|SNOOZE. Manual reminders in `DueReminder`.
+9. **KhataEntry postings** as in the draft (OTHER_AR / OTHER_AP accountId = entry id, BAD_DEBT_EXPENSE for write-off, `counterAccount` ASSET|REVENUE).
+10. **Stock**: InstanceStatus gains `RESERVED` and `IN_TRANSIT`; existing AVAILABLE counts exclude them automatically. InventoryMovement gains `branchId?`. Transfers log OUT+IN movements with referenceType TRANSFER.
+11. **Search**: `pg_trgm` via `postgresqlExtensions`; `Product.searchText` column kept by a DB trigger; GIN trigram indexes on searchText, name, sku.
+12. **Scheduler** runs in-process (`@nestjs/schedule`); valid on the VPS, not on Vercel.
+13. Out of scope (production): running deploys, R2, DNS, Cloudflare smoke Worker, Supabase rehearsal, deleting vercel.json/api/index.ts.
 
 ## Task graph
 
 Agents: Q quick-implementer (haiku), I implementer (sonnet), T test-writer (sonnet), O orchestrator.
+## Task graph
 
+Agents: Q quick-implementer (haiku), I implementer (sonnet), T test-writer (sonnet), O orchestrator.
+
+| Wave | Id | Task | Agent | Depends | Routing reason |
+| --- | --- | --- | --- | --- | --- |
+| 0a | W0.1 | Baseline regen + 0001_restore_item_condition | I | - | migration |
+| 0a | W0.3 | Redis optional (no-op w/o REDIS_URL, lazyConnect, SCAN, try/catch) | I | - | error-handling logic |
+| 0a | W0.5 | K1-K3: no JWT fallback (fail fast), onboarding auth + req.user, team invite from req.user, limit counts invites | I | - | auth/tenancy |
+| 0b | W0.2 | seed.ts matches schema (conditions, category key) | I | W0.1 | data invariants in 1.2k-line script |
+| 0b | F1 | K5 sync: per-item results, UPDATE_ORDER_STATUS, client per-item status | I | - | idempotency across client+server |
+| 0b | W0.7 | Root CLAUDE.md, server AGENTS.md rewrite, ci.yml | Q | - | content pasted, no logic |
+| 0c | W0.4 | apps/e2e workspace, config, helpers, smoke spec | T | W0.2 | test harness |
+| 0c | W0.6 | API test harness on deepkhata_test | T | W0.2 | test harness |
+| 0c | D1 | Dockerfiles x3, Next standalone, compose.prod, Caddyfile, deploy/.env.example | I | - | multi-stage build judgment |
+| 1 | S1 | Schema+migrations for P1-P5 | I | W0.2 | migration (Opus reviews SQL) |
+| 1 | TID1 | testids: login, Sidebar, Header, settings/team | Q | - | mechanical attrs |
+| 1 | TID2 | testids: POS new order, CheckoutDrawer, invoice, orders list/returns | Q | - | mechanical attrs |
+| 2 | M1 | money.ts, Decimal toJSON, ledger Decimal+tx, verify-ledger.ts | I | S1 | money |
+| 2 | M1b | orders.service Decimal + atomic ledger + tenant/branch/race fixes | I | S1 (M1 interface) | money+tenancy |
+| 2 | M2 | Decimal: vendors, cash, customers, inventory, products services | I | S1 | money |
+| 2b | M3 | Decimal: dashboard, reports, agency, sync, leftovers | I | M1 | money |
+| 2b | TID3 | testids: cash, customers, vendors | Q | - | mechanical |
+| 2b | TID4 | testids: products, restock, cabinets, agency-admin | Q | - | mechanical |
+| 3 | G1 | TenantGuard + @Tenant + branch cache + kill-switch cache + revoked jti | I | M* | auth/tenancy |
+| 3 | F2 | K7 logout, K8 APP_NAME, K9 register, PermissionsGuard on vendors/cash | I | M* | auth |
+| 3 | P25 | getProducts rewrite (paginated, groupBy, trigram, no cache) | I | M2 | query perf |
+| 4 | A1 | NotificationsModule | I | S1,G1 | service+settings logic |
+| 4 | A2 | KhataEntriesModule | I | M1,G1 | ledger postings |
+| 4 | B1 | StockFinderModule | I | P25 | ranked search query |
+| 5 | A3 | DuesModule (summary, list, FIFO, promise, reminded, wa link) | I | A1,A2 | money aggregation |
+| 5 | A4 | RemindersJob scheduler | I | A1,A3 | scheduler/idempotency |
+| 5 | B2 | Reservations + transfers (+ expiry job) | I | A1,B1 | stock state machine |
+| 6 | E1 | orders: dueDate, reserved block/convert, minSalePrice guard | I | A3,B2 | money/auth |
+| 6 | E2 | vendors purchase dueDate; credit restock posts VENDOR_PURCHASE | I | M2 | ledger |
+| 6 | E3 | product fields in create/import, PATCH product/:id, instance photo/notes | I | M2 | DTO+service |
+| 7 | C1 | /dues page | I | A3 | React state |
+| 7 | C2 | QuickKhataModal | I | A2 | form logic |
+| 7 | C3 | NotificationBell | I | A1 | polling state |
+| 8 | C4 | Settings → Notifications | I | A1 | form state |
+| 8 | C5 | /stock-finder + waiting view + reserve/request | I | B1,B2 | React state |
+| 8 | C6 | Dashboard widgets: Aaj wasooli/dena, transfers inbox | I | A3,B2 | data widgets |
+| 9 | C7 | Product form fields + EditProductModal | I | E3 | form state |
+| 9 | C8 | Checkout due date + min-price error + reservation sell | I | E1 | checkout logic |
+| 9 | D2 | bootstrap.sh, backup, deploy.yml, MIGRATION.md, CORS_ORIGINS/cookies | I | D1 | security config |
+| 10 | T0 | API: security regressions (K1-K3,K7,K9, perms) | T | F2 | tests |
+| 10 | T1 | API: P4 (aging, ledger, idempotency, promise, wa, isolation) | T | A4 | tests |
+| 10 | T2 | API: P5 (ranking, no cost for STAFF, reservation, transfer, isolation) | T | B2,E1 | tests |
+| 11 | T3 | API: P2 (rounding, verify-ledger, branch 403, products counts) | T | P25 | tests |
+| 11 | T4 | E2E dues flow | T | C1-C3 | tests |
+| 11 | T5 | E2E stock finder + min price | T | C5,C8 | tests |
+| 12 | TE1 | E2E suites A auth/tenancy, I team, J agency | T | TID* | tests |
+| 12 | TE2 | E2E suites B POS, C galla, F returns | T | TID* | tests |
+| 12 | TE3 | E2E suites D khata, E inventory, G offline, H billing | T | TID* | tests |
+| 13 | FIX* | Triage into BUGS.md, fix S1→S4 (tasks created from failures) | I | 12 | per bug |
+| 13 | BENCH | seed --large, apps/bench k6 script, results | I | P25 | data gen + perf |
+| 14 | CLOSE | full lint/build/API/E2E x3, STATUS.md | O+verifier | all | - |
+
+Orchestrator-owned edits between waves: `app.module.ts`, `main.ts` bootstrap lines, `config/permissions.ts` (+ client `usePermissions.ts` mirror), `Header.tsx` (bell, quick-entry button, searchIndex keywords, Ctrl+K, F2), `Sidebar.tsx`, `apps/server/package.json` deps.
 | Wave | Id | Task | Agent | Depends | Routing reason |
 | --- | --- | --- | --- | --- | --- |
 | 0a | W0.1 | Baseline regen + 0001_restore_item_condition | I | - | migration |

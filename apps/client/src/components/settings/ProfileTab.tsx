@@ -1,10 +1,44 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { User as UserIcon } from "lucide-react";
-import { API_BASE_URL } from "@/lib/auth";
+import { Laptop, ShieldCheck } from "lucide-react";
+import { API_BASE_URL, apiFetch } from "@/lib/auth";
 import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 import { User } from "@/types/api";
+
+interface OwnSession {
+  id: string;
+  createdAt: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  current: boolean;
+}
+
+/** "Chrome on Android" style label from a raw user agent. */
+function describeAgent(ua: string | null): string {
+  if (!ua) return "Unknown device";
+  const browser = /Edg\//.test(ua)
+    ? "Edge"
+    : /Firefox\//.test(ua)
+      ? "Firefox"
+      : /Chrome\//.test(ua)
+        ? "Chrome"
+        : /Safari\//.test(ua)
+          ? "Safari"
+          : "Browser";
+  const os = /Android/.test(ua)
+    ? "Android"
+    : /iPhone|iPad|iOS/.test(ua)
+      ? "iOS"
+      : /Windows/.test(ua)
+        ? "Windows"
+        : /Mac OS X/.test(ua)
+          ? "macOS"
+          : /Linux/.test(ua)
+            ? "Linux"
+            : "";
+  return os ? `${browser} on ${os}` : browser;
+}
 
 interface ProfileUpdates {
   name?: string;
@@ -23,9 +57,16 @@ export default function ProfileTab({
   const [name, setName] = useState(user?.name || "");
   const [phone, setPhone] = useState(user?.phone || "");
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || "");
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
+  const [, setIsSaving] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState("");
+  const [sessions, setSessions] = useState<OwnSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [sessionNote, setSessionNote] = useState("");
+  const [revoking, setRevoking] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [passwordStatus, setPasswordStatus] = useState<
     "idle" | "success" | "error"
@@ -53,11 +94,10 @@ export default function ProfileTab({
     setStatusMessage("Saving...");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/settings/profile`, {
+      const res = await apiFetch(`${API_BASE_URL}/settings/profile`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
         },
         body: JSON.stringify({
           [field === "phone" ? "phone" : field]: normalizedValue,
@@ -97,11 +137,8 @@ export default function ProfileTab({
     formData.append("avatar", file);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/settings/profile`, {
+      const res = await apiFetch(`${API_BASE_URL}/settings/profile`, {
         method: "PUT",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
-        },
         body: formData,
       });
 
@@ -126,45 +163,103 @@ export default function ProfileTab({
     }
   };
 
+  const fetchSessions = async (): Promise<OwnSession[] | null> => {
+    try {
+      const res = await apiFetch(`${API_BASE_URL}/user/sessions`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      // Sessions list is informational; keep the previous value.
+      return null;
+    }
+  };
+
+  const loadSessions = async () => {
+    const list = await fetchSessions();
+    if (list) setSessions(list);
+  };
+
+  useEffect(() => {
+    let active = true;
+    void fetchSessions().then((list) => {
+      if (!active) return;
+      if (list) setSessions(list);
+      setSessionsLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleRevokeOthers = async () => {
+    setSessionNote("");
+    setRevoking(true);
+    try {
+      const res = await apiFetch(`${API_BASE_URL}/user/sessions/revoke-others`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.message || "Could not sign out");
+      setSessionNote(
+        data?.revoked
+          ? `Signed out of ${data.revoked} other device${data.revoked === 1 ? "" : "s"}.`
+          : "No other devices were signed in.",
+      );
+      await loadSessions();
+    } catch (err) {
+      setSessionNote(err instanceof Error ? err.message : "Could not sign out");
+    } finally {
+      setRevoking(false);
+    }
+  };
+
   const handlePasswordUpdate = async () => {
-    if (!newPassword || !confirmPassword) {
+    if (!currentPassword || !newPassword || !confirmPassword) {
       setPasswordStatus("error");
-      setStatusMessage("Enter both password fields");
+      setPasswordMessage("Enter all three password fields");
       return;
     }
 
     if (newPassword !== confirmPassword) {
       setPasswordStatus("error");
-      setStatusMessage("Passwords do not match");
+      setPasswordMessage("Passwords do not match");
       return;
     }
 
-    setIsSaving(true);
+    setIsChangingPassword(true);
     setPasswordStatus("idle");
+    setPasswordMessage("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/settings/profile`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
-        },
-        body: JSON.stringify({ newPassword }),
+      const res = await apiFetch(`${API_BASE_URL}/user/change-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Password update failed");
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const msg = Array.isArray(data?.message)
+          ? data.message.join(", ")
+          : data?.message;
+        throw new Error(msg || "Password update failed");
+      }
 
+      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
       setPasswordStatus("success");
-      setStatusMessage("Password updated");
-    } catch {
+      setPasswordMessage("Password updated. Your other devices were signed out.");
+      await loadSessions();
+    } catch (err) {
       setPasswordStatus("error");
-      setStatusMessage("Could not update password");
+      setPasswordMessage(
+        err instanceof Error ? err.message : "Could not update password",
+      );
     } finally {
-      setIsSaving(false);
-      window.setTimeout(() => setStatusMessage(""), 2200);
+      setIsChangingPassword(false);
     }
   };
 
@@ -290,29 +385,60 @@ export default function ProfileTab({
             Change Password
           </h2>
           <p className="text-sm text-slate-500">
-            Ensure your account stays secure.
+            Ensure your account stays secure. Other devices are signed out when
+            you change it.
           </p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                New Password
+              <label
+                htmlFor="profile-change-current"
+                className="block text-sm font-medium text-slate-700 mb-1.5"
+              >
+                Current Password
               </label>
               <input
+                id="profile-change-current"
+                data-testid="profile-change-current"
                 type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="••••••••"
                 className="w-full border border-slate-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm text-sm"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label
+                htmlFor="profile-change-new"
+                className="block text-sm font-medium text-slate-700 mb-1.5"
+              >
+                New Password
+              </label>
+              <input
+                id="profile-change-new"
+                data-testid="profile-change-new"
+                type="password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="At least 8 characters"
+                className="w-full border border-slate-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm text-sm"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="profile-change-confirm"
+                className="block text-sm font-medium text-slate-700 mb-1.5"
+              >
                 Confirm New Password
               </label>
               <input
+                id="profile-change-confirm"
+                data-testid="profile-change-confirm"
                 type="password"
+                autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
@@ -323,8 +449,9 @@ export default function ProfileTab({
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button
               type="button"
+              data-testid="profile-change-submit"
               onClick={handlePasswordUpdate}
-              disabled={isSaving || readOnly}
+              disabled={isChangingPassword || readOnly}
               title={
                 readOnly
                   ? "Subscription expired. System is in read-only mode."
@@ -336,17 +463,79 @@ export default function ProfileTab({
                   : "bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400"
               }`}
             >
-              {isSaving ? "Updating..." : "Update Password"}
+              {isChangingPassword ? "Updating..." : "Update Password"}
             </button>
-            {passwordStatus === "success" ? (
-              <span className="text-sm text-emerald-600">Password updated</span>
-            ) : null}
-            {passwordStatus === "error" ? (
-              <span className="text-sm text-rose-600">
-                Please confirm your password
+            {passwordMessage ? (
+              <span
+                data-testid="profile-change-status"
+                className={`text-sm ${passwordStatus === "success" ? "text-emerald-600" : "text-rose-600"}`}
+              >
+                {passwordMessage}
               </span>
             ) : null}
           </div>
+        </div>
+      </section>
+
+      <hr className="border-slate-200" />
+
+      <section>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">
+              Where you are signed in
+            </h2>
+            <p className="text-sm text-slate-500">
+              Sign out devices you no longer use or recognise.
+            </p>
+          </div>
+          <button
+            type="button"
+            data-testid="profile-revoke-others"
+            onClick={() => void handleRevokeOthers()}
+            disabled={revoking || sessions.filter((s) => !s.current).length === 0}
+            className="flex items-center gap-2 rounded-lg border border-rose-200 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <ShieldCheck className="h-4 w-4" />
+            {revoking ? "Signing out..." : "Sign out other devices"}
+          </button>
+        </div>
+        {sessionNote && (
+          <p
+            data-testid="profile-sessions-note"
+            className="mb-3 text-sm text-slate-600"
+          >
+            {sessionNote}
+          </p>
+        )}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
+          {sessionsLoading && sessions.length === 0 && (
+            <p className="p-4 text-sm text-slate-500">Loading sessions...</p>
+          )}
+          {sessions.map((session) => (
+            <div
+              key={session.id}
+              data-testid="profile-session-row"
+              data-current={session.current ? "true" : "false"}
+              className="flex items-center gap-3 p-4"
+            >
+              <Laptop className="h-5 w-5 shrink-0 text-slate-400" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-slate-900">
+                  {describeAgent(session.userAgent)}
+                  {session.current && (
+                    <span className="ml-2 rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                      THIS DEVICE
+                    </span>
+                  )}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {session.ipAddress || "Unknown IP"} · Signed in{" "}
+                  {new Date(session.createdAt).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
     </div>

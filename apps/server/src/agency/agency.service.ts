@@ -7,7 +7,19 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
-import { BusinessStatus, Role } from '@prisma/client';
+import { randomBytes, randomUUID } from 'node:crypto';
+import * as M from '../common/money';
+import { BusinessStatus, Role, SubscriptionStatus } from '@prisma/client';
+import { TenantCacheService } from '../tenant/tenant-cache.service';
+import { PlanLimitsService } from '../plans/plan-limits.service';
+import { SubscriptionsService } from '../plans/subscriptions.service';
+import {
+  SignupsQueryDto,
+  TasksQueryDto,
+  UpdateSignupDto,
+  UpdateTaskDto,
+} from '../lifecycle/dto/agency-signups.dto';
+import { addDays, daysBetween, karachiDateOnly } from '../common/dates';
 
 const TRIAL_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -19,7 +31,12 @@ const VALID_STATUSES: BusinessStatus[] = [
 
 @Injectable()
 export class AgencyService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantCache: TenantCacheService,
+    private readonly planLimits: PlanLimitsService,
+    private readonly subscriptions: SubscriptionsService,
+  ) {}
 
   async onboardTenant(data: any) {
     const {
@@ -95,6 +112,9 @@ export class AgencyService {
           },
         });
 
+        // Trial plan; also mirrors Business.status/subscriptionExpiresAt.
+        await this.subscriptions.startTrial(business.id, tx);
+
         return { user, business, branch };
       });
 
@@ -110,6 +130,56 @@ export class AgencyService {
         'Failed to onboard tenant: ' + error.message,
       );
     }
+  }
+
+  /** Subscription + last-30-day usage per tenant (one grouped query, no per-tenant scans). */
+  private async enrichment(businessIds: string[]) {
+    const since = addDays(karachiDateOnly(new Date()), -29);
+    const [subs, usage] = await Promise.all([
+      this.prisma.subscription.findMany({
+        where: { businessId: { in: businessIds } },
+        select: {
+          businessId: true,
+          status: true,
+          trialEndsAt: true,
+          currentPeriodEnd: true,
+          plan: { select: { code: true, name: true } },
+        },
+      }),
+      this.prisma.tenantDailyUsage.groupBy({
+        by: ['businessId'],
+        where: { businessId: { in: businessIds }, date: { gte: since } },
+        _sum: { ordersCount: true, gmv: true },
+      }),
+    ]);
+    return {
+      subs: new Map(subs.map((x) => [x.businessId, x])),
+      usage: new Map(usage.map((x) => [x.businessId, x])),
+    };
+  }
+
+  private enrich<T extends { id: string }>(
+    b: T,
+    e: Awaited<ReturnType<AgencyService['enrichment']>>,
+  ) {
+    const sub = e.subs.get(b.id);
+    const u = e.usage.get(b.id);
+    return {
+      ...b,
+      subscription: sub
+        ? {
+            status: sub.status,
+            planCode: sub.plan.code,
+            planName: sub.plan.name,
+            trialEndsAt: sub.trialEndsAt,
+            currentPeriodEnd: sub.currentPeriodEnd,
+          }
+        : null,
+      usage30: {
+        orders: u?._sum.ordersCount ?? 0,
+        gmv: M.round2(u?._sum.gmv ?? 0),
+      },
+    };
   }
 
   async getTenants() {
@@ -133,11 +203,10 @@ export class AgencyService {
       },
       orderBy: { createdAt: 'desc' },
     });
-    return businesses.map(({ status, subscriptionExpiresAt, ...rest }) => ({
-      ...rest,
-      status,
-      subscriptionExpiresAt,
-    }));
+    const e = await this.enrichment(businesses.map((b) => b.id));
+    return businesses.map(({ status, subscriptionExpiresAt, ...rest }) =>
+      this.enrich({ ...rest, status, subscriptionExpiresAt }, e),
+    );
   }
 
   async getTenantById(businessId: string) {
@@ -177,7 +246,39 @@ export class AgencyService {
     }
 
     const { status, subscriptionExpiresAt, ...rest } = business;
-    return { ...rest, status, subscriptionExpiresAt };
+    const e = await this.enrichment([business.id]);
+    return this.enrich({ ...rest, status, subscriptionExpiresAt }, e);
+  }
+
+  /**
+   * Support "view as tenant": a 1 h Session for the tenant's owner with
+   * impersonatedBy = the admin. SessionGuard makes such sessions read-only.
+   * The VIEW_AS access-log row is written by AdminAccessLogInterceptor.
+   */
+  async createViewAsSession(businessId: string, adminId: string) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true, ownerId: true },
+    });
+    if (!business) {
+      throw new NotFoundException(`Business with ID ${businessId} not found`);
+    }
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 60 * 60 * 1000);
+    const token = randomBytes(32).toString('hex');
+    await this.prisma.session.create({
+      data: {
+        id: randomUUID(),
+        token,
+        userId: business.ownerId,
+        expiresAt,
+        impersonatedBy: adminId,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+    const frontend = (process.env.FRONTEND_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+    return { token, url: `${frontend}/view-as?token=${token}`, expiresAt };
   }
 
   async updateTenantStatus(businessId: string, status: string) {
@@ -197,10 +298,19 @@ export class AgencyService {
       );
     }
 
-    await this.prisma.business.update({
-      where: { id: businessId },
-      data: { status: status as BusinessStatus },
+    // The kill switch reads the Subscription, so its status moves together with
+    // Business.status. Dates are left alone: an agency status change is not a renewal.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.subscription.updateMany({
+        where: { businessId },
+        data: { status: status as SubscriptionStatus },
+      });
+      await tx.business.update({
+        where: { id: businessId },
+        data: { status: status as BusinessStatus },
+      });
     });
+    this.tenantCache.invalidateBusiness(businessId);
 
     return {
       message: `Tenant status updated to ${status}`,
@@ -223,8 +333,13 @@ export class AgencyService {
       );
     }
 
-    const amount = Number(data?.amount);
-    if (!amount || amount <= 0) {
+    let amount: M.Money;
+    try {
+      amount = M.round2(data?.amount);
+    } catch {
+      amount = M.ZERO;
+    }
+    if (!M.gt(amount, 0)) {
       throw new BadRequestException('A valid positive amount is required');
     }
 
@@ -253,9 +368,17 @@ export class AgencyService {
           },
         });
 
+        // Subscription follows the same paid-through date (period end = paymentDate).
+        await this.subscriptions.extend(
+          businessId,
+          { until: paymentDate },
+          tx,
+        );
+
         return { billingLog, updatedBusiness };
       },
     );
+    this.tenantCache.invalidateBusiness(businessId);
 
     return {
       message:
@@ -281,6 +404,11 @@ export class AgencyService {
       throw new NotFoundException(`Business with ID ${businessId} not found`);
     }
 
+    // The agency is SUPER_ADMIN by definition; exceeding the plan needs an explicit override.
+    if (data?.override !== true) {
+      await this.planLimits.assert(businessId, 'branches');
+    }
+
     const branch = await this.prisma.branch.create({
       data: {
         name: name.trim(),
@@ -289,6 +417,115 @@ export class AgencyService {
       },
     });
 
+    this.tenantCache.invalidateBranches(businessId);
+
     return { message: 'Branch provisioned successfully', branch };
+  }
+
+  /** Signup feed for the agency: newest first, with owner contact and trial days left. */
+  async getSignups(query: SignupsQueryDto) {
+    const now = new Date();
+    const businesses = await this.prisma.business.findMany({
+      where: {
+        ...(query.status ? { followUpStatus: query.status } : {}),
+        ...(query.from || query.to
+          ? {
+              createdAt: {
+                ...(query.from ? { gte: new Date(query.from) } : {}),
+                ...(query.to ? { lte: new Date(query.to) } : {}),
+              },
+            }
+          : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+      select: {
+        id: true,
+        name: true,
+        city: true,
+        market: true,
+        source: true,
+        phone: true,
+        createdAt: true,
+        followUpStatus: true,
+        followUpNotes: true,
+        owner: { select: { name: true, email: true, phone: true } },
+        subscription: {
+          select: { status: true, trialEndsAt: true, plan: { select: { code: true } } },
+        },
+      },
+    });
+    return businesses.map((b) => {
+      const trialEndsAt = b.subscription?.trialEndsAt ?? null;
+      const onTrial = b.subscription?.status === 'TRIALING';
+      return {
+        businessId: b.id,
+        businessName: b.name,
+        ownerName: b.owner.name,
+        ownerEmail: b.owner.email,
+        phone: b.phone ?? b.owner.phone ?? null,
+        city: b.city,
+        market: b.market,
+        source: b.source,
+        createdAt: b.createdAt,
+        followUpStatus: b.followUpStatus,
+        followUpNotes: b.followUpNotes,
+        subscriptionStatus: b.subscription?.status ?? null,
+        trialEndsAt,
+        trialDaysLeft:
+          onTrial && trialEndsAt ? Math.max(0, daysBetween(now, trialEndsAt)) : null,
+      };
+    });
+  }
+
+  async updateSignup(businessId: string, body: UpdateSignupDto) {
+    const exists = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true },
+    });
+    if (!exists) throw new NotFoundException('Business not found');
+    const updated = await this.prisma.business.update({
+      where: { id: businessId },
+      data: {
+        ...(body.followUpStatus !== undefined
+          ? { followUpStatus: body.followUpStatus }
+          : {}),
+        ...(body.followUpNotes !== undefined
+          ? { followUpNotes: body.followUpNotes }
+          : {}),
+      },
+      select: { id: true, followUpStatus: true, followUpNotes: true },
+    });
+    return {
+      businessId: updated.id,
+      followUpStatus: updated.followUpStatus,
+      followUpNotes: updated.followUpNotes,
+    };
+  }
+
+  async getTasks(query: TasksQueryDto) {
+    return this.prisma.agencyTask.findMany({
+      where: query.status ? { status: query.status } : {},
+      orderBy: [{ dueAt: 'asc' }, { createdAt: 'asc' }],
+      take: 500,
+      include: {
+        business: {
+          select: { id: true, name: true, phone: true, city: true, market: true },
+        },
+      },
+    });
+  }
+
+  async completeTask(id: string, body: UpdateTaskDto) {
+    const task = await this.prisma.agencyTask.findUnique({ where: { id } });
+    if (!task) throw new NotFoundException('Task not found');
+    return this.prisma.agencyTask.update({
+      where: { id },
+      data: {
+        status: 'DONE',
+        doneAt: task.doneAt ?? new Date(),
+        ...(body.notes !== undefined ? { notes: body.notes } : {}),
+      },
+    });
   }
 }

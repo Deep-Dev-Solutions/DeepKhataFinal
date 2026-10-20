@@ -1,16 +1,21 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import * as M from '../common/money';
+import * as D from '../common/dates';
+import { LedgerService } from '../ledger/ledger.service';
 
 @Injectable()
 export class InventoryService {
   constructor(
     private prisma: PrismaService,
     private redis: RedisService,
+    private ledgerService: LedgerService,
   ) {}
 
   async restock(userId: string, data: any) {
     const { items } = data;
+    const paidNow = data.paidNow === true || data.paidNow === 'true';
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       throw new BadRequestException('Restock batch is empty');
@@ -26,8 +31,25 @@ export class InventoryService {
       );
     const businessId = currentUser.businessId;
 
+    // Due date for credit purchases: explicit (not in the past) or the
+    // business default payable terms.
+    const today = D.startOfKarachiDay();
+    let explicitDueDate: Date | undefined;
+    if (data.dueDate) {
+      explicitDueDate = new Date(data.dueDate);
+      if (Number.isNaN(explicitDueDate.getTime()))
+        throw new BadRequestException('Invalid due date');
+      if (explicitDueDate.getTime() < today.getTime())
+        throw new BadRequestException('Due date cannot be in the past');
+    }
+
     const result = await this.prisma.$transaction(async (tx) => {
       const createdMovements: any[] = [];
+      // Per-vendor purchase cost + the first movement id (used as ledger ref).
+      const vendorCosts = new Map<
+        string,
+        { total: M.Money; refId: string | null }
+      >();
       let totalUnits = 0;
 
       for (const item of items) {
@@ -96,7 +118,7 @@ export class InventoryService {
             cabinetId: finalCabinetId,
             branchId,
             vendorId: vendorId || null,
-            unitCost: unitCost ? Number(unitCost) : null,
+            unitCost: unitCost ? M.round2(unitCost) : null,
             status: 'AVAILABLE' as any,
           })),
         });
@@ -118,6 +140,67 @@ export class InventoryService {
 
         createdMovements.push(movement);
         totalUnits += qty;
+
+        if (vendorId) {
+          const lineCost = M.mul(M.round2(unitCost || 0), qty);
+          const prev = vendorCosts.get(vendorId);
+          vendorCosts.set(vendorId, {
+            total: M.add(prev?.total ?? 0, lineCost),
+            refId: prev?.refId ?? movement.id,
+          });
+        }
+      }
+
+      // Record each vendor's purchase in the ledger (on credit by default).
+      for (const [vId, { total, refId }] of vendorCosts) {
+        const vendor = await tx.vendor.findFirst({
+          where: { id: vId, businessId },
+          select: { id: true, businessName: true },
+        });
+        if (!vendor) throw new BadRequestException('Vendor not found');
+        if (!M.gt(total, 0)) continue;
+
+        let dueDate: Date | undefined;
+        if (!paidNow) {
+          if (explicitDueDate) {
+            dueDate = explicitDueDate;
+          } else {
+            const business = await tx.business.findUnique({
+              where: { id: businessId },
+              select: { defaultPayableDays: true },
+            });
+            dueDate = D.addDays(today, business?.defaultPayableDays ?? 15);
+          }
+        }
+
+        await this.ledgerService.createBalancedTransaction(
+          {
+            businessId,
+            referenceId: refId ?? undefined,
+            type: 'VENDOR_PURCHASE',
+            description: `Restock from ${vendor.businessName}`,
+            dueDate,
+            postings: [
+              {
+                accountId: 'INVENTORY_ACCOUNT',
+                accountType: 'INVENTORY',
+                amount: total,
+              },
+              paidNow
+                ? {
+                    accountId: 'CASH',
+                    accountType: 'ASSET',
+                    amount: M.neg(total),
+                  }
+                : {
+                    accountId: vId,
+                    accountType: 'VENDOR_PAYABLE',
+                    amount: M.neg(total),
+                  },
+            ],
+          },
+          tx,
+        );
       }
 
       return {
@@ -137,9 +220,15 @@ export class InventoryService {
       branchInvalidations.push(
         this.redis.deleteByPattern(`products:${targetBranchId}:*`),
         this.redis.deleteByPattern(`cabinets:${targetBranchId}:*`),
-        this.redis.deleteByPattern(`products:${businessId}:branch:${targetBranchId}:*`),
-        this.redis.deleteByPattern(`cabinets:${businessId}:branch:${targetBranchId}:*`),
-        this.redis.deleteByPattern(`restock:${businessId}:branch:${targetBranchId}:*`),
+        this.redis.deleteByPattern(
+          `products:${businessId}:branch:${targetBranchId}:*`,
+        ),
+        this.redis.deleteByPattern(
+          `cabinets:${businessId}:branch:${targetBranchId}:*`,
+        ),
+        this.redis.deleteByPattern(
+          `restock:${businessId}:branch:${targetBranchId}:*`,
+        ),
       );
     }
 
@@ -211,7 +300,11 @@ export class InventoryService {
       })
       .filter((p) => p.availableStock <= Number(threshold));
 
-    const result = { success: true, count: lowStockProducts.length, products: lowStockProducts };
+    const result = {
+      success: true,
+      count: lowStockProducts.length,
+      products: lowStockProducts,
+    };
     await this.redis.set(cacheKey, result, 3600);
     return result;
   }

@@ -39,7 +39,7 @@ export default function OpenRegisterModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div data-testid="open-register-modal" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
         
         {/* Header */}
@@ -69,7 +69,7 @@ export default function OpenRegisterModal({
             </label>
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">PKR</span>
-              <input
+              <input data-testid="open-register-float"
                 type="number"
                 min="0"
                 required
@@ -119,7 +119,7 @@ export default function OpenRegisterModal({
             >
               Cancel
             </button>
-            <button
+            <button data-testid="open-register-submit"
               type="submit"
               disabled={submitting}
               className="px-5 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition-all disabled:opacity-50 flex items-center gap-2"

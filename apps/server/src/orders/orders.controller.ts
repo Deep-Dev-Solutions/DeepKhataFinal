@@ -13,7 +13,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SessionGuard } from '../auth/guards/session.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -32,7 +32,7 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Post('neworder')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(SessionGuard, PermissionsGuard)
   @RequirePermissions('create:order')
   async newOrder(
     @Req() req: any,
@@ -46,7 +46,7 @@ export class OrdersController {
   }
 
   @Get('getallorders')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(SessionGuard, PermissionsGuard)
   @RequirePermissions('read:orders')
   async getAllOrders(
     @Req() req: any,
@@ -60,14 +60,14 @@ export class OrdersController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(SessionGuard, PermissionsGuard)
   @RequirePermissions('read:orders')
   async getOrderById(@Req() req: any, @Param('id') id: string) {
     return this.ordersService.getOrderById(req.user.id, id);
   }
 
   @Patch(':id/status')
-  @UseGuards(JwtAuthGuard, PermissionsGuard, RolesGuard)
+  @UseGuards(SessionGuard, PermissionsGuard, RolesGuard)
   @Roles('OWNER', 'MANAGER', 'STAFF')
   @RequirePermissions('update:order')
   async updateOrderStatusPatch(
@@ -84,7 +84,7 @@ export class OrdersController {
   }
 
   @Put('updatestatus/:id')
-  @UseGuards(JwtAuthGuard, PermissionsGuard, RolesGuard)
+  @UseGuards(SessionGuard, PermissionsGuard, RolesGuard)
   @Roles('OWNER', 'MANAGER', 'STAFF')
   @RequirePermissions('update:order')
   async updateOrderStatus(
@@ -101,7 +101,7 @@ export class OrdersController {
   }
 
   @Patch(':id/settle-memo')
-  @UseGuards(JwtAuthGuard, PermissionsGuard, RolesGuard)
+  @UseGuards(SessionGuard, PermissionsGuard, RolesGuard)
   @Roles('OWNER')
   @RequirePermissions('update:order')
   async settleMemo(
@@ -113,7 +113,7 @@ export class OrdersController {
   }
 
   @Post('recordpayment')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(SessionGuard, PermissionsGuard)
   @RequirePermissions('update:order')
   async recordPaymentRoute(@Req() req: any, @Body() body: RecordPaymentDto) {
     return this.ordersService.recordPayment(req.user.id, body);
@@ -125,7 +125,7 @@ export class OrdersController {
   }
 
   @Post(':id/return')
-  @UseGuards(JwtAuthGuard, PermissionsGuard, RolesGuard)
+  @UseGuards(SessionGuard, PermissionsGuard, RolesGuard)
   @Roles('OWNER', 'MANAGER')
   @RequirePermissions('update:order')
   async processReturn(

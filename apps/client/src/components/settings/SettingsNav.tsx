@@ -1,4 +1,4 @@
-import { Store, Users, Globe, Bell, User, GitBranch } from "lucide-react";
+import { Store, Users, Globe, Bell, User, GitBranch, CreditCard, Shield } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 
 interface SettingsNavProps {
@@ -43,6 +43,15 @@ export default function SettingsNav({
             </button>
           )}
 
+          {hasPermission("manage:team") && (
+            <button
+              onClick={() => setActiveTab("plan")}
+              className={`flex items-center gap-2 pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "plan" ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"}`}
+            >
+              <CreditCard className="w-4 h-4" /> Plan & Usage
+            </button>
+          )}
+
           {hasPermission("manage:business") && (
             <button
               onClick={() => setActiveTab("branches")}
@@ -58,6 +67,16 @@ export default function SettingsNav({
               className={`flex items-center gap-2 pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "portal" ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"}`}
             >
               <Globe className="w-4 h-4" /> Customer Portal
+            </button>
+          )}
+
+          {hasPermission("manage:business") && (
+            <button
+              onClick={() => setActiveTab("access-log")}
+              data-testid="settings-tab-access-log"
+              className={`flex items-center gap-2 pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "access-log" ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"}`}
+            >
+              <Shield className="w-4 h-4" /> Access Log
             </button>
           )}
         </>

@@ -51,6 +51,7 @@ export default function AddVendorModal({
 
     try {
       const response = await fetch(`${API_BASE_URL}/vendors`, {
+        credentials: "include",
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -82,7 +83,7 @@ export default function AddVendorModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div data-testid="add-vendor-modal" className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200"
         onClick={closeModal}
@@ -132,7 +133,7 @@ export default function AddVendorModal({
             </label>
             <div className="relative">
               <Building2 className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <input
+              <input data-testid="add-vendor-name"
                 type="text"
                 required
                 autoFocus
@@ -167,7 +168,7 @@ export default function AddVendorModal({
               </label>
               <div className="relative">
                 <Phone className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                <input
+                <input data-testid="add-vendor-phone"
                   type="text"
                   value={formData.phone}
                   onChange={(event) => updateField("phone", event.target.value)}
@@ -203,7 +204,7 @@ export default function AddVendorModal({
             >
               Cancel
             </button>
-            <button
+            <button data-testid="add-vendor-submit"
               type="submit"
               disabled={isSubmitting}
               className="flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2 text-sm font-bold text-white shadow-md shadow-indigo-200 transition-colors hover:bg-indigo-700 disabled:opacity-70"

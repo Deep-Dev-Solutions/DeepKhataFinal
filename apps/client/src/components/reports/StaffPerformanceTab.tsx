@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -12,53 +11,13 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Loader2 } from "lucide-react";
-import { API_BASE_URL } from "@/lib/auth";
 
-interface StaffMetrics {
-  name: string;
-  revenue?: number;
-  orders?: number;
-}
-import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
-import { useAuth } from "@/context/AuthContext";
+import { useStaffReport } from "@/hooks/queries/useReports";
 
 export default function StaffPerformanceTab() {
-  const [staffPerformance, setStaffPerformance] = useState<StaffMetrics[]>([]);
-  const { activeBranchId } = useAuth();
-  const [staffPerformance, setStaffPerformance] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    let isActive = true;
-
-    const fetchStaffPerformance = async () => {
-      setIsLoading(true);
-      setError("");
-
-      try {
-        const res = await fetch(`${API_BASE_URL}/reports/staff`, {
-          headers: getAuthHeaders(activeBranchId),
-        });
-
-        const json = await res.json();
-        if (!res.ok || !json?.success)
-          throw new Error(json?.message || "Failed to load staff report");
-
-        if (isActive) setStaffPerformance(json.staffPerformance || []);
-      } catch {
-        if (isActive) setError("Could not load staff performance.");
-      } finally {
-        if (isActive) setIsLoading(false);
-      }
-    };
-
-    fetchStaffPerformance();
-
-    return () => {
-      isActive = false;
-    };
-  }, [activeBranchId]);
+  const { data, isPending: isLoading, isError } = useStaffReport();
+  const staffPerformance = data ?? [];
+  const error = isError ? "Could not load staff performance." : "";
 
   if (isLoading) {
     return (

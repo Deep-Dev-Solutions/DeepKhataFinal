@@ -1,5 +1,10 @@
+import { beforeEach, describe, expect, it } from 'vitest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CustomersController } from './customers.controller.js';
+import { CustomersService } from './customers.service';
+import { ThrottlerGuard } from '@nestjs/throttler';
+import { SessionGuard } from '../auth/guards/session.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
 
 describe('CustomersController', () => {
   let controller: CustomersController;
@@ -7,7 +12,17 @@ describe('CustomersController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CustomersController],
-    }).compile();
+      providers: [
+        { provide: CustomersService, useValue: {} },
+      ],
+    })
+      .overrideGuard(ThrottlerGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(SessionGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(PermissionsGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<CustomersController>(CustomersController);
   });

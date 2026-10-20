@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -18,8 +18,11 @@ import {
   DollarSign,
   User,
   Calendar,
+  Pencil,
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { usePermissions } from "@/hooks/usePermissions";
+import EditProductModal from "@/components/modals/EditProductModal";
 
 const formatPrice = (val: any): string => {
   if (val === null || val === undefined) return "0";
@@ -69,6 +72,12 @@ type Product = {
   totalSold?: number;
   totalRevenue?: number;
   category?: { name: string };
+  defaultCostPrice?: number | string | null;
+  partNumber?: string | null;
+  aliases?: string[] | null;
+  compatibleWith?: string[] | null;
+  minSalePrice?: number | string | null;
+  lowStockThreshold?: number | string | null;
 };
 
 export default function ProductDetailPage() {
@@ -83,32 +92,38 @@ export default function ProductDetailPage() {
     "location",
   );
 
-  useEffect(() => {
-    const fetchDetails = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/product/${id}/details`, {
-          headers: getAuthHeaders(),
-        });
-        const data = await res.json();
-        if (data.success) {
-          setProduct(data.product);
-          const instList = data.instances || [];
-          const saleList = data.sales || [];
-          setInstances(instList);
-          setMovements(data.movements || []);
-          setSales(saleList);
-          if (instList.length === 0 && saleList.length > 0) {
-            setActiveTab("sales");
-          }
+  const { hasPermission } = usePermissions();
+  const [isEditOpen, setIsEditOpen] = useState(false);
+
+  const fetchDetails = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/product/${id}/details`, {
+        credentials: "include",
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setProduct(data.product);
+        const instList = data.instances || [];
+        const saleList = data.sales || [];
+        setInstances(instList);
+        setMovements(data.movements || []);
+        setSales(saleList);
+        if (instList.length === 0 && saleList.length > 0) {
+          setActiveTab("sales");
         }
-      } catch (err) {
-        console.error("Failed to load product details", err);
-      } finally {
-        setIsLoading(false);
       }
-    };
-    if (id) fetchDetails();
+    } catch (err) {
+      console.error("Failed to load product details", err);
+    } finally {
+      setIsLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (id) void fetchDetails();
+  }, [id, fetchDetails]);
 
   if (isLoading) {
     return (
@@ -154,6 +169,16 @@ export default function ProductDetailPage() {
             Product Details & Performance
           </p>
         </div>
+        {hasPermission("write:products") && (
+          <button
+            type="button"
+            data-testid="product-edit"
+            onClick={() => setIsEditOpen(true)}
+            className="ml-auto flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+          >
+            <Pencil className="h-4 w-4" /> Edit
+          </button>
+        )}
       </div>
 
       {/* KPI Row */}
@@ -521,6 +546,14 @@ export default function ProductDetailPage() {
           </div>
         )}
       </div>
+      {hasPermission("write:products") && (
+        <EditProductModal
+          isOpen={isEditOpen}
+          onClose={() => setIsEditOpen(false)}
+          product={product}
+          onSaved={fetchDetails}
+        />
+      )}
     </div>
   );
 }

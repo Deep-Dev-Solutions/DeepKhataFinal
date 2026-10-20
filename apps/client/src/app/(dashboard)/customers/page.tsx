@@ -86,6 +86,7 @@ function CustomersPageContent() {
       const response = await fetch(
         `${API_BASE_URL}/customer/getallcustomers?${params.toString()}`,
         {
+          credentials: "include",
           headers: getAuthHeaders(),
         },
       );
@@ -124,7 +125,7 @@ function CustomersPageContent() {
   const settledCustomersCount = customers.length - unpaidCustomersCount;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-10">
+    <div data-testid="customers-page" className="space-y-6 animate-in fade-in duration-500 pb-10">
       {/* 🟢 1. PAGE HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -136,7 +137,7 @@ function CustomersPageContent() {
             Manage your clients, track outstanding balances, and send reminders.
           </p>
         </div>
-        <button
+        <button data-testid="customers-new"
           onClick={() => setIsNewCustomerModalOpen(true)}
           className="flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 w-full sm:w-auto cursor-pointer"
         >
@@ -199,7 +200,7 @@ function CustomersPageContent() {
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search className="h-5 w-5 text-slate-400" />
           </div>
-          <input
+          <input data-testid="customers-search"
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -278,7 +279,7 @@ function CustomersPageContent() {
                   );
 
                   return (
-                    <tr
+                    <tr data-testid="customer-row"
                       key={customer.id}
                       className="hover:bg-slate-50 transition-colors group cursor-pointer"
                       onClick={() => router.push(`/customers/${customer.id}`)}
@@ -309,7 +310,7 @@ function CustomersPageContent() {
                       <td className="px-6 py-4 font-medium text-slate-600">
                         Rs. {customer.lifetimeValue.toLocaleString()}
                       </td>
-                      <td className="px-6 py-4">
+                      <td data-testid="customer-row-balance" className="px-6 py-4">
                         {customer.balance > 0 ? (
                           <div className="flex items-center gap-2">
                             <span className="inline-flex items-center py-1 px-2.5 rounded-md text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">

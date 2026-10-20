@@ -1,20 +1,23 @@
 import {
   IsArray,
   IsBoolean,
+  IsDateString,
   IsInt,
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
   Max,
   ValidateNested,
+  ValidateIf,
   ArrayMinSize,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class OrderItemDto {
+  @ValidateIf((o: OrderItemDto) => !o.isService)
   @IsString()
-  @IsOptional()
   productId?: string;
 
   @IsInt()
@@ -38,6 +41,15 @@ export class OrderItemDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsString()
+  @IsOptional()
+  reservationId?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(200)
+  priceOverrideReason?: string;
 }
 
 export class CreateOrderDto {
@@ -84,4 +96,8 @@ export class CreateOrderDto {
   @IsString()
   @IsOptional()
   branchId?: string;
+
+  @IsDateString()
+  @IsOptional()
+  dueDate?: string;
 }
