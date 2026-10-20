@@ -117,15 +117,20 @@ test.describe.serial('I: team - invite, accept, role change, removal', () => {
     expect(dues.status()).toBe(200);
   });
 
-  test('role change is effective on the staff member\'s already-issued token', async ({ request }) => {
-    // Token issued while the user was still STAFF: take a token, demote, change, compare.
+  test('role change ends the member\'s already-issued session; a fresh login carries the new role', async ({ request }) => {
+    // Phase 6 design (no session cache): a role change revokes the member's sessions, so the
+    // next request with the old token is 401 and the new role only applies to a fresh login.
     const owner = await apiAs('ownerA', request);
     await owner.patch('/team/updaterole', { email: staffEmail, role: 'STAFF' });
     const login = await request.post(`${E2E.apiUrl}/auth/login`, { data: { email: staffEmail, password: staffPassword } });
     const { accessToken: staffToken } = await login.json();
     expect((await request.get(`${E2E.apiUrl}/dues`, { headers: { Authorization: `Bearer ${staffToken}` } })).status()).toBe(403);
     await owner.patch('/team/updaterole', { email: staffEmail, role: 'MANAGER' });
-    const next = await request.get(`${E2E.apiUrl}/dues`, { headers: { Authorization: `Bearer ${staffToken}` } });
+    const stale = await request.get(`${E2E.apiUrl}/dues`, { headers: { Authorization: `Bearer ${staffToken}` } });
+    expect(stale.status()).toBe(401);
+    const relogin = await request.post(`${E2E.apiUrl}/auth/login`, { data: { email: staffEmail, password: staffPassword } });
+    const { accessToken: freshToken } = await relogin.json();
+    const next = await request.get(`${E2E.apiUrl}/dues`, { headers: { Authorization: `Bearer ${freshToken}` } });
     expect(next.status()).toBe(200);
   });
 
