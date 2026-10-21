@@ -13,6 +13,7 @@ import { AuthSessionsService } from '../auth/auth-sessions.service';
 import { SubscriptionsService } from '../plans/subscriptions.service';
 import { MailService } from '../mail/mail.service';
 import { OnboardingDto } from './dto/onboarding.dto';
+import { claimTrial, requireNormalizedPhone } from '../common/trial-claim';
 
 export const DEMO_PREFIX = 'Demo: ';
 const DAY_MS = 86_400_000;
@@ -59,6 +60,15 @@ export function normalizePkPhone(raw: string): { local: string; international: s
   return { local: `0${national}`, international: `92${national}` };
 }
 
+/** Display ("0300...") and WhatsApp ("92300...") forms of a normalised number. */
+function phoneForms(e164: string): { local: string; international: string } {
+  const international = e164.slice(1);
+  return {
+    local: e164.startsWith('+92') ? `0${e164.slice(3)}` : e164,
+    international,
+  };
+}
+
 function slugify(name: string): string {
   const base = name
     .toLowerCase()
@@ -96,7 +106,8 @@ export class OnboardingService {
       throw new ConflictException('User already belongs to a business');
     }
 
-    const phone = normalizePkPhone(data.phone);
+    const e164 = requireNormalizedPhone(data.phone);
+    const phone = phoneForms(e164);
     const now = new Date();
     const wantsSample = data.loadSampleData === true;
 
@@ -125,6 +136,13 @@ export class OnboardingService {
             termsAcceptedAt: now,
             ownerId,
           },
+        });
+
+        // One trial per phone: a duplicate throws 409 and rolls everything back.
+        await claimTrial(tx, {
+          phoneNormalized: e164,
+          businessId: business.id,
+          userId: ownerId,
         });
 
         await tx.user.update({
@@ -229,7 +247,7 @@ export class OnboardingService {
         {
           shopName: business.name,
           ownerName: owner.name,
-          phone: `0${waNumber.slice(2)}`,
+          phone: waNumber.startsWith('92') ? `0${waNumber.slice(2)}` : `+${waNumber}`,
           city: business.city ?? '',
           market: business.market ?? '',
           waLink: `https://wa.me/${waNumber}`,

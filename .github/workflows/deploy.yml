@@ -54,6 +54,7 @@ jobs:
           push: true
           build-args: |
             NEXT_PUBLIC_API_URL=${{ secrets.PUBLIC_API_URL }}
+            NEXT_PUBLIC_TURNSTILE_SITE_KEY=${{ secrets.PUBLIC_TURNSTILE_SITE_KEY }}
           tags: |
             ghcr.io/${{ steps.owner.outputs.lower }}/deepkhata-client:${{ github.ref_name }}
             ghcr.io/${{ steps.owner.outputs.lower }}/deepkhata-client:latest

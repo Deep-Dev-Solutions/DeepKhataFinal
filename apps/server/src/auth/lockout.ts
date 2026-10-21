@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 
 export const MAX_FAILED_ATTEMPTS = 10;
+/** Failed attempts (per account or per IP) after which sign-in also needs a captcha. */
+export const CAPTCHA_AFTER_FAILURES = 3;
 export const LOCKOUT_DURATION_MS = 3 * 60 * 60 * 1000; // 3 hours
 
 export interface LockoutOutcome {
@@ -41,6 +43,24 @@ async function findLoginUser(db: PrismaClient, who: LoginIdentity) {
     });
   }
   return null;
+}
+
+/**
+ * True once the target account or the calling IP has CAPTCHA_AFTER_FAILURES or
+ * more failed sign-ins. The IP counter moves for unknown accounts too, so a
+ * probe of made-up emails hits the captcha at the same point as a real one.
+ */
+export async function signInNeedsCaptcha(
+  db: PrismaClient,
+  ip: string,
+  who: LoginIdentity,
+): Promise<boolean> {
+  if (ip) {
+    const ipRecord = await db.loginAttempt.findUnique({ where: { ip } });
+    if ((ipRecord?.attempts ?? 0) >= CAPTCHA_AFTER_FAILURES) return true;
+  }
+  const user = await findLoginUser(db, who);
+  return (user?.failedAttempts ?? 0) >= CAPTCHA_AFTER_FAILURES;
 }
 
 /** Returns a 429 outcome when the IP or the account is currently locked. */

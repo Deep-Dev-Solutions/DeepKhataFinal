@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { API_BASE_URL, apiFetch } from "@/lib/auth";
 import AuthCard from "@/components/auth/AuthCard";
+import TurnstileWidget, { useTurnstile } from "@/components/auth/TurnstileWidget";
 
 type Status = "verifying" | "success" | "error";
 
@@ -18,6 +19,7 @@ function VerifyEmailContent() {
   );
   const [resendNote, setResendNote] = useState("");
   const [resending, setResending] = useState(false);
+  const captcha = useTurnstile();
 
   useEffect(() => {
     if (!token) return;
@@ -46,11 +48,16 @@ function VerifyEmailContent() {
   }, [token]);
 
   async function resend() {
+    if (captcha.enabled && !captcha.token) {
+      setResendNote("Please complete the captcha check first.");
+      return;
+    }
     setResending(true);
     setResendNote("");
     try {
       const res = await apiFetch(`${API_BASE_URL}/auth/resend-verification`, {
         method: "POST",
+        headers: captcha.headers,
       });
       if (res.ok) {
         setResendNote("A new verification email has been sent.");
@@ -64,6 +71,7 @@ function VerifyEmailContent() {
       setResendNote("Could not reach the server.");
     } finally {
       setResending(false);
+      captcha.reset();
     }
   }
 
@@ -86,7 +94,11 @@ function VerifyEmailContent() {
       </div>
 
       {status === "error" && (
-        <div className="mt-4">
+        <div className="mt-4 space-y-3">
+          <TurnstileWidget
+            onToken={captcha.setToken}
+            resetKey={captcha.resetKey}
+          />
           <button
             type="button"
             data-testid="verify-resend"

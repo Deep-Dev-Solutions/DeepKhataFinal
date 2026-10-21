@@ -4,25 +4,39 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import AuthCard from "@/components/auth/AuthCard";
+import TurnstileWidget, { useTurnstile } from "@/components/auth/TurnstileWidget";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
+  const captcha = useTurnstile();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
+    if (captcha.enabled && !captcha.token) {
+      setError("Please complete the captcha check first.");
+      return;
+    }
     setLoading(true);
     try {
       const { error: apiError } = await authClient.requestPasswordReset({
         email: email.trim(),
         redirectTo: `${window.location.origin}/reset-password`,
+        fetchOptions: { headers: captcha.headers },
       });
       // Same answer whether or not the email exists (no account enumeration).
       if (apiError && apiError.status === 429) {
         setError("Too many requests. Please try again in a few minutes.");
+      } else if (
+        apiError &&
+        (apiError.code === "CAPTCHA_REQUIRED" ||
+          apiError.code === "CAPTCHA_INVALID")
+      ) {
+        setError("The captcha check failed. Please try again.");
+        captcha.reset();
       } else {
         setDone(true);
       }
@@ -71,6 +85,10 @@ export default function ForgotPasswordPage() {
               reset your password from Settings, Team.
             </p>
           </div>
+          <TurnstileWidget
+            onToken={captcha.setToken}
+            resetKey={captcha.resetKey}
+          />
           {error && (
             <p data-testid="forgot-error" className="text-sm text-red-600">
               {error}

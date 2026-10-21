@@ -27,4 +27,10 @@ export class RegisterDto {
   @MinLength(8)
   @MaxLength(128)
   password!: string;
+
+  /** Cloudflare Turnstile token (the `x-captcha-response` header works too). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(4096)
+  captchaToken?: string;
 }

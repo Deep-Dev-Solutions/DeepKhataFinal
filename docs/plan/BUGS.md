@@ -107,3 +107,20 @@ Part 1. Tests: `apps/server/test/hardening.e2e-spec.ts` (suite "Bot hardening (e
 | D. Env docs | `apps/server/.env.example`, `deploy/.env.example`, `deploy/README.md` | done |
 
 Known limits: throttler counters are in memory per API process (single VPS container; use a Redis storage if scaled out). Default limits are per route and client IP, not one global bucket per IP. Playwright against a dev server needs `THROTTLE_AUTH_LIMIT` raised (many logins from one IP).
+
+Part 2 (captcha, disposable email, one trial per phone). Tests: `apps/server/test/bot-protection.e2e-spec.ts` (suite "Bot protection part 2 (e2e)") plus unit specs `src/captcha/captcha.spec.ts`, `src/common/phone.spec.ts`, `src/common/disposable-email.spec.ts`.
+
+| Item | Change | Status |
+|------|--------|--------|
+| E. Cloudflare Turnstile | `src/captcha/` (`checkCaptcha`, `CaptchaService`, global `CaptchaModule`); off when `TURNSTILE_SECRET_KEY` is unset, loud boot warning in production; 5 s timeout, fails closed; token from `x-captcha-response` or body `captchaToken`; 400 `CAPTCHA_REQUIRED` / `CAPTCHA_INVALID`. Enforced on POST /auth/register, POST /auth/resend-verification, Better Auth `/request-password-reset`, `/forget-password`, `/send-verification-email`, and sign-in (Nest login, agency-login, Better Auth `/sign-in/email|username`) once the account (`User.failedAttempts`) or the IP (`LoginAttempt.attempts`) has 3 failures; success resets the counters. Own hook in `better-auth.ts` instead of the Better Auth captcha plugin (needs our error codes and runtime env). Client `TurnstileWidget` on register, forgot-password, verify-email, EmailVerifyBanner, login (only after CAPTCHA_REQUIRED) | done server ("Turnstile on register", "... on resend verification", "... on forgot password (Better Auth)", "... on sign-in only after 3 failed attempts (Nest login)", "... (Better Auth routes)"); client built, not browser-tested. Agency-admin login has no widget (see limits) |
+| F. Disposable email domains | `src/common/disposable-email.ts` (about 700 built-in domains, `DISPOSABLE_EMAIL_EXTRA`, `DISPOSABLE_EMAIL_ALLOW`, subdomain-aware, case-insensitive); 400 `EMAIL_DOMAIN_NOT_ALLOWED` on /auth/register and Better Auth `/sign-up/email`, `/change-email` (both disabled today). Staff invites and agency onboarding untouched | done ("disposable email domains": blocked, subdomain/uppercase, EXTRA, ALLOW override; unit spec) |
+| G. One trial per phone | Migration `0013_trial_claim` (`TrialClaim`, unique `phoneNormalized`, backfill of existing Pakistani business phones with ON CONFLICT DO NOTHING); `src/common/phone.ts` (`normalizePhone`), `src/common/trial-claim.ts`; claim inside the business-creating transaction in `OnboardingService.businessOnboarding` and `AgencyService.onboardTenant` (phone optional there); 409 `TRIAL_ALREADY_USED`, 400 `PHONE_INVALID` | done ("one trial per phone number": claim, duplicate in any format rolls back, invalid phone, concurrent onboardings -> exactly one 201, agency path, shared claim) |
+
+Limits: the agency-admin login page has no Turnstile widget, so a super admin who fails 3 times with the secret set must sign in through the client login page (shows the widget). The captcha gate uses account OR IP counters; an account that other IPs have failed on 3 times needs a captcha from any IP, a small existence signal. A claim outlives a deleted business on purpose (no foreign key).
+
+| Bot hardening | Status | Test |
+|---|---|---|
+| Per-address daily email cap (`EMAIL_DAILY_CAP_PER_ADDRESS`, default 10 per rolling 24 h; advisory-locked; suppressed sends are FAILED/`DAILY_CAP_EXCEEDED`, never retried; callers stay neutral) | fixed | test/email-cap.e2e-spec.ts |
+| Suppressed invoice mail no longer marks the invoice SENT (502, WhatsApp link still available) | fixed | test/email-cap.e2e-spec.ts |
+| Open: agency-admin login has no Turnstile widget (a super admin who fails 3 times with the secret set must use the client login page); client widgets not browser-tested | open | n/a |
+| Open: an account failed 3 times from other IPs asks for a captcha from any IP (small enumeration signal) | open | n/a |

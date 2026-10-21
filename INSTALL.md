@@ -130,8 +130,19 @@ In `/opt/deepkhata`: `cp .env.example .env && chmod 600 .env`, then fill in:
 | `R2_*` | Cloudflare R2 bucket for nightly backups |
 | `GHCR_OWNER`, `IMAGE_TAG` | Lowercase GitHub owner; the deploy job sets the tag |
 | `AGENCY_*` | Business details on invoices and alert emails |
+| `TURNSTILE_SECRET_KEY`, `TURNSTILE_SITE_KEY` | Captcha; see "Captcha: Cloudflare Turnstile" below |
+| `DISPOSABLE_EMAIL_EXTRA`, `DISPOSABLE_EMAIL_ALLOW` | Optional comma lists of email domains to block or to let through |
 
 Never commit `.env`. Keep `ENABLE_TEST_ENDPOINTS` unset or `false` in production.
+
+### Captcha: Cloudflare Turnstile
+Sign-up, forgot-password, resend-verification and sign-in (only after 3 failed attempts) are protected by Cloudflare Turnstile. Throwaway email domains are also refused at sign-up (built-in list, extend with `DISPOSABLE_EMAIL_EXTRA`, override with `DISPOSABLE_EMAIL_ALLOW`).
+1. In the Cloudflare dashboard open Turnstile, add a widget for `app.<domain>` (managed mode) and copy the site key and secret key.
+2. Server: set `TURNSTILE_SECRET_KEY` in `/opt/deepkhata/.env`. With the key unset the captcha is off and the API logs a loud warning at boot when `NODE_ENV=production`.
+3. Client: the site key is public and baked into the client image at build time. Add the GitHub Actions secret `PUBLIC_TURNSTILE_SITE_KEY` (used by `deploy.yml` as `NEXT_PUBLIC_TURNSTILE_SITE_KEY`) and set the same value as `TURNSTILE_SITE_KEY` in `.env` for local `docker compose build`. Without it the widgets render nothing and the API will answer `CAPTCHA_REQUIRED`, so set the site key and the secret together.
+4. Staging: Cloudflare publishes always-pass test keys. Site key `1x00000000000000000000AA`, secret key `1x0000000000000000000000000000000AA`. Use them (or leave `TURNSTILE_SECRET_KEY` unset) on staging and in load tests.
+5. Dev, tests, E2E and the desktop build run with the key unset: no captcha anywhere.
+The agency console login (`apps/agency-admin`) has no widget yet: if a super admin fails 3 times, sign in once through the client app login page (it shows the widget) or wait for the IP counter to clear (a successful login resets it).
 
 ### Start
 ```bash
@@ -142,7 +153,7 @@ curl -fsS https://api.<domain>/health
 The API container runs `prisma migrate deploy` before it starts, so schema changes apply on every deploy. Check logs with `docker compose logs -f api`.
 
 ### Deploy by tag (CI)
-Add four GitHub secrets: `PUBLIC_API_URL` (`https://api.<domain>`, baked into the client and admin builds), `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`. Then:
+Add GitHub secrets: `PUBLIC_API_URL` (`https://api.<domain>`, baked into the client and admin builds), `PUBLIC_TURNSTILE_SITE_KEY` (Turnstile site key, baked into the client build), `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`. Then:
 ```bash
 git tag v1.0.0 && git push origin v1.0.0
 ```

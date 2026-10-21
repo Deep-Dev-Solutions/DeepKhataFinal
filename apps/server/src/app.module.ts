@@ -40,10 +40,12 @@ import { PlansModule } from './plans/plans.module';
 import { BillingModule } from './billing/billing.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { DesktopModule } from './desktop/desktop.module';
+import { CaptchaModule } from './captcha/captcha.service';
 
 @Module({
   imports: [
     TenantModule,
+    CaptchaModule,
     PlansModule,
     BillingModule,
     AnalyticsModule,

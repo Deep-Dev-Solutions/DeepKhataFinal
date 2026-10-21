@@ -4,6 +4,7 @@ import request from 'supertest';
 import { createTestApp, closeTestApp } from './setup/app';
 import { authHeader, users, tenants } from './setup/auth';
 import { TEST_PASSWORD } from '../../e2e/fixtures/users';
+import { uniquePkMobile } from './helpers/phone';
 
 const uniq = () => `${Date.now()}${Math.floor(Math.random() * 1e6)}`;
 
@@ -43,7 +44,7 @@ describe('Phase 1 security regressions (e2e)', () => {
       industry: 'Electronics',
       teamSize: '1-5',
       currency: 'PKR',
-      phone: '03001234567',
+      phone: uniquePkMobile(),
       address: 'Test Street',
       ...extra,
     };

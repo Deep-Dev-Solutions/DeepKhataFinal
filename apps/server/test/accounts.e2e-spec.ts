@@ -4,6 +4,7 @@ import request from 'supertest';
 import { createTestApp, closeTestApp } from './setup/app';
 import { authHeader, users, tenants } from './setup/auth';
 import { TEST_PASSWORD } from '../../e2e/fixtures/users';
+import { uniquePkMobile } from './helpers/phone';
 
 const MAILPIT = process.env.MAILPIT_URL ?? 'http://127.0.0.1:8025';
 const uniq = () => `${Date.now()}${Math.floor(Math.random() * 1e6)}`;
@@ -162,7 +163,7 @@ describe('Accounts: signup, verification, reset, staff accounts (e2e)', () => {
           industry: 'Electronics',
           teamSize: '1-5',
           currency: 'PKR',
-          phone: '03001234567',
+          phone: uniquePkMobile(),
           address: 'Test Street',
         });
       expect(onboard.status).toBeLessThan(300);

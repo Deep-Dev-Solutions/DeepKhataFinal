@@ -5,6 +5,9 @@ import { waitForEmailLink } from '../../helpers/mailpit';
 import { createThrowawayTenant } from '../../helpers/tenant-admin';
 import { E2E } from '../../env';
 
+// One trial per phone: the onboarding number must be unique per run.
+const uniquePhone = `03${String(Math.floor(Math.random() * 1e9)).padStart(9, '0')}`;
+
 test.use({ storageState: { cookies: [], origins: [] } });
 
 const stamp = Date.now();
@@ -48,7 +51,7 @@ test.describe.serial('P6: sign up, email verification, onboarding', () => {
     await page.getByTestId('onboarding-shop-name').fill(shopName);
     await page.getByTestId('onboarding-city').fill('Lahore');
     await page.getByTestId('onboarding-next').click();
-    await page.getByTestId('onboarding-phone').fill('03001234567');
+    await page.getByTestId('onboarding-phone').fill(uniquePhone);
     await page.getByTestId('onboarding-next').click();
     await page.getByTestId('onboarding-sample-data').uncheck();
     await page.getByTestId('onboarding-accept-terms').check();

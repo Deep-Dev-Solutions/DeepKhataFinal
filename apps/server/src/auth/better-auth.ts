@@ -14,8 +14,19 @@ import {
   ensureCredentialAccount,
   recordFailedAttempt,
   resetFailedAttempts,
+  signInNeedsCaptcha,
   type LoginIdentity,
 } from './lockout';
+import {
+  CAPTCHA_HEADER,
+  CAPTCHA_MESSAGES,
+  captchaEnabled,
+  checkCaptcha,
+} from '../captcha/captcha';
+import {
+  EMAIL_DOMAIN_NOT_ALLOWED,
+  isDisposableEmail,
+} from '../common/disposable-email';
 
 // better-auth.ts is imported before main.ts runs dotenv.config().
 dotenv.config();
@@ -52,6 +63,23 @@ function headerOf(ctx: any, name: string): string | undefined {
   );
 }
 
+/** Better Auth endpoints that always need a captcha (when TURNSTILE_SECRET_KEY is set). */
+const CAPTCHA_PATHS = new Set([
+  '/request-password-reset',
+  '/forget-password',
+  '/send-verification-email',
+]);
+/** Self-service address changes / sign-ups: no disposable-mail domains. */
+const EMAIL_CHECK_PATHS = new Set(['/sign-up/email', '/change-email']);
+
+/** Throws 400 { code, message } when the request has no (valid) captcha token. */
+async function requireCaptcha(ctx: any, ip: string): Promise<void> {
+  const code = await checkCaptcha(headerOf(ctx, CAPTCHA_HEADER), ip || undefined);
+  if (code) {
+    throw new APIError('BAD_REQUEST', { code, message: CAPTCHA_MESSAGES[code] });
+  }
+}
+
 function raise(status: 401 | 429, message: string): never {
   throw new APIError(status === 429 ? 'TOO_MANY_REQUESTS' : 'UNAUTHORIZED', {
     message,
@@ -63,11 +91,31 @@ function raise(status: 401 | 429, message: string): never {
  * lock both for 3 hours, even when the right password is supplied later.
  */
 const lockoutBefore = createAuthMiddleware(async (ctx) => {
-  if (!SIGN_IN_PATHS.has(ctx.path)) return;
   const ip = headerOf(ctx, CLIENT_IP_HEADER) ?? '';
+  if (CAPTCHA_PATHS.has(ctx.path)) {
+    await requireCaptcha(ctx, ip);
+    return;
+  }
+  if (EMAIL_CHECK_PATHS.has(ctx.path)) {
+    const email = (ctx.body as any)?.email ?? (ctx.body as any)?.newEmail;
+    if (typeof email === 'string' && isDisposableEmail(email)) {
+      throw new APIError('BAD_REQUEST', {
+        code: EMAIL_DOMAIN_NOT_ALLOWED,
+        message:
+          'Temporary or disposable email addresses are not accepted. Please use your own email address.',
+      });
+    }
+    return;
+  }
+  if (!SIGN_IN_PATHS.has(ctx.path)) return;
   const who = identityFromBody(ctx.body);
-  const locked = await checkLockout(authDb(), ip, who);
+  const db = authDb();
+  const locked = await checkLockout(db, ip, who);
   if (locked) raise(locked.status, locked.message);
+  // After 3 failed attempts even the right password needs a captcha.
+  if (captchaEnabled() && (await signInNeedsCaptcha(db, ip, who))) {
+    await requireCaptcha(ctx, ip);
+  }
   await ensureCredentialAccount(authDb(), who);
 });
 

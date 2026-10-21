@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { Store, Mail, Lock, User, Phone, ArrowRight } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL, apiFetch } from "@/lib/auth";
+import TurnstileWidget, { useTurnstile } from "@/components/auth/TurnstileWidget";
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "DeepKhata";
 
@@ -22,17 +23,22 @@ function RegisterPageContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const captcha = useTurnstile();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
     setSuccess("");
+    if (captcha.enabled && !captcha.token) {
+      setError("Please complete the captcha check first.");
+      return;
+    }
     setLoading(true);
 
     try {
       const res = await apiFetch(`${API_BASE_URL}/auth/register`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...captcha.headers },
         body: JSON.stringify({
           name,
           email,
@@ -73,6 +79,7 @@ function RegisterPageContent() {
       }
     } catch (err: any) {
       setError(err.message || "Something went wrong");
+      captcha.reset();
       setLoading(false);
     }
   }
@@ -208,6 +215,11 @@ function RegisterPageContent() {
                 />
               </div>
             </div>
+
+            <TurnstileWidget
+              onToken={captcha.setToken}
+              resetKey={captcha.resetKey}
+            />
 
             {/* Submit Button */}
             {error && (
