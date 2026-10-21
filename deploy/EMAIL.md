@@ -19,8 +19,13 @@ All mail goes through the global `MailModule` (`apps/server/src/mail`). Every se
 | `SMTP_HOST`, `SMTP_PORT` | SMTP server (default `127.0.0.1`, `1025`). |
 | `SMTP_USER`, `SMTP_PASS` | SMTP credentials, optional. |
 | `SMTP_SECURE` | `true` for implicit TLS (port 465). |
+| `EMAIL_DAILY_CAP_PER_ADDRESS` | Max emails queued or sent to one address in a rolling 24 hours (default `10`; unset, `0` or invalid falls back to the default). See "Daily cap per address". |
 | `APP_NAME` | Product name used in subjects and layout. |
 | `FRONTEND_URL` | Base URL for links in notification and invite emails. |
+
+## Daily cap per address
+
+To stop bots from using signup, resend-verification, forgot-password and invites to flood one inbox, `MailService.send` counts `EmailLog` rows for the same recipient (trimmed, case-insensitive, plus-addressing not normalised) with status `QUEUED` or `SENT` created in the last 24 hours. At `EMAIL_DAILY_CAP_PER_ADDRESS` (default 10) the next send is not delivered: an `EmailLog` row is recorded with status `FAILED` and `error = DAILY_CAP_EXCEEDED`, a warning is logged, and the caller gets `{ status: 'SUPPRESSED' }`. The API response to the user is unchanged, so the cap and the existence of an address are never revealed. Suppressed rows do not count toward the cap and are never retried. Retries of already-queued mail are not new sends. Search `error = 'DAILY_CAP_EXCEEDED'` to see blocked attempts.
 
 ## Development with Mailpit
 

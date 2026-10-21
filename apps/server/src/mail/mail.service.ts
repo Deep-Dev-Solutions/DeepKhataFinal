@@ -14,11 +14,32 @@ import { createTransportFromEnv, defaultFrom } from './transports';
 export interface SendOptions {
   businessId?: string;
   attachments?: MailAttachment[];
+  /**
+   * Skips the per-address daily cap. For internal system mails only; defaults to
+   * false and is not used by any caller today.
+   */
+  bypassCap?: boolean;
 }
 
+/**
+ * SUPPRESSED means the per-address daily cap was reached: nothing was sent, a
+ * FAILED EmailLog row with error DAILY_CAP_EXCEEDED was recorded and callers
+ * should carry on with their normal (neutral) response.
+ */
 export interface SendResult {
   id: string;
-  status: 'SENT' | 'QUEUED' | 'FAILED';
+  status: 'SENT' | 'QUEUED' | 'FAILED' | 'SUPPRESSED';
+}
+
+/** Marker stored in EmailLog.error for a send blocked by the daily cap. */
+export const DAILY_CAP_ERROR = 'DAILY_CAP_EXCEEDED';
+export const DEFAULT_DAILY_CAP_PER_ADDRESS = 10;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** EMAIL_DAILY_CAP_PER_ADDRESS; unset, 0, negative or non-numeric -> default. */
+export function dailyCapPerAddress(): number {
+  const n = Number.parseInt(process.env.EMAIL_DAILY_CAP_PER_ADDRESS ?? '', 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_CAP_PER_ADDRESS;
 }
 
 /** Delay before retry 1, 2 and 3. A failure after the third retry is final. */
@@ -92,18 +113,62 @@ export class MailService implements OnModuleInit {
           }
         : {}),
     };
-    const row = await this.prisma.emailLog.create({
-      data: {
-        businessId: opts.businessId ?? null,
-        to,
-        template,
-        subject: rendered.subject,
-        status: EmailStatus.QUEUED,
-        payload: payload as unknown as Prisma.InputJsonValue,
-        nextAttemptAt: new Date(Date.now() + CLAIM_LEASE_MS),
-      },
-      select: { id: true },
+    const queued: Prisma.EmailLogUncheckedCreateInput = {
+      businessId: opts.businessId ?? null,
+      to: to.trim(),
+      template,
+      subject: rendered.subject,
+      status: EmailStatus.QUEUED,
+      payload: payload as unknown as Prisma.InputJsonValue,
+      nextAttemptAt: new Date(Date.now() + CLAIM_LEASE_MS),
+    };
+
+    if (opts.bypassCap) {
+      const row = await this.prisma.emailLog.create({
+        data: queued,
+        select: { id: true },
+      });
+      return { id: row.id, status: await this.attempt(row.id, new Date()) };
+    }
+
+    // Count + insert under a per-recipient advisory lock so concurrent sends for
+    // one address cannot all pass the check. Retries go through attempt() only,
+    // so a retry of an already-counted row is never a new send.
+    const cap = dailyCapPerAddress();
+    const recipient = to.trim();
+    const { row, suppressed } = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${recipient.toLowerCase()}))`;
+      const used = await tx.emailLog.count({
+        where: {
+          to: { equals: recipient, mode: 'insensitive' },
+          status: { in: [EmailStatus.QUEUED, EmailStatus.SENT] },
+          createdAt: { gte: new Date(Date.now() - DAY_MS) },
+        },
+      });
+      if (used >= cap) {
+        const blocked = await tx.emailLog.create({
+          data: {
+            ...queued,
+            status: EmailStatus.FAILED,
+            error: DAILY_CAP_ERROR,
+            nextAttemptAt: null,
+          },
+          select: { id: true },
+        });
+        return { row: blocked, suppressed: true };
+      }
+      const created = await tx.emailLog.create({
+        data: queued,
+        select: { id: true },
+      });
+      return { row: created, suppressed: false };
     });
+    if (suppressed) {
+      this.logger.warn(
+        `Email ${row.id} (${template}) suppressed: daily cap of ${cap} reached for one address`,
+      );
+      return { id: row.id, status: 'SUPPRESSED' };
+    }
     const status = await this.attempt(row.id, new Date());
     return { id: row.id, status };
   }
