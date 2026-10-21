@@ -67,3 +67,28 @@ Failures found by the truth run are logged here as T1, T2, ... with the app fix 
 | T5 | S3 | Agency-onboarded tenants: owner unverified (so invites 403 `EMAIL_NOT_VERIFIED`), trial plan allows 1 branch / fewer users than the console and tests assume | `onboard-tenant` marks the owner verified and accepts `customLimits`; agency console "add branch" sends `override` (SUPER_ADMIN may exceed plan) | tests/billing/*, tests/agency/* |
 | T6 | S4 | Staff invite email lost the `*ROLE*` emphasis the spec asserts | Template restored | tests/team/invite-flow.spec.ts |
 | T7 | S3 | E2E `team/invite-flow` "role change is effective on the already-issued token" expected the old token to stay valid (phase 1 behaviour); phase 6 deliberately revokes sessions on role change (accounts API spec) | Kept the app (revocation, safer). Spec updated to the designed behaviour: old token 401, fresh login carries the new role. Judgment call, flagged for the owner | tests/team/invite-flow.spec.ts, test/accounts.e2e-spec.ts |
+
+## RBAC and tenancy audit (2026-10-22)
+
+Full route matrix and evidence: `docs/plan/runs/rbac-audit.md` (about 187 routes). 3 S1, 12 S2, 17 S3. Every finding was read in code; F1 and F3 were re-checked by hand. Status is updated here as each is fixed.
+
+| # | Sev | Finding | Status |
+|---|-----|---------|--------|
+| F1 | S1 | OWNER can promote a member to SUPER_ADMIN via `PUT /team/role` / `PATCH /team/updaterole` (role from untyped body, `team.service.ts` updateRole) | open |
+| F2 | S1 | `POST /settings/staff` takes the invite role from the body, invite never expires (`settings.service.ts`) | open |
+| F3 | S1 | `PUT /customer/customerdetails/:id` passes the raw body to `prisma.customer.update` (mass assignment: creditLimit, isDefaulter, businessId, nested writes) | open |
+| F4 | S2 | Dashboard cache key has no role: STAFF can receive OWNER's COGS/profit when cached | open |
+| F5 | S2 | STAFF has `read:vendors`: unit costs and payables returned | open |
+| F6 | S2 | `GET /inventory/low-stock` returns `costPrice` to STAFF | open |
+| F7 | S2 | STAFF can `PATCH /order/:id/status` to CANCELLED (restock, deletes ledger rows) or bypass OWNER-only settle-memo | open |
+| F8 | S2 | STAFF can sell below `minSalePrice` through `discount` | open |
+| F9 | S2 | `customerId` on order create not checked against the tenant | open |
+| F10 | S2 | `vendorId` unchecked in addproduct, bulk-restock, import | open |
+| F11 | S2 | Body `branchId` unvalidated on cash expense/open/close | open |
+| F12 | S2 | Public order invoice returns the full customer row and internal ids | open |
+| F13 | S2 | SUPER_ADMIN `GET /dashboard` returns another tenant's data unlogged | open |
+| F14 | S2 | Desktop device endpoints ignore READ_ONLY/expired subscriptions | open |
+| F15 | S2 | `sync/batch` skips DTO validation and the validated branch | open |
+| S3 list | S3 | 17 hardening items (see audit section 7), incl. `/health/db` leaks raw DB error, invite-accept returns password hash, `/cabinet/debug-reorder` stub, category cross-tenant gives 400 not 404 | open |
+
+D8 (MANAGER Revoke button) may be stale: by code reading MANAGER cannot reach the Team tab at all.
