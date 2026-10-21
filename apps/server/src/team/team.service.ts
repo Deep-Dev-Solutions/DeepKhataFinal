@@ -15,6 +15,7 @@ import { TenantCacheService } from '../tenant/tenant-cache.service';
 import { PlanLimitsService } from '../plans/plan-limits.service';
 import { invalidateUserBranches } from '../auth/branch-access';
 import { randomUUID } from 'node:crypto';
+import { ASSIGNABLE_ROLES, AssignableRole } from './dto/team.dto';
 import {
   assertBranchesInBusiness,
   assertOwnerVerified,
@@ -69,8 +70,8 @@ export class TeamService {
       );
     }
 
-    await assertOwnerVerified(this.prisma, inviter);
     await this.planLimits.assert(businessId, 'users');
+    await assertOwnerVerified(this.prisma, inviter);
 
     // Only specific branches are stored; no ids means access to every branch.
     const access = resolveAccess({
@@ -164,6 +165,10 @@ export class TeamService {
       throw new BadRequestException('Invalid or expired invitation link.');
 
     if (invitation.expiresAt && invitation.expiresAt.getTime() < Date.now())
+      throw new BadRequestException('Invalid or expired invitation link.');
+
+    // A tenant invite can never create an OWNER or SUPER_ADMIN (also covers legacy rows).
+    if (!(ASSIGNABLE_ROLES as readonly string[]).includes(invitation.role))
       throw new BadRequestException('Invalid or expired invitation link.');
 
     // The invitation itself is still in the table, so it is not counted here.
@@ -289,8 +294,11 @@ export class TeamService {
     return result;
   }
 
-  async updateRole(userId: string, data: any) {
+  async updateRole(userId: string, data: { email: string; role: string }) {
     const { email, role } = data;
+    // Defense in depth behind UpdateRoleDto: only MANAGER or STAFF can be assigned.
+    if (!(ASSIGNABLE_ROLES as readonly string[]).includes(role))
+      throw new BadRequestException('Role must be MANAGER or STAFF.');
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { role: true, businessId: true },
@@ -301,7 +309,7 @@ export class TeamService {
 
     const targetUser = await this.prisma.user.findUnique({
       where: { email },
-      select: { id: true, businessId: true },
+      select: { id: true, businessId: true, role: true },
     });
     if (!targetUser) throw new NotFoundException('User not found.');
     if (targetUser.businessId !== currentUser.businessId)
@@ -310,10 +318,12 @@ export class TeamService {
       );
     if (targetUser.id === userId)
       throw new BadRequestException('You cannot change your own role.');
+    if (targetUser.role === 'OWNER' || targetUser.role === 'SUPER_ADMIN')
+      throw new BadRequestException('This member\'s role cannot be changed.');
 
     const updatedUser = await this.prisma.user.update({
       where: { email },
-      data: { role },
+      data: { role: role as AssignableRole },
       select: { id: true, name: true, email: true, role: true },
     });
 

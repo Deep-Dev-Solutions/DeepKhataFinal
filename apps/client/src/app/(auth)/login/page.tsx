@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Store, Mail, Lock, ArrowRight } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL, AGENCY_APP_URL, apiFetch } from "@/lib/auth";
+import TurnstileWidget, { useTurnstile } from "@/components/auth/TurnstileWidget";
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "DeepKhata";
 
@@ -20,11 +21,18 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [isLockedOut, setIsLockedOut] = useState(false);
+  // The API asks for a captcha only after repeated failed sign-ins.
+  const [captchaNeeded, setCaptchaNeeded] = useState(false);
+  const captcha = useTurnstile();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
     setIsLockedOut(false);
+    if (captchaNeeded && captcha.enabled && !captcha.token) {
+      setError("Please complete the captcha check first.");
+      return;
+    }
     setLoading(true);
 
     try {
@@ -34,13 +42,17 @@ export default function LoginPage() {
         : { username: identifier, password };
       const res = await apiFetch(`${API_BASE_URL}/auth/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...captcha.headers },
         body: JSON.stringify(credentials),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
+        if (data?.code === "CAPTCHA_REQUIRED" || data?.code === "CAPTCHA_INVALID") {
+          setCaptchaNeeded(true);
+          captcha.reset();
+        }
         const errorMsg = data?.message || "Login failed";
         if (
           res.status === 429 ||
@@ -67,6 +79,7 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       setError(err.message || "Something went wrong");
+      if (captchaNeeded) captcha.reset();
       setLoading(false);
     }
   }
@@ -177,6 +190,13 @@ export default function LoginPage() {
                 </Link>
               </div>
             </div>
+
+            {captchaNeeded && (
+              <TurnstileWidget
+                onToken={captcha.setToken}
+                resetKey={captcha.resetKey}
+              />
+            )}
 
             {error && (
               <div

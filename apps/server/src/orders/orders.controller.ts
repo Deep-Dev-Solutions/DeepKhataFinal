@@ -1,3 +1,4 @@
+import { PublicThrottle } from '../common/throttle';
 import {
   Controller,
   Post,
@@ -18,7 +19,6 @@ import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { BranchId } from '../auth/decorators/branch-id.decorator';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
@@ -27,7 +27,6 @@ import { RecordPaymentDto } from './dto/record-payment.dto';
 import { ReturnOrderDto } from './dto/return-order.dto';
 
 @Controller(['order', 'orders'])
-@UseGuards(ThrottlerGuard)
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
@@ -120,6 +119,7 @@ export class OrdersController {
   }
 
   @Get('public/invoice/:id')
+  @PublicThrottle()
   async getPublicInvoice(@Param('id') id: string) {
     return this.ordersService.getPublicInvoice(id);
   }

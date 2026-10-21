@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   BadRequestException,
+  HttpException,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
@@ -20,6 +21,7 @@ import {
   UpdateTaskDto,
 } from '../lifecycle/dto/agency-signups.dto';
 import { addDays, daysBetween, karachiDateOnly } from '../common/dates';
+import { claimTrial, requireNormalizedPhone } from '../common/trial-claim';
 
 const TRIAL_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -47,6 +49,11 @@ export class AgencyService {
       phone,
       address,
     } = data;
+
+    // A phone is optional here (agency staff vouch for the shop); when given it
+    // must be valid and it claims the one trial for that number.
+    const trialPhone =
+      typeof phone === 'string' && phone.trim() ? requireNormalizedPhone(phone) : null;
 
     // Check if user exists
     const existingUser = await this.prisma.user.findUnique({
@@ -99,6 +106,14 @@ export class AgencyService {
           },
         });
 
+        if (trialPhone) {
+          await claimTrial(tx, {
+            phoneNormalized: trialPhone,
+            businessId: business.id,
+            userId: user.id,
+          });
+        }
+
         // Link business back to user
         await tx.user.update({
           where: { id: user.id },
@@ -133,6 +148,7 @@ export class AgencyService {
         owner: userWithoutPassword,
       };
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       throw new InternalServerErrorException(
         'Failed to onboard tenant: ' + error.message,
       );

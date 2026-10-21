@@ -8,7 +8,6 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { SessionGuard } from '../auth/guards/session.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
@@ -21,7 +20,7 @@ import {
 import { StockTransfersService } from './stock-transfers.service';
 
 @Controller('stock-transfers')
-@UseGuards(ThrottlerGuard, SessionGuard, PermissionsGuard)
+@UseGuards(SessionGuard, PermissionsGuard)
 export class StockTransfersController {
   constructor(private readonly transfers: StockTransfersService) {}
 

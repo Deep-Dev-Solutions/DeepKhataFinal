@@ -22,6 +22,14 @@ import {
   CLIENT_IP_HEADER,
   REQUIRE_ROLE_HEADER,
 } from './better-auth';
+import { CAPTCHA_HEADER } from '../captcha/captcha';
+import { assertEmailAllowed } from '../common/disposable-email';
+
+const FORWARDED_CODES = new Set([
+  'CAPTCHA_REQUIRED',
+  'CAPTCHA_INVALID',
+  'EMAIL_DOMAIN_NOT_ALLOWED',
+]);
 
 interface SignInOptions {
   message: string;
@@ -39,8 +47,11 @@ export class AuthService {
   /** Maps a Better Auth APIError onto the Nest exception the old routes threw. */
   private toHttpException(err: unknown): never {
     if (!isAPIError(err)) throw err;
-    const message =
-      (err.body as { message?: string } | undefined)?.message ?? err.message;
+    const body = err.body as { message?: string; code?: string } | undefined;
+    const message = body?.message ?? err.message;
+    if (err.statusCode === 400 && body?.code && FORWARDED_CODES.has(body.code)) {
+      throw new BadRequestException({ code: body.code, message });
+    }
     switch (err.statusCode) {
       case 400:
         throw new BadRequestException(message);
@@ -56,6 +67,7 @@ export class AuthService {
   async register(data: RegisterDto, req?: Request) {
     const { name, password, phone } = data;
     const email = data.email.trim().toLowerCase();
+    assertEmailAllowed(email);
 
     const existinguser = await this.prisma.user.findUnique({
       where: { email },
@@ -145,6 +157,10 @@ export class AuthService {
     headers.delete(REQUIRE_ROLE_HEADER);
     headers.set(CLIENT_IP_HEADER, ip);
     if (opts.requiredRole) headers.set(REQUIRE_ROLE_HEADER, opts.requiredRole);
+    // The captcha token may come in the body instead of the header.
+    if (!headers.get(CAPTCHA_HEADER) && typeof data?.captchaToken === 'string') {
+      headers.set(CAPTCHA_HEADER, data.captchaToken);
+    }
 
     const { email, username: rawUsername, password } = data ?? {};
     const username =

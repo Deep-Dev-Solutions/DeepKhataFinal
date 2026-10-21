@@ -10,6 +10,12 @@ import { Role } from '@prisma/client';
 import { Observable, from, mergeMap } from 'rxjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { ACCESS_LOG_ACTION_KEY } from './access-log.decorator';
+import {
+  SUPPORT_READ_ACTION,
+  firstHitInSession,
+  isUnloggedSelfRoute,
+  routeTemplate,
+} from './view-as-log';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** /agency/tenants/:id and /agency/analytics/tenants/:id[/...] address a tenant by :id. */
@@ -24,7 +30,10 @@ function asId(v: unknown): string | null {
  * the tenant can read at GET /settings/access-log:
  *  - agency routes that name a tenant (tenants/:id, analytics/tenants/:id,
  *    :businessId params, or a businessId in the query/body of billing routes);
- *  - every request made with a support view-as (impersonated) session.
+ *  - a support view-as (impersonated) session: the VIEW_AS start row comes from
+ *    the agency endpoint; later requests are logged once per (session, method,
+ *    route template), never for self/background routes (/auth/*, /user/me).
+ *    Refused writes are logged by SessionGuard.
  * The row is written before the response is released, after the handler succeeded.
  */
 @Injectable()
@@ -42,10 +51,13 @@ export class AdminAccessLogInterceptor implements NestInterceptor {
     const target = this.resolveTarget(req);
     if (!target) return next.handle();
 
-    const action =
-      this.reflector.get<string>(ACCESS_LOG_ACTION_KEY, context.getHandler()) ??
-      context.getHandler().name;
-    const route = String(req.originalUrl ?? req.url ?? '').split('?')[0];
+    const action = target.impersonated
+      ? SUPPORT_READ_ACTION
+      : (this.reflector.get<string>(ACCESS_LOG_ACTION_KEY, context.getHandler()) ??
+        context.getHandler().name);
+    const route = target.impersonated
+      ? routeTemplate(req)
+      : String(req.originalUrl ?? req.url ?? '').split('?')[0];
 
     return next.handle().pipe(
       mergeMap((value) =>
@@ -69,15 +81,22 @@ export class AdminAccessLogInterceptor implements NestInterceptor {
     );
   }
 
-  private resolveTarget(req: any): { adminId: string; businessId: string } | null {
+  private resolveTarget(
+    req: any,
+  ): { adminId: string; businessId: string; impersonated?: true } | null {
     const user = req.user;
     if (!user) return null;
 
     const impersonatedBy: string | undefined = req.session?.impersonatedBy ?? undefined;
     if (impersonatedBy) {
-      return user.businessId
-        ? { adminId: impersonatedBy, businessId: user.businessId }
-        : null;
+      if (!user.businessId) return null;
+      const path = String(req.originalUrl ?? req.url ?? '').split('?')[0];
+      if (isUnloggedSelfRoute(path)) return null;
+      const token: string | undefined = req.session?.token;
+      if (!token || !firstHitInSession(token, String(req.method), routeTemplate(req))) {
+        return null;
+      }
+      return { adminId: impersonatedBy, businessId: user.businessId, impersonated: true };
     }
 
     if (user.role !== Role.SUPER_ADMIN) return null;

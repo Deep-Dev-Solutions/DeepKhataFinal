@@ -13,16 +13,16 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { SettingsService } from './settings.service';
+import { SettingsInviteStaffDto } from '../team/dto/team.dto';
 import { SessionGuard } from '../auth/guards/session.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { storage } from '../utils/cloudinary.storage';
+import { storage, UPLOAD_LIMITS } from '../utils/cloudinary.storage';
 
 @Controller('settings')
-@UseGuards(ThrottlerGuard, SessionGuard, RolesGuard)
+@UseGuards(SessionGuard, RolesGuard)
 @Roles(Role.OWNER, Role.SUPER_ADMIN)
 export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
@@ -48,7 +48,7 @@ export class SettingsController {
   }
 
   @Put('profile')
-  @UseInterceptors(FileInterceptor('avatar', { storage }))
+  @UseInterceptors(FileInterceptor('avatar', { storage, limits: UPLOAD_LIMITS }))
   async updateProfile(
     @Req() req: any,
     @Body() body: any,
@@ -58,7 +58,7 @@ export class SettingsController {
   }
 
   @Put('updateprofileinfo')
-  @UseInterceptors(FileInterceptor('avatar', { storage }))
+  @UseInterceptors(FileInterceptor('avatar', { storage, limits: UPLOAD_LIMITS }))
   async updateProfileInfo(
     @Req() req: any,
     @Body() body: any,
@@ -68,7 +68,7 @@ export class SettingsController {
   }
 
   @Put('business')
-  @UseInterceptors(FileInterceptor('logo', { storage }))
+  @UseInterceptors(FileInterceptor('logo', { storage, limits: UPLOAD_LIMITS }))
   async updateBusiness(
     @Req() req: any,
     @Body() body: any,
@@ -78,7 +78,7 @@ export class SettingsController {
   }
 
   @Put('updatebusinessinfo')
-  @UseInterceptors(FileInterceptor('logo', { storage }))
+  @UseInterceptors(FileInterceptor('logo', { storage, limits: UPLOAD_LIMITS }))
   async updateBusinessInfo(
     @Req() req: any,
     @Body() body: any,
@@ -93,7 +93,7 @@ export class SettingsController {
   }
 
   @Post('staff')
-  async inviteStaffAlias(@Req() req: any, @Body() body: any) {
+  async inviteStaffAlias(@Req() req: any, @Body() body: SettingsInviteStaffDto) {
     return this.settingsService.inviteStaff(req.user.id, body);
   }
 

@@ -367,6 +367,7 @@ model Order {
   walkInName    String?
   walkInPhone   String?
   dueDate       DateTime?
+  isOfflineSync Boolean       @default(false)
 
   creator   User?       @relation("OrderCreator", fields: [createdBy], references: [id])
   customer  Customer?   @relation(fields: [customerId], references: [id])
@@ -1134,6 +1135,19 @@ model LicenseIssue {
   createdAt  DateTime @default(now())
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+}
+
+/// One free trial per phone number. phoneNormalized is E.164 (+923001234567).
+/// businessId/userId are plain strings on purpose: a claim must outlive a
+/// deleted business, or deleting a tenant would let the phone start a new trial.
+model TrialClaim {
+  id              String   @id @default(uuid())
+  phoneNormalized String   @unique
+  businessId      String
+  userId          String?
+  createdAt       DateTime @default(now())
 
   @@index([businessId])
 }

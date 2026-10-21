@@ -1,3 +1,4 @@
+import { PublicThrottle } from '../common/throttle';
 import {
   Controller,
   Post,
@@ -12,16 +13,14 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { TeamService } from './team.service';
-import { InviteStaffDto } from './dto/team.dto';
+import { InviteStaffDto, UpdateRoleDto } from './dto/team.dto';
 import { SessionGuard } from '../auth/guards/session.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { ThrottlerGuard } from '@nestjs/throttler';
 
 @Controller('team')
-@UseGuards(ThrottlerGuard)
 export class TeamController {
   constructor(private readonly teamService: TeamService) {}
 
@@ -49,16 +48,19 @@ export class TeamController {
   }
 
   @Get('invite/:token')
+  @PublicThrottle()
   async invitedByToken(@Param('token') token: string) {
     return this.teamService.invitedByToken(token);
   }
 
   @Post('join')
+  @PublicThrottle()
   async acceptInviteJoin(@Body() body: any) {
     return this.teamService.acceptInvite(body);
   }
 
   @Post('accept-invite')
+  @PublicThrottle()
   async acceptInvite(@Body() body: any) {
     return this.teamService.acceptInvite(body);
   }
@@ -94,14 +96,14 @@ export class TeamController {
   @Patch('updaterole')
   @UseGuards(SessionGuard, PermissionsGuard)
   @RequirePermissions('manage:team')
-  async updateRolePatch(@Req() req: any, @Body() body: any) {
+  async updateRolePatch(@Req() req: any, @Body() body: UpdateRoleDto) {
     return this.teamService.updateRole(req.user.id, body);
   }
 
   @Put('role')
   @UseGuards(SessionGuard, PermissionsGuard)
   @RequirePermissions('manage:team')
-  async updateRole(@Req() req: any, @Body() body: any) {
+  async updateRole(@Req() req: any, @Body() body: UpdateRoleDto) {
     return this.teamService.updateRole(req.user.id, body);
   }
 

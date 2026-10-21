@@ -22,6 +22,7 @@ export class InviteStaffDto {
   @MaxLength(254)
   email!: string;
 
+  /** The service answers 403 for roles the inviter may not grant (OWNER, SUPER_ADMIN, ...). */
   @IsIn([...Object.values(Role)])
   role!: Role;
 
@@ -34,6 +35,36 @@ export class InviteStaffDto {
   @ArrayMaxSize(50)
   @IsUUID('all', { each: true })
   branchIds?: string[];
+}
+
+/** Body of the POST /settings/staff alias: only MANAGER or STAFF, anything else is a 400. */
+export class SettingsInviteStaffDto {
+  @IsEmail()
+  @MaxLength(254)
+  email!: string;
+
+  @IsIn([...ASSIGNABLE_ROLES])
+  role!: AssignableRole;
+
+  @IsOptional()
+  @IsBoolean()
+  allBranches?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsUUID('all', { each: true })
+  branchIds?: string[];
+}
+
+export class UpdateRoleDto {
+  @IsEmail()
+  @MaxLength(254)
+  email!: string;
+
+  /** Only MANAGER or STAFF; OWNER and SUPER_ADMIN are rejected with 400. */
+  @IsIn([...ASSIGNABLE_ROLES])
+  role!: AssignableRole;
 }
 
 export class CreateMemberDto {

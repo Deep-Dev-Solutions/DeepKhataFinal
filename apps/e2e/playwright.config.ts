@@ -41,6 +41,10 @@ export default defineConfig({
         DATABASE_URL: dbUrl,
         DIRECT_URL: dbUrl,
         ENABLE_TEST_ENDPOINTS: 'true',
+        // One IP runs every spec: lift the production throttle limits for the E2E server only.
+        THROTTLE_LIMIT: '100000',
+        THROTTLE_AUTH_LIMIT: '100000',
+        THROTTLE_PUBLIC_LIMIT: '100000',
         CORS_ORIGINS: `${E2E.webUrl},${E2E.adminUrl}`,
       },
     },

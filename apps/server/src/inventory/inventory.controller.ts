@@ -11,10 +11,9 @@ import { InventoryService } from './inventory.service';
 import { SessionGuard } from '../auth/guards/session.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
-import { ThrottlerGuard } from '@nestjs/throttler';
 
 @Controller('inventory')
-@UseGuards(ThrottlerGuard, SessionGuard, PermissionsGuard)
+@UseGuards(SessionGuard, PermissionsGuard)
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 

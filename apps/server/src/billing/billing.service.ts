@@ -342,6 +342,9 @@ export class BillingService {
         attachments: [{ filename, content: buffer, contentType: 'application/pdf' }],
       },
     );
+    if (result.status === 'SUPPRESSED') {
+      throw new BadGatewayException('Invoice email was not sent: the daily email limit for this address is reached. Use the WhatsApp link or try again tomorrow.');
+    }
     if (result.status === 'FAILED') throw new BadGatewayException('Invoice email could not be sent');
 
     const updated = await this.prisma.agencyInvoice.update({

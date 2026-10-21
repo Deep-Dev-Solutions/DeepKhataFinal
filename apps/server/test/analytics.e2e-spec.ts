@@ -98,9 +98,11 @@ describe('Tenant analytics (e2e)', () => {
       at: Date,
       paymentStatus: 'UNPAID' | 'PARTIAL' | 'PAID',
       items: { qty: number; productId?: string }[],
+      isOfflineSync = false,
     ) {
       return prisma.order.create({
         data: {
+          isOfflineSync,
           businessId: t.businessId,
           branchId: t.branchId,
           status,
@@ -163,9 +165,9 @@ describe('Tenant analytics (e2e)', () => {
       const o1 = await order('FINAL', '1000.00', karachi(DAY, '08:00:00'), 'PARTIAL', [
         { qty: 2, productId: p1.id }, { qty: 3 },
       ]);
-      const o2 = await order('COMPLETED', '500.50', karachi(DAY, '12:00:00'), 'PAID', [{ qty: 1 }]);
-      await order('MEMO', '300.00', karachi(DAY, '13:00:00'), 'UNPAID', [{ qty: 7 }]);
-      const o4 = await order('FINAL', '200.00', karachi(DAY, '23:30:00'), 'PAID', [{ qty: 4 }]);
+      const o2 = await order('COMPLETED', '500.50', karachi(DAY, '12:00:00'), 'PAID', [{ qty: 1 }], true);
+      await order('MEMO', '300.00', karachi(DAY, '13:00:00'), 'UNPAID', [{ qty: 7 }], true);
+      const o4 = await order('FINAL', '200.00', karachi(DAY, '23:30:00'), 'PAID', [{ qty: 4 }], true);
       // Next Karachi day by 30 minutes, and previous Karachi day by one minute.
       await order('FINAL', '999.00', karachi('2026-02-11', '00:30:00'), 'UNPAID', [{ qty: 9 }]);
       await order('FINAL', '100.00', karachi('2026-02-09', '23:59:00'), 'UNPAID', [{ qty: 1 }]);
@@ -285,7 +287,8 @@ describe('Tenant analytics (e2e)', () => {
       expect(row.newProducts).toBe(1);
       expect(row.logins).toBe(3); // support session excluded
       expect(row.activeUsers).toBe(2); // owner + member
-      expect(row.offlineSyncedOrders).toBe(0);
+      // o2 + o4 were synced offline and count; the offline MEMO is not a FINAL/COMPLETED order
+      expect(row.offlineSyncedOrders).toBe(2);
       // orders: O1 open 600 (the later 100 does not count), MEMO 300, previous-day 100; khata 300
       expect(row.duesOpenReceivable.toFixed(2)).toBe('1300.00');
       // khata payable 250 + vendor 1000 - 400

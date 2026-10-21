@@ -13,6 +13,8 @@ import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
 import { TeamModule } from './team/team.module';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { AppThrottlerGuard, buildThrottlerOptions } from './common/throttle';
 
 import { LedgerModule } from './ledger/ledger.module';
 import { SyncModule } from './sync/sync.module';
@@ -38,10 +40,12 @@ import { PlansModule } from './plans/plans.module';
 import { BillingModule } from './billing/billing.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { DesktopModule } from './desktop/desktop.module';
+import { CaptchaModule } from './captcha/captcha.service';
 
 @Module({
   imports: [
     TenantModule,
+    CaptchaModule,
     PlansModule,
     BillingModule,
     AnalyticsModule,
@@ -55,12 +59,7 @@ import { DesktopModule } from './desktop/desktop.module';
     ReservationsModule,
     StockTransfersModule,
     RemindersModule,
-    ThrottlerModule.forRoot([
-      {
-        ttl: 60000,
-        limit: 100,
-      },
-    ]),
+    ThrottlerModule.forRootAsync({ useFactory: () => buildThrottlerOptions() }),
     PrismaModule,
     AuthModule,
     CustomersModule,
@@ -84,6 +83,6 @@ import { DesktopModule } from './desktop/desktop.module';
     RedisModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, { provide: APP_GUARD, useClass: AppThrottlerGuard }],
 })
 export class AppModule {}

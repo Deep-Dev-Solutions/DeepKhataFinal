@@ -799,6 +799,7 @@ export default function OrderDetailsLedger() {
                 order.status !== "ESTIMATE" &&
                 order.status !== "RETURNED" && (
                   <button
+                    data-testid="order-record-payment"
                     onClick={() => setIsPaymentModalOpen(true)}
                     className="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors shadow-sm"
                   >

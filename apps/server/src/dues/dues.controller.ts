@@ -8,7 +8,6 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { SessionGuard } from '../auth/guards/session.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
@@ -30,7 +29,7 @@ function parseEntityType(raw: string): DueEntityType {
 }
 
 @Controller('dues')
-@UseGuards(ThrottlerGuard, SessionGuard, PermissionsGuard)
+@UseGuards(SessionGuard, PermissionsGuard)
 export class DuesController {
   constructor(private readonly dues: DuesService) {}
 

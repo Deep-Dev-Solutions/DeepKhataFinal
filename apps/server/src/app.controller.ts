@@ -4,6 +4,7 @@ import {
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { AppService } from './app.service.js';
 import { PrismaService } from './prisma/prisma.service.js';
 
@@ -16,6 +17,8 @@ export interface HealthResponse {
 
 const HEALTH_TIMEOUT_MS = 2000;
 
+/** Load balancer and uptime probes must never be rate limited. */
+@SkipThrottle()
 @Controller()
 export class AppController {
   private logger = new Logger(AppController.name);

@@ -28,10 +28,10 @@ export class OnboardingDto {
   @MaxLength(120)
   market?: string;
 
+  /** Validated and normalised in the service: 400 { code: PHONE_INVALID }. */
   @IsString()
-  @Matches(PK_MOBILE_REGEX, {
-    message: 'phone must be a Pakistani mobile number like 03XXXXXXXXX or +92XXXXXXXXXX',
-  })
+  @IsNotEmpty()
+  @MaxLength(40)
   phone: string;
 
   @IsString()

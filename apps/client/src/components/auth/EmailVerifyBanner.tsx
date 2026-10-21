@@ -4,6 +4,7 @@ import { useState } from "react";
 import { MailWarning } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL, apiFetch } from "@/lib/auth";
+import TurnstileWidget, { useTurnstile } from "./TurnstileWidget";
 
 /**
  * Shown to owners whose email is not verified yet (team creation is blocked
@@ -13,15 +14,21 @@ export default function EmailVerifyBanner() {
   const { user, role } = useAuth();
   const [sending, setSending] = useState(false);
   const [note, setNote] = useState("");
+  const captcha = useTurnstile();
 
   if (!user || role !== "OWNER" || user.emailVerified !== false) return null;
 
   async function resend() {
+    if (captcha.enabled && !captcha.token) {
+      setNote("Please complete the captcha check first.");
+      return;
+    }
     setSending(true);
     setNote("");
     try {
       const res = await apiFetch(`${API_BASE_URL}/auth/resend-verification`, {
         method: "POST",
+        headers: captcha.headers,
       });
       if (res.ok) {
         setNote(`Verification email sent to ${user?.email}.`);
@@ -33,6 +40,7 @@ export default function EmailVerifyBanner() {
       setNote("Could not reach the server.");
     } finally {
       setSending(false);
+      captcha.reset();
     }
   }
 
@@ -46,6 +54,10 @@ export default function EmailVerifyBanner() {
         Please verify your email ({user.email}) to add staff and keep your
         account recoverable.
       </span>
+      <TurnstileWidget
+        onToken={captcha.setToken}
+        resetKey={captcha.resetKey}
+      />
       {note && (
         <span data-testid="email-verify-note" className="text-xs text-amber-800">
           {note}

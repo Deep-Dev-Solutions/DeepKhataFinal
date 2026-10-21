@@ -9,7 +9,6 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { SessionGuard } from '../auth/guards/session.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -24,7 +23,7 @@ import { TeamActor, TeamMembersService } from './team-members.service';
 
 /** Owner-created members (username + password) and per-member management. */
 @Controller('team/members')
-@UseGuards(ThrottlerGuard, SessionGuard, PermissionsGuard, RolesGuard)
+@UseGuards(SessionGuard, PermissionsGuard, RolesGuard)
 @RequirePermissions('manage:team')
 export class TeamMembersController {
   constructor(private readonly members: TeamMembersService) {}

@@ -48,6 +48,7 @@ services:
       args:
         NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
         NEXT_PUBLIC_AGENCY_URL: https://admin.${DOMAIN}
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
     image: ghcr.io/${GHCR_OWNER:-local}/deepkhata-client:${IMAGE_TAG:-latest}
     restart: unless-stopped
     mem_limit: 512m

@@ -92,4 +92,62 @@ describe('Offline sync batch (e2e)', () => {
     expect(await prisma.order.count({ where: { id: orderId } })).toBe(1);
     expect(await prisma.order.count({ where: { id: orderId, businessId: tenants.B.id } })).toBe(0);
   });
+
+  it('flags only /sync orders as offline-synced; a client cannot set the flag', async () => {
+    const productId = randomUUID();
+    await prisma.product.create({
+      data: {
+        id: productId,
+        name: `Sync Flag ${Date.now()}`,
+        sku: `SYNCFLAG-${Date.now()}`,
+        basePrice: 100,
+        businessId: tenants.A.id,
+      },
+    });
+    await prisma.productInstance.createMany({
+      data: [1, 2, 3].map(() => ({ id: randomUUID(), productId, branchId: hallRoad, status: 'AVAILABLE' as const })),
+    });
+    const payload = {
+      walkInName: 'Sync Walk-in',
+      items: [{ productId, quantity: 1, price: 100 }],
+      amountPaid: 100,
+      orderStatus: 'FINAL',
+      paymentMethod: 'CASH',
+      branchId: hallRoad,
+    };
+    const syncedId = randomUUID();
+    const syncItem = { id: syncedId, type: 'CREATE_ORDER', payload: { ...payload, isOfflineSync: false } };
+
+    const pushed = await post('ownerA', hallRoad, [syncItem]).expect((r) =>
+      expect(r.status).toBeLessThan(300),
+    );
+    expect(pushed.body.results[0].status).toBe('synced');
+    const synced = await prisma.order.findUniqueOrThrow({ where: { id: syncedId } });
+    expect(synced.isOfflineSync).toBe(true);
+
+    // Replay keeps one row and the flag.
+    await post('ownerA', hallRoad, [syncItem]).expect((r) => expect(r.status).toBeLessThan(300));
+    expect(await prisma.order.count({ where: { id: syncedId } })).toBe(1);
+    expect(
+      (await prisma.order.findUniqueOrThrow({ where: { id: syncedId } })).isOfflineSync,
+    ).toBe(true);
+
+    // A normal online order is not flagged, even when the client asks for it.
+    const online = await request(app.getHttpServer())
+      .post('/order/neworder')
+      .set(authHeader('ownerA', hallRoad))
+      .send({ ...payload, isOfflineSync: true });
+    expect(online.status).toBeLessThan(300);
+    const onlineRow = await prisma.order.findUniqueOrThrow({ where: { id: online.body.order.id } });
+    expect(onlineRow.isOfflineSync).toBe(false);
+
+    const plain = await request(app.getHttpServer())
+      .post('/order/neworder')
+      .set(authHeader('ownerA', hallRoad))
+      .send(payload);
+    expect(plain.status).toBeLessThan(300);
+    expect(
+      (await prisma.order.findUniqueOrThrow({ where: { id: plain.body.order.id } })).isOfflineSync,
+    ).toBe(false);
+  });
 });

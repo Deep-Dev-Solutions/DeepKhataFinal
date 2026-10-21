@@ -17,11 +17,10 @@ import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { BranchId } from '../auth/decorators/branch-id.decorator';
 
 @Controller('cabinet')
-@UseGuards(ThrottlerGuard, SessionGuard)
+@UseGuards(SessionGuard)
 export class CabinetController {
   constructor(private readonly cabinetService: CabinetService) {}
 

@@ -8,6 +8,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import * as M from '../common/money';
+import { Prisma } from '@prisma/client';
+import { UpdateCustomerDto } from './dto/customer.dto';
 
 // Store-wide default credit line for new Udhar accounts (PKR).
 const DEFAULT_CREDIT_LIMIT = 50000;
@@ -102,11 +104,14 @@ export class CustomersService {
 
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { businessId: true },
+      select: { businessId: true, role: true },
     });
 
     if (!currentUser?.businessId)
       throw new BadRequestException('No business found.');
+
+    // STAFF cannot set a credit line (same rule as PATCH customerrisk).
+    const mayChooseCreditLimit = currentUser.role !== 'STAFF';
 
     const customerExists = await this.prisma.customer.findFirst({
       where: { businessId: currentUser.businessId, phone },
@@ -126,7 +131,9 @@ export class CustomersService {
         email: email || null,
         // Udhar is enabled immediately with the store default credit line.
         creditLimit:
-          data.creditLimit !== undefined && data.creditLimit !== null
+          mayChooseCreditLimit &&
+          data.creditLimit !== undefined &&
+          data.creditLimit !== null
             ? parseFloat(data.creditLimit)
             : DEFAULT_CREDIT_LIMIT,
         businessId: currentUser.businessId,
@@ -138,11 +145,26 @@ export class CustomersService {
     return { success: true, customer };
   }
 
-  async customerDetails(userId: string, id: string, data: any) {
+  async customerDetails(userId: string, id: string, dto: UpdateCustomerDto) {
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { businessId: true },
     });
+    if (!currentUser?.businessId)
+      throw new BadRequestException('No business found.');
+
+    // Explicit pick: never spread the request body into prisma.
+    const data: Prisma.CustomerUpdateInput = {};
+    if (dto.name !== undefined) data.name = dto.name;
+    if (dto.phone !== undefined) data.phone = dto.phone;
+    if (dto.shopName !== undefined) data.shopName = dto.shopName;
+    if (dto.email !== undefined) data.email = dto.email;
+    if (dto.address !== undefined) data.address = dto.address;
+    if (dto.cnicNumber !== undefined) data.cnicNumber = dto.cnicNumber;
+    if (dto.guarantorPhone !== undefined)
+      data.guarantorPhone = dto.guarantorPhone;
+    if (dto.paymentTermsDays !== undefined)
+      data.paymentTermsDays = dto.paymentTermsDays;
 
     const existingCustomer = await this.prisma.customer.findFirst({
       where: { id, businessId: currentUser.businessId },
@@ -152,7 +174,7 @@ export class CustomersService {
       throw new NotFoundException('Customer not found in your workspace.');
 
     const updatedCustomer = await this.prisma.customer.update({
-      where: { id },
+      where: { id: existingCustomer.id },
       data,
     });
 

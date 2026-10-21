@@ -16,3 +16,8 @@ Everything here is run by you; nothing deploys itself. Order of operations:
 
 Required GitHub secrets: `PUBLIC_API_URL`, `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`.
 Cloudflare: proxied DNS for app/api/admin, SSL mode Full (strict).
+
+Real client IP and rate limits: Caddy trusts `CF-Connecting-IP` only from Cloudflare edge ranges (global options block in
+`Caddyfile`; verify the list against https://www.cloudflare.com/ips/ before each deploy) and forwards the visitor as
+`X-Forwarded-For` / `X-Real-IP`. The API trusts that header only from the compose network (`TRUST_PROXY=172.16.0.0/12`),
+so throttling, lockouts and session IPs see the real visitor. Rate limits are tunable with the `THROTTLE_*` variables in `.env`.
