@@ -40,7 +40,9 @@ export default function ViewAsBanner() {
   async function exit() {
     setExiting(true);
     try {
-      await apiFetch(`${API_BASE_URL}/auth/logout`, { method: "POST" });
+      // Ends only the view-as session and puts the agent's own agency session
+      // cookie back (a generic logout would sign the agent out of the console).
+      await apiFetch(`${API_BASE_URL}/auth/view-as/exit`, { method: "POST" });
     } catch {
       // Cookie expires on its own within the hour.
     }

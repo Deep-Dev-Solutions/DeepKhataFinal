@@ -15,6 +15,7 @@ import { TenantContext } from '../../tenant/tenant.types';
 import { authDb } from '../auth-db';
 import { auth } from '../better-auth';
 import { getUserBranchAccess } from '../branch-access';
+import { logBlockedViewAsWrite } from '../../analytics/view-as-log';
 
 const READ_ONLY_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const ACTIVITY_THROTTLE_MS = 5 * 60 * 1000;
@@ -78,6 +79,7 @@ export class SessionGuard implements CanActivate {
       !READ_ONLY_METHODS.has(method) &&
       !isLogout
     ) {
+      logBlockedViewAsWrite(authDb(), request, session as any, user.businessId);
       throw new ForbiddenException('Read-only while viewing as tenant');
     }
 

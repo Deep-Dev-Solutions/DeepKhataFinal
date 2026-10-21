@@ -130,7 +130,9 @@ export default function NewCustomerModal({
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {error && (
-            <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs font-semibold text-rose-700">
+            <div
+              data-testid="new-customer-error"
+              className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs font-semibold text-rose-700">
               {error}
             </div>
           )}
