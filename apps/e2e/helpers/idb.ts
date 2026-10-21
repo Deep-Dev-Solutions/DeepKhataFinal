@@ -33,3 +33,29 @@ export async function readSyncQueue(page: Page): Promise<QueuedItem[]> {
       }),
   );
 }
+
+/** Reads every record of a Dexie object store (e.g. `products`, `customers`) straight from IndexedDB. */
+export async function readStore<T = Record<string, unknown>>(page: Page, store: string): Promise<T[]> {
+  return page.evaluate(
+    (name) =>
+      new Promise<T[]>((resolve, reject) => {
+        const open = indexedDB.open('DeepKhataOfflineDB');
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const idb = open.result;
+          if (!idb.objectStoreNames.contains(name)) {
+            idb.close();
+            resolve([]);
+            return;
+          }
+          const req = idb.transaction(name, 'readonly').objectStore(name).getAll();
+          req.onerror = () => reject(req.error);
+          req.onsuccess = () => {
+            idb.close();
+            resolve(req.result as T[]);
+          };
+        };
+      }),
+    store,
+  );
+}
