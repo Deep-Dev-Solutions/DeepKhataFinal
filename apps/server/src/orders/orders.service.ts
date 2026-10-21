@@ -96,7 +96,15 @@ export class OrdersService {
     }
   }
 
-  async newOrder(userId: string, data: any) {
+  /**
+   * `opts.isOfflineSync` is an internal flag set only by the sync path. It is
+   * never read from `data`, so a client cannot set it through the HTTP body.
+   */
+  async newOrder(
+    userId: string,
+    data: any,
+    opts: { isOfflineSync?: boolean } = {},
+  ) {
     const {
       customerId,
       items,
@@ -321,6 +329,7 @@ export class OrdersService {
             status: orderStatus as any,
             dueDate,
             createdBy: userId,
+            isOfflineSync: opts.isOfflineSync === true,
             items: {
               create: items.map((item: any, index: number) => ({
                 productId: item.isService ? null : item.productId,

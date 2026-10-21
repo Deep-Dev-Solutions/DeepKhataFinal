@@ -20,8 +20,8 @@ import { karachiDateOnly, startOfKarachiDay, addDays } from '../common/dates';
  *  - logins: Session rows created that day for the business's users
  *    (support view-as sessions excluded).
  *  - activeUsers: distinct users that signed in or created an order that day.
- *  - offlineSyncedOrders: always 0. Orders pushed through /sync are not
- *    flagged in the schema, so they cannot be told apart from online orders.
+ *  - offlineSyncedOrders: orders created that day (same status filter as
+ *    ordersCount) that were replayed through /sync (Order.isOfflineSync).
  *  - duesOpenReceivable / duesOpenPayable: open amounts at the end of the day.
  *    Order receivables use payments up to end of day but only orders that are
  *    not PAID *now*; khata entries use their *current* settled amount and
@@ -125,8 +125,9 @@ export async function computeUsageMetrics(
     khataDues,
     vendorDues,
   ] = await Promise.all([
-    db.$queryRaw<(Row & { n: number; gmv: Prisma.Decimal })[]>`
-      SELECT o."businessId", count(*)::int AS n, COALESCE(sum(o."totalAmount"), 0) AS gmv
+    db.$queryRaw<(Row & { n: number; gmv: Prisma.Decimal; offline: number })[]>`
+      SELECT o."businessId", count(*)::int AS n, COALESCE(sum(o."totalAmount"), 0) AS gmv,
+             (count(*) FILTER (WHERE o."isOfflineSync"))::int AS offline
       FROM "Order" o
       WHERE o.status IN ('FINAL', 'COMPLETED')
         AND o."createdAt" >= (${start}::timestamptz AT TIME ZONE 'UTC')
@@ -253,6 +254,7 @@ export async function computeUsageMetrics(
     const m = get(r.businessId);
     m.ordersCount = r.n;
     m.gmv = M.round2(r.gmv);
+    m.offlineSyncedOrders = r.offline;
   }
   for (const r of items) get(r.businessId).itemsSold = r.n;
   for (const r of returns) get(r.businessId).returnsCount = r.n;

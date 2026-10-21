@@ -197,10 +197,11 @@ export class SyncService {
     }
 
     // The queue item id always wins over any id inside the payload.
-    const order: any = await this.ordersService.newOrder(t.userId, {
-      ...payload,
-      id,
-    });
+    const order: any = await this.ordersService.newOrder(
+      t.userId,
+      { ...payload, id },
+      { isOfflineSync: true },
+    );
     return { id, status: 'synced', orderId: order?.id ?? id };
   }
 

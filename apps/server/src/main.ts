@@ -42,16 +42,7 @@ async function bootstrapServer() {
   return cachedApp;
 }
 
-// Export for Vercel Serverless
-export default async function handler(req: any, res: any) {
-  const app = await bootstrapServer();
-  return app(req, res);
-}
-
-// Local Development
-if (!process.env.VERCEL) {
-  bootstrapServer().then((app) => {
-    const port = process.env.PORT || 5000;
-    app.listen(port, () => console.log(`Server is running on port ${port}`));
-  });
-}
+bootstrapServer().then((app) => {
+  const port = process.env.PORT || 5000;
+  app.listen(port, () => console.log(`Server is running on port ${port}`));
+});
