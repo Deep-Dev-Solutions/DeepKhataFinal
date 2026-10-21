@@ -49,7 +49,7 @@ Each fixed bug has a regression test (API spec in apps/server/test or Playwright
 
 | # | Sev | Item | Status |
 |---|-----|------|--------|
-| N1 | S3 | `offlineSyncedOrders` is always 0 in TenantDailyUsage: orders created via `/sync/batch` carry no `isOfflineSync` flag | Open; fix is task 4 of the close run (column via migration plus the sync path) |
+| N1 | S3 | `offlineSyncedOrders` is always 0 in TenantDailyUsage: orders created via `/sync/batch` carry no `isOfflineSync` flag | Fixed: `Order.isOfflineSync` column (migration 0012), set only by the sync path, counted by the usage rollup |
 | N2 | - | Trial lifecycle emails (days 3, 7, 25) fire when 0-2 days past the threshold; the daily cron tolerates a missed day without duplicates | Working as designed |
 | N3 | S3 | Branch-restricted staff without `x-branch-id`: now default to their only branch, or 400 when they have several | Fixed in addf497 |
 | N4 | S3 | `User.updatedAt` was missing, so delta sync could not track user changes | Fixed by migration `0011_user_updated_at` |
@@ -67,6 +67,8 @@ Failures found by the truth run are logged here as T1, T2, ... with the app fix 
 | T5 | S3 | Agency-onboarded tenants: owner unverified (so invites 403 `EMAIL_NOT_VERIFIED`), trial plan allows 1 branch / fewer users than the console and tests assume | `onboard-tenant` marks the owner verified and accepts `customLimits`; agency console "add branch" sends `override` (SUPER_ADMIN may exceed plan) | tests/billing/*, tests/agency/* |
 | T6 | S4 | Staff invite email lost the `*ROLE*` emphasis the spec asserts | Template restored | tests/team/invite-flow.spec.ts |
 | T7 | S3 | E2E `team/invite-flow` "role change is effective on the already-issued token" expected the old token to stay valid (phase 1 behaviour); phase 6 deliberately revokes sessions on role change (accounts API spec) | Kept the app (revocation, safer). Spec updated to the designed behaviour: old token 401, fresh login carries the new role. Judgment call, flagged for the owner | tests/team/invite-flow.spec.ts, test/accounts.e2e-spec.ts |
+| T8 | S3 | View-as access-log flooding: every request of an impersonated session was logged (one short visit = 59 rows), so the tenant's Settings > access log (newest 50) lost the VIEW_AS start row. Blocked writes were never logged (guard throws before the interceptor) | One VIEW_AS start row from the agency endpoint; later requests logged once per (session, method, route template) as `SUPPORT_READ` (bounded in-memory set, safe to lose); `/auth/*` and `/user/me` never logged; refused writes logged as `SUPPORT_WRITE_BLOCKED` from SessionGuard. Tenant endpoint always includes the newest VIEW_AS rows, then fills with the newest others | test/view-as.e2e-spec.ts "access log: one row per (session, method, route template)...", tests/agency/view-as.spec.ts |
+| T9 | S2 | View-as Exit logged the support agent out of the agency console: activation overwrote the shared session cookie and Exit called `/auth/logout` | Activation stashes the agent's own session in the signed httpOnly `dk_admin_return` cookie (only for the issuing SUPER_ADMIN). New `POST /auth/view-as/exit` revokes only the impersonated session, clears the stash and re-sets the original cookie after re-checking it is a live, non-impersonated SUPER_ADMIN session; the banner calls it instead of logout | test/view-as.e2e-spec.ts "start: activation sets...", "exit revokes only...", "exit without a valid stash...", "a tenant user (or anonymous) cannot call exit"; tests/agency/view-as.spec.ts |
 
 ## RBAC and tenancy audit (2026-10-22)
 
@@ -74,9 +76,9 @@ Full route matrix and evidence: `docs/plan/runs/rbac-audit.md` (about 187 routes
 
 | # | Sev | Finding | Status |
 |---|-----|---------|--------|
-| F1 | S1 | OWNER can promote a member to SUPER_ADMIN via `PUT /team/role` / `PATCH /team/updaterole` (role from untyped body, `team.service.ts` updateRole) | open |
-| F2 | S1 | `POST /settings/staff` takes the invite role from the body, invite never expires (`settings.service.ts`) | open |
-| F3 | S1 | `PUT /customer/customerdetails/:id` passes the raw body to `prisma.customer.update` (mass assignment: creditLimit, isDefaulter, businessId, nested writes) | open |
+| F1 | S1 | OWNER can promote a member to SUPER_ADMIN via `PUT /team/role` / `PATCH /team/updaterole` (role from untyped body, `team.service.ts` updateRole) | fixed (apps/server/test/rbac-escalation.e2e-spec.ts) |
+| F2 | S1 | `POST /settings/staff` takes the invite role from the body, invite never expires (`settings.service.ts`) | fixed (apps/server/test/rbac-escalation.e2e-spec.ts) |
+| F3 | S1 | `PUT /customer/customerdetails/:id` passes the raw body to `prisma.customer.update` (mass assignment: creditLimit, isDefaulter, businessId, nested writes) | fixed (apps/server/test/rbac-escalation.e2e-spec.ts) |
 | F4 | S2 | Dashboard cache key has no role: STAFF can receive OWNER's COGS/profit when cached | open |
 | F5 | S2 | STAFF has `read:vendors`: unit costs and payables returned | open |
 | F6 | S2 | `GET /inventory/low-stock` returns `costPrice` to STAFF | open |
