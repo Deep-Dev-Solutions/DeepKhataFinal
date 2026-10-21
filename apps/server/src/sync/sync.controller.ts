@@ -3,12 +3,11 @@ import { SyncService } from './sync.service';
 import { SyncPullService } from './sync-pull.service';
 import { SyncPullQueryDto } from './dto/sync-pull.dto';
 import { SessionGuard } from '../auth/guards/session.guard';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { Tenant } from '../tenant/tenant.decorator';
 import { TenantContext } from '../tenant/tenant.types';
 
 @Controller()
-@UseGuards(ThrottlerGuard, SessionGuard)
+@UseGuards(SessionGuard)
 export class SyncController {
   constructor(
     private readonly syncService: SyncService,

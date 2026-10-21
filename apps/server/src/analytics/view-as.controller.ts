@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { fromNodeHeaders } from 'better-auth/node';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { IsString, MaxLength, MinLength } from 'class-validator';
 import type { Response } from 'express';
 import { serializeSignedCookie } from 'better-call';
@@ -98,7 +98,6 @@ export class ViewAsController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Post('view-as/activate')
-  @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async activate(
     @Body() dto: ActivateViewAsDto,
@@ -176,7 +175,6 @@ export class ViewAsController {
    */
   @Post('view-as/exit')
   @HttpCode(200)
-  @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   async exit(@Req() req: any, @Res({ passthrough: true }) res: Response) {
     const current = await auth.api

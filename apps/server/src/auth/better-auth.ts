@@ -134,12 +134,42 @@ const baseURL =
 const cookieDomain = process.env.COOKIE_DOMAIN || undefined;
 const isProduction = process.env.NODE_ENV === 'production';
 
+function intEnv(name: string, fallback: number): number {
+  const n = Number(process.env[name]);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
+
+/**
+ * Better Auth's own /api/auth/* endpoints bypass Nest guards, so they carry
+ * their own limiter (in memory, per client IP and path). The client IP comes
+ * from CLIENT_IP_HEADER, which mountAuth fills with the proxy-aware req.ip.
+ * Off under NODE_ENV=test unless THROTTLE_FORCE=1 (the API suite shares one IP).
+ */
+const signInMax = intEnv('THROTTLE_AUTH_LIMIT', 10);
+const recoveryMax = Math.max(1, Math.floor(signInMax / 2));
+const signInRule = { window: 60, max: signInMax };
+const recoveryRule = { window: 60, max: recoveryMax };
+const rateLimit = {
+  enabled: process.env.NODE_ENV !== 'test' || process.env.THROTTLE_FORCE === '1',
+  window: 60,
+  max: intEnv('THROTTLE_LIMIT', 100),
+  customRules: {
+    '/sign-in/email': signInRule,
+    '/sign-in/username': signInRule,
+    '/forget-password': recoveryRule,
+    '/request-password-reset': recoveryRule,
+    '/reset-password': recoveryRule,
+    '/send-verification-email': recoveryRule,
+  },
+};
+
 export const auth = betterAuth({
   appName: process.env.APP_NAME || 'DeepKhata',
   baseURL,
   secret: process.env.BETTER_AUTH_SECRET,
   trustedOrigins: getCorsOrigins(),
   database: prismaAdapter(authDbProxy, { provider: 'postgresql' }),
+  rateLimit,
   emailAndPassword: {
     enabled: true,
     // Accounts are created server-side (register, invite, onboarding, agency).

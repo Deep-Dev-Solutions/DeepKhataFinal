@@ -1,3 +1,4 @@
+import { PublicThrottle } from '../common/throttle';
 import {
   Body,
   Controller,
@@ -13,7 +14,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { SessionGuard } from '../auth/guards/session.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -91,7 +91,7 @@ export class BillingController {
 }
 
 /** Unauthenticated: the unguessable token is the only credential and resolves exactly one invoice. */
-@UseGuards(ThrottlerGuard)
+@PublicThrottle()
 @Controller('public/invoices')
 export class PublicInvoicesController {
   constructor(private readonly billing: BillingService) {}

@@ -8,7 +8,6 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { KhataDirection, KhataStatus } from '@prisma/client';
 import { IsEnum, IsOptional } from 'class-validator';
 import { SessionGuard } from '../auth/guards/session.guard';
@@ -36,7 +35,7 @@ class ListKhataEntriesQuery {
 }
 
 @Controller('khata-entries')
-@UseGuards(ThrottlerGuard, SessionGuard, PermissionsGuard)
+@UseGuards(SessionGuard, PermissionsGuard)
 export class KhataEntriesController {
   constructor(private readonly service: KhataEntriesService) {}
 

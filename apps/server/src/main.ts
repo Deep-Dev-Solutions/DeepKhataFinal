@@ -6,6 +6,7 @@ import { getCorsOrigins } from './config/cors';
 import * as dotenv from 'dotenv';
 import { installDecimalJson } from './common/money';
 import { mountAuth } from './auth/mount-auth';
+import { configureTrustProxy } from './common/trust-proxy';
 
 dotenv.config();
 installDecimalJson();
@@ -32,7 +33,7 @@ async function bootstrapServer() {
       exposedHeaders: ['X-Next-Cursor'],
     });
 
-    app.getHttpAdapter().getInstance().set('trust proxy', process.env.TRUST_PROXY || 'loopback');
+    configureTrustProxy(app);
     app.use(cookieParser());
     mountAuth(app);
 

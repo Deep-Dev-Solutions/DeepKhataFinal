@@ -14,3 +14,7 @@ export const storage = new CloudinaryStorage({
     allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
   } as any,
 });
+
+/** Explicit multer limits for every upload route (avatars, logos, product photos). */
+export const UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
+export const UPLOAD_LIMITS = { fileSize: UPLOAD_MAX_BYTES, files: 1 } as const;

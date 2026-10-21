@@ -7,7 +7,6 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { SessionGuard } from '../auth/guards/session.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
@@ -21,7 +20,7 @@ import {
 } from './dto/notification.dto';
 
 @Controller()
-@UseGuards(ThrottlerGuard, SessionGuard, PermissionsGuard)
+@UseGuards(SessionGuard, PermissionsGuard)
 export class NotificationsController {
   constructor(private readonly service: NotificationsService) {}
 

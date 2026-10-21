@@ -94,3 +94,16 @@ Full route matrix and evidence: `docs/plan/runs/rbac-audit.md` (about 187 routes
 | S3 list | S3 | 17 hardening items (see audit section 7), incl. `/health/db` leaks raw DB error, invite-accept returns password hash, `/cabinet/debug-reorder` stub, category cross-tenant gives 400 not 404 | open |
 
 D8 (MANAGER Revoke button) may be stale: by code reading MANAGER cannot reach the Team tab at all.
+
+## Bot hardening (close run)
+
+Part 1. Tests: `apps/server/test/hardening.e2e-spec.ts` (suite "Bot hardening (e2e)") and `apps/server/src/common/caddyfile.spec.ts`.
+
+| Item | Change | Status |
+|------|--------|--------|
+| A. Real client IP | `deploy/Caddyfile` global `trusted_proxies static <Cloudflare ranges>` + `client_ip_headers CF-Connecting-IP`, `header_up X-Forwarded-For/X-Real-IP {client_ip}` on all 3 reverse_proxy blocks; `configureTrustProxy()` (`src/common/trust-proxy.ts`) shared by main.ts and the test app | done (caddyfile.spec.ts; "real client IP behind a proxy": ignores spoofed XFF from untrusted peer, honours trusted peer, right-most hop). Keep the range list in sync with https://www.cloudflare.com/ips/ before each deploy |
+| B. Rate limiting | Global `AppThrottlerGuard` (APP_GUARD), env `THROTTLE_LIMIT/_TTL_MS/_AUTH_LIMIT/_PUBLIC_LIMIT`; `@AuthThrottle()` on `/auth/*` (login, register, agency-login, resend-verification), `/user/change-password`; `@PublicThrottle()` on team invite/join/accept-invite, public invoices (+pdf), public order invoice; `/health` and `/` skipped; class-level ThrottlerGuard removed from all controllers; Better Auth `rateLimit` with custom rules on sign-in, forget/reset password, send-verification-email | done ("credential endpoints use the strict auth throttler", "unauthenticated token routes use the public throttler", "global limit", "spoofing X-Forwarded-For cannot dodge a limit", "Better Auth /api/auth/* limiter") |
+| C. Body limits | `bodyLimitFor()` in `mount-auth.ts`: 100kb default, 16kb for /auth, /api/auth, /team, /public, public order invoice; 2mb for /sync/*, /order/sync, /product/import, /product/bulk-restock; JSON 413 body; Better Auth Content-Length check; multer `UPLOAD_LIMITS` (5MB, 1 file) on avatar/logo/photo uploads | done ("explicit request body limits") |
+| D. Env docs | `apps/server/.env.example`, `deploy/.env.example`, `deploy/README.md` | done |
+
+Known limits: throttler counters are in memory per API process (single VPS container; use a Redis storage if scaled out). Default limits are per route and client IP, not one global bucket per IP. Playwright against a dev server needs `THROTTLE_AUTH_LIMIT` raised (many logins from one IP).

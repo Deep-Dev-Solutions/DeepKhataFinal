@@ -25,7 +25,6 @@ import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdatePriceDto } from './dto/update-price.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -33,10 +32,10 @@ import { UpdateInstanceDto } from './dto/update-instance.dto';
 import { BranchId } from '../auth/decorators/branch-id.decorator';
 import { Tenant } from '../tenant/tenant.decorator';
 import { TenantContext } from '../tenant/tenant.types';
-import { storage } from '../utils/cloudinary.storage';
+import { storage, UPLOAD_LIMITS } from '../utils/cloudinary.storage';
 
 @Controller('product')
-@UseGuards(ThrottlerGuard, SessionGuard)
+@UseGuards(SessionGuard)
 export class ProductsController {
   constructor(
     private readonly productsService: ProductsService,
@@ -245,7 +244,7 @@ export class ProductsController {
   @Post('instances/:instanceId/photo')
   @UseGuards(PermissionsGuard)
   @RequirePermissions('write:products')
-  @UseInterceptors(FileInterceptor('photo', { storage }))
+  @UseInterceptors(FileInterceptor('photo', { storage, limits: UPLOAD_LIMITS }))
   async uploadInstancePhoto(
     @Tenant() tenant: TenantContext,
     @Param('instanceId') instanceId: string,

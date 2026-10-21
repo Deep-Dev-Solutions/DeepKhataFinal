@@ -10,7 +10,6 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { randomBytes } from 'node:crypto';
 import { Role } from '@prisma/client';
 import { SessionGuard } from '../auth/guards/session.guard';
@@ -28,7 +27,7 @@ import { LicenceService } from './licence.service';
 
 /** Owner-managed shop PCs (cloud). The token is shown once and only its hash is stored. */
 @Controller('desktop/devices')
-@UseGuards(ThrottlerGuard, SessionGuard, RolesGuard)
+@UseGuards(SessionGuard, RolesGuard)
 @Roles(Role.OWNER)
 export class DesktopDevicesController {
   constructor(private readonly prisma: PrismaService) {}
@@ -79,7 +78,7 @@ export class DesktopDevicesController {
 
 /** Endpoints the shop PC calls with `Authorization: Device <deviceToken>`. */
 @Controller()
-@UseGuards(ThrottlerGuard, DeviceAuthGuard)
+@UseGuards(DeviceAuthGuard)
 export class DesktopDeviceApiController {
   constructor(
     private readonly licences: LicenceService,

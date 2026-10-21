@@ -1,6 +1,5 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { SessionGuard } from '../auth/guards/session.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -10,7 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PlanLimitsService } from './plan-limits.service';
 
 @Controller('plans')
-@UseGuards(ThrottlerGuard, SessionGuard, RolesGuard)
+@UseGuards(SessionGuard, RolesGuard)
 @Roles(Role.OWNER, Role.SUPER_ADMIN)
 export class PlansController {
   constructor(

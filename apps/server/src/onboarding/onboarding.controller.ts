@@ -1,7 +1,6 @@
 import { Controller, Post, Get, Body, UseGuards, Req } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { OnboardingService } from './onboarding.service';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { SessionGuard } from '../auth/guards/session.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -9,7 +8,7 @@ import { AllowWithoutBusiness } from '../tenant/allow-without-business.decorator
 import { OnboardingDto } from './dto/onboarding.dto';
 
 @Controller('onboard')
-@UseGuards(ThrottlerGuard, SessionGuard)
+@UseGuards(SessionGuard)
 export class OnboardingController {
   constructor(private readonly onboardingService: OnboardingService) {}
 

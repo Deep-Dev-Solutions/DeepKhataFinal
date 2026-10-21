@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { SessionGuard } from '../auth/guards/session.guard';
 import { ChangePasswordDto } from './user-account.dto';
+import { AuthThrottle } from '../common/throttle';
 import { UserAccountService } from './user-account.service';
 
 /** Self-service session and password management for the signed-in user. */
@@ -20,6 +21,7 @@ export class UserAccountController {
   }
 
   @Post('change-password')
+  @AuthThrottle()
   changePassword(@Req() req: any, @Body() body: ChangePasswordDto) {
     return this.account.changePassword(req.user.id, req.session.id, body);
   }

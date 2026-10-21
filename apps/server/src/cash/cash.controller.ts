@@ -11,14 +11,13 @@ import { CashService } from './cash.service';
 import { SessionGuard } from '../auth/guards/session.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { LogExpenseDto } from './dto/log-expense.dto';
 import { OpenRegisterDto } from './dto/open-register.dto';
 import { CloseRegisterDto } from './dto/close-register.dto';
 import { BranchId } from '../auth/decorators/branch-id.decorator';
 
 @Controller('cash')
-@UseGuards(ThrottlerGuard, SessionGuard, PermissionsGuard)
+@UseGuards(SessionGuard, PermissionsGuard)
 export class CashController {
   constructor(private readonly cashService: CashService) {}
 

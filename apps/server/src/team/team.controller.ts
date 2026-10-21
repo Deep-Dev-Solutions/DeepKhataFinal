@@ -1,3 +1,4 @@
+import { PublicThrottle } from '../common/throttle';
 import {
   Controller,
   Post,
@@ -18,10 +19,8 @@ import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { ThrottlerGuard } from '@nestjs/throttler';
 
 @Controller('team')
-@UseGuards(ThrottlerGuard)
 export class TeamController {
   constructor(private readonly teamService: TeamService) {}
 
@@ -49,16 +48,19 @@ export class TeamController {
   }
 
   @Get('invite/:token')
+  @PublicThrottle()
   async invitedByToken(@Param('token') token: string) {
     return this.teamService.invitedByToken(token);
   }
 
   @Post('join')
+  @PublicThrottle()
   async acceptInviteJoin(@Body() body: any) {
     return this.teamService.acceptInvite(body);
   }
 
   @Post('accept-invite')
+  @PublicThrottle()
   async acceptInvite(@Body() body: any) {
     return this.teamService.acceptInvite(body);
   }

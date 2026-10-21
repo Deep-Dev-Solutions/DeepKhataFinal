@@ -9,14 +9,13 @@ import {
   Query,
 } from '@nestjs/common';
 import { VendorsService } from './vendors.service.js';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { SessionGuard } from '../auth/guards/session.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { RecordPurchaseDto } from './dto/record-purchase.dto';
 import { RecordPaymentDto } from './dto/record-payment.dto';
 
-@UseGuards(ThrottlerGuard, SessionGuard, PermissionsGuard)
+@UseGuards(SessionGuard, PermissionsGuard)
 @Controller('vendors')
 export class VendorsController {
   constructor(private readonly vendorsService: VendorsService) {}
