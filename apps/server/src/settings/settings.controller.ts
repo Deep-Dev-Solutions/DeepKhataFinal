@@ -13,6 +13,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { SettingsService } from './settings.service';
+import { SettingsInviteStaffDto } from '../team/dto/team.dto';
 import { SessionGuard } from '../auth/guards/session.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -93,7 +94,7 @@ export class SettingsController {
   }
 
   @Post('staff')
-  async inviteStaffAlias(@Req() req: any, @Body() body: any) {
+  async inviteStaffAlias(@Req() req: any, @Body() body: SettingsInviteStaffDto) {
     return this.settingsService.inviteStaff(req.user.id, body);
   }
 

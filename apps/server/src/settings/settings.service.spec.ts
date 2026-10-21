@@ -4,6 +4,7 @@ import { SettingsService } from './settings.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { TenantCacheService } from '../tenant/tenant-cache.service';
+import { TeamService } from '../team/team.service';
 import { PlanLimitsService } from '../plans/plan-limits.service';
 
 describe('SettingsService', () => {
@@ -17,6 +18,7 @@ describe('SettingsService', () => {
         { provide: RedisService, useValue: {} },
         { provide: TenantCacheService, useValue: {} },
         { provide: PlanLimitsService, useValue: {} },
+        { provide: TeamService, useValue: {} },
       ],
     }).compile();
 

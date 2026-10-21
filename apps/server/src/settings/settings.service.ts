@@ -7,10 +7,10 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantCacheService } from '../tenant/tenant-cache.service';
 import * as bcrypt from 'bcrypt';
-import * as crypto from 'crypto';
-import { sendInviteEmail } from '../utils/mailer';
 import { RedisService } from '../redis/redis.service';
 import { PlanLimitsService } from '../plans/plan-limits.service';
+import { TeamService } from '../team/team.service';
+import { SettingsInviteStaffDto } from '../team/dto/team.dto';
 
 @Injectable()
 export class SettingsService {
@@ -19,6 +19,7 @@ export class SettingsService {
     private redis: RedisService,
     private tenantCache: TenantCacheService,
     private planLimits: PlanLimitsService,
+    private team: TeamService,
   ) {}
 
   async profileInfo(userId: string) {
@@ -299,53 +300,26 @@ export class SettingsService {
     };
   }
 
-  async inviteStaff(userId: string, data: any) {
+  /**
+   * Alias of POST /team/invite. There is one invite implementation
+   * (TeamService.inviteStaff): same DTO, 72h expiry, plan limits and role rules.
+   */
+  async inviteStaff(userId: string, data: SettingsInviteStaffDto) {
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { businessId: true, role: true },
     });
-
     if (!currentUser?.businessId) {
       throw new BadRequestException('No business found.');
     }
-
-    // Plan limit: active members + pending invites; SUPER_ADMIN bypasses.
-    if (currentUser.role !== 'SUPER_ADMIN') {
-      await this.planLimits.assert(currentUser.businessId, 'users');
-    }
-
-    const { email, role } = data;
-    if (!email || !role) {
-      throw new BadRequestException('Missing required fields');
-    }
-
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email },
-    });
-    if (existingUser) {
-      throw new BadRequestException('User is already registered.');
-    }
-
-    const existingInvite = await this.prisma.invitation.findFirst({
-      where: { email, businessId: currentUser.businessId },
-    });
-    if (existingInvite) {
-      throw new BadRequestException('Invitation already sent to this email.');
-    }
-
-    const token = crypto.randomBytes(32).toString('hex');
-
-    await this.prisma.invitation.create({
-      data: {
-        email,
-        role,
-        businessId: currentUser.businessId,
-        token,
+    return this.team.inviteStaff(
+      { id: userId, role: currentUser.role, businessId: currentUser.businessId },
+      {
+        email: data.email,
+        role: data.role,
+        allBranches: data.allBranches,
+        branchIds: data.branchIds,
       },
-    });
-
-    await sendInviteEmail(email, role, token);
-
-    return { success: true, message: 'Invitation sent successfully!' };
+    );
   }
 }

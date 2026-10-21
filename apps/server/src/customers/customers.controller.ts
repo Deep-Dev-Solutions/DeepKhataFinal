@@ -11,6 +11,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { CustomersService } from './customers.service';
+import { UpdateCustomerDto } from './dto/customer.dto';
 import { SessionGuard } from '../auth/guards/session.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
@@ -32,7 +33,7 @@ export class CustomersController {
   async customerDetails(
     @Req() req: any,
     @Param('id') id: string,
-    @Body() body: any,
+    @Body() body: UpdateCustomerDto,
   ) {
     return this.customersService.customerDetails(req.user.id, id, body);
   }

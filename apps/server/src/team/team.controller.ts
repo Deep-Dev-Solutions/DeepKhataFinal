@@ -12,7 +12,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { TeamService } from './team.service';
-import { InviteStaffDto } from './dto/team.dto';
+import { InviteStaffDto, UpdateRoleDto } from './dto/team.dto';
 import { SessionGuard } from '../auth/guards/session.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -94,14 +94,14 @@ export class TeamController {
   @Patch('updaterole')
   @UseGuards(SessionGuard, PermissionsGuard)
   @RequirePermissions('manage:team')
-  async updateRolePatch(@Req() req: any, @Body() body: any) {
+  async updateRolePatch(@Req() req: any, @Body() body: UpdateRoleDto) {
     return this.teamService.updateRole(req.user.id, body);
   }
 
   @Put('role')
   @UseGuards(SessionGuard, PermissionsGuard)
   @RequirePermissions('manage:team')
-  async updateRole(@Req() req: any, @Body() body: any) {
+  async updateRole(@Req() req: any, @Body() body: UpdateRoleDto) {
     return this.teamService.updateRole(req.user.id, body);
   }
 
