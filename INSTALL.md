@@ -77,6 +77,9 @@ For a large dataset (about 10,000 products and 100,000 orders, used by the bench
 | `npm run test:e2e` | Playwright suite against `deepkhata_e2e`; resets and seeds it, then starts its own API and client |
 | `npm run db:down` | Stop Postgres and Mailpit |
 | `npm run db:reset` | Drop and rebuild the dev database (destructive) |
+| `npm run stack:up` | Build and start the full container stack (postgres, mailpit, api, client, admin) |
+| `npm run stack:down` | Stop the full stack (keeps its data) |
+| `npm run stack:logs` | Follow the full stack logs |
 
 Notes for the two test commands:
 - Admin console specs need `E2E_WITH_ADMIN=1`, for example `E2E_WITH_ADMIN=1 npm run test:e2e`.
@@ -88,10 +91,15 @@ Notes for the two test commands:
 Schema changes only through `npx prisma migrate dev --name <change>` inside `apps/server`. `prisma db push` is banned. Migration folders are numbered (`0000_`, `0001_`, ...) and must be safe on existing production data.
 
 ### Checking the local database
+
 ```bash
 docker compose -f docker-compose.dev.yml exec postgres psql -U deepkhata -d deepkhata
 ```
 Useful: `\l` (databases), `\dt` (tables), `select count(*) from "Order";`. Any GUI works with host `localhost`, your port, user `deepkhata`, the password from `apps/server/.env`.
+
+### Full container stack (the staging shape on one laptop)
+
+Same pieces as the VPS, all containers: `npm run stack:up`. It publishes Postgres on **5434** and Mailpit on **8027** by default so it can run next to the dev compose; override with `STACK_*_PORT` envs (see `docker-compose.yml`). One-time warning: secrets in that file are dev defaults — replace `BETTER_AUTH_SECRET` for anything that is not a local laptop. Staging itself uses `deploy/docker-compose.prod.yml`.
 
 ### Common problems
 - **`npm install` says package.json is invalid JSON.** Something was typed into the file. Run `git checkout package.json`.
