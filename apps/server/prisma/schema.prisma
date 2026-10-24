@@ -62,6 +62,8 @@ model Business {
   licenseIssues      LicenseIssue[]
   emailLogs          EmailLog[]
 
+  dealHistories   DealHistory[]
+
   // Phase 7: acquisition / follow-up / onboarding
   source              String?
   city                String?
@@ -902,6 +904,8 @@ enum SubscriptionStatus {
 enum BillingCycle {
   MONTHLY
   YEARLY
+  /// Custom deal: the agency agrees explicit period dates + price.
+  CUSTOM
 }
 
 enum InvoiceStatus {
@@ -969,6 +973,8 @@ model Subscription {
   billingCycle       BillingCycle       @default(MONTHLY)
   customLimits       Json?
   priceOverride      Decimal?           @db.Decimal(14, 2)
+  /// On-Premises desktop support/maintenance end date (licence cap) set by the agency deal.
+  supportEndsAt      DateTime?
   graceEndsAt        DateTime?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
@@ -1150,4 +1156,21 @@ model TrialClaim {
   createdAt       DateTime @default(now())
 
   @@index([businessId])
+}
+
+/// DealHistory: who changed a tenant's deal (price, limits, dates), when,
+/// and old→new values as JSON. Append-only — a deal change adds a row, never
+/// overwrites one.
+model DealHistory {
+  id        String   @id @default(uuid())
+  businessId String
+  actorId   String?
+  old       Json?
+  new       Json?
+  notes     String?
+  changedAt DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, changedAt])
 }
