@@ -11,39 +11,32 @@ import { configureTrustProxy } from './common/trust-proxy';
 dotenv.config();
 installDecimalJson();
 
-let cachedApp: any;
+async function bootstrap() {
+  // Better Auth reads the raw body, so Nest's own body parser is replaced by
+  // mountAuth(), which mounts /api/auth/* first and the JSON parsers after it.
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
 
-async function bootstrapServer() {
-  if (!cachedApp) {
-    // Better Auth reads the raw body, so Nest's own body parser is replaced by
-    // mountAuth(), which mounts /api/auth/* first and the JSON parsers after it.
-    const app = await NestFactory.create(AppModule, { bodyParser: false });
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
 
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        transform: true,
-        transformOptions: { enableImplicitConversion: true },
-      }),
-    );
+  app.enableCors({
+    origin: getCorsOrigins(),
+    credentials: true,
+    exposedHeaders: ['X-Next-Cursor'],
+  });
 
-    app.enableCors({
-      origin: getCorsOrigins(),
-      credentials: true,
-      exposedHeaders: ['X-Next-Cursor'],
-    });
+  configureTrustProxy(app);
+  app.use(cookieParser());
+  mountAuth(app);
 
-    configureTrustProxy(app);
-    app.use(cookieParser());
-    mountAuth(app);
-
-    await app.init();
-    cachedApp = app.getHttpAdapter().getInstance();
-  }
-  return cachedApp;
+  const port = process.env.PORT || 5000;
+  await app.listen(port);
+  console.log(`Server is running on port ${port}`);
 }
 
-bootstrapServer().then((app) => {
-  const port = process.env.PORT || 5000;
-  app.listen(port, () => console.log(`Server is running on port ${port}`));
-});
+void bootstrap();

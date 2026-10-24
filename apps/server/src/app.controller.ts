@@ -78,8 +78,7 @@ export class AppController {
       await this.prisma.$queryRawUnsafe('SELECT 1');
       return { status: 'ok', db: 'reachable' };
     } catch (err: any) {
-      // Return 200 with the error detail so the caller can see exactly what's wrong
-      // without triggering Vercel's FUNCTION_INVOCATION_FAILED path.
+      // Return 200 with the error detail so the caller can see exactly what's wrong.
       return {
         status: 'degraded',
         db: 'unreachable',

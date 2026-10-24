@@ -1,0 +1,103 @@
+# Full self-contained stack (postgres + mailpit + api + client + admin), the same
+# shape the staging VPS runs. Nothing starts unless you pass --profile full.
+#
+#   npm run stack:up       # build and start everything, wait for healthchecks
+#   npm run stack:logs     # follow logs
+#   npm run stack:down     # stop it (keep data)
+#
+# Services:
+#   client  http://localhost:3000   admin  http://localhost:3001   api http://localhost:5000
+#   mailpit UI http://localhost:8027 (catches all email), raw Postgres on 5434.
+# Default ports are chosen so this can run next to the dev compose (5432/1025/8025);
+# override with STACK_POSTGRES_PORT / STACK_MAILPIT_SMTP_PORT / STACK_MAILPIT_UI_PORT /
+# STACK_API_PORT / STACK_CLIENT_PORT / STACK_ADMIN_PORT.
+name: deepkhata-full
+
+services:
+  postgres:
+    image: postgres:17
+    profiles: [full]
+    environment:
+      POSTGRES_USER: deepkhata
+      POSTGRES_PASSWORD: deepkhata
+      POSTGRES_DB: deepkhata
+    ports:
+      - "${STACK_POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - postgres_full_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deepkhata -d deepkhata"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit
+    profiles: [full]
+    ports:
+      - "${STACK_MAILPIT_SMTP_PORT:-1027}:1025"
+      - "${STACK_MAILPIT_UI_PORT:-8027}:8025"
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    image: deepkhata-api:local
+    profiles: [full]
+    environment:
+      NODE_ENV: production
+      PORT: "5000"
+      DATABASE_URL: postgresql://deepkhata:deepkhata@postgres:5432/deepkhata
+      DIRECT_URL: postgresql://deepkhata:deepkhata@postgres:5432/deepkhata
+      # Replace BETTER_AUTH_SECRET for any location other than a local laptop.
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-dev-full-stack-secret-change-me-before-any-real-use}
+      BETTER_AUTH_URL: http://localhost:${STACK_API_PORT:-5000}
+      FRONTEND_URL: http://localhost:${STACK_CLIENT_PORT:-3000}
+      CORS_ORIGINS: http://localhost:${STACK_CLIENT_PORT:-3000},http://localhost:${STACK_ADMIN_PORT:-3001}
+      # Local-style SMTP routing into the mailpit container.
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      MAIL_FROM: "DeepKhata <no-reply@dev.localhost>"
+    ports:
+      - "${STACK_API_PORT:-5000}:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  client:
+    build:
+      context: .
+      dockerfile: apps/client/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:${STACK_API_PORT:-5000}
+        NEXT_PUBLIC_AGENCY_URL: http://localhost:${STACK_ADMIN_PORT:-3001}
+    image: deepkhata-client:local
+    profiles: [full]
+    environment:
+      PORT: "3000"
+    ports:
+      - "${STACK_CLIENT_PORT:-3000}:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/agency-admin/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:${STACK_API_PORT:-5000}
+    image: deepkhata-admin:local
+    profiles: [full]
+    environment:
+      PORT: "3001"
+    ports:
+      - "${STACK_ADMIN_PORT:-3001}:3001"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  postgres_full_data:
