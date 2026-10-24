@@ -2,8 +2,12 @@
 # Build context: repo root.
 #   docker build -f apps/agency-admin/Dockerfile --build-arg NEXT_PUBLIC_API_URL=https://api.example.com -t deepkhata-admin:local .
 
-FROM node:22-alpine AS base
-RUN apk add --no-cache libc6-compat
+# Debian base, not alpine: typescript 7 is a native binary whose optional
+# packages are glibc-only (npm skips them on musl and `next build` then fails
+# with "Unable to resolve @typescript/typescript-linux-x64").
+FROM node:22-bookworm-slim AS base
+RUN apt-get update && apt-get install -y --no-install-recommends wget ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
 WORKDIR /repo
 ENV npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=5000 npm_config_fetch_timeout=60000 npm_config_maxsockets=8 NODE_OPTIONS=--dns-result-order=ipv4first
 
@@ -13,7 +17,6 @@ COPY apps/server/package.json apps/server/package.json
 COPY apps/client/package.json apps/client/package.json
 COPY apps/agency-admin/package.json apps/agency-admin/package.json
 # --ignore-scripts: the server's postinstall (prisma generate) is not needed here.
-#: apps/client pins @tailwindcss/oxide-linux-x64-gnu (glibc only); skip the platform check on musl.
 RUN --mount=type=cache,target=/root/.npm npm ci -w agency-admin --include-workspace-root --ignore-scripts
 
 FROM deps AS build
