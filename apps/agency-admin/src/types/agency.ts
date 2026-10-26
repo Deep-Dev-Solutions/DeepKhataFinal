@@ -54,6 +54,30 @@ export interface LogPaymentResponse {
   status: 'ACTIVE' | 'READ_ONLY' | 'SUSPENDED';
 }
 
+export interface SetDealResponse {
+  message: string;
+  businessId: string;
+  subscription: {
+    id: string;
+    status: string;
+    currentPeriodStart: string;
+    currentPeriodEnd: string | null;
+    billingCycle: string;
+    customLimits: Record<string, unknown> | null;
+    priceOverride: number | null;
+  };
+}
+
+export interface DealHistoryRow {
+  id: string;
+  businessId: string;
+  actorId: string | null;
+  old: Record<string, unknown> | null;
+  new: Record<string, unknown> | null;
+  notes: string | null;
+  changedAt: string;
+}
+
 export interface UpdateStatusResponse {
   message: string;
   businessId: string;

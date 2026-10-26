@@ -26,6 +26,8 @@ import {
 import type {
   TenantDetail,
   LogPaymentResponse,
+  SetDealResponse,
+  DealHistoryRow,
   TenantAnalyticsDetail,
 } from "@/types/agency";
 
@@ -112,6 +114,21 @@ export default function TenantDetailPage() {
   const [viewAsLoading, setViewAsLoading] = useState(false);
   const [pdfDownloading, setPdfDownloading] = useState(false);
 
+  // Set-deal form state
+  const [dealPlan, setDealPlan] = useState("CUSTOM");
+  const [dealPrice, setDealPrice] = useState("");
+  const [dealCycle, setDealCycle] = useState("MONTHLY");
+  const [dealStart, setDealStart] = useState("");
+  const [dealEnd, setDealEnd] = useState("");
+  const [dealMaxBranches, setDealMaxBranches] = useState(1);
+  const [dealMaxUsers, setDealMaxUsers] = useState(5);
+  const [dealMaxProducts, setDealMaxProducts] = useState("");
+  const [dealNotes, setDealNotes] = useState("");
+  const [dealSubmitting, setDealSubmitting] = useState(false);
+  const [dealError, setDealError] = useState("");
+  const [dealSuccess, setDealSuccess] = useState("");
+  const [dealHistory, setDealHistory] = useState<DealHistoryRow[]>([]);
+
   const fetchTenant = useCallback(async () => {
     if (!tenantId || !token) {
       if (!isAuthLoading) setLoading(false);
@@ -135,6 +152,7 @@ export default function TenantDetailPage() {
     const load = async () => {
       if (tenantId && token) {
         await fetchTenant();
+        await fetchDealHistory();
       } else if (!isAuthLoading) {
         setLoading(false);
       }
@@ -228,6 +246,55 @@ export default function TenantDetailPage() {
       console.error("Failed to download PDF:", err);
     } finally {
       setPdfDownloading(false);
+    }
+  };
+
+  const fetchDealHistory = async () => {
+    if (!tenantId || !token) return;
+    try {
+      const data = await api.get<DealHistoryRow[]>(
+        `/agency/tenants/${tenantId}/deal-history`,
+      );
+      setDealHistory(data || []);
+    } catch (err) {
+      console.error("Failed to load deal history:", err);
+    }
+  };
+
+  const handleSetDeal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tenant || !token) return;
+    setDealSubmitting(true);
+    setDealError("");
+    setDealSuccess("");
+    try {
+      const start = dealStart || new Date().toISOString().slice(0, 10);
+      const end = dealEnd || start;
+      const data = await api.post<SetDealResponse>(
+        `/agency/tenants/${tenant.id}/deal`,
+        {
+          plan: dealPlan,
+          price: dealPrice,
+          billingCycle: dealCycle,
+          startDate: start,
+          endDate: end,
+          maxBranches: dealMaxBranches,
+          maxUsers: dealMaxUsers,
+          maxProducts: dealMaxProducts === "" ? null : Number(dealMaxProducts),
+          notes: dealNotes || undefined,
+        },
+      );
+      setDealPrice("");
+      setDealNotes("");
+      setDealSuccess(
+        `Deal set: ${data.subscription.billingCycle} ${data.subscription.priceOverride != null ? "Rs. " + data.subscription.priceOverride.toFixed(2) : ""} · ${data.subscription.currentPeriodStart} → ${data.subscription.currentPeriodEnd}`,
+      );
+      await fetchTenant();
+      await fetchDealHistory();
+    } catch (err: unknown) {
+      setDealError(err instanceof Error ? err.message : "Failed to set deal");
+    } finally {
+      setDealSubmitting(false);
     }
   };
 
@@ -756,6 +823,229 @@ export default function TenantDetailPage() {
               Log Payment & Extend Subscription
             </button>
           </form>
+        </div>
+      </div>
+
+      {/* ── Set Custom Deal ──────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Set Deal Form */}
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2">
+            <CreditCard size={16} className="text-indigo-600" />
+            <h3 className="font-bold text-slate-900">Set Custom Deal</h3>
+          </div>
+          <form onSubmit={handleSetDeal} className="p-6 space-y-4">
+            {dealError && (
+              <div className="bg-rose-50 text-rose-700 border border-rose-200 rounded-lg p-3 text-sm">
+                {dealError}
+              </div>
+            )}
+            {dealSuccess && (
+              <div className="bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg p-3 text-sm">
+                {dealSuccess}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Template Plan *
+                </label>
+                <select
+                  data-testid="deal-plan"
+                  value={dealPlan}
+                  onChange={(e) => setDealPlan(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="TRIAL">TRIAL (Free Trial)</option>
+                  <option value="BASIC">BASIC</option>
+                  <option value="STANDARD">STANDARD</option>
+                  <option value="CUSTOM">CUSTOM</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Price (PKR) *
+                </label>
+                <input
+                  type="text"
+                  data-testid="deal-price"
+                  value={dealPrice}
+                  onChange={(e) => setDealPrice(e.target.value)}
+                  placeholder="e.g. 20000"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">
+                Billing Cycle
+              </label>
+              <select
+                data-testid="deal-cycle"
+                value={dealCycle}
+                onChange={(e) => setDealCycle(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="MONTHLY">Monthly</option>
+                <option value="YEARLY">Yearly</option>
+                <option value="CUSTOM">Custom (exact dates)</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Start Date *
+                </label>
+                <input
+                  type="date"
+                  data-testid="deal-start"
+                  required
+                  value={dealStart}
+                  onChange={(e) => setDealStart(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  End Date *
+                </label>
+                <input
+                  type="date"
+                  data-testid="deal-end"
+                  required
+                  value={dealEnd}
+                  onChange={(e) => setDealEnd(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Max Branches
+                </label>
+                <input
+                  type="number"
+                  data-testid="deal-maxbranches"
+                  value={dealMaxBranches}
+                  onChange={(e) => setDealMaxBranches(Number(e.target.value) || 0)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Max Users
+                </label>
+                <input
+                  type="number"
+                  data-testid="deal-maxusers"
+                  value={dealMaxUsers}
+                  onChange={(e) => setDealMaxUsers(Number(e.target.value) || 0)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Max Products
+                </label>
+                <input
+                  type="number"
+                  data-testid="deal-maxproducts"
+                  value={dealMaxProducts}
+                  onChange={(e) => setDealMaxProducts(e.target.value)}
+                  placeholder="unlimited"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">
+                Notes
+              </label>
+              <input
+                type="text"
+                data-testid="deal-notes"
+                value={dealNotes}
+                onChange={(e) => setDealNotes(e.target.value)}
+                placeholder="e.g. Annual renewal deal"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={dealSubmitting}
+              data-testid="deal-submit"
+              className="w-full py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
+            >
+              {dealSubmitting && <Loader2 size={16} className="animate-spin" />}
+              Set Deal & Save History
+            </button>
+          </form>
+        </div>
+
+        {/* Deal History Table */}
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between">
+            <CalendarClock size={16} className="text-indigo-600" />
+            <h3 className="font-bold text-slate-900">Deal History</h3>
+          </div>
+          <div className="overflow-x-auto p-6">
+            {dealHistory.length === 0 ? (
+              <p className="text-xs text-slate-400 italic text-center py-8">
+                No deal changes recorded yet.
+              </p>
+            ) : (
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
+                  <tr>
+                    <th className="px-6 py-3">Changed At</th>
+                    <th className="px-6 py-3">Plan</th>
+                    <th className="px-6 py-3 text-right">Price</th>
+                    <th className="px-6 py-3">Period</th>
+                    <th className="px-6 py-3">Limits</th>
+                    <th className="px-6 py-3">Notes</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {dealHistory.map((row) => {
+                    const n = (row.new as Record<string, unknown> | null) ?? {};
+                    const limits = (n.customLimits as { maxBranches?: number; maxUsers?: number; maxProducts?: number } | null) ?? {};
+                    return (
+                      <tr key={row.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-3 font-medium text-slate-900">
+                          {formatDate(row.changedAt as string | null | undefined)}
+                        </td>
+                        <td className="px-6 py-3 text-slate-600">
+                          {(n.plan as string | undefined) || "—"}
+                        </td>
+                        <td className="px-6 py-3 text-right text-slate-600">
+                          {n.priceOverride != null ? `Rs. ${Number(n.priceOverride).toFixed(2)}` : "—"}
+                        </td>
+                        <td className="px-6 py-3 text-slate-600">
+                          {formatDate(n.currentPeriodStart as string | null | undefined)} →{" "}
+                          {formatDate(n.currentPeriodEnd as string | null | undefined)}
+                        </td>
+                        <td className="px-6 py-3 text-slate-600 text-sm">
+                          {limits.maxBranches ?? "∞"} br /{" "}
+                          {limits.maxUsers ?? "∞"} us /{" "}
+                          {limits.maxProducts ?? "∞"} pr
+                        </td>
+                        <td className="px-6 py-3 text-slate-500">
+                          {row.notes || "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       </div>
 
