@@ -14,7 +14,7 @@
     "db:migrate": "npm run prisma:migrate -w server",
     "db:seed": "npm exec -w server -- prisma db seed",
     "db:reset": "npm exec -w server -- prisma migrate reset --force",
-    "stack:up": "docker compose --profile full up -d --build --wait",
+    "stack:up": "COMPOSE_PARALLEL_LIMIT=1 docker compose --profile full up -d --build --wait",
     "stack:down": "docker compose --profile full down",
     "stack:logs": "docker compose --profile full logs -f --tail=100",
     "test:api": "npm run test:e2e -w server",

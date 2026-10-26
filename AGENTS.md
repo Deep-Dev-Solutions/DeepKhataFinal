@@ -40,7 +40,7 @@ Mailpit UI: http://localhost:8025
 
 - Multi-tenancy: businessId always comes from the authenticated session (req.user / @Tenant()), never from body, query or headers. x-branch-id must be validated as belonging to the business. Every new endpoint with an :id gets a cross-tenant isolation test (tenant B → 404).
 - Money: Decimal(14,2) in Prisma, Prisma.Decimal / src/common/money.ts in code, no JS number arithmetic on money. Ledger postings always balance (sum = 0) and are written in the same $transaction as the business change.
-- Database: schema changes only via `prisma migrate dev --name <change>`; `prisma db push` is banned. Migration folders are named 0000_, 0001_, ... Every migration must be safe on existing production data.
+- Database: schema changes only via `prisma migrate dev --name <change>`; `prisma db push` is banned. Migration folders keep the `<timestamp>_<seq>_<name>` form Prisma generates (e.g. `20261026083919_0014_deal_history`); never rename an applied migration. Every migration must be safe on existing production data.
 - Tests: every feature ships with API tests (Vitest + Supertest, apps/server/test, *.e2e-spec.ts) and a Playwright spec in apps/e2e. Never weaken, skip or delete an assertion to make a test pass. Use data-testid selectors.
 - Code: NestJS module per domain; class-validator DTOs for every body; no `any` in new DTOs. User copy in English with Roman Urdu shop terms (udhar, galla, khata, lena, dena, maal). Product name comes from APP_NAME env; remove "BizFlow" where touched.
 - Secrets: never commit .env files; add new variables to .env.example. ACCESS_TOKEN_SECRET and REFRESH_TOKEN_SECRET must be at least 32 chars or the server refuses to boot.

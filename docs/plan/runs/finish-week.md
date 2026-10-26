@@ -76,3 +76,10 @@ Status: Day-2 implementation queued.
 - Decisions needed: (1) bump `eslint` in `apps/agency-admin/package.json` to `^9.39.5` so its lint runs in CI? (2) add `COMPOSE_PARALLEL_LIMIT=1` to `stack:up`? (3) rename migrations or amend AGENTS.md to the timestamp convention?
 - Disk note: builds pushed the root filesystem to 99% (2.7 GB free at worst); build cache trimmed after each image, 4.8 GB free now.
 - Next: Section B (Day 3, UI foundation + POS). Not started.
+
+### Day 2 decisions applied (owner, 2026-10-26)
+
+- `apps/agency-admin/package.json`: `eslint` `^10.12.0` → `^9.39.5`. `npm run lint` is now green across the monorepo: **exit 0**, 0 errors (client 206 / server 21 / admin 13 warnings). Reinstall removed 371 packages.
+- `stack:up` now runs `COMPOSE_PARALLEL_LIMIT=1 docker compose --profile full up -d --build --wait`, so api/client/admin images build one at a time (the parallel run OOM'd npm on a 16 GB box).
+- `AGENTS.md`: migrations keep Prisma's `<timestamp>_<seq>_<name>` folder form; existing migrations are not renamed.
+- Re-verified after the change: `npm run build -w agency-admin` → exit 0.
