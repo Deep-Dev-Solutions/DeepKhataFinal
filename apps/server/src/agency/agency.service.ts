@@ -10,7 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { randomBytes, randomUUID } from 'node:crypto';
 import * as M from '../common/money';
-import { BusinessStatus, Role, SubscriptionStatus } from '@prisma/client';
+import { BusinessStatus, Prisma, Role, SubscriptionStatus } from '@prisma/client';
 import { TenantCacheService } from '../tenant/tenant-cache.service';
 import { PlanLimitsService } from '../plans/plan-limits.service';
 import { SubscriptionsService } from '../plans/subscriptions.service';
@@ -20,6 +20,7 @@ import {
   UpdateSignupDto,
   UpdateTaskDto,
 } from '../lifecycle/dto/agency-signups.dto';
+import { SetDealDto } from './deal.dto';
 import { addDays, daysBetween, karachiDateOnly } from '../common/dates';
 import { claimTrial, requireNormalizedPhone } from '../common/trial-claim';
 
@@ -340,6 +341,142 @@ export class AgencyService {
       businessId,
       status,
     };
+  }
+
+  /** Agency sets a custom deal for a tenant: price, limits, dates.
+   * Writes Subscription + DealHistory old→new in one $transaction and mirrors
+   * Business so the kill switch and current guard stay in sync. */
+  async setDeal(
+    businessId: string,
+    actorId: string,
+    data: SetDealDto,
+  ) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true, name: true },
+    });
+    if (!business) {
+      throw new NotFoundException(`Business with ID ${businessId} not found`);
+    }
+
+    const plan = await this.prisma.plan.findUnique({ where: { code: data.plan } });
+    if (!plan) {
+      throw new NotFoundException(`Plan ${data.plan} not found`);
+    }
+
+    const startDate = new Date(data.startDate);
+    const endDate = new Date(data.endDate);
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      throw new BadRequestException('Invalid start or end date');
+    }
+    if (endDate.getTime() <= startDate.getTime()) {
+      throw new BadRequestException('endDate must be after startDate');
+    }
+
+    const existing = await this.prisma.subscription.findUnique({
+      where: { businessId },
+      include: { plan: true },
+    });
+
+    const oldSnapshot = existing
+      ? {
+          plan: existing.plan.code,
+          priceOverride: existing.priceOverride
+            ? existing.priceOverride.toString()
+            : null,
+          billingCycle: existing.billingCycle,
+          currentPeriodStart: existing.currentPeriodStart,
+          currentPeriodEnd: existing.currentPeriodEnd,
+          customLimits: existing.customLimits,
+          status: existing.status,
+        }
+      : null;
+
+    const customLimits = {
+      maxBranches: data.maxBranches,
+      maxUsers: data.maxUsers,
+      maxProducts: data.maxProducts ?? null,
+    };
+
+    const newSnapshot = {
+      plan: plan.code,
+      priceOverride: data.price,
+      billingCycle: data.billingCycle,
+      currentPeriodStart: startDate,
+      currentPeriodEnd: endDate,
+      customLimits,
+      status: 'ACTIVE' as SubscriptionStatus,
+    };
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const sub = await tx.subscription.upsert({
+        where: { businessId },
+        create: {
+          businessId,
+          planId: plan.id,
+          status: 'ACTIVE',
+          currentPeriodStart: startDate,
+          currentPeriodEnd: endDate,
+          billingCycle: data.billingCycle,
+          customLimits,
+          priceOverride: M.money(data.price),
+        },
+        update: {
+          planId: plan.id,
+          status: 'ACTIVE',
+          currentPeriodStart: startDate,
+          currentPeriodEnd: endDate,
+          billingCycle: data.billingCycle,
+          customLimits,
+          priceOverride: M.money(data.price),
+        },
+      });
+
+      // Mirror Business so the current guard (reads Business.status/expiresAt) stays in sync.
+      await tx.business.update({
+        where: { id: businessId },
+        data: {
+          status: BusinessStatus.ACTIVE,
+          subscriptionExpiresAt: endDate,
+        },
+      });
+
+      await tx.dealHistory.create({
+        data: {
+          businessId,
+          actorId,
+          old: oldSnapshot as unknown as Prisma.InputJsonValue,
+          new: newSnapshot as unknown as Prisma.InputJsonValue,
+          notes: data.notes ?? null,
+        },
+      });
+
+      return sub;
+    });
+
+    this.tenantCache.invalidateBusiness(businessId);
+
+    return {
+      message: 'Deal updated',
+      businessId,
+      subscription: result,
+    };
+  }
+
+  /** Append-only history of who changed a tenant's deal and old→new values. */
+  async getDealHistory(businessId: string) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true },
+    });
+    if (!business) {
+      throw new NotFoundException(`Business with ID ${businessId} not found`);
+    }
+
+    return this.prisma.dealHistory.findMany({
+      where: { businessId },
+      orderBy: { changedAt: 'desc' },
+    });
   }
 
   async logPaymentAndExtend(

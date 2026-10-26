@@ -16,6 +16,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { AccessLogAction } from '../analytics/access-log.decorator';
+import { SetDealDto } from './deal.dto';
 import {
   SignupsQueryDto,
   TasksQueryDto,
@@ -57,6 +58,22 @@ export class AgencyController {
   @Patch('tenants/:id/status')
   async updateTenantStatus(@Param('id') id: string, @Body() data: any) {
     return this.agencyService.updateTenantStatus(id, data?.status);
+  }
+
+  /** Agency sets a custom deal (price, limits, dates) for a tenant. */
+  @Post('tenants/:id/deal')
+  async setDeal(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: SetDealDto,
+    @Req() req: { user: { id: string } },
+  ) {
+    return this.agencyService.setDeal(id, req.user.id, body);
+  }
+
+  /** Append-only deal history for a tenant (who changed what, old → new). */
+  @Get('tenants/:id/deal-history')
+  async getDealHistory(@Param('id', ParseUUIDPipe) id: string) {
+    return this.agencyService.getDealHistory(id);
   }
 
   @Post('tenants/:id/billing')
