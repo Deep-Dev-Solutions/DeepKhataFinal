@@ -148,6 +148,18 @@ export default function TenantDetailPage() {
     }
   }, [tenantId, token, isAuthLoading]);
 
+  const fetchDealHistory = useCallback(async () => {
+    if (!tenantId || !token) return;
+    try {
+      const data = await api.get<DealHistoryRow[]>(
+        `/agency/tenants/${tenantId}/deal-history`,
+      );
+      setDealHistory(data || []);
+    } catch (err) {
+      console.error("Failed to load deal history:", err);
+    }
+  }, [tenantId, token]);
+
   useEffect(() => {
     const load = async () => {
       if (tenantId && token) {
@@ -158,7 +170,7 @@ export default function TenantDetailPage() {
       }
     };
     load().catch(console.error);
-  }, [tenantId, token, isAuthLoading, fetchTenant]);
+  }, [tenantId, token, isAuthLoading, fetchTenant, fetchDealHistory]);
 
   const handleStatusChange = async (
     e: React.ChangeEvent<HTMLSelectElement>,
@@ -246,18 +258,6 @@ export default function TenantDetailPage() {
       console.error("Failed to download PDF:", err);
     } finally {
       setPdfDownloading(false);
-    }
-  };
-
-  const fetchDealHistory = async () => {
-    if (!tenantId || !token) return;
-    try {
-      const data = await api.get<DealHistoryRow[]>(
-        `/agency/tenants/${tenantId}/deal-history`,
-      );
-      setDealHistory(data || []);
-    } catch (err) {
-      console.error("Failed to load deal history:", err);
     }
   };
 

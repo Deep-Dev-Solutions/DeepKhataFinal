@@ -124,3 +124,11 @@ Limits: the agency-admin login page has no Turnstile widget, so a super admin wh
 | Suppressed invoice mail no longer marks the invoice SENT (502, WhatsApp link still available) | fixed | test/email-cap.e2e-spec.ts |
 | Open: agency-admin login has no Turnstile widget (a super admin who fails 3 times with the secret set must use the client login page); client widgets not browser-tested | open | n/a |
 | Open: an account failed 3 times from other IPs asks for a captcha from any IP (small enumeration signal) | open | n/a |
+
+## Finish week — findings (not fixed, logged per kickoff rule)
+
+| Day | Finding | Suggested fix |
+| --- | --- | --- |
+| A (d2 verify) | `npm run lint` aborts for `apps/agency-admin` before linting a single file: `typescript-eslint does not support TS 7.0` (agency-admin declares `typescript ^7.0.2` + `eslint ^10.12.0`; lockfile pins both nested). Forcing the root toolchain (eslint 9.39.5 + TS 6.0.3) lints the same files fine, so the code is not the problem. | one line: bump `eslint` in `apps/agency-admin/package.json` to `^9.39.5` (eslint 10 also breaks `eslint-plugin-react` 7.x with `getFilename is not a function`) and reinstall; or drop to `typescript ^6.0.3` there. Needs an owner decision — not changed during a verify-only section |
+| A (d2 verify) | Migration folders `20261026083919_0014_deal_history` and `20261026093000_0015_plan_templates` carry `migrate dev` timestamps instead of AGENTS.md's `0014_`/`0015_` prefixes. Harmless to Prisma, but breaks the documented naming rule. | rename only with a shadow-DB rehearsal; do not rename applied migrations casually |
+| A (d2 verify) | Day-2 lint warnings: `test/agency-deals.e2e-spec.ts` imports unused `randomUUID`; `src/agency/agency.service.ts` has unused `sub`/`password` bindings | tidy when those files are next touched |
