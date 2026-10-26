@@ -52,3 +52,10 @@ Task graph (Sonnet unless noted):
 Break-the-feature list: invoice in/out of deal window, null price deal, concurrent deal updates, limits after deal expiry revert to plan caps, licence cap min() correctness, tenant-cache invalidation.
 
 Status: Day-2 implementation queued.
+
+## Day 2 — verification (Section A)
+
+| # | Task | State | Commit |
+| --- | --- | --- | --- |
+| A0 | Switch to `finish-week` (already at `a398867`, same as `final-fixes`; no fast-forward needed, clean tree) | done | — |
+| A1 | `a398867 idk` = D2-7 leftovers, not a stray commit: adds `data-testid="deal-success"` and `data-testid="tenant-deal-history-row"` to `apps/agency-admin/app/tenants/[id]/page.tsx` (+8/-2) and a new `apps/e2e/tests/agency/deals.spec.ts` (75 lines, "K: custom deals"). Two defects in that spec: its second test asserts `expect(async () => count).toBe(before)` (a function compared to a number — fails unconditionally) and never actually attempts the 3rd-branch create; and it drives `deal-plan`, a testid D2-6's list did not name (the page has it, so harmless). Not reverted. | described, defects listed | pending |
