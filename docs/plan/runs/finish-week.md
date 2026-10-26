@@ -63,3 +63,4 @@ Status: Day-2 implementation queued.
 | A3 | `npm run build`: green for all four workspaces — agency-admin (next 16.3.8, TS 7.0.2, 7 routes), client (next 16.4.2), desktop (`tsc`), server (`nest build`). Only the pre-existing "middleware convention is deprecated" warning. | pass | pending |
 | A4 | `npm test -w server` (unit): 27 files, 103/103 tests passed in 14.7 s — same count as Day 1, the new Day-2 service code included. | pass | pending |
 | A5 | `npm test -w desktop` (unit): 5 files, 40/40 passed in 0.7 s — unchanged from Day 1. | pass | pending |
+| A6 | `npm run test:api`: 29 files, 443/443 passed in 145 s (Day 1: 28 files, 442) — the extra file/test is `test/agency-deals.e2e-spec.ts`, so D2-3 deal API, D2-4 limit scoping, D2-5 CUSTOM billing and the cross-tenant 404 all hold at API level. | pass | pending |
