@@ -97,4 +97,4 @@ Status: Day-2 implementation queued.
 
 | # | Task | State | Commit |
 | --- | --- | --- | --- |
-| B0 | Before screenshots (dashboard + POS, 1366x768, seeded dev login) into docs/ui/ via apps/e2e/scripts/ui-shots.mjs | done | B0HASH |
+| B0 | Before screenshots (dashboard + POS, 1366x768, seeded dev login) into docs/ui/ via apps/e2e/scripts/ui-shots.mjs | done | df70bfe |
