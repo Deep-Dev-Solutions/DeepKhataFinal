@@ -287,7 +287,7 @@ export default function TenantDetailPage() {
       setDealPrice("");
       setDealNotes("");
       setDealSuccess(
-        `Deal set: ${data.subscription.billingCycle} ${data.subscription.priceOverride != null ? "Rs. " + data.subscription.priceOverride.toFixed(2) : ""} · ${data.subscription.currentPeriodStart} → ${data.subscription.currentPeriodEnd}`,
+        `Deal set: ${data.subscription.billingCycle} ${data.subscription.priceOverride != null ? `Rs. ${formatAmount(data.subscription.priceOverride)}` : ""} · ${data.subscription.currentPeriodStart} → ${data.subscription.currentPeriodEnd}`,
       );
       await fetchTenant();
       await fetchDealHistory();
@@ -1029,7 +1029,7 @@ export default function TenantDetailPage() {
                           {(n.plan as string | undefined) || "—"}
                         </td>
                         <td className="px-6 py-3 text-right text-slate-600">
-                          {n.priceOverride != null ? `Rs. ${Number(n.priceOverride).toFixed(2)}` : "—"}
+                          {n.priceOverride != null ? `Rs. ${formatAmount(n.priceOverride as number | string)}` : "—"}
                         </td>
                         <td className="px-6 py-3 text-slate-600">
                           {formatDate(n.currentPeriodStart as string | null | undefined)} →{" "}

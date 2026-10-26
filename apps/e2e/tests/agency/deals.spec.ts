@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { TEST_PASSWORD, users, tenants } from '../../fixtures/users';
 import { db } from '../../helpers/db';
+import { apiWithToken, loginApi } from '../../helpers/tenant-admin';
 import { E2E } from '../../env';
 
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -44,30 +45,40 @@ test.describe.serial('K: custom deals (agency console)', () => {
     // Deal history records the set-deal row
     await expect(page.getByTestId('tenant-deal-history-row')).toHaveCount(1, { timeout: 30_000 });
 
-    // Limit meters reflect the deal caps
-    await expect(page.getByTestId('tenant-limits')).toContainText('2 / 2');
-    await expect(page.getByTestId('tenant-limits')).toContainText('0 / 10');
+    // Limit meters reflect the deal caps: used counts come from the same rule
+    // the server's PlanLimitsService.getUsage applies (active members + live invites).
+    const now = new Date();
+    const [branches, members, invites] = await Promise.all([
+      db.branch.count({ where: { businessId: tenants.A.id, deletedAt: null } }),
+      db.user.count({ where: { businessId: tenants.A.id, deactivatedAt: null } }),
+      db.invitation.count({
+        where: {
+          businessId: tenants.A.id,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+      }),
+    ]);
+    await expect(page.getByTestId('tenant-limits')).toContainText(`${branches} / 2`);
+    await expect(page.getByTestId('tenant-limits')).toContainText(`${members + invites} / 10`);
   });
 
-  test('third branch is blocked by the deal limit', async ({ page, request }) => {
-    // Count branches before
+  test('third branch is blocked by the deal limit', async ({ request }) => {
+    // Test 1 capped this tenant at 2 branches; the seed gives it exactly 2.
     const before = await db.branch.count({ where: { businessId: tenants.A.id } });
+    expect(before).toBe(2);
 
-    await adminLogin(page);
+    const login = await loginApi(request, users.ownerA.email);
+    expect(login.ok(), `owner login failed: ${login.status()}`).toBeTruthy();
+    const ownerToken = (await login.json()).accessToken as string;
+    const ownerApi = await apiWithToken(request, ownerToken);
 
-    const row = page.getByTestId('tenant-row').filter({ hasText: bizName });
-    await expect(row).toHaveCount(1, { timeout: 60_000 });
-    await row.getByTestId('tenant-open').click();
-    await expect(page.getByTestId('tenant-detail')).toBeVisible();
-
-    // Try to add a branch via the UI if available; assert via DB regardless
-    await expect(
-      async () => {
-        const count = await db.branch.count({ where: { businessId: tenants.A.id } });
-        return count;
-      },
-      { timeout: 5_000 },
-    ).toBe(before);
+    // The real attempt: a third branch must be refused by the deal cap.
+    const res = await ownerApi.post('/settings/branch', {
+      name: 'Third Branch (deal cap)',
+    });
+    const bodyText = await res.text();
+    expect(res.status(), bodyText).toBe(403);
+    expect(JSON.parse(bodyText).code).toBe('PLAN_LIMIT_REACHED');
 
     const after = await db.branch.count({ where: { businessId: tenants.A.id } });
     expect(after).toBe(before);
