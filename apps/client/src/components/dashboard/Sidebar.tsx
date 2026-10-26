@@ -91,21 +91,21 @@ export default function Sidebar() {
       data-testid="sidebar-root"
       style={{ height: "100dvh", maxHeight: "100dvh" }}
       className={`hidden md:flex flex-col ${
-        isCollapsed ? "w-20" : "w-64"
-      } bg-white border-r border-slate-200 fixed inset-y-0 left-0 z-20 print:hidden transition-[width] duration-300 ease-in-out overflow-hidden`}
+        isCollapsed ? "w-16" : "w-56"
+      } bg-white border-r border-gray-200 fixed inset-y-0 left-0 z-20 print:hidden transition-[width] duration-300 ease-in-out overflow-hidden`}
     >
-      {/* 🟢 Brand Logo & Collapse Toggle */}
+      {/* Brand Logo & Collapse Toggle */}
       <div
-        className={`h-16 flex items-center ${
+        className={`h-14 flex items-center ${
           isCollapsed ? "justify-center px-2" : "justify-between px-5"
-        } border-b border-slate-200 shrink-0 transition-all`}
+        } border-b border-gray-200 shrink-0 transition-all`}
       >
         <div className="flex items-center gap-2.5 overflow-hidden">
-          <div className="bg-blue-600 p-1.5 rounded-lg shadow-sm shadow-blue-200 shrink-0">
+          <div className="bg-brand-600 p-1.5 rounded-lg shadow-sm shadow-brand-200 shrink-0">
             <Store className="w-5 h-5 text-white" />
           </div>
           {!isCollapsed && (
-            <span className="text-xl font-bold tracking-tight text-slate-900 truncate">
+            <span className="text-xl font-bold tracking-tight text-gray-900 truncate">
               DeepKhata
             </span>
           )}
@@ -113,7 +113,7 @@ export default function Sidebar() {
 
         <button
           onClick={toggleSidebar}
-          className={`p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer ${
+          className={`p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer ${
             isCollapsed ? "hidden" : "block"
           }`}
           title="Collapse sidebar"
@@ -126,7 +126,7 @@ export default function Sidebar() {
         <div className="px-2 pt-2 flex justify-center">
           <button
             onClick={toggleSidebar}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer"
             title="Expand sidebar"
           >
             <ChevronRight className="w-4 h-4" />
@@ -134,7 +134,7 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* 🟢 Navigation Links - Scrollable */}
+      {/* Navigation Links - Scrollable */}
       <nav
         style={{ flex: "1 1 0%", minHeight: 0, overflowY: "auto" }}
         className={`sidebar-scroll overflow-y-auto min-h-0 flex-1 ${
@@ -167,7 +167,7 @@ export default function Sidebar() {
             <div key={group.title} className="pt-3 first:pt-0">
               {!isCollapsed && (
                 <div className="mb-1.5 px-3">
-                  <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">
+                  <span className="text-[10px] font-bold text-gray-400 tracking-wider uppercase">
                     {group.title}
                   </span>
                 </div>
@@ -192,17 +192,17 @@ export default function Sidebar() {
                         isCollapsed
                           ? "flex-col items-center justify-center py-2 px-1 text-center"
                           : "items-center gap-3 px-3 py-2"
-                      } rounded-xl text-sm font-medium transition-all group ${
+                      } rounded-md text-sm font-medium transition-all group ${
                         isActive
-                          ? "bg-blue-50 text-blue-700 shadow-sm border border-blue-100/50"
-                          : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                          ? "bg-brand-50 text-brand-700 shadow-sm border border-brand-100/50"
+                          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                       }`}
                     >
                       <Icon
                         className={`w-4 h-4 shrink-0 ${
                           isActive
-                            ? "text-blue-700"
-                            : "text-slate-400 group-hover:text-slate-600"
+                            ? "text-brand-700"
+                            : "text-gray-400 group-hover:text-gray-600"
                         }`}
                       />
                       <span
@@ -223,18 +223,18 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* 🟢 Pinned Compact User Card with Logout */}
+      {/* Pinned Compact User Card with Logout */}
       <div
         style={{ flexShrink: 0 }}
         className={`${
           isCollapsed ? "p-2" : "p-2.5"
-        } border-t border-slate-200 bg-slate-50/95 shrink-0 mt-auto shadow-xs`}
+        } border-t border-gray-200 bg-gray-50/95 shrink-0 mt-auto shadow-xs`}
       >
         {isCollapsed ? (
           <div className="flex flex-col items-center gap-2 py-1">
             <Link
               href="/settings?tab=profile"
-              className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0 border border-blue-200 hover:ring-2 hover:ring-blue-400 hover:scale-105 transition-all cursor-pointer"
+              className="w-9 h-9 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-xs shrink-0 border border-brand-200 hover:ring-2 hover:ring-brand-400 hover:scale-105 transition-all cursor-pointer"
               title={`${user?.name || "User"} (${(user?.role || "OWNER").toUpperCase()}) - View Profile`}
             >
               {initials || "U"}
@@ -242,60 +242,60 @@ export default function Sidebar() {
             <button
               onClick={handleLogout}
               data-testid="sidebar-logout"
-              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+              className="p-2 text-gray-400 hover:text-danger hover:bg-danger-bg rounded-lg transition-colors cursor-pointer"
               title="Log out"
             >
               <LogOut className="w-4 h-4" />
             </button>
           </div>
         ) : (
-          <div className="bg-white border border-slate-200 p-2.5 rounded-xl shadow-xs space-y-2">
+          <div className="bg-white border border-gray-200 p-2.5 rounded-xl shadow-xs space-y-2">
             {/* User row + Prominent Logout button */}
             <div className="flex items-center justify-between gap-2">
               <Link
                 href="/settings?tab=profile"
-                className="flex items-center gap-2 min-w-0 p-1 -m-1 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer group flex-1"
+                className="flex items-center gap-2 min-w-0 p-1 -m-1 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer group flex-1"
                 title="View Profile Settings"
               >
-                <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0 border border-blue-200 group-hover:border-blue-400 group-hover:scale-105 transition-all">
+                <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-xs shrink-0 border border-brand-200 group-hover:border-brand-400 group-hover:scale-105 transition-all">
                   {initials || "U"}
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-bold text-slate-900 truncate leading-tight group-hover:text-blue-600 transition-colors">
+                  <span className="text-xs font-bold text-gray-900 truncate leading-tight group-hover:text-brand-600 transition-colors">
                     {user?.name || "User"}
                   </span>
-                  <span className="text-[10px] text-slate-500 truncate leading-tight">
+                  <span className="text-[10px] text-gray-500 truncate leading-tight">
                     {user?.email || ""}
                   </span>
                 </div>
-                <ChevronRight className="w-4 h-4 ml-auto text-slate-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all shrink-0" />
+                <ChevronRight className="w-4 h-4 ml-auto text-gray-300 group-hover:text-brand-500 group-hover:trangray-x-0.5 transition-all shrink-0" />
               </Link>
 
               <button
                 onClick={handleLogout}
                 data-testid="sidebar-logout"
-                className="flex items-center gap-1 px-2.5 py-1 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer text-xs font-semibold shrink-0 border border-slate-200"
+                className="flex items-center gap-1 px-2.5 py-1 text-gray-600 hover:text-danger hover:bg-danger-bg rounded-lg transition-colors cursor-pointer text-xs font-semibold shrink-0 border border-gray-200"
                 title="Log out"
               >
-                <LogOut className="w-3.5 h-3.5 text-rose-500" />
+                <LogOut className="w-3.5 h-3.5 text-danger" />
                 <span>Logout</span>
               </button>
             </div>
 
             {/* Role & Super Admin Link */}
-            <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10px]">
+            <div className="flex items-center justify-between pt-1.5 border-t border-gray-100 text-[10px]">
               <Link
                 href="/settings?tab=profile"
-                className="flex items-center gap-1 text-slate-500 hover:text-blue-600 font-medium transition-colors cursor-pointer"
+                className="flex items-center gap-1 text-gray-500 hover:text-brand-600 font-medium transition-colors cursor-pointer"
                 title="View Profile Settings"
               >
-                <ShieldCheck className="w-3 h-3 text-slate-400" />
+                <ShieldCheck className="w-3 h-3 text-gray-400" />
                 <span>{(user?.role || "OWNER").toUpperCase()}</span>
               </Link>
               {user?.role === "SUPER_ADMIN" && (
                 <Link
                   href={AGENCY_APP_URL}
-                  className="font-semibold text-indigo-600 hover:text-indigo-800"
+                  className="font-semibold text-brand-600 hover:text-brand-800"
                 >
                   Agency Portal →
                 </Link>

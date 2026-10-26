@@ -345,22 +345,22 @@ export default function Header() {
   return (
     <div className="sticky top-0 z-[60] print:hidden">
       <SubscriptionBanner />
-      <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 lg:px-8">
+      <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4">
         {/* Desktop Sidebar Toggle */}
         <button
           type="button"
           onClick={toggleSidebar}
-          className="hidden md:flex items-center justify-center p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors mr-2 cursor-pointer border border-slate-200/60 shadow-xs"
+          className="hidden md:flex items-center justify-center p-2 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors mr-2 cursor-pointer border border-gray-200/60 shadow-xs"
           title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {isCollapsed ? (
-            <PanelLeftOpen className="w-5 h-5 text-blue-600" />
+            <PanelLeftOpen className="w-5 h-5 text-brand-600" />
           ) : (
-            <PanelLeftClose className="w-5 h-5 text-slate-600" />
+            <PanelLeftClose className="w-5 h-5 text-gray-600" />
           )}
         </button>
 
-        <div className="md:hidden font-bold text-lg text-slate-900 tracking-tight">
+        <div className="md:hidden font-bold text-lg text-gray-900 tracking-tight">
           DeepKhata
         </div>
 
@@ -368,7 +368,7 @@ export default function Header() {
           <div className="hidden md:flex flex-1 max-w-md ml-2">
             <div className="relative w-full" ref={searchRef}>
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-4 w-4 text-slate-400" />
+                <Search className="h-4 w-4 text-gray-400" />
               </div>
               <input
                 ref={searchInputRef}
@@ -382,17 +382,17 @@ export default function Header() {
                 }}
                 onKeyDown={handleSearchKeyDown}
                 onFocus={() => setIsSearchOpen(true)}
-                className="block w-full pl-10 pr-14 py-2 border border-slate-200 rounded-xl leading-5 bg-slate-50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 sm:text-sm transition-all"
+                className="block w-full pl-10 pr-14 py-2 border border-gray-200 rounded-md leading-5 bg-gray-50 placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-brand-500 sm:text-sm transition-all"
               />
               {!searchQuery && (
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                  <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 bg-slate-100 border border-slate-200 rounded-md">
+                  <kbd className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-semibold text-gray-400 bg-gray-100 border border-gray-200 rounded-md">
                     /
                   </kbd>
                 </div>
               )}
               {isSearchOpen && searchResults.length > 0 && (
-                <div className="absolute top-full mt-2 left-0 right-0 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200 z-50">
+                <div className="absolute top-full mt-2 left-0 right-0 bg-white rounded-lg shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200 z-50">
                   <div className="p-1.5 max-h-[320px] overflow-y-auto">
                     {searchResults.map((entry, idx) => {
                       const Icon = entry.icon;
@@ -403,15 +403,15 @@ export default function Header() {
                           type="button"
                           onMouseEnter={() => setActiveIndex(idx)}
                           onClick={() => selectResult(entry)}
-                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors cursor-pointer ${
-                            isActive ? "bg-blue-50" : ""
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-left transition-colors cursor-pointer ${
+                            isActive ? "bg-brand-50" : ""
                           }`}
                         >
                           <div
                             className={`p-2 rounded-lg shrink-0 ${
                               isActive
-                                ? "bg-blue-100 text-blue-700"
-                                : "bg-slate-100 text-slate-500"
+                                ? "bg-brand-100 text-brand-700"
+                                : "bg-gray-100 text-gray-500"
                             }`}
                           >
                             <Icon className="w-4 h-4" />
@@ -419,16 +419,16 @@ export default function Header() {
                           <div className="flex-1 min-w-0">
                             <p
                               className={`text-sm font-bold truncate ${
-                                isActive ? "text-blue-900" : "text-slate-800"
+                                isActive ? "text-brand-900" : "text-gray-800"
                               }`}
                             >
                               {entry.label}
                             </p>
-                            <p className="text-xs text-slate-500 truncate">
+                            <p className="text-xs text-gray-500 truncate">
                               {entry.description}
                             </p>
                           </div>
-                          <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider shrink-0">
+                          <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider shrink-0">
                             {entry.href}
                           </span>
                         </button>
@@ -447,8 +447,8 @@ export default function Header() {
             <div className="flex items-center" ref={branchDropdownRef}>
               {safeBranches.length === 1 ? (
                 // Static badge for single-branch businesses
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100/80 text-slate-700 rounded-xl text-xs font-semibold border border-slate-200 shadow-2xs">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-100" />
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100/80 text-gray-700 rounded-md text-xs font-semibold border border-gray-200 shadow-2xs">
+                  <div className="w-2 h-2 rounded-full bg-success ring-2 ring-success-bg" />
                   <span className="max-w-[140px] truncate">
                     {safeBranches[0].name}
                   </span>
@@ -459,10 +459,10 @@ export default function Header() {
                   <button
                     type="button"
                     onClick={() => setIsBranchOpen((prev) => !prev)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border select-none ${
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer border select-none ${
                       isBranchOpen
-                        ? "bg-blue-600 text-white border-blue-600 shadow-sm ring-2 ring-blue-100"
-                        : "bg-blue-50/80 hover:bg-blue-100 text-blue-700 border-blue-200 shadow-2xs hover:shadow-xs"
+                        ? "bg-brand-600 text-white border-brand-600 shadow-sm ring-2 ring-brand-100"
+                        : "bg-brand-50/80 hover:bg-brand-100 text-brand-700 border-brand-200 shadow-2xs hover:shadow-xs"
                     }`}
                     title="Click to switch active branch"
                     aria-expanded={isBranchOpen}
@@ -470,7 +470,7 @@ export default function Header() {
                   >
                     <GitBranch
                       className={`w-3.5 h-3.5 flex-shrink-0 transition-colors ${
-                        isBranchOpen ? "text-white" : "text-blue-600"
+                        isBranchOpen ? "text-white" : "text-brand-600"
                       }`}
                     />
                     <span className="max-w-[120px] sm:max-w-[160px] truncate">
@@ -478,22 +478,22 @@ export default function Header() {
                     </span>
                     <ChevronDown
                       className={`w-3.5 h-3.5 flex-shrink-0 transition-transform duration-200 ${
-                        isBranchOpen ? "rotate-180 text-white" : "text-blue-500"
+                        isBranchOpen ? "rotate-180 text-white" : "text-brand-500"
                       }`}
                     />
                   </button>
 
                   {isBranchOpen && (
                     <div
-                      className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-[0_12px_36px_rgb(0,0,0,0.14)] border border-slate-200/90 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 z-50 p-1.5"
+                      className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-[0_12px_36px_rgb(0,0,0,0.14)] border border-gray-200/90 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 z-50 p-1.5"
                       role="listbox"
                       aria-label="Branch selection"
                     >
-                      <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between mb-1 bg-slate-50/60 rounded-t-xl">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                      <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between mb-1 bg-gray-50/60 rounded-t-xl">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
                           Switch Location
                         </span>
-                        <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
+                        <span className="text-[10px] font-bold bg-brand-100 text-brand-700 px-1.5 py-0.5 rounded-full">
                           {safeBranches.length} branches
                         </span>
                       </div>
@@ -509,10 +509,10 @@ export default function Header() {
                                 setActiveBranch(b.id);
                                 setIsBranchOpen(false);
                               }}
-                              className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-xl text-left text-xs transition-all cursor-pointer ${
+                              className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-md text-left text-xs transition-all cursor-pointer ${
                                 isSelected
-                                  ? "bg-blue-50 text-blue-700 font-bold border border-blue-200/70 shadow-2xs"
-                                  : "hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-transparent"
+                                  ? "bg-brand-50 text-brand-700 font-bold border border-brand-200/70 shadow-2xs"
+                                  : "hover:bg-gray-50 text-gray-700 hover:text-gray-900 border border-transparent"
                               }`}
                               role="option"
                               aria-selected={isSelected}
@@ -521,43 +521,43 @@ export default function Header() {
                                 <div
                                   className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
                                     isSelected
-                                      ? "bg-blue-600 text-white shadow-2xs"
-                                      : "bg-slate-100 text-slate-500"
+                                      ? "bg-brand-600 text-white shadow-2xs"
+                                      : "bg-gray-100 text-gray-500"
                                   }`}
                                 >
                                   <Building2 className="w-3.5 h-3.5" />
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="truncate font-semibold text-slate-900">
+                                  <p className="truncate font-semibold text-gray-900">
                                     {b.name}
                                   </p>
                                   {b.location ? (
-                                    <p className="text-[10px] text-slate-400 truncate flex items-center gap-0.5 mt-0.5">
-                                      <MapPin className="w-2.5 h-2.5 shrink-0 text-slate-400" />
+                                    <p className="text-[10px] text-gray-400 truncate flex items-center gap-0.5 mt-0.5">
+                                      <MapPin className="w-2.5 h-2.5 shrink-0 text-gray-400" />
                                       <span className="truncate">
                                         {b.location}
                                       </span>
                                     </p>
                                   ) : (
-                                    <p className="text-[10px] text-slate-400 truncate">
+                                    <p className="text-[10px] text-gray-400 truncate">
                                       Physical Branch
                                     </p>
                                   )}
                                 </div>
                               </div>
                               {isSelected && (
-                                <Check className="w-4 h-4 text-blue-600 shrink-0 ml-1" />
+                                <Check className="w-4 h-4 text-brand-600 shrink-0 ml-1" />
                               )}
                             </button>
                           );
                         })}
                       </div>
 
-                      <div className="mt-1 pt-1.5 border-t border-slate-100 px-1">
+                      <div className="mt-1 pt-1.5 border-t border-gray-100 px-1">
                         <Link
                           href="/settings?tab=branches"
                           onClick={() => setIsBranchOpen(false)}
-                          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-semibold text-slate-500 hover:text-blue-600 hover:bg-slate-50 transition-colors"
+                          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-semibold text-gray-500 hover:text-brand-600 hover:bg-gray-50 transition-colors"
                         >
                           Manage Branches
                         </Link>
@@ -574,7 +574,7 @@ export default function Header() {
             data-testid="header-quick-khata"
             onClick={() => setIsQuickKhataOpen(true)}
             title="Naya lena / dena"
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-success-bg text-success-fg border border-success/30 hover:bg-success/10 transition-colors"
           >
             <PlusCircle className="w-4 h-4" />
             Lena / Dena
@@ -584,7 +584,7 @@ export default function Header() {
             data-testid="header-quick-khata-mobile"
             onClick={() => setIsQuickKhataOpen(true)}
             aria-label="Naya lena / dena"
-            className="sm:hidden p-2 rounded-full text-emerald-700 hover:bg-emerald-50"
+            className="sm:hidden p-2 rounded-full text-success-fg hover:bg-success-bg"
           >
             <PlusCircle className="w-5 h-5" />
           </button>

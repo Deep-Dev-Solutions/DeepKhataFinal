@@ -18,14 +18,14 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const { isCheckoutOpen } = usePOS();
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans">
+    <div className="min-h-screen bg-background font-sans">
       {/* 1. Desktop Sidebar */}
       <Sidebar />
 
       {/* Main Content Area with dynamic transition on padding */}
       <div
         className={`flex flex-col ${
-          isCollapsed ? "md:pl-20" : "md:pl-64"
+          isCollapsed ? "md:pl-16" : "md:pl-56"
         } min-h-screen pb-16 md:pb-0 transition-[padding] duration-300 ease-in-out`}
       >
         {/* 2. Top Header */}
@@ -60,8 +60,8 @@ export default function DashboardLayout({
 
   if (isLoading || !isAuthenticated) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center font-sans text-slate-500">
-        <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-2" />
+      <div className="min-h-screen bg-background flex items-center justify-center font-sans text-muted-foreground">
+        <div className="w-6 h-6 border-2 border-brand-700 border-t-transparent rounded-full animate-spin mr-2" />
         Loading workspace...
       </div>
     );
