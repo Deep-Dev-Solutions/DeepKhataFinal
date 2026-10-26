@@ -15,7 +15,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
-import { SubscriptionsService, addMonthsUtc } from '../plans/subscriptions.service';
+import { SubscriptionsService, addMonthsUtc, ExtendOptions } from '../plans/subscriptions.service';
 import { TenantCacheService } from '../tenant/tenant-cache.service';
 import * as M from '../common/money';
 import { CreateInvoiceDto, RecordPaymentDto } from './billing.dto';
@@ -158,14 +158,27 @@ export class BillingService {
 
       const periods = dto.periods ?? 1;
       const cycle = dto.billingCycle;
-      const months = (cycle === BillingCycle.YEARLY ? 12 : 1) * periods;
+      // CUSTOM cycle: period is defined by explicit dates, not month math.
+      const months =
+        cycle === BillingCycle.CUSTOM
+          ? 0
+          : (cycle === BillingCycle.YEARLY ? 12 : 1) * periods;
       const periodStart = dto.periodStart
         ? new Date(dto.periodStart)
         : sub?.currentPeriodEnd && sub.currentPeriodEnd.getTime() > now.getTime()
           ? sub.currentPeriodEnd
           : now;
       if (Number.isNaN(periodStart.getTime())) throw new BadRequestException('Invalid periodStart');
-      const periodEnd = addMonthsUtc(periodStart, months);
+      let periodEnd: Date;
+      if (cycle === BillingCycle.CUSTOM) {
+        periodEnd = dto.periodEnd
+          ? new Date(dto.periodEnd)
+          : sub?.currentPeriodEnd ?? addMonthsUtc(periodStart, 1);
+        if (Number.isNaN(periodEnd.getTime())) throw new BadRequestException('Invalid periodEnd for custom cycle');
+        if (periodEnd.getTime() <= periodStart.getTime()) throw new BadRequestException('periodEnd must be after periodStart');
+      } else {
+        periodEnd = addMonthsUtc(periodStart, months);
+      }
 
       let items: StoredLine[];
       if (dto.lines && dto.lines.length > 0) {
@@ -437,15 +450,20 @@ export class BillingService {
           data: { status: InvoiceStatus.PAID, paidAt: new Date() },
         });
         const stored = readStored(invoice.lines);
+        const extendOpts: ExtendOptions = {
+          billingCycle: stored.billingCycle,
+          ...(stored.planId ? { planId: stored.planId } : {}),
+        };
+        if (stored.billingCycle === BillingCycle.YEARLY) {
+          extendOpts.years = stored.periods;
+        } else if (stored.billingCycle === BillingCycle.CUSTOM) {
+          extendOpts.until = invoice.periodEnd ?? undefined;
+        } else {
+          extendOpts.months = stored.periods;
+        }
         const sub = await this.subscriptions.extend(
           invoice.businessId,
-          {
-            ...(stored.billingCycle === BillingCycle.YEARLY
-              ? { years: stored.periods }
-              : { months: stored.periods }),
-            billingCycle: stored.billingCycle,
-            ...(stored.planId ? { planId: stored.planId } : {}),
-          },
+          extendOpts,
           tx,
         );
         periodEnd = sub.currentPeriodEnd;

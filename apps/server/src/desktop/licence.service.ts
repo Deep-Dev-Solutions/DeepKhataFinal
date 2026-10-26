@@ -53,21 +53,30 @@ export class LicenceService {
     const [sub, limits] = await Promise.all([
       this.prisma.subscription.findUnique({
         where: { businessId },
-        select: { status: true, trialEndsAt: true, currentPeriodEnd: true },
+        select: {
+          status: true,
+          trialEndsAt: true,
+          currentPeriodEnd: true,
+          supportEndsAt: true,
+        },
       }),
       this.planLimits.getLimits(businessId),
     ]);
 
     // Trial -> trialEndsAt, otherwise the paid period end; capped at 30 days so
-    // a shop must come online regularly to renew.
+    // a shop must come online regularly to renew. On-Premises support end date
+    // (set by the agency deal) is a hard additional cap.
     const cap = now.getTime() + LICENCE_MAX_DAYS * DAY_MS;
     const periodEnd =
       sub?.status === 'TRIALING'
         ? (sub.trialEndsAt ?? sub.currentPeriodEnd)
         : sub?.currentPeriodEnd;
-    const expiresAt = new Date(
-      periodEnd ? Math.min(periodEnd.getTime(), cap) : cap,
-    );
+    let expiresAtMs =
+      periodEnd ? Math.min(periodEnd.getTime(), cap) : cap;
+    if (sub?.supportEndsAt) {
+      expiresAtMs = Math.min(expiresAtMs, sub.supportEndsAt.getTime());
+    }
+    const expiresAt = new Date(expiresAtMs);
 
     const payload: LicencePayload = {
       v: 1,

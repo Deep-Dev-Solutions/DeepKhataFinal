@@ -59,6 +59,10 @@ export class CreateInvoiceDto {
   periodStart?: string;
 
   @IsOptional()
+  @IsISO8601()
+  periodEnd?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)

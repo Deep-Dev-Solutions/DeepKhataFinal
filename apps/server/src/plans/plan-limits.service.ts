@@ -46,7 +46,10 @@ function readLimit(value: unknown): number | null | undefined {
 export class PlanLimitsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Effective limits: Subscription.customLimits keys override Plan columns. null = unlimited. */
+  /** Effective limits: Subscription.customLimits keys override Plan columns.
+   * null = unlimited. When the subscription has deal dates (currentPeriodStart/
+   * currentPeriodEnd), customLimits only apply while `now` is inside that
+   * window; outside it the plan columns govern again. */
   async getLimits(businessId: string, tx?: Db): Promise<PlanLimits> {
     const db = tx ?? this.prisma;
     const sub = await db.subscription.findUnique({
@@ -55,6 +58,13 @@ export class PlanLimitsService {
     });
     if (!sub) return { ...LEGACY_LIMITS, plan: { ...LEGACY_LIMITS.plan } };
 
+    const now = new Date();
+    const inDealPeriod =
+      !sub.currentPeriodStart ||
+      !sub.currentPeriodEnd ||
+      (now.getTime() >= sub.currentPeriodStart.getTime() &&
+        now.getTime() <= sub.currentPeriodEnd.getTime());
+
     const custom =
       sub.customLimits &&
       typeof sub.customLimits === 'object' &&
@@ -62,7 +72,7 @@ export class PlanLimitsService {
         ? (sub.customLimits as Record<string, unknown>)
         : {};
     const pick = (key: 'maxBranches' | 'maxUsers' | 'maxProducts') => {
-      const override = readLimit(custom[key]);
+      const override = inDealPeriod ? readLimit(custom[key]) : undefined;
       return override !== undefined ? override : sub.plan[key];
     };
 

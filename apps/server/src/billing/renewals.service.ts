@@ -66,6 +66,8 @@ export class RenewalsService {
     });
     for (const sub of due) {
       try {
+        // CUSTOM deals are set manually by the agency; no auto-renewal invoice.
+        if (sub.billingCycle === BillingCycle.CUSTOM) continue;
         const hasPrice =
           sub.priceOverride !== null ||
           (sub.billingCycle === BillingCycle.YEARLY
