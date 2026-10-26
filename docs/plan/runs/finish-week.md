@@ -83,3 +83,12 @@ Status: Day-2 implementation queued.
 - `stack:up` now runs `COMPOSE_PARALLEL_LIMIT=1 docker compose --profile full up -d --build --wait`, so api/client/admin images build one at a time (the parallel run OOM'd npm on a 16 GB box).
 - `AGENTS.md`: migrations keep Prisma's `<timestamp>_<seq>_<name>` folder form; existing migrations are not renamed.
 - Re-verified after the change: `npm run build -w agency-admin` → exit 0.
+
+## Day 3 — design direction (owner, for Section B)
+
+- Clean and dense, like a professional retail POS; designed for 1366x768 shop laptops.
+- One primary colour: deep blue. Neutral greys for structure. Green and red only for money in / money out.
+- Inter, 14px base size. Compact tables with zebra rows.
+- Large touch-friendly buttons only on the POS checkout — every other screen stays compact.
+- No gradients, no glassmorphism, no emojis in the UI.
+- Housekeeping for every build: check `df -h /` first; if free space is under 8 GB, stop and report instead of building.
