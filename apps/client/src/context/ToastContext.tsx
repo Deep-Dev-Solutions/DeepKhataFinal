@@ -1,15 +1,10 @@
 "use client";
 
 import React, { createContext, useContext, useState, useCallback } from "react";
-import {
-  CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
-  Info,
-  X,
-} from "lucide-react";
 
-export type ToastType = "success" | "error" | "warning" | "info";
+import { Toast, type ToastVariant } from "@/components/ui/toast";
+
+export type ToastType = ToastVariant;
 
 export interface ToastItem {
   id: string;
@@ -58,56 +53,20 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast, toast }}>
       {children}
-      {/* Toast Container */}
+      {/* Toast container */}
       <div
-        className="fixed bottom-4 right-4 flex flex-col gap-2 max-w-md w-full px-4 pointer-events-none sm:px-0"
-        style={{ zIndex: 9999 }}
+        className="pointer-events-none fixed right-4 bottom-4 z-[9999] flex w-full max-w-sm flex-col gap-2"
+        aria-live="polite"
       >
-        {toasts.map((t) => {
-          let bgClass = "bg-slate-900 text-white border-slate-800 shadow-2xl";
-          let icon = <Info className="w-5 h-5 text-blue-400 shrink-0" />;
-
-          if (t.type === "success") {
-            bgClass =
-              "bg-emerald-50 text-emerald-950 border-emerald-300 shadow-2xl ring-1 ring-emerald-500/20";
-            icon = (
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-            );
-          } else if (t.type === "error") {
-            bgClass =
-              "bg-rose-50 text-rose-950 border-rose-300 shadow-2xl ring-1 ring-rose-500/20";
-            icon = <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />;
-          } else if (t.type === "warning") {
-            bgClass =
-              "bg-amber-50 text-amber-950 border-amber-300 shadow-2xl ring-1 ring-amber-500/30";
-            icon = (
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-            );
-          }
-
-          return (
-            <div
-              key={t.id}
-              role="alert"
-              data-testid="toast"
-              data-type={t.type}
-              className={`pointer-events-auto flex items-start gap-3 p-3.5 rounded-xl border shadow-xl transition-all animate-in fade-in slide-in-from-bottom-3 duration-200 ${bgClass}`}
-            >
-              {icon}
-              <div className="flex-1 text-xs sm:text-sm font-semibold leading-snug break-words">
-                {t.message}
-              </div>
-              <button
-                type="button"
-                onClick={() => removeToast(t.id)}
-                className="p-0.5 rounded-lg opacity-70 hover:opacity-100 transition-opacity cursor-pointer text-slate-600 hover:text-slate-900"
-                title="Dismiss"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          );
-        })}
+        {toasts.map((t) => (
+          <Toast
+            key={t.id}
+            variant={t.type}
+            message={t.message}
+            onDismiss={() => removeToast(t.id)}
+            className="animate-in fade-in slide-in-from-bottom-3 duration-200"
+          />
+        ))}
       </div>
     </ToastContext.Provider>
   );
