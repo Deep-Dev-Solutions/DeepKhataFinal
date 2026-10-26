@@ -98,3 +98,4 @@ Status: Day-2 implementation queued.
 | # | Task | State | Commit |
 | --- | --- | --- | --- |
 | B0 | Before screenshots (dashboard + POS, 1366x768, seeded dev login) into docs/ui/ via apps/e2e/scripts/ui-shots.mjs | done | df70bfe |
+| B1 | Design tokens in globals.css: brand scale (deep blue primary), unified gray/slate neutral scale, success/warning/danger (money in/caution/money out), fs-* type scale (14px base), control heights, 6px radius, subtle shadows, .dk-zebra helper; Inter via next/font in layout.tsx | done | 473cbbb |
