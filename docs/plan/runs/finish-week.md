@@ -92,3 +92,9 @@ Status: Day-2 implementation queued.
 - Large touch-friendly buttons only on the POS checkout — every other screen stays compact.
 - No gradients, no glassmorphism, no emojis in the UI.
 - Housekeeping for every build: check `df -h /` first; if free space is under 8 GB, stop and report instead of building.
+
+## Day 3 — UI foundation + POS (Section B)
+
+| # | Task | State | Commit |
+| --- | --- | --- | --- |
+| B0 | Before screenshots (dashboard + POS, 1366x768, seeded dev login) into docs/ui/ via apps/e2e/scripts/ui-shots.mjs | done | B0HASH |
