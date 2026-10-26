@@ -841,7 +841,7 @@ export default function TenantDetailPage() {
               </div>
             )}
             {dealSuccess && (
-              <div className="bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg p-3 text-sm">
+              <div data-testid="deal-success" className="bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg p-3 text-sm">
                 {dealSuccess}
               </div>
             )}
@@ -1017,7 +1017,11 @@ export default function TenantDetailPage() {
                     const n = (row.new as Record<string, unknown> | null) ?? {};
                     const limits = (n.customLimits as { maxBranches?: number; maxUsers?: number; maxProducts?: number } | null) ?? {};
                     return (
-                      <tr key={row.id} className="hover:bg-slate-50 transition-colors">
+                      <tr
+                        key={row.id}
+                        data-testid="tenant-deal-history-row"
+                        className="hover:bg-slate-50 transition-colors"
+                      >
                         <td className="px-6 py-3 font-medium text-slate-900">
                           {formatDate(row.changedAt as string | null | undefined)}
                         </td>
