@@ -43,6 +43,12 @@ import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import { searchClient } from "@/lib/search/search-client";
 import { useToast } from "@/context/ToastContext";
 import { useIsReadOnly } from "@/hooks/useIsReadOnly";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Product = {
   id: string;
@@ -1293,22 +1299,20 @@ function CreateOrderPOSContent() {
   return (
     <div className="flex flex-col h-[calc(100vh-125px)] min-h-0 overflow-hidden font-sans">
       {/* 🟢 TOP POS HEADER & OFFLINE ENGINE STATUS BAR */}
-      <div className="flex items-center justify-between pb-3 border-b border-slate-200 shrink-0 gap-3">
+      <div className="flex items-center justify-between pb-3 border-b border-border shrink-0 gap-3">
         <div className="flex items-center gap-3">
           <Link
             href="/orders"
-            className="p-2 text-slate-400 hover:text-slate-900 bg-white rounded-lg border border-slate-200 transition-colors shadow-sm"
+            className="p-2 text-gray-500 hover:text-gray-900 bg-card rounded-lg border border-border transition-colors shadow-sm"
           >
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
-            <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <h1 className="text-title font-semibold text-gray-900 flex items-center gap-2">
               Unified POS
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
-                Parts + Labor
-              </span>
+              <Badge variant="brand">Parts + Labor</Badge>
             </h1>
-            <p className="text-xs text-slate-500 hidden sm:block">
+            <p className="text-xs text-gray-500 hidden sm:block">
               Point of Sale • Spatial Inventory & Double-Entry Ledger
             </p>
           </div>
@@ -1316,30 +1320,32 @@ function CreateOrderPOSContent() {
 
         <div className="flex items-center gap-2">
           {!isOnline ? (
-            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm animate-pulse">
-              <WifiOff className="w-4 h-4 text-amber-600" />
+            <div className="flex items-center gap-2 bg-warning-bg border border-warning/40 text-warning-fg px-3 py-1.5 rounded-md text-xs font-bold shadow-sm">
+              <WifiOff className="w-4 h-4 text-warning-fg" />
               <span>Offline Mode</span>
               {pendingCount > 0 && (
-                <span className="bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded text-[10px]">
+                <span className="bg-warning/40 text-warning-fg px-1.5 py-0.5 rounded text-caption">
                   {pendingCount} Queued
                 </span>
               )}
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1.5 rounded-xl">
-                <Wifi className="w-3.5 h-3.5 text-emerald-600" />
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-success-fg bg-success-bg border border-success/30 px-2.5 py-1.5 rounded-md">
+                <Wifi className="w-3.5 h-3.5 text-success" />
                 <span className="hidden sm:inline">Online</span>
               </div>
               {pendingCount > 0 && (
-                <button
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
                   onClick={() => triggerSync()}
-                  className="flex items-center gap-1.5 text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-2.5 py-1.5 rounded-xl transition-colors cursor-pointer"
                   title="Click to sync offline items"
                 >
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <RefreshCw className="animate-spin" />
                   <span>Sync ({pendingCount})</span>
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -1347,15 +1353,15 @@ function CreateOrderPOSContent() {
       </div>
 
       {offlineSuccessMsg && (
-        <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs font-bold text-amber-900 shadow-sm animate-in fade-in">
+        <div className="mt-3 p-3 bg-warning-bg border border-warning/40 rounded-md flex items-center justify-between text-xs font-bold text-warning-fg shadow-sm animate-in fade-in">
           <div className="flex items-center gap-2">
-            <HardDriveDownload className="w-4 h-4 text-amber-600 shrink-0" />
+            <HardDriveDownload className="w-4 h-4 text-warning-fg shrink-0" />
             <span>{offlineSuccessMsg}</span>
           </div>
           <button
             type="button"
             onClick={() => setOfflineSuccessMsg("")}
-            className="text-amber-600 hover:text-amber-800 font-bold px-2 py-0.5 cursor-pointer"
+            className="text-warning-fg hover:text-warning-fg font-bold px-2 py-0.5 cursor-pointer"
           >
             ✕
           </button>
@@ -1364,19 +1370,19 @@ function CreateOrderPOSContent() {
 
       {scanFeedback && (
         <div
-          className={`mx-3 sm:mx-6 mt-2 p-2.5 rounded-xl border flex items-center justify-between text-xs font-bold shadow-sm animate-in fade-in slide-in-from-top-2 duration-200 ${
+          className={`mx-3 sm:mx-6 mt-2 p-2.5 rounded-md border flex items-center justify-between text-xs font-bold shadow-sm animate-in fade-in slide-in-from-top-2 duration-200 ${
             scanFeedback.type === "success"
-              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-              : "bg-rose-50 text-rose-800 border-rose-200"
+              ? "bg-success-bg text-success-fg border-success/30"
+              : "bg-danger-bg text-danger-fg border-danger/30"
           }`}
         >
           <div className="flex items-center gap-2">
-            <Barcode className="w-4 h-4 text-blue-600" />
+            <Barcode className="w-4 h-4 text-brand-700" />
             <span>{scanFeedback.message}</span>
           </div>
           <button
             onClick={() => setScanFeedback(null)}
-            className="text-slate-400 hover:text-slate-700 px-1 cursor-pointer"
+            className="text-gray-500 hover:text-gray-700 px-1 cursor-pointer"
           >
             ✕
           </button>
@@ -1394,43 +1400,43 @@ function CreateOrderPOSContent() {
           className="flex flex-col lg:flex-row items-stretch h-auto lg:h-full gap-4 w-full"
         >
           {/* ───────── LEFT COLUMN: PRODUCT CATALOG ───────── */}
-          <div
+          <Card
             style={{ flexGrow: catalogRatio, flexBasis: 0 }}
-            className="w-full lg:w-auto flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm min-h-120 lg:min-h-0 shrink-0 lg:min-w-70"
+            className="w-full lg:w-auto flex flex-col overflow-hidden shadow-xs min-h-120 lg:min-h-0 shrink-0 lg:min-w-70"
           >
-            <div className="p-3.5 border-b border-slate-100 shrink-0 bg-slate-50/50 space-y-2">
+            <div className="p-3.5 border-b border-border shrink-0 bg-gray-50 space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                <span className="text-caption font-bold text-gray-500 uppercase tracking-wider">
                   Catalog
                 </span>
                 <span
                   title="USB/Bluetooth barcode scanner focus trap is globally active. Any rapid scan will auto-add item to cart."
-                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs"
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-caption font-bold bg-success-bg text-success-fg border border-success/30"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-success" />
                   Auto-Scanner Active
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
-                  <Search className="h-4 w-4 text-slate-400 absolute left-3 top-3" />
-                  <input
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-gray-500" />
+                  <Input
                     type="text"
                     autoFocus
                     data-testid="pos-search"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search products or scan barcode (SKU)..."
-                    className="w-full pl-9 pr-9 py-2 border border-slate-200 rounded-xl text-xs sm:text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
+                    className="pl-9 pr-9"
                   />
-                  <Barcode className="h-4 w-4 text-slate-400 absolute right-3 top-2.5" />
+                  <Barcode className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-gray-500" />
                 </div>
                 {/* Grid / List toggle */}
-                <div className="flex bg-white rounded-xl border border-slate-200 shadow-sm p-0.5 shrink-0">
+                <div className="flex bg-card rounded-md border border-border shadow-sm p-0.5 shrink-0">
                   <button
                     onClick={() => setCatalogView("grid")}
                     title="Grid view"
-                    className={`p-1.5 sm:p-2 rounded-lg transition-colors cursor-pointer ${catalogView === "grid" ? "bg-slate-900 text-white shadow-sm" : "text-slate-400 hover:text-slate-700"}`}
+                    className={`p-1.5 sm:p-2 rounded-lg transition-colors cursor-pointer ${catalogView === "grid" ? "bg-brand-700 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
                   >
                     <LayoutGrid className="w-4 h-4" />
                   </button>
@@ -1438,7 +1444,7 @@ function CreateOrderPOSContent() {
                     data-testid="pos-view-compact"
                     onClick={() => setCatalogView("list")}
                     title="Compact list view"
-                    className={`p-1.5 sm:p-2 rounded-lg transition-colors cursor-pointer ${catalogView === "list" ? "bg-slate-900 text-white shadow-sm" : "text-slate-400 hover:text-slate-700"}`}
+                    className={`p-1.5 sm:p-2 rounded-lg transition-colors cursor-pointer ${catalogView === "list" ? "bg-brand-700 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
                   >
                     <List className="w-4 h-4" />
                   </button>
@@ -1446,13 +1452,13 @@ function CreateOrderPOSContent() {
               </div>
             </div>
 
-            <div className="px-3.5 pt-2.5 pb-2 flex items-center justify-between gap-2 border-b border-slate-100 shrink-0">
+            <div className="px-3.5 pt-2.5 pb-2 flex items-center justify-between gap-2 border-b border-border shrink-0">
               <div className="flex items-center gap-1.5 overflow-x-auto hide-scrollbar flex-1 min-w-0">
                 {categories.map((cat) => (
                   <button
                     key={cat}
                     onClick={() => setActiveCategory(cat)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${activeCategory === cat ? "bg-slate-900 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${activeCategory === cat ? "bg-brand-700 text-white shadow-sm" : "bg-gray-100 text-gray-600 hover:bg-border"}`}
                   >
                     {cat}
                   </button>
@@ -1461,13 +1467,13 @@ function CreateOrderPOSContent() {
 
               {/* Sleek Branch Selector Dropdown */}
               {branches.length > 0 && (
-                <div className="flex items-center gap-1.5 shrink-0 pl-2 border-l border-slate-200">
-                  <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <div className="flex items-center gap-1.5 shrink-0 pl-2 border-l border-border">
+                  <MapPin className="w-3.5 h-3.5 text-gray-500 shrink-0" />
                   <select
                     data-testid="pos-catalog-branch"
                     value={viewingBranchId}
                     onChange={(e) => setViewingBranchId(e.target.value)}
-                    className="text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg px-2.5 py-1 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-xs hover:border-slate-300 transition-colors"
+                    className="text-xs font-semibold text-gray-700 bg-card border border-border rounded-lg px-2.5 py-1 outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer shadow-xs hover:border-gray-400 transition-colors"
                   >
                     {branches.map((b: any) => (
                       <option key={b.id} value={b.id}>
@@ -1480,34 +1486,38 @@ function CreateOrderPOSContent() {
             </div>
 
             <div
-              className={`flex-1 overflow-y-auto p-3 bg-slate-50/50 ${catalogView === "grid" ? "grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-2.5 content-start" : "flex flex-col gap-1.5 content-start"}`}
+              className={`flex-1 overflow-y-auto p-3 bg-gray-50 ${catalogView === "grid" ? "grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-2.5 content-start" : "flex flex-col gap-1.5 content-start"}`}
             >
               {/* Alert banner if viewing remote branch */}
               {isRemoteBranch && (
-                <div className="col-span-full mb-1 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-800">
+                <div className="col-span-full mb-1 px-3 py-2 bg-warning-bg border border-warning/40 rounded-md flex items-center justify-between text-xs text-warning-fg">
                   <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <AlertCircle className="w-4 h-4 text-warning-fg shrink-0" />
                     <span>
                       Viewing catalog from <strong>{viewingBranchName}</strong>. Remote items cannot be added to local sale cart.
                     </span>
                   </div>
                   <button
                     onClick={() => activeBranchId && setViewingBranchId(activeBranchId)}
-                    className="text-amber-900 font-bold hover:underline ml-2 whitespace-nowrap cursor-pointer"
+                    className="text-warning-fg font-bold hover:underline ml-2 whitespace-nowrap cursor-pointer"
                   >
                     Return to Current Branch
                   </button>
                 </div>
               )}
               {isLoadingProducts ? (
-                <div className="col-span-full h-40 flex items-center justify-center text-slate-400 text-sm">
-                  Loading products...
+                <div className="col-span-full grid grid-cols-2 gap-2" aria-busy="true">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <Skeleton key={i} className="h-20 rounded-md" />
+                  ))}
                 </div>
               ) : products.length === 0 ? (
-                <div className="col-span-full flex flex-col items-center justify-center text-slate-400 text-sm py-12">
-                  <PackageOpen className="w-8 h-8 mb-2 opacity-30" />
-                  No products found in this category.
-                </div>
+                <EmptyState
+                  className="col-span-full bg-transparent"
+                  icon={PackageOpen}
+                  title="No products found"
+                  description="Nothing in this category yet. Try another category or clear the search."
+                />
               ) : catalogView === "list" ? (
                 products.map((product) => {
                   const instancesList = Array.isArray(product.instances) ? product.instances : [];
@@ -1523,12 +1533,12 @@ function CreateOrderPOSContent() {
                         onClick={() => handleProductClick(product)}
                         disabled={isRemoteBranch}
                         data-testid="pos-add-item"
-                        className={`flex flex-col gap-1.5 w-full p-2.5 rounded-xl border transition-all text-left ${
+                        className={`flex flex-col gap-1.5 w-full p-2.5 rounded-md border transition-all text-left ${
                           isRemoteBranch
-                            ? "bg-amber-50/40 border-amber-200 cursor-not-allowed opacity-90"
+                            ? "bg-warning-bg/40 border-warning/40 cursor-not-allowed opacity-90"
                             : isOutOfStock
-                              ? "border-slate-200 bg-slate-100/70 opacity-60 cursor-pointer select-none"
-                              : "bg-white border-slate-200 hover:border-blue-500 hover:shadow-xs shadow-2xs cursor-pointer"
+                              ? "border-border bg-gray-100 opacity-60 cursor-pointer select-none"
+                              : "bg-card border-border hover:border-brand-500 hover:shadow-xs cursor-pointer"
                         }`}
                       >
                         {/* Top Row: Full Product Name & Price */}
@@ -1536,21 +1546,21 @@ function CreateOrderPOSContent() {
                           <span
                             className={`font-bold text-xs sm:text-sm line-clamp-1 flex-1 min-w-0 wrap-break-words ${
                               isRemoteBranch
-                                ? "text-slate-800"
+                                ? "text-gray-800"
                                 : isOutOfStock
-                                  ? "text-slate-400"
-                                  : "text-slate-900"
+                                  ? "text-gray-500"
+                                  : "text-gray-900"
                             }`}
                           >
                             {product.name}
                           </span>
                           <span
-                            className={`text-xs font-black shrink-0 ${
+                            className={`text-xs font-semibold shrink-0 ${
                               isRemoteBranch
-                                ? "text-amber-800"
+                                ? "text-warning-fg"
                                 : isOutOfStock
-                                  ? "text-slate-400"
-                                  : "text-blue-600"
+                                  ? "text-gray-500"
+                                  : "text-brand-700"
                             }`}
                           >
                             Rs.{" "}
@@ -1561,8 +1571,8 @@ function CreateOrderPOSContent() {
                         {/* Bottom Row: Cabinet, Stock & Add Action */}
                         <div className="flex items-center justify-between gap-1.5 w-full">
                           <div className="flex items-center gap-1 flex-wrap min-w-0">
-                            <span className="inline-flex items-center gap-1 text-[8.5px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0 truncate max-w-32">
-                              <Box className="w-2.5 h-2.5 shrink-0 text-indigo-600" />
+                            <span className="inline-flex items-center gap-1 text-caption font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 border border-border shrink-0 truncate max-w-32">
+                              <Box className="w-2.5 h-2.5 shrink-0 text-gray-600" />
                               <span className="truncate">
                                 {product.cabinet?.name ||
                                   (Array.isArray(product.instances)
@@ -1571,17 +1581,18 @@ function CreateOrderPOSContent() {
                                   "No Cabinet"}
                               </span>
                             </span>
-                            <span
+                            <Badge
                               data-testid="pos-remote-badge"
-                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                              variant={
                                 isRemoteBranch
-                                  ? "bg-amber-100 text-amber-800 border border-amber-300"
+                                  ? "warning"
                                   : isOutOfStock
-                                    ? "bg-slate-200 text-slate-600"
+                                    ? "neutral"
                                     : availableCount <= 3
-                                      ? "bg-amber-50 text-amber-600"
-                                      : "bg-emerald-50 text-emerald-600"
-                              }`}
+                                      ? "warning"
+                                      : "success"
+                              }
+                              className="shrink-0"
                             >
                               {isRemoteBranch
                                 ? `${availableCount} left`
@@ -1591,11 +1602,11 @@ function CreateOrderPOSContent() {
                                     ? `In ${(product as any).otherBranchesWithStock[0]}`
                                     : "Out of Stock"
                                   : `${availableCount} in stock`}
-                            </span>
+                            </Badge>
                           </div>
 
                           {!isRemoteBranch && (
-                            <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-slate-900 text-white hover:bg-blue-600 transition-colors shrink-0">
+                            <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-brand-700 text-white hover:bg-brand-700 transition-colors shrink-0">
                               <Plus className="w-3.5 h-3.5" />
                             </span>
                           )}
@@ -1627,43 +1638,45 @@ function CreateOrderPOSContent() {
                         onClick={() => handleProductClick(product)}
                         disabled={isRemoteBranch}
                         data-testid="pos-add-item"
-                        className={`group flex flex-col text-left p-3 rounded-xl border transition-all relative overflow-hidden w-full h-full ${
+                        className={`group flex flex-col text-left p-3 rounded-md border transition-all relative overflow-hidden w-full h-full ${
                           isRemoteBranch
-                            ? "bg-amber-50/30 border-amber-200/80 cursor-not-allowed opacity-90"
+                            ? "bg-warning-bg/30 border-warning/40 cursor-not-allowed opacity-90"
                             : isOutOfStock
-                              ? "border-slate-200 bg-slate-100/70 opacity-60 cursor-pointer select-none"
-                              : "bg-white border-slate-200 hover:border-blue-500 hover:shadow-md active:scale-[0.98] shadow-sm cursor-pointer"
+                              ? "border-border bg-gray-100 opacity-60 cursor-pointer select-none"
+                              : "bg-card border-border hover:border-brand-500 hover:shadow-md shadow-sm cursor-pointer"
                         }`}
                       >
                         {/* Card Header: Category & Stock Status */}
                         <div className="flex items-center justify-between gap-1.5 mb-1.5 w-full">
-                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider truncate">
+                          <span className="text-caption font-semibold text-gray-500 uppercase tracking-wider truncate">
                             {product.category?.name || "General"}
                           </span>
                           {isRemoteBranch ? (
-                            <span
+                            <Badge
                               data-testid="pos-remote-badge"
-                              className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 shrink-0"
+                              variant="warning"
+                              className="shrink-0 uppercase"
                             >
                               Remote Stock
-                            </span>
+                            </Badge>
                           ) : isOutOfStock ? (
-                            <span data-testid="pos-remote-badge" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 shrink-0">
+                            <Badge
+                              data-testid="pos-remote-badge"
+                              variant="danger"
+                              className="shrink-0 uppercase"
+                            >
                               {(product as any).otherBranchesWithStock?.length >
                               0
                                 ? `In ${(product as any).otherBranchesWithStock[0]}`
                                 : "Out of Stock"}
-                            </span>
+                            </Badge>
                           ) : (
-                            <span
-                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 border ${
-                                availableCount <= 3
-                                  ? "bg-amber-50 text-amber-600 border-amber-200"
-                                  : "bg-emerald-50 text-emerald-600 border-emerald-200"
-                              }`}
+                            <Badge
+                              variant={availableCount <= 3 ? "warning" : "success"}
+                              className="shrink-0"
                             >
                               {availableCount} left
-                            </span>
+                            </Badge>
                           )}
                         </div>
 
@@ -1671,10 +1684,10 @@ function CreateOrderPOSContent() {
                         <h4
                           className={`font-bold text-xs sm:text-sm line-clamp-2 leading-snug mb-1.5 wrap-break-words ${
                             isRemoteBranch
-                              ? "text-slate-800"
+                              ? "text-gray-800"
                               : isOutOfStock
-                                ? "text-slate-400"
-                                : "text-slate-900 group-hover:text-blue-600 transition-colors"
+                                ? "text-gray-500"
+                                : "text-gray-900 group-hover:text-brand-700 transition-colors"
                           }`}
                         >
                           {product.name}
@@ -1682,8 +1695,8 @@ function CreateOrderPOSContent() {
 
                         {/* Cabinet & Spatial Bin Location */}
                         <div className="flex flex-wrap items-center gap-1 mb-2">
-                          <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 truncate max-w-36">
-                            <Box className="w-2.5 h-2.5 shrink-0 text-indigo-600" />
+                          <span className="inline-flex items-center gap-1 text-caption font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 border border-border truncate max-w-36">
+                            <Box className="w-2.5 h-2.5 shrink-0 text-gray-600" />
                             <span className="truncate">
                               {product.cabinet?.name ||
                                 primaryCabinet?.name ||
@@ -1693,7 +1706,7 @@ function CreateOrderPOSContent() {
 
                           {/* Spatial Bin Location */}
                           {loc && (
-                            <span className="inline-flex items-center gap-0.5 text-[9px] font-medium text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded truncate max-w-28">
+                            <span className="inline-flex items-center gap-0.5 text-caption font-medium text-gray-600 bg-gray-100 border border-border px-1.5 py-0.5 rounded truncate max-w-28">
                               <MapPin className="w-2.5 h-2.5 shrink-0" />
                               <span className="truncate">{String(loc)}</span>
                             </span>
@@ -1701,21 +1714,21 @@ function CreateOrderPOSContent() {
                         </div>
 
                         {/* Bottom: Price & Quick Action */}
-                        <div className="mt-auto pt-2 border-t border-slate-100 flex items-center justify-between gap-1 w-full">
+                        <div className="mt-auto pt-2 border-t border-border flex items-center justify-between gap-1 w-full">
                           <span
-                            className={`font-black text-xs sm:text-sm ${
+                            className={`font-semibold text-xs sm:text-sm ${
                               isRemoteBranch
-                                ? "text-amber-800"
+                                ? "text-warning-fg"
                                 : isOutOfStock
-                                  ? "text-slate-400"
-                                  : "text-blue-600"
+                                  ? "text-gray-500"
+                                  : "text-brand-700"
                             }`}
                           >
                             Rs.{" "}
                             {formatPrice(product.price ?? product.basePrice)}
                           </span>
                           {!isRemoteBranch && !isOutOfStock ? (
-                            <span className="text-[10px] font-bold text-slate-500 group-hover:text-blue-600 group-hover:underline flex items-center gap-0.5 shrink-0 transition-colors">
+                            <span className="text-caption font-bold text-gray-500 group-hover:text-brand-700 group-hover:underline flex items-center gap-0.5 shrink-0 transition-colors">
                               <Plus className="w-3 h-3" /> Add
                             </span>
                           ) : null}
@@ -1726,7 +1739,7 @@ function CreateOrderPOSContent() {
                 })
               )}
             </div>
-          </div>
+          </Card>
 
           {/* RESIZE HANDLE (Catalog / Cart ratio) */}
           <div
@@ -1734,15 +1747,15 @@ function CreateOrderPOSContent() {
             onDoubleClick={resetRatio}
             style={{ cursor: "col-resize" }}
             className={`hidden lg:flex relative w-4 -mx-2 flex-col items-center justify-center select-none z-20 shrink-0 group ${
-              isRatioDragging ? "bg-blue-100/40" : "hover:bg-blue-50/50"
+              isRatioDragging ? "bg-brand-100/40" : "hover:bg-brand-50/50"
             } transition-colors`}
           >
             {/* Full-height visible divider track */}
             <div
               className={`w-0.5 h-full transition-all duration-150 ${
                 isRatioDragging
-                  ? "bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.6)]"
-                  : "bg-slate-200 group-hover:bg-blue-400"
+                  ? "bg-brand-700 shadow-[0_0_8px_rgba(37,99,235,0.6)]"
+                  : "bg-border group-hover:bg-brand-500"
               }`}
               style={{ cursor: "col-resize" }}
             />
@@ -1751,8 +1764,8 @@ function CreateOrderPOSContent() {
             <div
               className={`absolute top-1/2 -translate-y-1/2 w-4 h-9 rounded-full border flex items-center justify-center transition-all duration-150 shadow-sm pointer-events-none ${
                 isRatioDragging
-                  ? "bg-blue-600 border-blue-700 text-white scale-110 shadow-md"
-                  : "bg-white border-slate-300 text-slate-400 group-hover:border-blue-400 group-hover:text-blue-600 group-hover:scale-105 group-hover:shadow"
+                  ? "bg-brand-700 border-brand-800 text-white scale-110 shadow-md"
+                  : "bg-card border-gray-300 text-gray-500 group-hover:border-brand-500 group-hover:text-brand-700 group-hover:scale-105 group-hover:shadow"
               }`}
               style={{ cursor: "col-resize" }}
             >
@@ -1761,118 +1774,117 @@ function CreateOrderPOSContent() {
           </div>
 
           {/* ───────── RIGHT COLUMN: UNIFIED CART ───────── */}
-          <div
+          <Card
             style={{ flexGrow: 1 - catalogRatio, flexBasis: 0 }}
-            className="w-full lg:w-auto flex flex-col overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm min-h-90 lg:min-h-0 shrink-0 lg:min-w-70"
+            className="w-full lg:w-auto flex flex-col overflow-hidden shadow-xs min-h-90 lg:min-h-0 shrink-0 lg:min-w-70"
           >
-            <div className="p-3.5 border-b border-slate-100 bg-slate-50 shrink-0 flex items-center justify-between gap-2">
+            <div className="p-3.5 border-b border-border bg-gray-50 shrink-0 flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 min-w-0">
-                <Receipt className="w-4 h-4 text-blue-600 shrink-0" />
-                <h2 className="font-bold text-slate-800 text-sm truncate">
+                <Receipt className="w-4 h-4 text-brand-700 shrink-0" />
+                <h2 className="font-bold text-gray-800 text-sm truncate">
                   Invoice
                 </h2>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 shrink-0">
+                <Badge variant="brand" className="shrink-0">
                   {cart.length} {cart.length === 1 ? "line" : "lines"}
-                </span>
+                </Badge>
               </div>
-              <button
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
                 data-testid="pos-service-toggle"
                 onClick={() => setIsServiceFormOpen(!isServiceFormOpen)}
-                className="flex items-center gap-1 text-[11px] font-bold bg-blue-50 text-blue-700 px-2.5 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors shadow-sm shrink-0 whitespace-nowrap cursor-pointer"
+                className="shrink-0"
               >
-                <Wrench className="w-3 h-3" />
+                <Wrench />
                 <span>+ Service</span>
-              </button>
+              </Button>
             </div>
 
             {/* INLINE SERVICE / LABOR FORM (inline in cart, no modal) */}
             {isServiceFormOpen && (
-              <div className="p-3.5 border-b border-blue-100 bg-blue-50/40 space-y-2.5 shrink-0">
+              <div className="p-3.5 border-b border-brand-100 bg-brand-50/40 space-y-2.5 shrink-0">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-blue-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <h3 className="text-xs font-bold text-brand-900 uppercase tracking-wider flex items-center gap-1.5">
                     <Wrench className="w-3.5 h-3.5" /> Labor / Service Line
                   </h3>
                   <button
                     onClick={() => setIsServiceFormOpen(false)}
-                    className="text-blue-400 hover:text-rose-500 cursor-pointer"
+                    className="text-brand-500 hover:text-danger cursor-pointer"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
                 <div className="grid grid-cols-2 gap-2.5">
-                  <input
+                  <Input
                     type="text"
                     value={serviceName}
                     onChange={(e) => setServiceName(e.target.value)}
                     data-testid="pos-service-name"
                     placeholder="e.g. Screen Fitting"
-                    className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   />
-                  <input
+                  <Input
                     type="number"
                     value={servicePrice}
                     onChange={(e) => setServicePrice(e.target.value)}
                     data-testid="pos-service-price"
                     placeholder="Price (Rs)"
-                    className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   />
                 </div>
-                <input
+                <Input
                   type="text"
                   value={serviceNotes}
                   onChange={(e) => setServiceNotes(e.target.value)}
                   placeholder="Device notes (IMEI, model, color)"
-                  className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 />
-                <button
+                <Button
+                  type="button"
+                  variant="primary"
                   onClick={addServiceToCart}
                   data-testid="pos-add-service"
-                  className="w-full py-2 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700 transition-colors shadow-md cursor-pointer"
+                  className="w-full"
                 >
                   Add Labor to Invoice
-                </button>
+                </Button>
               </div>
             )}
 
             {/* Cart Items List */}
             <div className="flex-1 overflow-y-auto p-3 space-y-2">
               {cart.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-2 p-4 text-center">
-                  <Receipt className="w-10 h-10 opacity-25" />
-                  <p className="text-sm font-semibold text-slate-500">
-                    Cart is empty
-                  </p>
-                  <p className="text-xs text-slate-400 max-w-48 leading-relaxed">
-                    Add parts from the catalog or attach labor to build invoice.
-                  </p>
-                </div>
+                <EmptyState
+                  className="h-full justify-center border-0 bg-transparent"
+                  icon={Receipt}
+                  title="Cart is empty"
+                  description="Add parts from the catalog or attach labor to build the invoice."
+                />
               ) : (
                 cart.map((item) => (
                   <div
                     key={`${item.id}-${item.isService || false}`}
                     data-testid="pos-cart-row"
-                    className={`p-3 rounded-xl border shadow-2xs space-y-2 transition-all ${
+                    className={`p-3 rounded-md border space-y-2 transition-all ${
                       item.isService
-                        ? "bg-blue-50/40 border-blue-200"
-                        : "bg-white border-slate-200 hover:border-slate-300"
+                        ? "bg-brand-50/40 border-brand-200"
+                        : "bg-card border-border hover:border-gray-400"
                     }`}
                   >
                     {/* Row 1: Full Item Name & Remove Action */}
                     <div className="flex items-start justify-between gap-2 w-full">
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-xs sm:text-sm text-slate-900 leading-snug wrap-break-words">
+                        <h4 className="font-bold text-xs sm:text-sm text-gray-900 leading-snug wrap-break-words">
                           {item.isService && (
-                            <Wrench className="inline w-3.5 h-3.5 text-blue-600 mr-1 shrink-0" />
+                            <Wrench className="inline w-3.5 h-3.5 text-brand-700 mr-1 shrink-0" />
                           )}
                           {item.name}
                           {item.isService && (
-                            <span className="ml-1.5 text-[8.5px] font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200">
+                            <Badge variant="brand" className="ml-1.5 align-middle">
                               LABOR
-                            </span>
+                            </Badge>
                           )}
                         </h4>
                         {item.notes && (
-                          <p className="text-[10.5px] text-slate-500 mt-0.5 truncate">
+                          <p className="text-caption text-gray-500 mt-0.5 truncate">
                             {item.notes}
                           </p>
                         )}
@@ -1882,7 +1894,7 @@ function CreateOrderPOSContent() {
                           type="button"
                           onClick={() => removeItem(item.id)}
                           data-testid="pos-cart-remove"
-                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors shrink-0"
+                          className="p-1 text-gray-500 hover:text-danger hover:bg-danger-bg rounded-lg cursor-pointer transition-colors shrink-0"
                           title="Remove item"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -1892,7 +1904,7 @@ function CreateOrderPOSContent() {
 
                     {/* Row 2: Unit Price & Part Tags */}
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="flex items-center gap-1 text-xs font-semibold text-slate-600">
+                      <span className="flex items-center gap-1 text-xs font-semibold text-gray-600">
                         Rs.
                         <input
                           type="number"
@@ -1904,36 +1916,33 @@ function CreateOrderPOSContent() {
                           }
                           data-testid="pos-cart-price"
                           title="Unit price"
-                          className="w-20 h-6 px-1.5 text-xs font-bold text-slate-900 border border-slate-300 rounded-md bg-white focus:border-blue-500 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          className="w-20 h-6 px-1.5 text-xs font-bold text-gray-900 border border-gray-300 rounded-md bg-card focus:border-brand-500 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                         each
                       </span>
                       {item.reservationId && (
-                        <span
-                          data-testid="pos-reserved-badge"
-                          className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 border border-violet-200"
-                        >
+                        <Badge data-testid="pos-reserved-badge" variant="brand">
                           Reserved
-                        </span>
+                        </Badge>
                       )}
                       {!item.isService && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-100">
+                        <Badge variant="success" className="border-success/30">
                           Part
-                        </span>
+                        </Badge>
                       )}
                       {item.qty >= getMaxAllowedQty(item) && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                        <Badge variant="warning">
                           {item.isService
                             ? "Max limit (99)"
                             : `Max available (${getMaxAllowedQty(item)})`}
-                        </span>
+                        </Badge>
                       )}
                     </div>
 
                     {isBelowMin(item) &&
                       (canOverrideMinPrice ? (
                         <div className="space-y-1">
-                          <p className="text-[10.5px] font-semibold text-amber-700">
+                          <p className="text-caption font-semibold text-warning-fg">
                             Below minimum price (Rs.{" "}
                             {formatPrice(item.minSalePrice)}). A reason is
                             required.
@@ -1946,13 +1955,13 @@ function CreateOrderPOSContent() {
                             }
                             data-testid="pos-override-reason"
                             placeholder="Reason for selling below minimum"
-                            className="w-full h-8 px-2 text-xs border border-amber-300 rounded-lg bg-amber-50/50 focus:border-amber-500 outline-none"
+                            className="w-full h-8 px-2 text-xs border border-warning/50 rounded-lg bg-warning-bg/50 focus:border-warning outline-none"
                           />
                         </div>
                       ) : (
                         <p
                           data-testid="pos-below-min"
-                          className="text-[10.5px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-2 py-1"
+                          className="text-caption font-semibold text-danger-fg bg-danger-bg border border-danger/30 rounded-lg px-2 py-1"
                         >
                           Minimum price is Rs. {formatPrice(item.minSalePrice)}.
                           Ask the owner or manager to sell below it.
@@ -1960,12 +1969,12 @@ function CreateOrderPOSContent() {
                       ))}
 
                     {/* Row 3: Typed Stepper & Line Subtotal */}
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 gap-2">
-                      <div data-testid="pos-cart-qty" className="flex items-center bg-white rounded-lg border border-slate-300 shadow-2xs focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 overflow-hidden">
+                    <div className="flex items-center justify-between pt-2 border-t border-border gap-2">
+                      <div data-testid="pos-cart-qty" className="flex items-center bg-card rounded-lg border border-gray-300 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100 overflow-hidden">
                         <button
                           type="button"
                           onClick={() => updateQty(item.id, -1)}
-                          className="w-7 h-7 flex items-center justify-center text-slate-600 hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer"
+                          className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-gray-100 active:bg-border transition-colors cursor-pointer"
                           title="Decrease quantity"
                         >
                           <Minus className="w-3.5 h-3.5" />
@@ -1993,13 +2002,13 @@ function CreateOrderPOSContent() {
                               setDirectQty(item.id, max);
                             }
                           }}
-                          className="w-11 h-7 text-center text-xs font-black text-slate-900 bg-slate-50/70 border-x border-slate-200 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:bg-white"
+                          className="w-11 h-7 text-center text-xs font-semibold text-gray-900 bg-gray-50 border-x border-border outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:bg-card"
                           title="Type quantity directly"
                         />
                         <button
                           type="button"
                           onClick={() => updateQty(item.id, 1)}
-                          className="w-7 h-7 flex items-center justify-center text-slate-600 hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer"
+                          className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-gray-100 active:bg-border transition-colors cursor-pointer"
                           title="Increase quantity"
                         >
                           <Plus className="w-3.5 h-3.5" />
@@ -2007,10 +2016,10 @@ function CreateOrderPOSContent() {
                       </div>
 
                       <div className="text-right">
-                        <span className="text-[9.5px] text-slate-400 block font-medium leading-tight">
+                        <span className="text-caption text-gray-500 block font-medium leading-tight">
                           Subtotal
                         </span>
-                        <span className="text-xs sm:text-sm font-black text-blue-600">
+                        <span className="text-xs sm:text-sm font-semibold text-brand-700">
                           Rs. {formatPrice((item.price ?? 0) * (item.qty ?? 1))}
                         </span>
                       </div>
@@ -2021,32 +2030,35 @@ function CreateOrderPOSContent() {
             </div>
 
             {/* 🟢 CART FOOTER: RUNNING TOTALS + CHECKOUT TRIGGER */}
-            <div className="p-3.5 border-t border-slate-200 bg-slate-50/70 shrink-0 space-y-2.5">
+            <div className="p-3.5 border-t border-border bg-gray-50 shrink-0 space-y-2.5">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  <span className="block text-caption font-bold text-gray-500 uppercase tracking-wider">
                     Subtotal
                   </span>
-                  <span className="text-sm font-black text-slate-800">
+                  <span className="text-sm font-semibold text-gray-800">
                     Rs. {formatPrice(subtotal)}
                   </span>
                 </div>
                 <div className="text-right shrink-0">
-                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  <span className="block text-caption font-bold text-gray-500 uppercase tracking-wider">
                     Grand Total
                   </span>
                   {Number(discount) > 0 && (
-                    <span className="block text-[10px] font-semibold text-rose-500 -mt-0.5">
+                    <span className="block text-caption font-semibold text-danger -mt-0.5">
                       - Rs. {formatPrice(discount)} discount
                     </span>
                   )}
-                  <span data-testid="pos-total" className="text-xl font-black text-blue-600">
+                  <span data-testid="pos-total" className="text-xl font-semibold text-brand-700">
                     Rs. {formatPrice(grandTotal)}
                   </span>
                 </div>
               </div>
 
-              <button
+              <Button
+                type="button"
+                variant={readOnly ? "secondary" : "primary"}
+                size="lg"
                 onClick={() => setIsCheckoutOpen(true)}
                 data-testid="pos-checkout"
                 disabled={cart.length === 0 || readOnly}
@@ -2055,25 +2067,21 @@ function CreateOrderPOSContent() {
                     ? "Subscription expired. System is in read-only mode."
                     : undefined
                 }
-                className={`w-full py-3.5 text-white rounded-xl font-bold text-base transition-all shadow-lg shadow-blue-200 disabled:opacity-40 disabled:shadow-none flex items-center justify-center gap-2 ${
-                  readOnly
-                    ? "cursor-not-allowed bg-slate-400"
-                    : "bg-blue-600 hover:bg-blue-700 cursor-pointer disabled:cursor-not-allowed"
-                }`}
+                className="w-full"
               >
                 {readOnly
                   ? "Read-only — Subscription expired"
                   : "Proceed to Checkout"}
-                {!readOnly && <ChevronRight className="w-5 h-5" />}
-              </button>
+                {!readOnly && <ChevronRight className="size-5" />}
+              </Button>
 
               {cart.length === 0 && (
-                <p className="text-[11px] text-slate-400 text-center">
+                <p className="text-caption text-gray-500 text-center">
                   Add items to the invoice to enable checkout.
                 </p>
               )}
             </div>
-          </div>
+          </Card>
         </div>
       </div>
 
@@ -2144,7 +2152,7 @@ export default function CreateOrderPOS() {
   return (
     <Suspense
       fallback={
-        <div className="flex h-screen items-center justify-center text-slate-500">
+        <div className="flex h-screen items-center justify-center text-gray-500">
           Loading POS...
         </div>
       }
