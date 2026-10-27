@@ -15,9 +15,26 @@ import {
   ShoppingBag,
   MapPin,
   Clock,
+  Loader2,
+  X,
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import AddVendorModal from "@/components/modals/AddVendorModal";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/ui/page-header";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableEmpty,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type VendorRow = {
   id: string;
@@ -109,308 +126,291 @@ function VendorsPageContent() {
   }, [vendors, filterMode, searchQuery]);
 
   return (
-    <div data-testid="vendors-page" className="space-y-6 animate-in fade-in duration-500 pb-10 font-sans">
+    <div data-testid="vendors-page" className="mt-1 space-y-4 pb-10 animate-in fade-in duration-300">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-            <Building2 className="w-7 h-7 text-indigo-600" />
-            Vendor Hub
-          </h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Manage your suppliers, track accounts payable, and trace inventory
-            purchased.
-          </p>
-        </div>
-        <button data-testid="vendors-new"
-          onClick={() => setIsAddModalOpen(true)}
-          className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm shadow-indigo-200 w-full sm:w-auto cursor-pointer"
-        >
-          <Plus className="w-4 h-4" /> New Vendor
-        </button>
-      </div>
+      <PageHeader
+        title="Vendor Hub"
+        subtitle="Manage your suppliers, track accounts payable, and trace inventory purchased."
+        actions={
+          <Button
+            data-testid="vendors-new"
+            onClick={() => setIsAddModalOpen(true)}
+            className="w-full sm:w-auto"
+          >
+            <Plus className="w-4 h-4" /> New Vendor
+          </Button>
+        }
+      />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Total Accounts Payable
-            </p>
-            <p className="text-2xl font-black text-rose-600 mt-1">
-              Rs. {isLoading ? "..." : totalPayable.toLocaleString()}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Outstanding debt owed to vendors
-            </p>
-          </div>
-          <div className="p-3 bg-rose-50 rounded-xl text-rose-600">
-            <Wallet className="w-6 h-6" />
-          </div>
-        </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardContent className="flex items-center justify-between px-4 py-3">
+            <div>
+              <p className="text-caption font-medium uppercase tracking-wide text-gray-500">
+                Accounts Payable
+              </p>
+              <p className="text-title font-semibold text-danger">
+                Rs. {isLoading ? "..." : totalPayable.toLocaleString()}
+              </p>
+              <p className="text-caption text-gray-400">
+                Owed to vendors
+              </p>
+            </div>
+            <div className="rounded-md bg-danger-bg p-1.5 text-danger">
+              <Wallet className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Lifetime Sourced
-            </p>
-            <p className="text-2xl font-black text-indigo-900 mt-1">
-              Rs. {isLoading ? "..." : totalPurchases.toLocaleString()}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Total goods value purchased
-            </p>
-          </div>
-          <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
-            <ShoppingBag className="w-6 h-6" />
-          </div>
-        </div>
+        <Card>
+          <CardContent className="flex items-center justify-between px-4 py-3">
+            <div>
+              <p className="text-caption font-medium uppercase tracking-wide text-gray-500">
+                Lifetime Sourced
+              </p>
+              <p className="text-title font-semibold text-gray-900">
+                Rs. {isLoading ? "..." : totalPurchases.toLocaleString()}
+              </p>
+              <p className="text-caption text-gray-400">Goods purchased</p>
+            </div>
+            <div className="rounded-md bg-brand-50 p-1.5 text-brand-700">
+              <ShoppingBag className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Total Paid Out
-            </p>
-            <p className="text-2xl font-black text-emerald-700 mt-1">
-              Rs. {isLoading ? "..." : totalPaid.toLocaleString()}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Settled payments made
-            </p>
-          </div>
-          <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600">
-            <CheckCircle2 className="w-6 h-6" />
-          </div>
-        </div>
+        <Card>
+          <CardContent className="flex items-center justify-between px-4 py-3">
+            <div>
+              <p className="text-caption font-medium uppercase tracking-wide text-gray-500">
+                Total Paid Out
+              </p>
+              <p className="text-title font-semibold text-success">
+                Rs. {isLoading ? "..." : totalPaid.toLocaleString()}
+              </p>
+              <p className="text-caption text-gray-400">Settled payments</p>
+            </div>
+            <div className="rounded-md bg-success-bg p-1.5 text-success">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Active Vendors
-            </p>
-            <p className="text-2xl font-black text-slate-900 mt-1">
-              {isLoading ? "..." : vendors.length}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Registered suppliers & partners
-            </p>
-          </div>
-          <div className="p-3 bg-slate-50 rounded-xl text-slate-500">
-            <Building2 className="w-6 h-6" />
-          </div>
-        </div>
+        <Card>
+          <CardContent className="flex items-center justify-between px-4 py-3">
+            <div>
+              <p className="text-caption font-medium uppercase tracking-wide text-gray-500">
+                Active Vendors
+              </p>
+              <p className="text-title font-semibold text-gray-900">
+                {isLoading ? "..." : vendors.length}
+              </p>
+              <p className="text-caption text-gray-400">Registered suppliers</p>
+            </div>
+            <div className="rounded-md bg-gray-100 p-1.5 text-gray-500">
+              <Building2 className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Main Table Container */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1">
+      <Card className="flex-1 overflow-hidden">
         {pageError && (
-          <div className="border-b border-rose-100 bg-rose-50 px-6 py-3 text-sm text-rose-700 flex items-center justify-between">
+          <div className="flex items-center justify-between border-b border-border bg-danger-bg px-4 py-2 text-body text-danger-fg">
             <span>{pageError}</span>
             <button
               onClick={() => setPageError("")}
-              className="text-rose-500 hover:text-rose-700 font-bold"
+              aria-label="Dismiss error"
+              className="rounded p-0.5 text-danger transition-colors hover:bg-danger/10"
             >
-              &times;
+              <X className="h-4 w-4" />
             </button>
           </div>
         )}
 
         {/* Search & Filter Bar */}
-        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
+        <div className="flex flex-col items-stretch justify-between gap-3 border-b border-border bg-gray-50 px-4 py-3 sm:flex-row sm:items-center">
           <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-            <input
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search vendor name, contact person, phone..."
-              className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none placeholder:text-slate-400"
+              className="pl-9"
             />
           </div>
 
           <div className="flex items-center gap-1.5 self-start sm:self-auto">
-            <button
+            <Button
+              size="sm"
+              variant={filterMode === "all" ? "primary" : "secondary"}
               onClick={() => setFilterMode("all")}
-              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-colors cursor-pointer ${
-                filterMode === "all"
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-              }`}
             >
               All ({vendors.length})
-            </button>
-            <button
+            </Button>
+            <Button
+              size="sm"
+              variant={filterMode === "payable" ? "primary" : "secondary"}
               onClick={() => setFilterMode("payable")}
-              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-colors cursor-pointer ${
-                filterMode === "payable"
-                  ? "bg-rose-600 text-white shadow-xs"
-                  : "bg-white text-rose-600 border border-slate-200 hover:bg-rose-50"
-              }`}
             >
               With Payable ({vendors.filter((v) => v.balance > 0).length})
-            </button>
-            <button
+            </Button>
+            <Button
+              size="sm"
+              variant={filterMode === "settled" ? "primary" : "secondary"}
               onClick={() => setFilterMode("settled")}
-              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-colors cursor-pointer ${
-                filterMode === "settled"
-                  ? "bg-emerald-700 text-white shadow-xs"
-                  : "bg-white text-emerald-700 border border-slate-200 hover:bg-emerald-50"
-              }`}
             >
               Settled ({vendors.filter((v) => v.balance <= 0).length})
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* Vendors Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200">
-              <tr>
-                <th className="px-6 py-3.5">Vendor & Contact</th>
-                <th className="px-6 py-3.5">Items Supplied</th>
-                <th className="px-6 py-3.5 text-right">Lifetime Sourced</th>
-                <th className="px-6 py-3.5 text-right">Paid Out</th>
-                <th className="px-6 py-3.5 text-right">Account Balance</th>
-                <th className="px-6 py-3.5">Last Activity</th>
-                <th className="px-6 py-3.5 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {isLoading ? (
-                <tr>
-                  <td
-                    className="px-6 py-12 text-slate-500 text-center"
-                    colSpan={7}
-                  >
-                    <span className="animate-pulse font-medium">
-                      Loading vendors...
-                    </span>
-                  </td>
-                </tr>
-              ) : filteredVendors.length === 0 ? (
-                <tr>
-                  <td
-                    className="px-6 py-12 text-slate-400 text-center"
-                    colSpan={7}
-                  >
-                    <Building2 className="w-10 h-10 mx-auto mb-2 opacity-25 text-slate-400" />
-                    <p className="font-semibold text-slate-600 text-sm">
-                      No vendors match your search
-                    </p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Try clearing filters or add a new vendor.
-                    </p>
-                  </td>
-                </tr>
-              ) : (
-                filteredVendors.map((vendor) => (
-                  <tr data-testid="vendor-row"
-                    key={vendor.id}
-                    className="hover:bg-slate-50/70 transition-colors group cursor-pointer"
-                    onClick={() => router.push(`/vendors/${vendor.id}`)}
-                  >
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors text-sm">
-                          {vendor.businessName}
-                        </span>
-                        <div className="flex items-center gap-2 mt-1">
-                          {vendor.contactName && (
-                            <span className="text-slate-600 text-xs font-medium">
-                              {vendor.contactName}
-                            </span>
-                          )}
-                          {vendor.phone && (
-                            <span className="text-slate-400 text-xs flex items-center gap-1 font-mono">
-                              <Phone className="w-3 h-3" />
-                              {vendor.phone}
-                            </span>
-                          )}
-                        </div>
-                        {vendor.address && (
-                          <span className="text-slate-400 text-[11px] flex items-center gap-1 mt-0.5 truncate max-w-xs">
-                            <MapPin className="w-3 h-3 shrink-0" />
-                            {vendor.address}
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead>Vendor & Contact</TableHead>
+              <TableHead>Items Supplied</TableHead>
+              <TableHead className="text-right">Lifetime Sourced</TableHead>
+              <TableHead className="text-right">Paid Out</TableHead>
+              <TableHead className="text-right">Account Balance</TableHead>
+              <TableHead>Last Activity</TableHead>
+              <TableHead className="w-16 text-right">Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableEmpty colSpan={7}>
+                <span className="inline-flex items-center gap-2 text-gray-500">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading vendors
+                </span>
+              </TableEmpty>
+            ) : filteredVendors.length === 0 ? (
+              <TableEmpty colSpan={7}>
+                <EmptyState
+                  className="border-0 bg-transparent py-6 shadow-none"
+                  icon={Building2}
+                  title="No vendors match your search"
+                  description="Try clearing filters or add a new vendor."
+                />
+              </TableEmpty>
+            ) : (
+              filteredVendors.map((vendor) => (
+                <TableRow
+                  data-testid="vendor-row"
+                  key={vendor.id}
+                  className="group cursor-pointer"
+                  onClick={() => router.push(`/vendors/${vendor.id}`)}
+                >
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="text-body font-semibold text-gray-900 transition-colors group-hover:text-brand-700">
+                        {vendor.businessName}
+                      </span>
+                      <div className="mt-0.5 flex items-center gap-2">
+                        {vendor.contactName && (
+                          <span className="text-caption font-medium text-gray-600">
+                            {vendor.contactName}
+                          </span>
+                        )}
+                        {vendor.phone && (
+                          <span className="flex items-center gap-1 font-mono text-caption text-gray-400">
+                            <Phone className="h-3 w-3" />
+                            {vendor.phone}
                           </span>
                         )}
                       </div>
-                    </td>
-
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-slate-800 text-xs">
-                          {vendor.totalUnitsSupplied || 0} units
-                        </span>
-                        <span className="text-[11px] text-slate-400">
-                          {vendor.productsCount || 0} distinct products
-                        </span>
-                        {vendor.inStockUnits !== undefined &&
-                          vendor.inStockUnits > 0 && (
-                            <span className="text-[10px] text-emerald-600 font-semibold mt-0.5">
-                              {vendor.inStockUnits} in stock
-                            </span>
-                          )}
-                      </div>
-                    </td>
-
-                    <td className="px-6 py-4 text-right font-medium text-slate-700 text-xs sm:text-sm">
-                      Rs. {(vendor.totalPurchased || 0).toLocaleString()}
-                    </td>
-
-                    <td className="px-6 py-4 text-right font-medium text-emerald-700 text-xs sm:text-sm">
-                      Rs. {(vendor.totalPaid || 0).toLocaleString()}
-                    </td>
-
-                    <td data-testid="vendor-row-balance" className="px-6 py-4 text-right">
-                      {vendor.balance > 0 ? (
-                        <span className="inline-flex items-center py-1 px-2.5 rounded-lg text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                          Owe Rs. {vendor.balance.toLocaleString()}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 py-1 px-2.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Settled
+                      {vendor.address && (
+                        <span
+                          title={vendor.address}
+                          className="mt-0.5 flex max-w-64 items-center gap-1 truncate text-caption text-gray-400"
+                        >
+                          <MapPin className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{vendor.address}</span>
                         </span>
                       )}
-                    </td>
+                    </div>
+                  </TableCell>
 
-                    <td className="px-6 py-4 text-xs text-slate-500">
-                      {vendor.lastActivityDate ? (
-                        <span className="flex items-center gap-1 font-medium">
-                          <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          {new Date(vendor.lastActivityDate).toLocaleDateString(
-                            "en-US",
-                            {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            },
-                          )}
-                        </span>
-                      ) : (
-                        <span className="text-slate-300">-</span>
-                      )}
-                    </td>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="text-caption font-semibold text-gray-800">
+                        {vendor.totalUnitsSupplied || 0} units
+                      </span>
+                      <span className="text-caption text-gray-400">
+                        {vendor.productsCount || 0} products
+                      </span>
+                      {vendor.inStockUnits !== undefined &&
+                        vendor.inStockUnits > 0 && (
+                          <span className="text-caption font-semibold text-success">
+                            {vendor.inStockUnits} in stock
+                          </span>
+                        )}
+                    </div>
+                  </TableCell>
 
-                    <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(`/vendors/${vendor.id}`);
-                        }}
-                        className="p-2 text-slate-400 group-hover:text-indigo-600 rounded-lg group-hover:bg-indigo-50 transition-colors inline-block"
-                        title="View Vendor Details"
-                      >
-                        <ArrowRight className="w-5 h-5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                  <TableCell className="text-right font-medium text-gray-700">
+                    Rs. {(vendor.totalPurchased || 0).toLocaleString()}
+                  </TableCell>
+
+                  <TableCell className="text-right font-medium text-success">
+                    Rs. {(vendor.totalPaid || 0).toLocaleString()}
+                  </TableCell>
+
+                  <TableCell
+                    data-testid="vendor-row-balance"
+                    className="text-right"
+                  >
+                    {vendor.balance > 0 ? (
+                      <Badge variant="danger">
+                        Owe Rs. {vendor.balance.toLocaleString()}
+                      </Badge>
+                    ) : (
+                      <Badge variant="success">
+                        <CheckCircle2 className="h-3 w-3" /> Settled
+                      </Badge>
+                    )}
+                  </TableCell>
+
+                  <TableCell className="text-caption text-gray-500">
+                    {vendor.lastActivityDate ? (
+                      <span className="flex items-center gap-1 font-medium">
+                        <Clock className="h-3 w-3 shrink-0 text-gray-400" />
+                        {new Date(vendor.lastActivityDate).toLocaleDateString(
+                          "en-US",
+                          {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          },
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-gray-300">-</span>
+                    )}
+                  </TableCell>
+
+                  <TableCell className="text-right">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/vendors/${vendor.id}`);
+                      }}
+                      className="inline-block rounded p-1.5 text-gray-400 transition-colors group-hover:bg-brand-50 group-hover:text-brand-700"
+                      title="View Vendor Details"
+                    >
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </Card>
 
       <AddVendorModal
         isOpen={isAddModalOpen}
@@ -425,7 +425,7 @@ export default function VendorsPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex h-screen items-center justify-center text-slate-500">
+        <div className="flex h-64 items-center justify-center text-body text-gray-500">
           Loading vendors...
         </div>
       }
