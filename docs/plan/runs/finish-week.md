@@ -103,3 +103,4 @@ Status: Day-2 implementation queued.
 | B3 | App shell on tokens: Sidebar 224px/64px, Header 56px, brand active nav state, neutral surfaces; page container unchanged in behaviour | done | 1629a3b |
 | B4a | POS screen on the tokens/UI kit: brand+neutral+success/danger only, shared Input/Button/Badge/EmptyState/Skeleton, no handler changes, 23/23 `pos-*` testids kept; `npm run build -w client` green, `tests/pos` 19 passed / 1 pre-existing skip | done | fb8cbf5 |
 | B4b | Checkout drawer on the tokens/UI kit: solid backdrop (no blur), shared Button/Input/Select/Badge, `lg` submit + 44px controls, 18/18 testids kept, no handler changes; `npm run build -w client` green, `tests/pos` 19 passed / 1 pre-existing skip | done | 8f8527e |
+| B5 | After screenshots at 1366x768 via `node apps/e2e/scripts/ui-shots.mjs after`: new blue/gray shell, tokenised POS; `docs/ui/*-after.png` written next to the before shots (docs/ui stays git-excluded, same as B0) | done | docs-only |
