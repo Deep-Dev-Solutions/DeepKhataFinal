@@ -57,11 +57,11 @@ export interface TenantOption {
 }
 
 export const STATUS_BADGES: Record<string, string> = {
-  DRAFT: "bg-slate-100 text-slate-700 border-slate-200",
-  SENT: "bg-blue-50 text-blue-700 border-blue-200",
-  PAID: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  OVERDUE: "bg-rose-50 text-rose-700 border-rose-200",
-  VOID: "bg-slate-50 text-slate-400 border-slate-200 line-through",
+  DRAFT: "bg-gray-100 text-gray-700 border-gray-200",
+  SENT: "bg-brand-50 text-brand-700 border-brand-200",
+  PAID: "bg-success-bg text-success border-success",
+  OVERDUE: "bg-danger-bg text-danger border-danger",
+  VOID: "bg-gray-50 text-gray-400 border-gray-200 line-through",
 };
 
 export function formatDate(value: string | null | undefined): string {

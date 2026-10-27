@@ -49,24 +49,24 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         style={{ zIndex: 9999 }}
       >
         {toasts.map((t) => {
-          let bgClass = "bg-slate-900 text-white border-slate-800 shadow-2xl";
-          let icon = <Info className="w-5 h-5 text-blue-400 shrink-0" />;
+          let bgClass = "bg-gray-900 text-white border-gray-800 shadow-2xl";
+          let icon = <Info className="w-5 h-5 text-brand-700 shrink-0" />;
 
           if (t.type === "success") {
             bgClass =
-              "bg-emerald-50 text-emerald-950 border-emerald-300 shadow-2xl ring-1 ring-emerald-500/20";
+              "bg-success-bg text-success border-success shadow-2xl ring-1 ring-success/300/20";
             icon = (
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <CheckCircle2 className="w-5 h-5 text-success shrink-0" />
             );
           } else if (t.type === "error") {
             bgClass =
-              "bg-rose-50 text-rose-950 border-rose-300 shadow-2xl ring-1 ring-rose-500/20";
-            icon = <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />;
+              "bg-danger-bg text-danger border-danger shadow-2xl ring-1 ring-danger/300/20";
+            icon = <AlertCircle className="w-5 h-5 text-danger shrink-0" />;
           } else if (t.type === "warning") {
             bgClass =
-              "bg-amber-50 text-amber-950 border-amber-300 shadow-2xl ring-1 ring-amber-500/30";
+              "bg-warning-bg text-warning border-warning shadow-2xl ring-1 ring-warning/300/30";
             icon = (
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+              <AlertTriangle className="w-5 h-5 text-warning shrink-0" />
             );
           }
 
@@ -74,16 +74,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             <div
               key={t.id}
               role="alert"
-              className={`pointer-events-auto flex items-start gap-3 p-3.5 rounded-xl border shadow-xl transition-all animate-in fade-in slide-in-from-bottom-3 duration-200 ${bgClass}`}
+              className={`pointer-events-auto flex items-start gap-3 p-3.5 rounded-lg border shadow-xl transition-all animate-in fade-in slide-in-from-bottom-3 duration-200 ${bgClass}`}
             >
               {icon}
-              <div className="flex-1 text-xs sm:text-sm font-semibold leading-snug break-words">
+              <div className="flex-1 text-caption sm:text-body font-semibold leading-snug break-words">
                 {t.message}
               </div>
               <button
                 type="button"
                 onClick={() => removeToast(t.id)}
-                className="p-0.5 rounded-lg opacity-70 hover:opacity-100 transition-opacity cursor-pointer text-slate-600 hover:text-slate-900"
+                className="p-0.5 rounded-lg opacity-70 hover:opacity-100 transition-opacity cursor-pointer text-gray-600 hover:text-gray-900"
                 title="Dismiss"
               >
                 <X className="w-4 h-4" />

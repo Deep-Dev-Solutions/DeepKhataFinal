@@ -39,14 +39,14 @@ export default function SignupsTable() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card p-3">
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
+          <label className="block text-caption font-medium text-gray-500 mb-1">Status</label>
           <select
             value={status}
             data-testid="signups-filter-status"
             onChange={(e) => setStatus(e.target.value)}
-            className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+            className="h-[var(--control-md)] rounded-md border border-input bg-white px-2.5 text-sm text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
           >
             <option value="">All</option>
             {FOLLOW_UP_STATUSES.map((s) => (
@@ -57,31 +57,31 @@ export default function SignupsTable() {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">From</label>
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+          <label className="block text-caption font-medium text-gray-500 mb-1">From</label>
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-[var(--control-md)] rounded-md border border-input bg-white px-2.5 text-sm text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">To</label>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+          <label className="block text-caption font-medium text-gray-500 mb-1">To</label>
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-[var(--control-md)] rounded-md border border-input bg-white px-2.5 text-sm text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40" />
         </div>
       </div>
 
       {error && (
-        <div role="alert" className="bg-rose-50 text-rose-700 border border-rose-200 rounded-xl p-3 text-sm font-medium">
+        <div role="alert" className="bg-danger-bg text-danger border border-danger rounded-lg p-3 text-body font-medium">
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center p-16 text-slate-500">
+        <div className="flex items-center justify-center p-16 text-gray-500">
           <Loader2 className="w-6 h-6 animate-spin mr-2" />
           Loading signups...
         </div>
       ) : (
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+        <div className="bg-card border border-gray-200 rounded-lg shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table data-testid="signups-table" className="w-full text-left text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
+            <table data-testid="signups-table" className="w-full text-left text-body">
+              <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-medium">
                 <tr>
                   <th className="px-4 py-3">Business</th>
                   <th className="px-4 py-3">Owner</th>
@@ -92,10 +92,10 @@ export default function SignupsTable() {
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-gray-100">
                 {signups.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-slate-500">
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                       No signups match these filters.
                     </td>
                   </tr>

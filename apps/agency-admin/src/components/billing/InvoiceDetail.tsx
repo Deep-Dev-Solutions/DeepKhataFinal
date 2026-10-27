@@ -26,9 +26,9 @@ interface PaymentResponse {
 }
 
 const input =
-  "w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500";
+  "w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-300/20 focus:border-brand-200";
 const actionBtn =
-  "inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-colors disabled:opacity-50";
+  "inline-flex items-center gap-2 px-3 py-2 text-body font-medium rounded-lg border transition-colors disabled:opacity-50";
 
 export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
@@ -148,7 +148,7 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-16 text-slate-500">
+      <div className="flex items-center justify-center p-16 text-gray-500">
         <Loader2 className="w-6 h-6 animate-spin mr-2" />
         Loading invoice...
       </div>
@@ -158,11 +158,11 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
   if (!invoice) {
     return (
       <div className="p-8 space-y-4">
-        <Link href="/billing" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-indigo-600">
+        <Link href="/billing" className="inline-flex items-center gap-1.5 text-body font-medium text-gray-500 hover:text-brand-700">
           <ArrowLeft size={16} />
           Back to Billing
         </Link>
-        <div role="alert" className="bg-rose-50 text-rose-700 border border-rose-200 rounded-xl p-4 text-sm font-medium">
+        <div role="alert" className="bg-danger-bg text-danger border border-danger rounded-lg p-4 text-body font-medium">
           {error || "Invoice not found"}
         </div>
       </div>
@@ -176,24 +176,24 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
   return (
     <div data-testid="invoice-detail" data-invoice-id={invoice.id} className="space-y-6 animate-in fade-in duration-500">
       <div>
-        <Link href="/billing" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-indigo-600 mb-2">
+        <Link href="/billing" className="inline-flex items-center gap-1.5 text-body font-medium text-gray-500 hover:text-brand-700 mb-2">
           <ArrowLeft size={16} />
           Back to Billing
         </Link>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold text-slate-900 tracking-tight font-mono">{invoice.number}</h2>
+              <h2 className="text-heading font-semibold text-gray-900 tracking-tight font-mono">{invoice.number}</h2>
               <span
                 data-testid="invoice-status"
-                className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+                className={`inline-flex px-2.5 py-0.5 rounded-full text-caption font-semibold border ${
                   STATUS_BADGES[invoice.status] ?? STATUS_BADGES.DRAFT
                 }`}
               >
                 {invoice.status}
               </span>
             </div>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <p className="text-body text-gray-500 mt-0.5">
               {invoice.businessName} - {invoice.billingCycle === "YEARLY" ? "Yearly" : "Monthly"} x {invoice.periods}
             </p>
           </div>
@@ -203,7 +203,7 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
               onClick={downloadPdf}
               disabled={busy !== ""}
               data-testid="invoice-pdf"
-              className={`${actionBtn} text-slate-700 bg-white border-slate-200 hover:bg-slate-50`}
+              className={`${actionBtn} text-gray-700 bg-card border-gray-200 hover:bg-gray-50`}
             >
               {busy === "pdf" ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
               Download PDF
@@ -214,7 +214,7 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
                 onClick={send}
                 disabled={busy !== ""}
                 data-testid="invoice-send"
-                className={`${actionBtn} text-white bg-indigo-600 border-indigo-600 hover:bg-indigo-700`}
+                className={`${actionBtn} text-white bg-brand-700 border-brand-200 hover:bg-brand-700`}
               >
                 {busy === "send" ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                 {invoice.sentAt ? "Resend" : "Send"}
@@ -226,7 +226,7 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
                 target="_blank"
                 rel="noopener noreferrer"
                 data-testid="invoice-whatsapp"
-                className={`${actionBtn} text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100`}
+                className={`${actionBtn} text-success bg-success-bg border-success hover:bg-success-bg`}
               >
                 <MessageCircle size={14} />
                 WhatsApp
@@ -238,7 +238,7 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
                 onClick={voidInvoice}
                 disabled={busy !== ""}
                 data-testid="invoice-void"
-                className={`${actionBtn} text-rose-700 bg-rose-50 border-rose-200 hover:bg-rose-100`}
+                className={`${actionBtn} text-danger bg-danger-bg border-danger hover:bg-danger-bg`}
               >
                 {busy === "void" ? <Loader2 size={14} className="animate-spin" /> : <Ban size={14} />}
                 Void
@@ -249,12 +249,12 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
       </div>
 
       {error && (
-        <div role="alert" data-testid="invoice-error" className="bg-rose-50 text-rose-700 border border-rose-200 rounded-xl p-3 text-sm font-medium">
+        <div role="alert" data-testid="invoice-error" className="bg-danger-bg text-danger border border-danger rounded-lg p-3 text-body font-medium">
           {error}
         </div>
       )}
       {notice && (
-        <div data-testid="invoice-notice" className="bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl p-3 text-sm font-medium">
+        <div data-testid="invoice-notice" className="bg-success-bg text-success border border-success rounded-lg p-3 text-body font-medium">
           {notice}
         </div>
       )}
@@ -266,18 +266,18 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
           { label: "Period", value: `${formatDate(invoice.periodStart)} - ${formatDate(invoice.periodEnd)}` },
           { label: "Sent / Paid", value: `${formatDate(invoice.sentAt)} / ${formatDate(invoice.paidAt)}` },
         ].map((k) => (
-          <div key={k.label} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <div className="text-xs font-medium text-slate-500">{k.label}</div>
-            <div className="text-base font-bold text-slate-900 mt-1">{k.value}</div>
+          <div key={k.label} className="bg-card border border-gray-200 rounded-lg p-4 shadow-sm">
+            <div className="text-caption font-medium text-gray-500">{k.label}</div>
+            <div className="text-base font-semibold text-gray-900 mt-1">{k.value}</div>
           </div>
         ))}
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60 font-bold text-slate-900">Line items</div>
+      <div className="bg-card border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 font-semibold text-gray-900">Line items</div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
+          <table className="w-full text-left text-body">
+            <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-medium">
               <tr>
                 <th className="px-6 py-3">Description</th>
                 <th className="px-6 py-3 text-right">Qty</th>
@@ -285,28 +285,28 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
                 <th className="px-6 py-3 text-right">Amount</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-gray-100">
               {invoice.lines.map((l, i) => (
                 <tr key={i} data-testid="invoice-line">
-                  <td className="px-6 py-3 text-slate-800">{l.description}</td>
+                  <td className="px-6 py-3 text-gray-800">{l.description}</td>
                   <td className="px-6 py-3 text-right">{l.quantity}</td>
                   <td className="px-6 py-3 text-right">{formatMoney(l.unitPrice)}</td>
                   <td className="px-6 py-3 text-right font-medium">{formatMoney(l.amount)}</td>
                 </tr>
               ))}
             </tbody>
-            <tfoot className="text-sm">
+            <tfoot className="text-body">
               <tr>
-                <td colSpan={3} className="px-6 py-2 text-right text-slate-500">Subtotal</td>
+                <td colSpan={3} className="px-6 py-2 text-right text-gray-500">Subtotal</td>
                 <td className="px-6 py-2 text-right">{formatMoney(invoice.subtotal)}</td>
               </tr>
               <tr>
-                <td colSpan={3} className="px-6 py-2 text-right text-slate-500">Discount</td>
+                <td colSpan={3} className="px-6 py-2 text-right text-gray-500">Discount</td>
                 <td className="px-6 py-2 text-right">- {formatMoney(invoice.discount)}</td>
               </tr>
               <tr>
-                <td colSpan={3} className="px-6 py-2 text-right font-bold text-slate-900">Total</td>
-                <td className="px-6 py-2 text-right font-bold text-slate-900">{formatMoney(invoice.total)}</td>
+                <td colSpan={3} className="px-6 py-2 text-right font-semibold text-gray-900">Total</td>
+                <td className="px-6 py-2 text-right font-semibold text-gray-900">{formatMoney(invoice.total)}</td>
               </tr>
             </tfoot>
           </table>
@@ -314,25 +314,25 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60 font-bold text-slate-900 flex items-center gap-2">
-            <Wallet size={16} className="text-indigo-600" />
+        <div className="bg-card border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 font-semibold text-gray-900 flex items-center gap-2">
+            <Wallet size={16} className="text-brand-700" />
             Payments
           </div>
           {payments.length === 0 ? (
-            <div className="p-6 text-center text-sm text-slate-400">No payments recorded yet.</div>
+            <div className="p-6 text-center text-body text-gray-400">No payments recorded yet.</div>
           ) : (
-            <ul className="divide-y divide-slate-100">
+            <ul className="divide-y divide-gray-100">
               {payments.map((p) => (
-                <li key={p.id} data-testid="payment-row" className="px-6 py-3 flex justify-between gap-4 text-sm">
+                <li key={p.id} data-testid="payment-row" className="px-6 py-3 flex justify-between gap-4 text-body">
                   <div>
-                    <div className="font-semibold text-slate-900">{formatMoney(p.amount)}</div>
-                    <div className="text-xs text-slate-500">
+                    <div className="font-semibold text-gray-900">{formatMoney(p.amount)}</div>
+                    <div className="text-caption text-gray-500">
                       {PAYMENT_METHODS.find((m) => m.value === p.method)?.label ?? p.method}
                       {p.reference ? ` - ${p.reference}` : ""}
                     </div>
                   </div>
-                  <div className="text-xs text-slate-500">{formatDate(p.receivedAt ?? p.createdAt)}</div>
+                  <div className="text-caption text-gray-500">{formatDate(p.receivedAt ?? p.createdAt)}</div>
                 </li>
               ))}
             </ul>
@@ -343,18 +343,18 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
           <form
             data-testid="payment-form"
             onSubmit={recordPayment}
-            className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden"
+            className="bg-card border border-gray-200 rounded-lg shadow-sm overflow-hidden"
           >
-            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60 font-bold text-slate-900">Record payment</div>
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 font-semibold text-gray-900">Record payment</div>
             <div className="p-6 space-y-4">
               {payError && (
-                <div role="alert" data-testid="payment-error" className="p-3 bg-red-50 text-red-700 rounded-lg text-sm font-medium border border-red-100">
+                <div role="alert" data-testid="payment-error" className="p-3 bg-danger-bg text-danger rounded-lg text-body font-medium border border-danger/30">
                   {payError}
                 </div>
               )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Amount (PKR)</label>
+                  <label className="block text-body font-medium text-gray-700 mb-1">Amount (PKR)</label>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -366,7 +366,7 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Method</label>
+                  <label className="block text-body font-medium text-gray-700 mb-1">Method</label>
                   <select
                     value={method}
                     data-testid="payment-method"
@@ -383,7 +383,7 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Reference</label>
+                  <label className="block text-body font-medium text-gray-700 mb-1">Reference</label>
                   <input
                     type="text"
                     value={reference}
@@ -394,7 +394,7 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Received on</label>
+                  <label className="block text-body font-medium text-gray-700 mb-1">Received on</label>
                   <input type="date" value={receivedAt} onChange={(e) => setReceivedAt(e.target.value)} className={input} />
                 </div>
               </div>
@@ -402,7 +402,7 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
                 type="submit"
                 disabled={busy !== ""}
                 data-testid="payment-submit"
-                className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-60"
+                className="w-full flex items-center justify-center gap-2 bg-brand-700 text-white px-4 py-2.5 rounded-lg font-medium hover:bg-brand-700 disabled:opacity-60"
               >
                 {busy === "pay" ? <Loader2 size={16} className="animate-spin" /> : <Wallet size={16} />}
                 {busy === "pay" ? "Recording..." : "Record payment"}

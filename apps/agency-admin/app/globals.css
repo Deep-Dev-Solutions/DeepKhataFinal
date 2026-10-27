@@ -1,15 +1,200 @@
 @import "tailwindcss";
 
+/* ============================================================
+   DeepKhata design tokens (Day 3)
+   Clean, dense retail-POS look for 1366x768 shop laptops.
+   - One primary colour: deep blue (brand scale below).
+   - Neutral greys carry structure; `gray-*` and `slate-*` are
+     both mapped to the same neutral scale for consistency.
+   - Green/red are reserved for money in / money out.
+   - No gradients, no glassmorphism.
+   ============================================================ */
+
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  /* Brand — deep blue */
+  --brand-50: oklch(0.97 0.014 254.6);
+  --brand-100: oklch(0.932 0.032 255.6);
+  --brand-200: oklch(0.882 0.059 254.1);
+  --brand-300: oklch(0.809 0.096 251.8);
+  --brand-400: oklch(0.707 0.165 254.6);
+  --brand-500: oklch(0.623 0.214 259.8);
+  --brand-600: oklch(0.546 0.245 262.9);
+  --brand-700: oklch(0.488 0.243 264.4); /* primary */
+  --brand-800: oklch(0.424 0.199 265.6); /* hover / active */
+  --brand-900: oklch(0.377 0.147 266.5);
+
+  /* Neutral greys (structure, text, borders) */
+  --gray-0: oklch(1 0 0);
+  --gray-50: oklch(0.98 0 0);
+  --gray-100: oklch(0.96 0 0);
+  --gray-200: oklch(0.92 0 0);
+  --gray-300: oklch(0.87 0 0);
+  --gray-400: oklch(0.71 0 0);
+  --gray-500: oklch(0.55 0 0);
+  --gray-600: oklch(0.44 0 0);
+  --gray-700: oklch(0.37 0 0);
+  --gray-800: oklch(0.27 0 0);
+  --gray-900: oklch(0.2 0 0);
+  --gray-950: oklch(0.145 0 0);
+
+  /* Semantic — money in / caution / money out + destructive */
+  --success: oklch(0.627 0.194 149.2);
+  --success-fg: oklch(0.527 0.154 150.1);
+  --success-bg: oklch(0.962 0.044 156.7);
+  --warning: oklch(0.769 0.188 70.1);
+  --warning-fg: oklch(0.555 0.163 48.8);
+  --warning-bg: oklch(0.901 0.076 70.7);
+  --danger: oklch(0.577 0.245 27.3);
+  --danger-fg: oklch(0.505 0.213 27.5);
+  --danger-bg: oklch(0.885 0.062 18.3);
+
+  /* Font sizes (Inter, 14px base) */
+  --fs-caption: 0.75rem; /* 12px */
+  --fs-body: 0.875rem; /* 14px — the base size */
+  --fs-subtitle: 1rem; /* 16px */
+  --fs-title: 1.125rem; /* 18px */
+  --fs-heading: 1.375rem; /* 22px */
+  --fs-display: 1.75rem; /* 28px */
+
+  /* Spacing: 4px grid (Tailwind `--spacing` base below) plus
+     fixed control heights: compact everywhere, large only at
+     the POS checkout. */
+  --spacing: 0.25rem;
+  --control-sm: 1.75rem; /* 28px — dense forms and tables */
+  --control-md: 2.25rem; /* 36px — default buttons/inputs */
+  --control-lg: 2.75rem; /* 44px — POS checkout only */
+
+  /* Radius — compact */
+  --radius: 0.375rem; /* 6px */
+
+  /* Shadows — subtle, flat */
+  --sh-xs: 0 1px 1px oklch(0.2 0 0 / 0.04);
+  --sh-sm: 0 1px 2px oklch(0.2 0 0 / 0.06);
+  --sh-md: 0 2px 6px oklch(0.2 0 0 / 0.08);
+  --sh-lg: 0 6px 16px oklch(0.2 0 0 / 0.1);
+  --sh-overlay: 0 12px 32px oklch(0.2 0 0 / 0.18);
+
+  /* Semantic roles (consumed by shadcn-style components) */
+  --background: var(--gray-50);
+  --foreground: var(--gray-900);
+  --card: var(--gray-0);
+  --card-foreground: var(--gray-900);
+  --popover: var(--gray-0);
+  --popover-foreground: var(--gray-900);
+  --primary: var(--brand-700);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: var(--gray-100);
+  --secondary-foreground: var(--gray-900);
+  --muted: var(--gray-100);
+  --muted-foreground: var(--gray-500);
+  --accent: var(--brand-50);
+  --accent-foreground: var(--brand-800);
+  --destructive: var(--danger);
+  --destructive-foreground: oklch(1 0 0);
+  --border: var(--gray-200);
+  --input: var(--gray-300);
+  --ring: var(--brand-500);
 }
 
 @theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Colour utilities */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Brand scale (bg-brand-700, text-brand-50, ...) */
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+
+  /* One neutral scale behind both `gray-*` and `slate-*` so the
+     whole app shares the same structure colours. */
+  --color-gray-50: var(--gray-50);
+  --color-gray-100: var(--gray-100);
+  --color-gray-200: var(--gray-200);
+  --color-gray-300: var(--gray-300);
+  --color-gray-400: var(--gray-400);
+  --color-gray-500: var(--gray-500);
+  --color-gray-600: var(--gray-600);
+  --color-gray-700: var(--gray-700);
+  --color-gray-800: var(--gray-800);
+  --color-gray-900: var(--gray-900);
+  --color-gray-950: var(--gray-950);
+  --color-slate-50: var(--gray-50);
+  --color-slate-100: var(--gray-100);
+  --color-slate-200: var(--gray-200);
+  --color-slate-300: var(--gray-300);
+  --color-slate-400: var(--gray-400);
+  --color-slate-500: var(--gray-500);
+  --color-slate-600: var(--gray-600);
+  --color-slate-700: var(--gray-700);
+  --color-slate-800: var(--gray-800);
+  --color-slate-900: var(--gray-900);
+  --color-slate-950: var(--gray-950);
+
+  /* Semantic utilities (text-success-fg, bg-danger-bg, ...) */
+  --color-success: var(--success);
+  --color-success-fg: var(--success-fg);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-fg: var(--warning-fg);
+  --color-warning-bg: var(--warning-bg);
+  --color-danger: var(--danger);
+  --color-danger-fg: var(--danger-fg);
+  --color-danger-bg: var(--danger-bg);
+
+  /* Type scale utilities (text-caption, text-body, ...) */
+  --text-caption: var(--fs-caption);
+  --text-caption--line-height: 1rem;
+  --text-body: var(--fs-body);
+  --text-body--line-height: 1.25rem;
+  --text-subtitle: var(--fs-subtitle);
+  --text-subtitle--line-height: 1.5rem;
+  --text-title: var(--fs-title);
+  --text-title--line-height: 1.5rem;
+  --text-heading: var(--fs-heading);
+  --text-heading--line-height: 1.75rem;
+  --text-display: var(--fs-display);
+  --text-display--line-height: 2rem;
+
+  /* Shadows */
+  --shadow-xs: var(--sh-xs);
+  --shadow-sm: var(--sh-sm);
+  --shadow-md: var(--sh-md);
+  --shadow-lg: var(--sh-lg);
+  --shadow-overlay: var(--sh-overlay);
+
+  /* Fonts — Inter is loaded via next/font in app/layout.tsx */
   --font-sans: var(
-    --font-geist-sans,
+    --font-inter,
     ui-sans-serif,
     system-ui,
     -apple-system,
@@ -31,8 +216,94 @@
   );
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.dark {
+  --background: var(--gray-950);
+  --foreground: var(--gray-50);
+  --card: var(--gray-900);
+  --card-foreground: var(--gray-50);
+  --popover: var(--gray-900);
+  --popover-foreground: var(--gray-50);
+  --primary: var(--brand-500);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: var(--gray-800);
+  --secondary-foreground: var(--gray-50);
+  --muted: var(--gray-800);
+  --muted-foreground: var(--gray-400);
+  --accent: var(--gray-800);
+  --accent-foreground: var(--gray-50);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: var(--brand-400);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    /* Inter with a 14px base — the dense retail default */
+    font-size: var(--fs-body);
+    line-height: 1.45;
+  }
+}
+
+/* Compact zebra rows for dense tables (used by the Table component) */
+.dk-zebra tbody tr:nth-child(even) {
+  background-color: var(--gray-50);
+}
+
+/* Base Print Reset Rules */
+@media print {
+  aside,
+  header,
+  nav,
+  .print-hidden,
+  [role="navigation"],
+  button,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+}
+
+/* POS Multi-Column Horizontal Scrollbar */
+.pos-horizontal-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+.pos-horizontal-scroll::-webkit-scrollbar-track {
+  background: var(--gray-100);
+  border-radius: 9999px;
+}
+.pos-horizontal-scroll::-webkit-scrollbar-thumb {
+  background: var(--gray-300);
+  border-radius: 9999px;
+}
+.pos-horizontal-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-400);
+}
+/* Custom Sidebar Scrollbar */
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--gray-200) transparent;
+}
+.sidebar-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: var(--gray-200);
+  border-radius: 9999px;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-300);
 }

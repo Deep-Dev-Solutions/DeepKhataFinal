@@ -36,34 +36,34 @@ export default function SignupRow({ signup, onSaved }: { signup: Signup; onSaved
         : "Trial ended";
 
   return (
-    <tr data-testid="signup-row" data-business-id={signup.businessId} className="align-top hover:bg-slate-50 transition-colors">
+    <tr data-testid="signup-row" data-business-id={signup.businessId} className="align-top hover:bg-gray-50 transition-colors">
       <td className="px-4 py-4">
-        <Link href={`/tenants/${signup.businessId}`} className="font-medium text-indigo-700 hover:underline">
+        <Link href={`/tenants/${signup.businessId}`} className="font-medium text-brand-700 hover:underline">
           {signup.businessName}
         </Link>
-        <div className="text-xs text-slate-500">
+        <div className="text-caption text-gray-500">
           {[signup.city, signup.market].filter(Boolean).join(" - ") || "-"}
         </div>
       </td>
       <td className="px-4 py-4">
-        <div className="font-medium text-slate-900">{signup.ownerName}</div>
-        <div className="text-xs text-slate-500">{signup.ownerEmail}</div>
-        {signup.phone && <div className="text-xs text-slate-500">{signup.phone}</div>}
+        <div className="font-medium text-gray-900">{signup.ownerName}</div>
+        <div className="text-caption text-gray-500">{signup.ownerEmail}</div>
+        {signup.phone && <div className="text-caption text-gray-500">{signup.phone}</div>}
       </td>
-      <td className="px-4 py-4 text-slate-500 text-xs">
+      <td className="px-4 py-4 text-gray-500 text-caption">
         <div>{formatDate(signup.createdAt)}</div>
         <div>{signup.source ?? "-"}</div>
       </td>
-      <td className="px-4 py-4 text-xs text-slate-600">{trial}</td>
+      <td className="px-4 py-4 text-caption text-gray-600">{trial}</td>
       <td className="px-4 py-4">
         <select
           value={status}
           data-testid="signup-status-select"
           onChange={(e) => setStatus(e.target.value as FollowUpStatus)}
-          className={`px-2 py-1.5 border rounded-lg text-xs font-semibold ${meta?.badge ?? ""}`}
+          className={`px-2 py-1.5 border rounded-lg text-caption font-semibold ${meta?.badge ?? ""}`}
         >
           {FOLLOW_UP_STATUSES.map((s) => (
-            <option key={s.value} value={s.value} className="bg-white text-slate-900">
+            <option key={s.value} value={s.value} className="bg-card text-gray-900">
               {s.label}
             </option>
           ))}
@@ -75,11 +75,11 @@ export default function SignupRow({ signup, onSaved }: { signup: Signup; onSaved
           rows={2}
           data-testid="signup-notes"
           onChange={(e) => setNotes(e.target.value)}
-          className="w-64 px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+          className="w-64 px-2 py-1.5 border border-gray-200 rounded-lg text-caption focus:outline-none focus:ring-2 focus:ring-brand-300/20 focus:border-brand-200"
           placeholder="Call notes, feedback..."
         />
         {error && (
-          <div role="alert" className="text-xs text-rose-600 mt-1">
+          <div role="alert" className="text-caption text-danger mt-1">
             {error}
           </div>
         )}
@@ -90,7 +90,7 @@ export default function SignupRow({ signup, onSaved }: { signup: Signup; onSaved
           onClick={save}
           disabled={saving || !dirty}
           data-testid="signup-save"
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg disabled:opacity-40"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-caption font-medium text-white bg-brand-700 hover:bg-brand-700 rounded-lg disabled:opacity-40"
         >
           {saving && <Loader2 size={12} className="animate-spin" />}
           Save

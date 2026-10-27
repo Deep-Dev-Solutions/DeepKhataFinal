@@ -17,7 +17,7 @@ interface TenantPlanInfo {
 }
 
 const input =
-  "w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500";
+  "w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-300/20 focus:border-brand-200";
 
 export default function InvoiceForm({ fixedBusinessId, onCreated, onCancel }: Props) {
   const [tenants, setTenants] = useState<TenantOption[]>([]);
@@ -101,23 +101,23 @@ export default function InvoiceForm({ fixedBusinessId, onCreated, onCancel }: Pr
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-          <h3 className="text-lg font-bold text-slate-900">Generate Invoice</h3>
-          <button type="button" onClick={onCancel} aria-label="Close" className="text-slate-400 hover:text-slate-600">
+    <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-card rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+          <h3 className="text-subtitle font-semibold text-gray-900">Generate Invoice</h3>
+          <button type="button" onClick={onCancel} aria-label="Close" className="text-gray-400 hover:text-gray-600">
             <X size={18} />
           </button>
         </div>
         <form data-testid="invoice-form" onSubmit={submit} className="p-6 space-y-4">
           {error && (
-            <div role="alert" data-testid="invoice-form-error" className="p-3 bg-red-50 text-red-700 rounded-lg text-sm font-medium border border-red-100">
+            <div role="alert" data-testid="invoice-form-error" className="p-3 bg-danger-bg text-danger rounded-lg text-body font-medium border border-danger/30">
               {error}
             </div>
           )}
           {!fixedBusinessId && (
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Business</label>
+              <label className="block text-body font-medium text-gray-700 mb-1">Business</label>
               <select
                 required
                 value={businessId}
@@ -135,13 +135,13 @@ export default function InvoiceForm({ fixedBusinessId, onCreated, onCancel }: Pr
             </div>
           )}
           {planName && (
-            <p className="text-xs text-slate-500">
-              Plan: <span className="font-semibold text-slate-700">{planName}</span> (from subscription)
+            <p className="text-caption text-gray-500">
+              Plan: <span className="font-semibold text-gray-700">{planName}</span> (from subscription)
             </p>
           )}
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Billing cycle</label>
+              <label className="block text-body font-medium text-gray-700 mb-1">Billing cycle</label>
               <select
                 value={cycle}
                 data-testid="invoice-cycle"
@@ -153,7 +153,7 @@ export default function InvoiceForm({ fixedBusinessId, onCreated, onCancel }: Pr
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Periods</label>
+              <label className="block text-body font-medium text-gray-700 mb-1">Periods</label>
               <input
                 type="number"
                 min="1"
@@ -165,13 +165,13 @@ export default function InvoiceForm({ fixedBusinessId, onCreated, onCancel }: Pr
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Period start</label>
+              <label className="block text-body font-medium text-gray-700 mb-1">Period start</label>
               <input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className={input} />
             </div>
           </div>
 
-          <fieldset className="border border-slate-200 rounded-lg p-3 space-y-3">
-            <legend className="px-1 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          <fieldset className="border border-gray-200 rounded-lg p-3 space-y-3">
+            <legend className="px-1 text-caption font-semibold text-gray-500 uppercase tracking-wider">
               Custom line (optional)
             </legend>
             <input
@@ -203,12 +203,12 @@ export default function InvoiceForm({ fixedBusinessId, onCreated, onCancel }: Pr
                 placeholder="Unit price, e.g. 3000"
               />
             </div>
-            <p className="text-xs text-slate-400">Leave empty to bill the plan price for the chosen cycle.</p>
+            <p className="text-caption text-gray-400">Leave empty to bill the plan price for the chosen cycle.</p>
           </fieldset>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Discount (PKR)</label>
+              <label className="block text-body font-medium text-gray-700 mb-1">Discount (PKR)</label>
               <input
                 type="text"
                 inputMode="decimal"
@@ -220,7 +220,7 @@ export default function InvoiceForm({ fixedBusinessId, onCreated, onCancel }: Pr
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Due in (days)</label>
+              <label className="block text-body font-medium text-gray-700 mb-1">Due in (days)</label>
               <input
                 type="number"
                 min="0"
@@ -233,15 +233,15 @@ export default function InvoiceForm({ fixedBusinessId, onCreated, onCancel }: Pr
             </div>
           </div>
 
-          <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
-            <button type="button" onClick={onCancel} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-50 rounded-lg">
+          <div className="pt-4 flex justify-end gap-3 border-t border-gray-100">
+            <button type="button" onClick={onCancel} className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-50 rounded-lg">
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
               data-testid="invoice-submit"
-              className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
+              className="px-4 py-2 bg-brand-700 text-white font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50 flex items-center gap-2"
             >
               {submitting ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
               {submitting ? "Generating..." : "Generate Invoice"}

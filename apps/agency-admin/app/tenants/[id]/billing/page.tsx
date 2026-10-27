@@ -14,12 +14,12 @@ export default function TenantBillingPage() {
       <div>
         <Link
           href={`/tenants/${tenantId}`}
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-indigo-600 mb-2"
+          className="inline-flex items-center gap-1.5 text-body font-medium text-gray-500 hover:text-brand-700 mb-2"
         >
           <ArrowLeft size={16} />
           Back to Tenant
         </Link>
-        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Tenant invoices</h2>
+        <h2 className="text-heading font-semibold text-gray-900 tracking-tight">Tenant invoices</h2>
       </div>
       <InvoiceList businessId={tenantId} />
     </div>

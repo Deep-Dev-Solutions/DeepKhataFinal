@@ -25,6 +25,8 @@ import {
   Clock,
   Sparkles,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import type {
   TenantRow,
   OverviewAnalytics,
@@ -38,22 +40,22 @@ interface Branch {
 }
 
 const STATUS_BADGES: Record<string, string> = {
-  ACTIVE: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  TRIALING: "bg-blue-50 text-blue-700 border-blue-200",
-  PAST_DUE: "bg-amber-50 text-amber-700 border-amber-200",
-  READ_ONLY: "bg-amber-50 text-amber-700 border-amber-200",
-  SUSPENDED: "bg-rose-50 text-rose-700 border-rose-200",
-  CANCELLED: "bg-slate-100 text-slate-600 border-slate-200",
+  ACTIVE: "bg-success-bg text-success border-success",
+  TRIALING: "bg-brand-50 text-brand-700 border-brand-200",
+  PAST_DUE: "bg-warning-bg text-warning border-warning",
+  READ_ONLY: "bg-warning-bg text-warning border-warning",
+  SUSPENDED: "bg-danger-bg text-danger border-danger",
+  CANCELLED: "bg-gray-100 text-gray-600 border-gray-200",
 };
 
 const PLAN_FIT_BADGES: Record<string, { label: string; class: string }> = {
   UPGRADE_CANDIDATE: {
     label: "Upgrade candidate",
-    class: "bg-indigo-50 text-indigo-700 border-indigo-200",
+    class: "bg-brand-50 text-brand-700 border-brand-200",
   },
   CHURN_RISK: {
     label: "Churn risk",
-    class: "bg-rose-50 text-rose-700 border-rose-200",
+    class: "bg-danger-bg text-danger border-danger",
   },
 };
 
@@ -241,7 +243,7 @@ export default function AgencyAdminPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-16 text-slate-500">
+      <div className="flex items-center justify-center p-16 text-gray-500">
         <Loader2 className="w-6 h-6 animate-spin mr-2" />
         Loading tenants...
       </div>
@@ -249,120 +251,118 @@ export default function AgencyAdminPage() {
   }
 
   return (
-    <div data-testid="tenants-page" className="space-y-6 animate-in fade-in duration-500">
-      {/* ── Top Header ────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-            Tenants Overview & Analytics
-          </h2>
-          <p className="text-slate-500 mt-1">
-            Real-time usage, plan health, and revenue analytics across all businesses.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleExportCsv}
-            disabled={exportingCsv}
-            data-testid="tenants-export-csv"
-            className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-3.5 py-2 rounded-lg font-medium hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50"
-          >
-            {exportingCsv ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-            Export CSV
-          </button>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            data-testid="tenant-onboard"
-            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors shadow-sm"
-          >
-            <Plus size={18} />
-            Provision New Tenant
-          </button>
-        </div>
-      </div>
+    <div data-testid="tenants-page" className="space-y-4 animate-in fade-in duration-300">
+      <PageHeader
+        title="Tenants Overview & Analytics"
+        subtitle="Real-time usage, plan health, and revenue analytics across all businesses."
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={handleExportCsv}
+              disabled={exportingCsv}
+              data-testid="tenants-export-csv"
+            >
+              {exportingCsv ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <Download />
+              )}
+              Export CSV
+            </Button>
+            <Button
+              onClick={() => setIsModalOpen(true)}
+              data-testid="tenant-onboard"
+            >
+              <Plus />
+              Provision New Tenant
+            </Button>
+          </div>
+        }
+      />
 
       {/* ── Overview Metrics Cards ────────────────────────────────────────────── */}
       {overview && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <div className="flex items-center justify-between text-slate-500">
-              <span className="text-xs font-semibold uppercase tracking-wider">MRR</span>
-              <DollarSign className="w-4 h-4 text-emerald-600" />
+          <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+            <div className="flex items-center justify-between text-gray-500">
+              <span className="text-caption font-semibold uppercase tracking-wider">MRR</span>
+              <DollarSign className="w-4 h-4 text-success" />
             </div>
-            <div className="mt-2 text-2xl font-bold text-slate-900">
+            <div className="mt-2 text-heading font-semibold text-gray-900">
               Rs {Number(overview.mrr).toLocaleString()}
             </div>
-            <p className="text-xs text-slate-500 mt-1">Active subscriptions</p>
+            <p className="text-caption text-gray-500 mt-1">Active subscriptions</p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <div className="flex items-center justify-between text-slate-500">
-              <span className="text-xs font-semibold uppercase tracking-wider">30d GMV</span>
-              <TrendingUp className="w-4 h-4 text-indigo-600" />
+          <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+            <div className="flex items-center justify-between text-gray-500">
+              <span className="text-caption font-semibold uppercase tracking-wider">30d GMV</span>
+              <TrendingUp className="w-4 h-4 text-brand-700" />
             </div>
-            <div className="mt-2 text-2xl font-bold text-slate-900">
+            <div className="mt-2 text-heading font-semibold text-gray-900">
               {formatGmv(overview.totalGmv30)}
             </div>
-            <p className="text-xs text-slate-500 mt-1">Total system throughput</p>
+            <p className="text-caption text-gray-500 mt-1">Total system throughput</p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <div className="flex items-center justify-between text-slate-500">
-              <span className="text-xs font-semibold uppercase tracking-wider">New Trials</span>
-              <Sparkles className="w-4 h-4 text-blue-600" />
+          <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+            <div className="flex items-center justify-between text-gray-500">
+              <span className="text-caption font-semibold uppercase tracking-wider">New Trials</span>
+              <Sparkles className="w-4 h-4 text-brand-700" />
             </div>
-            <div className="mt-2 text-2xl font-bold text-slate-900">
+            <div className="mt-2 text-heading font-semibold text-gray-900">
               {overview.trialsStartedThisMonth}
             </div>
-            <p className="text-xs text-slate-500 mt-1">Started this month</p>
+            <p className="text-caption text-gray-500 mt-1">Started this month</p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <div className="flex items-center justify-between text-slate-500">
-              <span className="text-xs font-semibold uppercase tracking-wider">Conversion</span>
-              <Activity className="w-4 h-4 text-purple-600" />
+          <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+            <div className="flex items-center justify-between text-gray-500">
+              <span className="text-caption font-semibold uppercase tracking-wider">Conversion</span>
+              <Activity className="w-4 h-4 text-brand-700" />
             </div>
-            <div className="mt-2 text-2xl font-bold text-slate-900">
+            <div className="mt-2 text-heading font-semibold text-gray-900">
               {Math.round(overview.trialToPaid * 100)}%
             </div>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-caption text-gray-500 mt-1">
               {overview.trialToPaidCounts?.converted || 0} / {overview.trialToPaidCounts?.started || 0} converted
             </p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <div className="flex items-center justify-between text-slate-500">
-              <span className="text-xs font-semibold uppercase tracking-wider">Churned (30d)</span>
-              <AlertCircle className="w-4 h-4 text-rose-600" />
+          <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+            <div className="flex items-center justify-between text-gray-500">
+              <span className="text-caption font-semibold uppercase tracking-wider">Churned (30d)</span>
+              <AlertCircle className="w-4 h-4 text-danger" />
             </div>
-            <div className="mt-2 text-2xl font-bold text-slate-900">
+            <div className="mt-2 text-heading font-semibold text-gray-900">
               {overview.churned}
             </div>
-            <p className="text-xs text-slate-500 mt-1">Cancelled or lost</p>
+            <p className="text-caption text-gray-500 mt-1">Cancelled or lost</p>
           </div>
         </div>
       )}
 
       {/* ── Filters & Search Bar ─────────────────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="bg-card border border-gray-200 rounded-lg p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="w-full sm:w-72">
           <input
             type="text"
             placeholder="Search tenant name..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full px-3.5 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-brand-300"
           />
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+          <div className="flex items-center gap-1.5 text-caption text-gray-500">
             <span>Filter:</span>
             <select
               data-testid="tenants-filter"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="px-2.5 py-1.5 bg-gray-50 border border-gray-300 rounded-lg text-body text-gray-800 font-medium focus:outline-none focus:ring-2 focus:ring-brand-300"
             >
               <option value="all">All Tenants</option>
               <option value="trialing">Trialing</option>
@@ -373,13 +373,13 @@ export default function AgencyAdminPage() {
             </select>
           </div>
 
-          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+          <div className="flex items-center gap-1.5 text-caption text-gray-500">
             <span>Sort by:</span>
             <select
               data-testid="tenants-sort"
               value={sort}
               onChange={(e) => setSort(e.target.value)}
-              className="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="px-2.5 py-1.5 bg-gray-50 border border-gray-300 rounded-lg text-body text-gray-800 font-medium focus:outline-none focus:ring-2 focus:ring-brand-300"
             >
               <option value="name">Name (A-Z)</option>
               <option value="gmv">30d GMV (Highest)</option>
@@ -390,26 +390,26 @@ export default function AgencyAdminPage() {
       </div>
 
       {/* ── Tenants Table ─────────────────────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-card border border-gray-200 rounded-lg shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
+          <table className="w-full text-left text-body whitespace-nowrap">
+            <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-medium">
               <tr>
-                <th className="px-5 py-3.5">Business</th>
-                <th className="px-4 py-3.5">Plan & Status</th>
-                <th className="px-4 py-3.5">Last Active</th>
-                <th className="px-4 py-3.5">30d Volume</th>
-                <th className="px-4 py-3.5 text-center">Users</th>
-                <th className="px-4 py-3.5 text-center">Products</th>
-                <th className="px-4 py-3.5 text-center">Health</th>
-                <th className="px-4 py-3.5">Plan Fit</th>
-                <th className="px-5 py-3.5 text-right">Actions</th>
+                <th className="px-3 py-2.5">Business</th>
+                <th className="px-3 py-2.5">Plan & Status</th>
+                <th className="px-3 py-2.5">Last Active</th>
+                <th className="px-3 py-2.5">30d Volume</th>
+                <th className="px-3 py-2.5 text-center">Users</th>
+                <th className="px-3 py-2.5 text-center">Products</th>
+                <th className="px-3 py-2.5 text-center">Health</th>
+                <th className="px-3 py-2.5">Plan Fit</th>
+                <th className="px-3 py-2.5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-gray-100">
               {filteredTenants.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-8 text-center text-slate-500">
+                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                     No tenants match the selected filters.
                   </td>
                 </tr>
@@ -418,33 +418,33 @@ export default function AgencyAdminPage() {
                   const healthScore = t.health?.score ?? 50;
                   const healthColor =
                     healthScore >= 70
-                      ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+                      ? "text-success bg-success-bg border-success"
                       : healthScore >= 40
-                        ? "text-amber-600 bg-amber-50 border-amber-200"
-                        : "text-rose-600 bg-rose-50 border-rose-200";
+                        ? "text-warning bg-warning-bg border-warning"
+                        : "text-danger bg-danger-bg border-danger";
 
                   return (
                     <tr
                       key={t.businessId}
                       data-testid="tenant-row"
-                      className="hover:bg-slate-50 transition-colors"
+                      className="hover:bg-gray-50 transition-colors"
                     >
-                      <td className="px-5 py-3.5">
+                      <td className="px-3 py-2.5">
                         <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+                          <div className="h-9 w-9 bg-brand-50 text-brand-700 rounded-lg flex items-center justify-center shrink-0">
                             <Building2 size={18} />
                           </div>
                           <div>
                             <Link
                               href={`/tenants/${t.businessId}`}
                               data-testid="tenant-open"
-                              className="font-semibold text-slate-900 hover:text-indigo-600 transition-colors"
+                              className="font-semibold text-gray-900 hover:text-brand-700 transition-colors"
                             >
                               {t.name}
                             </Link>
-                            <div className="text-xs text-slate-500 font-mono">
+                            <div className="text-caption text-gray-500 font-mono">
                               {t.trialDaysLeft !== null ? (
-                                <span className="text-blue-600">
+                                <span className="text-brand-700">
                                   {t.trialDaysLeft} days trial left
                                 </span>
                               ) : (
@@ -455,12 +455,12 @@ export default function AgencyAdminPage() {
                         </div>
                       </td>
 
-                      <td className="px-4 py-3.5">
+                      <td className="px-3 py-2.5">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-medium text-slate-800 text-xs">{t.plan}</span>
+                          <span className="font-medium text-gray-800 text-caption">{t.plan}</span>
                           <span
                             data-testid="tenant-row-status"
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-caption font-semibold border ${
                               STATUS_BADGES[t.status] || STATUS_BADGES.ACTIVE
                             }`}
                           >
@@ -469,64 +469,64 @@ export default function AgencyAdminPage() {
                         </div>
                       </td>
 
-                      <td className="px-4 py-3.5 text-xs text-slate-600">
+                      <td className="px-3 py-2.5 text-caption text-gray-600">
                         <div className="flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-slate-400" />
+                          <Clock className="w-3 h-3 text-gray-400" />
                           <span>{formatRelativeTime(t.lastActiveAt)}</span>
                         </div>
                       </td>
 
-                      <td className="px-4 py-3.5">
-                        <div className="text-xs font-semibold text-slate-900">
+                      <td className="px-3 py-2.5">
+                        <div className="text-caption font-semibold text-gray-900">
                           {formatGmv(t.gmv30)}
                         </div>
-                        <div className="text-[11px] text-slate-500">
+                        <div className="text-caption text-gray-500">
                           {t.orders30.toLocaleString()} orders
                         </div>
                       </td>
 
-                      <td className="px-4 py-3.5 text-center">
-                        <span className="text-xs font-medium text-slate-700">
+                      <td className="px-3 py-2.5 text-center">
+                        <span className="text-caption font-medium text-gray-700">
                           {t.activeUsers} / {t.maxUsers ?? "∞"}
                         </span>
                       </td>
 
-                      <td className="px-4 py-3.5 text-center">
-                        <span className="text-xs font-medium text-slate-700">
+                      <td className="px-3 py-2.5 text-center">
+                        <span className="text-caption font-medium text-gray-700">
                           {t.products} / {t.maxProducts ?? "∞"}
                         </span>
                       </td>
 
-                      <td className="px-4 py-3.5 text-center">
+                      <td className="px-3 py-2.5 text-center">
                         <div
                           data-testid="tenant-health-score"
                           title={t.health?.reason || "Health score based on activity"}
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold border ${healthColor}`}
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-caption font-semibold border ${healthColor}`}
                         >
                           {healthScore}
                         </div>
                       </td>
 
-                      <td className="px-4 py-3.5">
+                      <td className="px-3 py-2.5">
                         {t.planFit && PLAN_FIT_BADGES[t.planFit] ? (
                           <span
                             data-testid="tenant-plan-fit"
-                            className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold border ${PLAN_FIT_BADGES[t.planFit].class}`}
+                            className={`inline-flex items-center px-2 py-0.5 rounded-md text-caption font-semibold border ${PLAN_FIT_BADGES[t.planFit].class}`}
                           >
                             {PLAN_FIT_BADGES[t.planFit].label}
                           </span>
                         ) : (
-                          <span className="text-xs text-slate-400">—</span>
+                          <span className="text-caption text-gray-400">—</span>
                         )}
                       </td>
 
-                      <td className="px-5 py-3.5 text-right">
+                      <td className="px-3 py-2.5 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
                             type="button"
                             onClick={() => setBranchModalFor(t)}
                             data-testid="tenant-add-branch"
-                            className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-indigo-600 transition-colors"
+                            className="inline-flex items-center gap-1 text-caption font-semibold px-2.5 py-1 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-100 hover:text-brand-700 transition-colors"
                             title="Add branch to tenant"
                           >
                             <GitBranch className="w-3 h-3" />
@@ -538,7 +538,7 @@ export default function AgencyAdminPage() {
                             onClick={() => handleViewAs(t.businessId)}
                             disabled={viewAsLoadingId === t.businessId}
                             data-testid="tenant-view-as"
-                            className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-indigo-600 transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1 text-caption font-semibold px-2.5 py-1 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-100 hover:text-brand-700 transition-colors disabled:opacity-50"
                             title="Open client app in read-only view-as session"
                           >
                             {viewAsLoadingId === t.businessId ? (
@@ -551,7 +551,7 @@ export default function AgencyAdminPage() {
 
                           <Link
                             href={`/tenants/${t.businessId}`}
-                            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+                            className="text-caption font-semibold text-brand-700 hover:text-brand-700 transition-colors"
                           >
                             Details →
                           </Link>
@@ -568,13 +568,13 @@ export default function AgencyAdminPage() {
 
       {/* ── Provision Tenant Modal ────────────────────────────────────────── */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="font-semibold text-slate-900">Provision New Tenant</h3>
+        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-lg shadow-xl max-w-md w-full overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">Provision New Tenant</h3>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-500 rounded-lg p-1"
+                className="text-gray-400 hover:text-gray-500 rounded-lg p-1"
               >
                 <X size={18} />
               </button>
@@ -582,13 +582,13 @@ export default function AgencyAdminPage() {
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               {error && (
-                <div className="bg-rose-50 text-rose-700 border border-rose-200 rounded-lg p-3 text-sm">
+                <div className="bg-danger-bg text-danger border border-danger rounded-lg p-3 text-body">
                   {error}
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-caption font-medium text-gray-700 mb-1">
                   Business / Shop Name *
                 </label>
                 <input
@@ -597,13 +597,13 @@ export default function AgencyAdminPage() {
                   data-testid="tenant-onboard-name"
                   value={formData.businessName}
                   onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-brand-300"
                   placeholder="e.g. Al-Madina Autos"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-caption font-medium text-gray-700 mb-1">
                   Owner Full Name *
                 </label>
                 <input
@@ -611,13 +611,13 @@ export default function AgencyAdminPage() {
                   required
                   value={formData.ownerName}
                   onChange={(e) => setFormData({ ...formData, ownerName: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-brand-300"
                   placeholder="John Doe"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-caption font-medium text-gray-700 mb-1">
                   Owner Email *
                 </label>
                 <input
@@ -626,13 +626,13 @@ export default function AgencyAdminPage() {
                   data-testid="tenant-onboard-email"
                   value={formData.ownerEmail}
                   onChange={(e) => setFormData({ ...formData, ownerEmail: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-brand-300"
                   placeholder="ali@example.com"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-caption font-medium text-gray-700 mb-1">
                   Owner Initial Password *
                 </label>
                 <input
@@ -641,33 +641,33 @@ export default function AgencyAdminPage() {
                   data-testid="tenant-onboard-password"
                   value={formData.ownerPassword}
                   onChange={(e) => setFormData({ ...formData, ownerPassword: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-brand-300"
                   placeholder="••••••••"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-caption font-medium text-gray-700 mb-1">
                   Phone (Optional)
                 </label>
                 <input
                   type="text"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-brand-300"
                   placeholder="03001234567"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-caption font-medium text-gray-700 mb-1">
                   Shop Address (Optional)
                 </label>
                 <input
                   type="text"
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-brand-300"
                   placeholder="Main Market, Shop #12"
                 />
               </div>
@@ -676,7 +676,7 @@ export default function AgencyAdminPage() {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-body font-medium hover:bg-gray-50 transition-colors"
                 >
                   Cancel
                 </button>
@@ -684,7 +684,7 @@ export default function AgencyAdminPage() {
                   type="submit"
                   disabled={submitLoading}
                   data-testid="tenant-onboard-submit"
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                  className="px-4 py-2 bg-brand-700 text-white rounded-lg text-body font-medium hover:bg-brand-700 transition-colors flex items-center gap-2 disabled:opacity-50"
                 >
                   {submitLoading && <Loader2 size={16} className="animate-spin" />}
                   Provision Tenant
@@ -697,15 +697,15 @@ export default function AgencyAdminPage() {
 
       {/* ── Provision Branch Modal ────────────────────────────────────────── */}
       {branchModalFor && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="font-semibold text-slate-900">
+        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-lg shadow-xl max-w-md w-full overflow-hidden border border-gray-100 animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">
                 Add Branch to {branchModalFor.name}
               </h3>
               <button
                 onClick={() => setBranchModalFor(null)}
-                className="text-slate-400 hover:text-slate-500 rounded-lg p-1"
+                className="text-gray-400 hover:text-gray-500 rounded-lg p-1"
               >
                 <X size={18} />
               </button>
@@ -713,13 +713,13 @@ export default function AgencyAdminPage() {
 
             <form onSubmit={handleAddBranch} className="p-6 space-y-4">
               {branchError && (
-                <div className="bg-rose-50 text-rose-700 border border-rose-200 rounded-lg p-3 text-sm">
+                <div className="bg-danger-bg text-danger border border-danger rounded-lg p-3 text-body">
                   {branchError}
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-caption font-medium text-gray-700 mb-1">
                   Branch Name *
                 </label>
                 <input
@@ -728,20 +728,20 @@ export default function AgencyAdminPage() {
                   data-testid="tenant-branch-name"
                   value={branchName}
                   onChange={(e) => setBranchName(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-brand-300"
                   placeholder="e.g. WareHouse 2"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-caption font-medium text-gray-700 mb-1">
                   Branch Location / Address
                 </label>
                 <input
                   type="text"
                   value={branchLocation}
                   onChange={(e) => setBranchLocation(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-brand-300"
                   placeholder="e.g. Sector I-9"
                 />
               </div>
@@ -750,7 +750,7 @@ export default function AgencyAdminPage() {
                 <button
                   type="button"
                   onClick={() => setBranchModalFor(null)}
-                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-body font-medium hover:bg-gray-50 transition-colors"
                 >
                   Cancel
                 </button>
@@ -758,7 +758,7 @@ export default function AgencyAdminPage() {
                   type="submit"
                   disabled={branchSubmitLoading}
                   data-testid="tenant-branch-submit"
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                  className="px-4 py-2 bg-brand-700 text-white rounded-lg text-body font-medium hover:bg-brand-700 transition-colors flex items-center gap-2 disabled:opacity-50"
                 >
                   {branchSubmitLoading && <Loader2 size={16} className="animate-spin" />}
                   Add Branch

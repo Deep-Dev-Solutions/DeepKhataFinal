@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus } from "lucide-react";
 import { api } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import InvoiceForm from "./InvoiceForm";
 import InvoicesTable from "./InvoicesTable";
 import { Invoice } from "./types";
@@ -44,37 +46,37 @@ export default function InvoiceList({ businessId }: { businessId?: string }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <select
+        <div className="w-44">
+        <Select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
           data-testid="invoice-status-filter"
-          className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
         >
           {STATUSES.map((s) => (
             <option key={s} value={s}>
               {s === "" ? "All statuses" : s}
             </option>
           ))}
-        </select>
-        <button
+        </Select>
+        </div>
+        <Button
           type="button"
           onClick={() => setCreating(true)}
           data-testid="invoice-create-open"
-          className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors shadow-sm"
         >
-          <Plus size={18} />
+          <Plus />
           Generate Invoice
-        </button>
+        </Button>
       </div>
 
       {error && (
-        <div role="alert" className="bg-rose-50 text-rose-700 border border-rose-200 rounded-xl p-3 text-sm font-medium">
+        <div role="alert" className="bg-danger-bg text-danger border border-danger rounded-lg p-3 text-body font-medium">
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center p-16 text-slate-500">
+        <div className="flex items-center justify-center p-16 text-gray-500">
           <Loader2 className="w-6 h-6 animate-spin mr-2" />
           Loading invoices...
         </div>

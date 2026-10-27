@@ -6,6 +6,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { LogOut, Loader2, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { CLIENT_APP_URL } from "@/lib/auth";
+import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 
 const NAV_LINKS = [
   { href: "/", label: "Tenants", testId: "nav-tenants" },
@@ -39,27 +41,27 @@ export default function AppShell({
 
   if (isLoading || !isAuthenticated) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-slate-500">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-          <span className="text-sm font-medium">Verifying agency session...</span>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-gray-500">
+          <Loader2 className="w-8 h-8 animate-spin text-brand-700" />
+          <span className="text-body font-medium">Verifying agency session...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <header className="bg-card border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
         <div className="flex items-center gap-4">
-          <div className="h-8 w-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-sm shadow-indigo-200">
-            <span className="text-white font-bold text-sm">DK</span>
+          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-700">
+            <span className="text-body font-semibold text-white">DK</span>
           </div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+            <h1 className="text-title font-semibold tracking-tight text-gray-900">
               DeepKhata Agency
             </h1>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-caption font-semibold bg-brand-50 text-brand-700 border border-brand-200">
               <ShieldAlert className="w-3 h-3" />
               Master Control
             </span>
@@ -75,7 +77,7 @@ export default function AppShell({
                   key={item.href}
                   href={item.href}
                   data-testid={item.testId}
-                  className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${isActive ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"}`}
+                  className={`text-body font-medium px-3 py-1.5 rounded-lg transition-colors ${isActive ? "bg-brand-50 text-brand-700" : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"}`}
                 >
                   {item.label}
                 </Link>
@@ -86,22 +88,22 @@ export default function AppShell({
         <div className="flex items-center gap-5">
           <Link
             href={CLIENT_APP_URL}
-            className="text-xs font-semibold text-slate-700 hover:text-indigo-600 bg-slate-100 hover:bg-slate-200/80 px-3 py-1.5 rounded-lg transition-colors"
+            className={buttonVariants({ variant: "secondary", size: "sm" })}
           >
             Store Dashboard →
           </Link>
-          <div className="text-sm">
-            <span className="text-slate-500">Logged in as </span>
-            <span className="font-semibold text-slate-900">
+          <div className="text-body">
+            <span className="text-gray-500">Logged in as </span>
+            <span className="font-semibold text-gray-900">
               {user?.name || "Super Admin"}
             </span>
-            <span className="ml-1.5 text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-medium">
+            <Badge variant="neutral" uppercase className="ml-1.5">
               SUPER_ADMIN
-            </span>
+            </Badge>
           </div>
           <button
             onClick={() => logout()}
-            className="flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-rose-600 transition-colors"
+            className="flex items-center gap-2 text-body font-medium text-gray-600 hover:text-danger transition-colors"
           >
             <LogOut size={16} />
             Logout
