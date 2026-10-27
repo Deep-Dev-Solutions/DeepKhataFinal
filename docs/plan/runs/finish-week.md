@@ -144,3 +144,10 @@ Failing: nothing.
 Decisions needed: none. Screenshots for the section are in `docs/ui/` (`products-`, `product-detail-`, `add-product-`, `edit-product-`, `restock-`, `inventory-movements-`, `customers-`, `khata-`, `new-customer-`, `edit-customer-`, `record-payment-`, `vendors-`, `vendor-profile-`, `vendor-ledger-`, `vendor-batches-`, `vendor-audit-sec-c.png`); `docs/ui/` stays git-excluded as in B0.
 
 Next: Section D not started.
+
+## Day 5 — remaining screens + admin (Section D)
+
+| # | Task | State | Commit |
+| --- | --- | --- | --- |
+| D1 | Galla/cash page + register modals on the tokens/kit: `PageHeader` with register-status chip, Z-Report and Close/Start Shift buttons, 4 KPI cards (expected cash is the solid brand block), expense voucher with category/preset Buttons and kit Input/Select, ledger card with compact Badges; `OpenRegisterModal`, `CloseRegisterModal`, `ZReportModal` rebuilt on kit `Modal` (`lg` where they carry a table) with testids and the "SHORT by PKR n" wording intact; zero cash sales/expenses are neutral, not green/red; sidebar label shortened to "Galla / Cash" so it stops truncating; closed-register "expected drawer = −300" logged in `docs/plan/BUGS.md` instead of fixed here; 11 testids kept, `npm run build -w client` green, badges 18px / 0 clipped / no overflow on the page and all three dialogs | done | d713fe8 |
+
