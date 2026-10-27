@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Eye } from "lucide-react";
 import { API_BASE_URL, apiFetch, clearAuthStorage } from "@/lib/auth";
+import { Button } from "@/components/ui/button";
 
 interface SessionInfo {
   impersonated: boolean;
@@ -55,19 +56,20 @@ export default function ViewAsBanner() {
   return (
     <div
       data-testid="view-as-banner"
-      className="fixed inset-x-0 top-0 z-[100] flex items-center justify-center gap-3 bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow"
+      className="fixed inset-x-0 top-0 z-[100] flex items-center justify-center gap-3 bg-danger px-4 py-2 text-body font-semibold text-danger-foreground shadow-sm"
     >
       <Eye className="h-4 w-4 shrink-0" />
       <span>Viewing as {info.businessName || "shop"} (read-only)</span>
-      <button
+      <Button
         type="button"
+        size="sm"
+        variant="secondary"
         data-testid="view-as-exit"
         onClick={exit}
-        disabled={exiting}
-        className="rounded-md bg-white px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-60"
+        loading={exiting}
       >
         {exiting ? "Exiting..." : "Exit"}
-      </button>
+      </Button>
     </div>
   );
 }

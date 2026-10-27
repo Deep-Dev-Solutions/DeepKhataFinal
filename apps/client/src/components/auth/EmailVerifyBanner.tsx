@@ -5,6 +5,7 @@ import { MailWarning } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL, apiFetch } from "@/lib/auth";
 import TurnstileWidget, { useTurnstile } from "./TurnstileWidget";
+import { Button } from "@/components/ui/button";
 
 /**
  * Shown to owners whose email is not verified yet (team creation is blocked
@@ -47,9 +48,9 @@ export default function EmailVerifyBanner() {
   return (
     <div
       data-testid="email-verify-banner"
-      className="flex flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900"
+      className="flex flex-wrap items-center gap-3 border-b border-warning/30 bg-warning-bg px-4 py-2 text-body text-warning-fg"
     >
-      <MailWarning className="h-4 w-4 shrink-0 text-amber-600" />
+      <MailWarning className="h-4 w-4 shrink-0 text-warning" />
       <span className="flex-1 min-w-[200px]">
         Please verify your email ({user.email}) to add staff and keep your
         account recoverable.
@@ -59,19 +60,19 @@ export default function EmailVerifyBanner() {
         resetKey={captcha.resetKey}
       />
       {note && (
-        <span data-testid="email-verify-note" className="text-xs text-amber-800">
+        <span data-testid="email-verify-note" className="text-caption text-warning-fg">
           {note}
         </span>
       )}
-      <button
+      <Button
         type="button"
+        size="sm"
         data-testid="email-verify-resend"
         onClick={resend}
-        disabled={sending}
-        className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
+        loading={sending}
       >
         {sending ? "Sending..." : "Resend email"}
-      </button>
+      </Button>
     </div>
   );
 }

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import AuthCard from "@/components/auth/AuthCard";
 import TurnstileWidget, { useTurnstile } from "@/components/auth/TurnstileWidget";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -55,21 +57,21 @@ export default function ForgotPasswordPage() {
       {done ? (
         <div
           data-testid="forgot-done"
-          className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-800"
+          className="rounded-md border border-success/30 bg-success-bg p-3 text-body text-success-fg"
         >
           If an account exists for that email, a reset link is on its way. The
           link works for 1 hour.
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label
               htmlFor="forgot-email"
-              className="block text-sm font-medium text-slate-700"
+              className="mb-1 block text-caption font-medium text-gray-700"
             >
               Email address
             </label>
-            <input
+            <Input
               id="forgot-email"
               data-testid="forgot-email"
               type="email"
@@ -77,10 +79,9 @@ export default function ForgotPasswordPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full sm:text-sm border-slate-300 rounded-xl py-3 px-4 text-slate-900 focus:ring-blue-500 focus:border-blue-500 border outline-none"
               placeholder="you@example.com"
             />
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-caption text-gray-500">
               Staff with a username login (no email): ask your shop owner to
               reset your password from Settings, Team.
             </p>
@@ -90,22 +91,28 @@ export default function ForgotPasswordPage() {
             resetKey={captcha.resetKey}
           />
           {error && (
-            <p data-testid="forgot-error" className="text-sm text-red-600">
+            <p
+              data-testid="forgot-error"
+              className="rounded-md border border-danger/30 bg-danger-bg px-2.5 py-2 text-caption font-medium text-danger-fg"
+            >
               {error}
             </p>
           )}
-          <button
+          <Button
             type="submit"
             data-testid="forgot-submit"
-            disabled={loading}
-            className="w-full flex justify-center py-3 px-4 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60"
+            loading={loading}
+            className="w-full"
           >
             {loading ? "Sending..." : "Send reset link"}
-          </button>
+          </Button>
         </form>
       )}
-      <div className="mt-6 text-center text-sm">
-        <Link href="/login" className="font-medium text-blue-600 hover:text-blue-500">
+      <div className="mt-5 text-center text-body">
+        <Link
+          href="/login"
+          className="font-medium text-brand-700 hover:text-brand-800 hover:underline"
+        >
           Back to sign in
         </Link>
       </div>

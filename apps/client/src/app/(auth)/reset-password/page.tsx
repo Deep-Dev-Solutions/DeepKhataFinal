@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import AuthCard from "@/components/auth/AuthCard";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
@@ -43,11 +45,14 @@ function ResetPasswordContent() {
   }
 
   return (
-    <AuthCard title="Set a new password" subtitle="Choose a new password for your account.">
+    <AuthCard
+      title="Set a new password"
+      subtitle="Choose a new password for your account."
+    >
       {done ? (
         <div
           data-testid="reset-done"
-          className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-800"
+          className="rounded-md border border-success/30 bg-success-bg p-3 text-body text-success-fg"
         >
           Password updated. All your other devices were signed out.{" "}
           <Link href="/login" className="font-semibold underline">
@@ -55,15 +60,15 @@ function ResetPasswordContent() {
           </Link>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label
               htmlFor="reset-password"
-              className="block text-sm font-medium text-slate-700"
+              className="mb-1 block text-caption font-medium text-gray-700"
             >
               New password
             </label>
-            <input
+            <Input
               id="reset-password"
               data-testid="reset-password"
               type="password"
@@ -72,23 +77,25 @@ function ResetPasswordContent() {
               minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full sm:text-sm border-slate-300 rounded-xl py-3 px-4 text-slate-900 focus:ring-blue-500 focus:border-blue-500 border outline-none"
               placeholder="At least 8 characters"
             />
           </div>
           {error && (
-            <p data-testid="reset-error" className="text-sm text-red-600">
+            <p
+              data-testid="reset-error"
+              className="rounded-md border border-danger/30 bg-danger-bg px-2.5 py-2 text-caption font-medium text-danger-fg"
+            >
               {error}
             </p>
           )}
-          <button
+          <Button
             type="submit"
             data-testid="reset-submit"
-            disabled={loading}
-            className="w-full flex justify-center py-3 px-4 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60"
+            loading={loading}
+            className="w-full"
           >
             {loading ? "Saving..." : "Update password"}
-          </button>
+          </Button>
         </form>
       )}
     </AuthCard>
@@ -97,7 +104,7 @@ function ResetPasswordContent() {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
+    <Suspense fallback={<div className="min-h-screen bg-gray-50" />}>
       <ResetPasswordContent />
     </Suspense>
   );

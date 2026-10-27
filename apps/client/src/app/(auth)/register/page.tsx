@@ -4,12 +4,13 @@ import React, { useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
-import { Store, Mail, Lock, User, Phone, ArrowRight } from "lucide-react";
+import { Mail, Lock, User, Phone, ArrowRight } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL, apiFetch } from "@/lib/auth";
 import TurnstileWidget, { useTurnstile } from "@/components/auth/TurnstileWidget";
-
-const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "DeepKhata";
+import AuthCard from "@/components/auth/AuthCard";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 function RegisterPageContent() {
   const router = useRouter();
@@ -84,219 +85,180 @@ function RegisterPageContent() {
     }
   }
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        {/* Logo */}
-        <div className="flex justify-center items-center gap-2 mb-6">
-          <div className="bg-blue-600 p-2 rounded-xl shadow-sm">
-            <Store className="w-6 h-6 text-white" />
+    <AuthCard
+      title="Create your account"
+      subtitle="Join thousands of businesses managing their workflow"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label
+            htmlFor="name"
+            className="mb-1 block text-caption font-medium text-gray-700"
+          >
+            Full Name
+          </label>
+          <div className="relative">
+            <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Input
+              id="name"
+              name="name"
+              data-testid="register-name"
+              type="text"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="pl-9"
+              placeholder="Ali Khan"
+            />
           </div>
-          <span className="text-2xl font-bold tracking-tight text-slate-900">
-            {APP_NAME}
-          </span>
         </div>
 
-        <h2 className="mt-2 text-center text-3xl font-extrabold text-slate-900">
-          Create your account
-        </h2>
-        <p className="mt-2 text-center text-sm text-slate-600">
-          Join thousands of businesses managing their workflow
+        <div>
+          <label
+            htmlFor="email"
+            className="mb-1 block text-caption font-medium text-gray-700"
+          >
+            Email address
+          </label>
+          <div className="relative">
+            <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Input
+              id="email"
+              name="email"
+              data-testid="register-email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              readOnly={Boolean(invitedEmail)}
+              onChange={(e) => setEmail(e.target.value)}
+              className="pl-9 disabled:bg-gray-100 disabled:text-gray-500"
+              placeholder="you@example.com"
+              disabled={Boolean(invitedEmail)}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label
+            htmlFor="phone"
+            className="mb-1 block text-caption font-medium text-gray-700"
+          >
+            Mobile number (optional)
+          </label>
+          <div className="relative">
+            <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Input
+              id="phone"
+              name="phone"
+              data-testid="register-phone"
+              type="tel"
+              autoComplete="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="pl-9"
+              placeholder="03XX XXXXXXX"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label
+            htmlFor="password"
+            className="mb-1 block text-caption font-medium text-gray-700"
+          >
+            Password
+          </label>
+          <div className="relative">
+            <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Input
+              id="password"
+              name="password"
+              data-testid="register-password"
+              minLength={8}
+              type="password"
+              autoComplete="new-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="pl-9"
+              placeholder="Create a strong password"
+            />
+          </div>
+        </div>
+
+        <TurnstileWidget
+          onToken={captcha.setToken}
+          resetKey={captcha.resetKey}
+        />
+
+        {error && (
+          <p
+            data-testid="register-error"
+            className="rounded-md border border-danger/30 bg-danger-bg px-2.5 py-2 text-caption font-medium text-danger-fg"
+          >
+            {error}
+          </p>
+        )}
+
+        {success && (
+          <p className="rounded-md border border-success/30 bg-success-bg px-2.5 py-2 text-caption font-medium text-success-fg">
+            {success}
+          </p>
+        )}
+
+        <div className="flex items-start gap-2 pt-1">
+          <input
+            id="terms"
+            name="terms"
+            type="checkbox"
+            data-testid="terms-checkbox"
+            required
+            className="mt-0.5 h-4 w-4 cursor-pointer rounded border-border accent-brand-700"
+          />
+          <label htmlFor="terms" className="text-caption text-gray-600">
+            I agree to the{" "}
+            <Link
+              href="/terms"
+              target="_blank"
+              className="text-brand-700 underline hover:text-brand-800"
+            >
+              Terms of Service and Privacy Policy
+            </Link>
+            .
+          </label>
+        </div>
+
+        <Button
+          type="submit"
+          data-testid="register-submit"
+          loading={loading}
+          className="w-full"
+        >
+          {loading ? "Creating..." : "Create Account"}
+          {!loading && <ArrowRight className="h-4 w-4" />}
+        </Button>
+      </form>
+
+      <div className="mt-5 border-t border-border pt-4 text-center">
+        <p className="text-body text-gray-600">
+          Already have an account?{" "}
+          <Link
+            href="/login"
+            className="font-medium text-brand-700 transition-colors hover:text-brand-800 hover:underline"
+          >
+            Sign in instead
+          </Link>
         </p>
       </div>
-
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow-xl shadow-slate-200/50 sm:rounded-2xl sm:px-10 border border-slate-100">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Full Name Input */}
-            <div>
-              <label
-                htmlFor="name"
-                className="block text-sm font-medium text-slate-700"
-              >
-                Full Name
-              </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-slate-400" />
-                </div>
-                <input
-                  id="name"
-                  name="name"
-                  data-testid="register-name"
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="block w-full pl-10 sm:text-sm border-slate-300 rounded-xl py-3 text-slate-900 focus:ring-blue-500 focus:border-blue-500 border outline-none transition-colors"
-                  placeholder="Ali Khan"
-                />
-              </div>
-            </div>
-
-            {/* Email Input */}
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-slate-700"
-              >
-                Email address
-              </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-slate-400" />
-                </div>
-                <input
-                  id="email"
-                  name="email"
-                  data-testid="register-email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  readOnly={Boolean(invitedEmail)}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 sm:text-sm border-slate-300 rounded-xl py-3 text-slate-900 focus:ring-blue-500 focus:border-blue-500 border outline-none transition-colors disabled:bg-slate-100 disabled:text-slate-500"
-                  placeholder="you@example.com"
-                  disabled={Boolean(invitedEmail)}
-                />
-              </div>
-            </div>
-
-            {/* Phone Input */}
-            <div>
-              <label
-                htmlFor="phone"
-                className="block text-sm font-medium text-slate-700"
-              >
-                Mobile number (optional)
-              </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Phone className="h-5 w-5 text-slate-400" />
-                </div>
-                <input
-                  id="phone"
-                  name="phone"
-                  data-testid="register-phone"
-                  type="tel"
-                  autoComplete="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="block w-full pl-10 sm:text-sm border-slate-300 rounded-xl py-3 text-slate-900 focus:ring-blue-500 focus:border-blue-500 border outline-none transition-colors"
-                  placeholder="03XX XXXXXXX"
-                />
-              </div>
-            </div>
-
-            {/* Password Input */}
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-slate-700"
-              >
-                Password
-              </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-slate-400" />
-                </div>
-                <input
-                  id="password"
-                  name="password"
-                  data-testid="register-password"
-                  minLength={8}
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 sm:text-sm border-slate-300 rounded-xl py-3 text-slate-900 focus:ring-blue-500 focus:border-blue-500 border outline-none transition-colors"
-                  placeholder="Create a strong password"
-                />
-              </div>
-            </div>
-
-            <TurnstileWidget
-              onToken={captcha.setToken}
-              resetKey={captcha.resetKey}
-            />
-
-            {/* Submit Button */}
-            {error && (
-              <p data-testid="register-error" className="text-sm text-red-600">
-                {error}
-              </p>
-            )}
-
-            {success && <p className="text-sm text-green-600">{success}</p>}
-
-            {/* Terms and Privacy Checkbox */}
-            <div className="flex items-start gap-2 pt-1">
-              <input
-                id="terms"
-                name="terms"
-                type="checkbox"
-                data-testid="terms-checkbox"
-                required
-                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              />
-              <label htmlFor="terms" className="text-xs text-slate-600">
-                I agree to the{" "}
-                <Link
-                  href="/terms"
-                  target="_blank"
-                  className="text-blue-600 underline hover:text-blue-500"
-                >
-                  Terms of Service and Privacy Policy
-                </Link>
-                .
-              </label>
-            </div>
-
-            <div className="pt-2">
-              <button
-                type="submit"
-                data-testid="register-submit"
-                disabled={loading}
-                className="w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all disabled:opacity-60"
-              >
-                {loading ? "Creating..." : "Create Account"}
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-xs text-center text-slate-500 mt-4">
-              By signing up, you agree to our Terms of Service and Privacy
-              Policy.
-            </p>
-          </form>
-
-          {/* Footer Link */}
-          <div className="mt-6 text-center border-t border-slate-100 pt-6">
-            <p className="text-sm text-slate-600">
-              Already have an account?{" "}
-              <Link
-                href="/login"
-                className="font-medium text-blue-600 hover:text-blue-500 transition-colors"
-              >
-                Sign in instead
-              </Link>
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+    </AuthCard>
   );
 }
 
 export default function RegisterPage() {
   return (
     <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500">
-          Loading...
-        </div>
-      }
+      fallback={<div className="min-h-screen bg-gray-50" />}
     >
       <RegisterPageContent />
     </Suspense>

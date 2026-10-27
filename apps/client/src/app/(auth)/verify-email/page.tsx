@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { API_BASE_URL, apiFetch } from "@/lib/auth";
 import AuthCard from "@/components/auth/AuthCard";
+import { Button } from "@/components/ui/button";
 import TurnstileWidget, { useTurnstile } from "@/components/auth/TurnstileWidget";
 
 type Status = "verifying" | "success" | "error";
@@ -80,12 +81,12 @@ function VerifyEmailContent() {
       <div
         data-testid="verify-status"
         data-status={status}
-        className={`p-4 rounded-xl border text-sm ${
+        className={`rounded-md border p-3 text-body ${
           status === "success"
-            ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+            ? "border-success/30 bg-success-bg text-success-fg"
             : status === "error"
-              ? "bg-rose-50 border-rose-200 text-rose-800"
-              : "bg-slate-50 border-slate-200 text-slate-600"
+              ? "border-danger/30 bg-danger-bg text-danger-fg"
+              : "border-border bg-gray-50 text-gray-600"
         }`}
       >
         {status === "verifying" && "Verifying your email..."}
@@ -99,27 +100,27 @@ function VerifyEmailContent() {
             onToken={captcha.setToken}
             resetKey={captcha.resetKey}
           />
-          <button
+          <Button
             type="button"
             data-testid="verify-resend"
             onClick={resend}
-            disabled={resending}
-            className="w-full flex justify-center py-3 px-4 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60"
+            loading={resending}
+            className="w-full"
           >
             {resending ? "Sending..." : "Resend verification email"}
-          </button>
+          </Button>
           {resendNote && (
-            <p data-testid="verify-resend-note" className="mt-2 text-xs text-slate-600">
+            <p data-testid="verify-resend-note" className="mt-2 text-caption text-gray-600">
               {resendNote}
             </p>
           )}
         </div>
       )}
 
-      <div className="mt-6 text-center text-sm">
+      <div className="mt-5 text-center text-body">
         <Link
           href={status === "success" ? "/dashboard" : "/login"}
-          className="font-medium text-blue-600 hover:text-blue-500"
+          className="font-medium text-brand-700 hover:text-brand-800 hover:underline"
         >
           {status === "success" ? "Go to dashboard" : "Back to sign in"}
         </Link>
@@ -130,7 +131,7 @@ function VerifyEmailContent() {
 
 export default function VerifyEmailPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
+    <Suspense fallback={<div className="min-h-screen bg-gray-50" />}>
       <VerifyEmailContent />
     </Suspense>
   );
