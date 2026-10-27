@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { generateWhatsAppReceipt } from "@/lib/utils";
 import { getAuthHeaders, API_BASE_URL } from "@/lib/auth";
+import { printReceiptElement } from "@/lib/receipt-print";
 
 export interface CompletedOrderItem {
   name: string;
@@ -101,8 +102,9 @@ export default function OrderSuccessModal({
 
   if (!order) return null;
 
+  // Desktop shell: silent thermal print. Browser: the normal print dialog.
   const handlePrint = () => {
-    window.print();
+    void printReceiptElement("thermal-print-slip");
   };
 
   const whatsappUrl = generateWhatsAppReceipt(
@@ -220,6 +222,7 @@ export default function OrderSuccessModal({
             <div className="grid grid-cols-2 gap-3 pt-1">
               <button
                 type="button"
+                data-testid="pos-print-slip"
                 onClick={handlePrint}
                 className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold transition-all shadow-md shadow-slate-900/10 cursor-pointer active:scale-[0.98]"
               >
