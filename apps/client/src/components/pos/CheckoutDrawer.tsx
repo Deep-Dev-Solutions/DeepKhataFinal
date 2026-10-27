@@ -13,6 +13,10 @@ import {
   CheckCircle2,
   Lock,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { useToast } from "@/context/ToastContext";
 import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 import { Customer } from "@/types/api";
@@ -174,46 +178,48 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
       {/* Backdrop */}
       <div
         onClick={onClose}
-        className={`absolute inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200 ${
+        className={`absolute inset-0 bg-gray-950/50 transition-opacity duration-200 ${
           isOpen ? "opacity-100" : "opacity-0"
         }`}
       />
 
       {/* Sliding Panel */}
       <div
-        className={`absolute inset-y-0 right-0 w-full sm:max-w-xl lg:max-w-2xl bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
+        className={`absolute inset-y-0 right-0 w-full sm:max-w-xl lg:max-w-2xl bg-card shadow-overlay flex flex-col transition-transform duration-300 ease-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
         {/* Header */}
-        <div className="p-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
-          <div>
-            <h2 className="font-bold text-base text-slate-900 flex items-center gap-2">
-              <Wallet className="w-4 h-4 text-blue-600" />
+        <div className="px-4 py-3 border-b border-border bg-gray-50 flex items-center justify-between shrink-0">
+          <div className="min-w-0">
+            <h2 className="text-title font-semibold text-gray-900 flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-brand-600" />
               Order Checkout
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-caption text-gray-500 mt-0.5">
               Customer, discount & payment settlement
             </p>
           </div>
-          <button
+          <Button
             onClick={onClose}
+            variant="ghost"
+            size="icon"
             data-testid="checkout-close"
-            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
+            aria-label="Close checkout"
             title="Close checkout (state is kept)"
           >
-            <X className="w-5 h-5" />
-          </button>
+            <X className="w-4 h-4" />
+          </Button>
         </div>
 
         {/* Scrollable Body */}
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3">
           {/* ─── CUSTOMER SEGMENT ─── */}
           <section className="space-y-2.5">
-            <h3 className="font-bold text-slate-800 flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500">
+            <h3 className="text-caption font-semibold uppercase tracking-wider text-gray-500 flex items-center gap-2">
               <User className="w-3.5 h-3.5" /> Customer Details
             </h3>
-            <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200/80">
+            <div className="flex bg-gray-100 p-1 rounded-md border border-border">
               <button
                 data-testid="pos-customer-mode-walkin"
                 onClick={() => {
@@ -223,8 +229,8 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                 }}
                 className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                   customerMode === "walk-in"
-                    ? "bg-white text-slate-900 shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
+                    ? "bg-card text-gray-900 shadow-xs"
+                    : "text-gray-600 hover:text-gray-900"
                 }`}
               >
                 Walk-in Customer
@@ -234,8 +240,8 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                 onClick={() => setCustomerMode("existing")}
                 className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                   customerMode === "existing"
-                    ? "bg-white text-slate-900 shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
+                    ? "bg-card text-gray-900 shadow-xs"
+                    : "text-gray-600 hover:text-gray-900"
                 }`}
               >
                 Existing Account
@@ -245,25 +251,25 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
             {customerMode === "walk-in" && (
               <div className="flex flex-col gap-2">
                 <div className="relative">
-                  <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
+                  <User className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Input
                     type="text"
                     placeholder="Customer Name (Optional)"
                     data-testid="pos-walkin-name"
                     value={walkInName}
                     onChange={(e) => setWalkInName(e.target.value)}
-                    className="w-full pl-9 pr-3 h-10 border border-slate-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none text-slate-800 font-medium placeholder-slate-400 shadow-xs transition-all"
+                    className="h-11 pl-9"
                   />
                 </div>
                 <div className="relative">
-                  <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
+                  <Phone className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Input
                     type="text"
                     placeholder="Phone Number (Optional)"
                     data-testid="pos-walkin-phone"
                     value={walkInPhone}
                     onChange={(e) => setWalkInPhone(e.target.value)}
-                    className="w-full pl-9 pr-3 h-10 border border-slate-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none text-slate-800 font-medium placeholder-slate-400 font-mono shadow-xs transition-all"
+                    className="h-11 pl-9 font-mono"
                   />
                 </div>
               </div>
@@ -271,55 +277,54 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
 
             {customerMode === "existing" &&
               (selectedCustomer ? (
-                <div className="flex items-center justify-between bg-blue-50 border border-blue-200 p-2.5 rounded-xl">
+                <div className="flex items-center justify-between bg-brand-50 border border-brand-200 p-2.5 rounded-md">
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-blue-900 truncate flex items-center gap-1.5">
+                    <p className="text-sm font-semibold text-brand-900 truncate flex items-center gap-1.5">
                       {selectedCustomer.shopName && (
-                        <Store className="w-4 h-4 text-blue-500 shrink-0" />
+                        <Store className="w-4 h-4 text-brand-500 shrink-0" />
                       )}
                       {selectedCustomer.name}
                     </p>
-                    <p className="text-xs text-blue-600 truncate mt-0.5">
+                    <p className="text-caption text-brand-700 truncate mt-0.5">
                       {selectedCustomer.phone}
                       {selectedCustomer.shopName
                         ? ` · ${selectedCustomer.shopName}`
                         : ""}
                     </p>
                   </div>
-                  <button
+                  <Button
                     onClick={() => setSelectedCustomer(null)}
-                    className="text-xs text-blue-600 hover:text-rose-600 font-bold shrink-0 cursor-pointer px-2 py-1 bg-white rounded-lg border border-blue-200 hover:border-rose-200"
+                    variant="secondary"
+                    size="sm"
+                    className="shrink-0"
                   >
                     Change
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 <div>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
-                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      <input
+                      <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <Input
                         type="text"
                         placeholder="Type name or phone..."
                         data-testid="pos-customer-select"
                         value={customerSearch}
                         onChange={(e) => setCustomerSearch(e.target.value)}
-                        className="w-full pl-9 pr-3 h-10 border border-slate-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 bg-white shadow-xs"
+                        className="h-11 pl-9"
                       />
                     </div>
-                    <button
+                    <Button
                       onClick={onOpenNewCustomer}
                       disabled={readOnly}
+                      variant="primary"
+                      className="h-11 shrink-0 px-4"
                       title={
                         readOnly
                           ? "Subscription expired. System is in read-only mode."
                           : "Create new customer"
                       }
-                      className={`px-4 h-10 rounded-xl text-white text-xs font-bold transition-colors shrink-0 shadow-xs ${
-                        readOnly
-                          ? "bg-slate-400 cursor-not-allowed"
-                          : "bg-blue-600 hover:bg-blue-700 cursor-pointer"
-                      }`}
                     >
                       {readOnly ? (
                         <span className="inline-flex items-center gap-1.5">
@@ -328,16 +333,16 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                       ) : (
                         `+ New`
                       )}
-                    </button>
+                    </Button>
                   </div>
                   {isSearchingCustomer && (
-                    <span className="text-xs text-slate-400 mt-1.5 block">
+                    <span className="text-xs text-gray-400 mt-1.5 block">
                       Searching...
                     </span>
                   )}
 
                   {customerResults.length > 0 && (
-                    <div className="mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
+                    <div className="mt-1.5 bg-card border border-border rounded-md shadow-md max-h-40 overflow-y-auto">
                       {customerResults.map((c) => (
                         <button
                           data-testid="pos-customer-option"
@@ -347,12 +352,12 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                             setCustomerResults([]);
                             setCustomerSearch("");
                           }}
-                          className="w-full text-left p-2 hover:bg-slate-50 border-b border-slate-50 text-sm flex justify-between cursor-pointer"
+                          className="w-full text-left p-2 hover:bg-gray-50 border-b border-border text-sm flex justify-between cursor-pointer"
                         >
-                          <span className="font-bold text-slate-800">
+                          <span className="font-bold text-gray-800">
                             {c.name}
                           </span>
-                          <span className="text-slate-400 font-mono">
+                          <span className="text-gray-400 font-mono">
                             {c.phone}
                           </span>
                         </button>
@@ -365,31 +370,29 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
             {/* Existing customer credit balance */}
             {customerMode === "existing" && selectedCustomer && (
               <div
-                className={`rounded-xl border p-2.5 ${
+                className={`rounded-md border p-2.5 ${
                   existingBalance > 0
-                    ? "border-rose-200 bg-rose-50/50"
-                    : "border-emerald-200 bg-emerald-50/50"
+                    ? "border-danger bg-danger-bg"
+                    : "border-success bg-success-bg"
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  <span className="text-caption font-semibold uppercase tracking-wider text-gray-500">
                     Existing Credit / Udhaar
                   </span>
                   {existingBalance > 0 && (
-                    <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
-                      Outstanding
-                    </span>
+                    <Badge variant="danger">Outstanding</Badge>
                   )}
                 </div>
                 <p
-                  className={`text-lg font-black tracking-tight mt-0.5 ${
-                    existingBalance > 0 ? "text-rose-600" : "text-emerald-600"
+                  className={`text-lg font-semibold tracking-tight mt-0.5 ${
+                    existingBalance > 0 ? "text-danger" : "text-success"
                   }`}
                 >
                   Rs. {existingBalance.toLocaleString()}
                 </p>
                 {creditLimit > 0 && (
-                  <p className="text-[11px] text-slate-500 mt-0.5">
+                  <p className="text-caption text-gray-500 mt-0.5">
                     Credit Limit: Rs. {creditLimit.toLocaleString()}
                   </p>
                 )}
@@ -397,21 +400,21 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
             )}
           </section>
 
-          <hr className="border-slate-200" />
+          <hr className="border-border" />
 
           {/* ─── CHARGES / DISCOUNT SEGMENT ─── */}
           <section className="space-y-2.5">
-            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 flex items-center gap-2">
+            <h3 className="text-caption font-semibold uppercase tracking-wider text-gray-500 flex items-center gap-2">
               <Tag className="w-3.5 h-3.5" /> Charges & Discounts
             </h3>
 
-            <div className="flex items-center justify-between gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-              <label className="flex items-center gap-2 text-xs font-bold text-slate-700">
-                <Tag className="w-3.5 h-3.5 text-slate-400" />
+            <div className="flex items-center justify-between gap-3 bg-gray-50 p-2.5 rounded-md border border-border">
+              <label className="flex items-center gap-2 text-xs font-bold text-gray-700">
+                <Tag className="w-3.5 h-3.5 text-gray-400" />
                 <span>Discount</span>
               </label>
-              <div className="flex items-center rounded-xl border border-slate-300 bg-white shadow-xs focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 overflow-hidden w-36 sm:w-40">
-                <span className="flex items-center px-2.5 bg-slate-100 border-r border-slate-200 text-xs font-bold text-slate-500 select-none h-10">
+              <div className="flex items-center rounded-md border border-gray-300 bg-card shadow-xs focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20 overflow-hidden w-36 sm:w-40 h-11">
+                <span className="flex items-center px-2.5 bg-gray-100 border-r border-border text-caption font-semibold text-gray-500 select-none h-full">
                   Rs.
                 </span>
                 <input
@@ -430,30 +433,30 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                     const num = Number(discount) || 0;
                     if (num > subtotal) setDiscount(String(subtotal));
                   }}
-                  className="w-full px-2.5 h-10 text-right text-sm font-bold text-slate-900 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="w-full px-2.5 h-full text-right text-sm font-semibold text-gray-900 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   placeholder="0"
                 />
               </div>
             </div>
 
-            <dl className="space-y-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
+            <dl className="space-y-1.5 p-3 rounded-md bg-gray-50 border border-border">
               <div className="flex items-center justify-between text-sm">
-                <dt className="text-slate-500 text-xs font-medium">Subtotal</dt>
-                <dd className="font-semibold text-slate-800 text-sm">
+                <dt className="text-gray-500 text-xs font-medium">Subtotal</dt>
+                <dd className="font-semibold text-gray-800 text-sm">
                   Rs. {subtotal.toLocaleString()}
                 </dd>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <dt className="text-slate-500 text-xs font-medium">Discount</dt>
-                <dd className="font-semibold text-rose-600 text-sm">
+                <dt className="text-gray-500 text-xs font-medium">Discount</dt>
+                <dd className="font-semibold text-danger text-sm">
                   - Rs. {(Number(discount) || 0).toLocaleString()}
                 </dd>
               </div>
-              <div className="flex items-center justify-between pt-2 border-t border-slate-200">
-                <dt className="text-slate-900 font-bold text-sm">
+              <div className="flex items-center justify-between pt-2 border-t border-border">
+                <dt className="text-gray-900 font-bold text-sm">
                   Grand Total
                 </dt>
-                <dd className="text-lg font-black text-slate-900 tracking-tight">
+                <dd className="text-title font-semibold text-gray-900 tracking-tight">
                   Rs. {grandTotal.toLocaleString()}
                 </dd>
               </div>
@@ -461,36 +464,32 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
 
             {/* Balance Due (Udhaar) */}
             <div
-              className={`rounded-xl border p-3 ${
+              className={`rounded-md border p-3 ${
                 pendingAmount > 0
-                  ? "border-rose-200 bg-rose-50/60"
-                  : "border-emerald-200 bg-emerald-50/60"
+                  ? "border-danger bg-danger-bg"
+                  : "border-success bg-success-bg"
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                <span className="text-caption font-semibold uppercase tracking-wider text-gray-600">
                   Balance Due (Udhar)
                 </span>
                 {pendingAmount > 0 ? (
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 border border-rose-200">
-                    Udhar Pending
-                  </span>
+                  <Badge variant="danger">Udhar Pending</Badge>
                 ) : (
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 border border-emerald-200">
-                    Paid in Full
-                  </span>
+                  <Badge variant="success">Paid in Full</Badge>
                 )}
               </div>
               <p
                 data-testid="checkout-balance"
-                className={`text-xl font-black tracking-tight mt-1 ${
-                  pendingAmount > 0 ? "text-rose-600" : "text-emerald-600"
+                className={`text-heading font-semibold tracking-tight mt-1 ${
+                  pendingAmount > 0 ? "text-danger" : "text-success"
                 }`}
               >
                 Rs. {Math.max(0, pendingAmount).toLocaleString()}
               </p>
               {changeToReturn && (
-                <p className="text-xs font-semibold text-emerald-700 mt-1">
+                <p className="text-xs font-semibold text-success mt-1">
                   Change to Return: Rs.{" "}
                   {(Number(amountPaid) - grandTotal).toLocaleString()}
                 </p>
@@ -498,40 +497,41 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
               {pendingAmount > 0 &&
                 orderStatus !== "ESTIMATE" &&
                 onDueDateChange && (
-                  <div className="mt-3 pt-3 border-t border-rose-200/70 space-y-2">
+                  <div className="mt-3 pt-3 border-t border-danger space-y-2">
                     <label
                       htmlFor="checkout-due-date"
-                      className="block text-xs font-bold text-slate-700"
+                      className="block text-xs font-bold text-gray-700"
                     >
                       Due Date (wapsi ki tareekh)
                     </label>
-                    <input
+                    <Input
                       id="checkout-due-date"
                       type="date"
                       value={dueDate ?? ""}
                       min={addDaysKarachi(0)}
                       onChange={(e) => onDueDateChange(e.target.value)}
                       data-testid="checkout-due-date"
-                      className="w-full px-3 h-10 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none shadow-xs"
+                      className="h-11"
                     />
                     <div className="flex flex-wrap gap-1.5">
                       {DUE_CHIPS.map((chip) => (
-                        <button
+                        <Button
                           key={chip.days}
                           type="button"
+                          size="sm"
+                          variant={
+                            dueDate === addDaysKarachi(chip.days)
+                              ? "primary"
+                              : "secondary"
+                          }
                           data-testid="checkout-due-chip"
                           data-days={chip.days}
                           onClick={() =>
                             onDueDateChange(addDaysKarachi(chip.days))
                           }
-                          className={`text-xs font-bold px-2.5 py-1 rounded-md border transition-colors cursor-pointer ${
-                            dueDate === addDaysKarachi(chip.days)
-                              ? "bg-slate-900 text-white border-slate-900"
-                              : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
-                          }`}
                         >
                           {chip.label}
-                        </button>
+                        </Button>
                       ))}
                     </div>
                   </div>
@@ -539,31 +539,33 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
             </div>
           </section>
 
-          <hr className="border-slate-200" />
+          <hr className="border-border" />
 
           {/* ─── PAYMENT SEGMENT ─── */}
           <section className="space-y-3">
-            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 flex items-center gap-2">
+            <h3 className="text-caption font-semibold uppercase tracking-wider text-gray-500 flex items-center gap-2">
               <Wallet className="w-3.5 h-3.5" /> Payment Settlement
             </h3>
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-bold text-slate-700">
+                <label className="text-xs font-bold text-gray-700">
                   Amount Received
                 </label>
                 {pendingAmount > 0 && cartCount > 0 && (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setAmountPaid(grandTotal.toString())}
-                    className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md border border-blue-200/60 transition-colors cursor-pointer"
+                    className="text-brand-700"
                   >
                     Pay in Full (Rs. {grandTotal.toLocaleString()})
-                  </button>
+                  </Button>
                 )}
               </div>
-              <div className="flex items-center rounded-xl border border-slate-300 bg-white shadow-xs focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 overflow-hidden h-10">
-                <span className="flex items-center px-3 bg-slate-100 border-r border-slate-200 text-xs font-bold text-slate-500 select-none h-full">
+              <div className="flex items-center rounded-md border border-gray-300 bg-card shadow-xs focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20 overflow-hidden h-11">
+                <span className="flex items-center px-3 bg-gray-100 border-r border-border text-caption font-semibold text-gray-500 select-none h-full">
                   Rs.
                 </span>
                 <input
@@ -574,54 +576,50 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                   onChange={(e) => setAmountPaid(e.target.value)}
                   data-testid="checkout-amount"
                   placeholder="0"
-                  className="w-full px-3 h-full text-base font-bold text-slate-900 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder-slate-400"
+                  className="w-full px-3 h-full text-subtitle font-semibold text-gray-900 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder-gray-400"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              <label className="block text-xs font-bold text-gray-700 mb-1.5">
                 Payment Method
               </label>
-              <select
+              <Select
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
                 data-testid="checkout-method"
-                className="w-full px-3 h-10 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none shadow-xs cursor-pointer"
+                className="h-11 font-semibold"
               >
                 <option value="CASH">Cash</option>
                 <option value="BANK">Bank Transfer / Card</option>
-              </select>
+              </Select>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              <label className="block text-xs font-bold text-gray-700 mb-1.5">
                 Order Status
               </label>
-              <select
+              <Select
                 value={orderStatus}
                 onChange={(e) => setOrderStatus(e.target.value)}
                 data-testid="pos-status-select"
                 disabled={customerMode === "walk-in"}
-                className={`w-full px-3 h-10 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none shadow-xs transition-all ${
-                  customerMode === "walk-in"
-                    ? "opacity-60 cursor-not-allowed bg-slate-100"
-                    : "bg-white cursor-pointer"
-                }`}
+                className="h-11 font-semibold"
               >
                 <option value="FINAL">Final (Handed to customer)</option>
                 <option value="PENDING">Pending (Delivery / Pickup later)</option>
                 <option value="MEMO">Memo / Amanat (On Approval)</option>
-              </select>
+              </Select>
             </div>
           </section>
         </div>
 
         {/* Pinned Footer */}
-        <div className="p-3 border-t border-slate-200 bg-slate-50 shrink-0 space-y-2">
+        <div className="p-3 border-t border-border bg-gray-50 shrink-0 space-y-2">
           {exceedsCreditLimit && (
-            <div data-testid="checkout-credit-warning" className="flex items-start gap-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 animate-in fade-in duration-200">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+            <div data-testid="checkout-credit-warning" className="flex items-start gap-2 p-2.5 bg-danger-bg border border-danger rounded-md text-xs font-semibold text-danger animate-in fade-in duration-200">
+              <AlertCircle className="w-4 h-4 shrink-0 text-danger mt-0.5" />
               <span>
                 Warning: Existing Debt (Rs. {existingBalance.toLocaleString()}) + New Debt (Rs. {Math.max(0, pendingAmount).toLocaleString()}) = Projected Debt (Rs. {projectedDebt.toLocaleString()}). This exceeds the limit of Rs. {creditLimit.toLocaleString()}.
               </span>
@@ -632,34 +630,33 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
             <div
               role="alert"
               data-testid="checkout-error"
-              className="flex items-start gap-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 animate-in fade-in duration-200"
+              className="flex items-start gap-2 p-2.5 bg-danger-bg border border-danger rounded-md text-xs font-semibold text-danger animate-in fade-in duration-200"
             >
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+              <AlertCircle className="w-4 h-4 shrink-0 text-danger mt-0.5" />
               <span>{errorMessage}</span>
             </div>
           )}
 
           {disabledReason && cartCount > 0 && (
-            <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-medium text-amber-900 animate-in fade-in duration-200">
-              <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+            <div className="flex items-center gap-2 p-2 bg-warning-bg border border-warning rounded-md text-xs font-medium text-warning-fg animate-in fade-in duration-200">
+              <AlertCircle className="w-4 h-4 shrink-0 text-warning" />
               <span>{disabledReason}</span>
             </div>
           )}
 
-          <button
+          <Button
             onClick={() => handleComplete(orderStatus)}
             data-testid="checkout-submit"
             disabled={isSubmitDisabled || readOnly}
+            loading={isSubmitting}
+            size="lg"
+            variant={readOnly ? "secondary" : "primary"}
+            className="w-full text-base"
             title={
               readOnly
                 ? "Subscription expired. System is in read-only mode."
                 : undefined
             }
-            className={`w-full py-3 text-white rounded-xl font-bold text-base transition-all shadow-md shadow-slate-200 disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2 ${
-              readOnly
-                ? "cursor-not-allowed bg-slate-400"
-                : "bg-slate-900 hover:bg-slate-800 cursor-pointer disabled:cursor-not-allowed"
-            }`}
           >
             {readOnly && <Lock className="w-5 h-5" />}
             {isSubmitting
@@ -678,7 +675,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
             {!isSubmitting && !readOnly && (
               <CheckCircle2 className="w-5 h-5" />
             )}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
