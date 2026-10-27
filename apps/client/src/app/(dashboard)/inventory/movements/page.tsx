@@ -4,16 +4,26 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
-  Warehouse,
   ArrowRightLeft,
   Calendar,
-  Layers,
   MapPin,
   Truck,
-  Box,
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import { useAuth } from "@/context/AuthContext";
+import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableEmpty,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type Movement = {
   id: string;
@@ -63,145 +73,140 @@ export default function InventoryLedgerPage() {
   }, [loadMovements]);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] animate-in fade-in duration-500 mt-2 font-sans">
-      <div className="flex items-center gap-3 pb-5 border-b border-slate-200 mb-6 shrink-0">
+    <div className="mt-1 flex flex-col gap-3 pb-6 animate-in fade-in duration-300">
+      <div className="flex items-start gap-3">
         <Link
           href="/products"
-          className="p-2 text-slate-400 hover:text-slate-900 bg-white rounded-lg border border-slate-200 transition-colors shadow-sm"
+          aria-label="Back to products"
+          title="Back"
+          className={buttonVariants({ variant: "secondary", size: "icon" })}
         >
-          <ArrowLeft className="w-5 h-5" />
+          <ArrowLeft className="h-4 w-4" />
         </Link>
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <ArrowRightLeft className="w-6 h-6 text-indigo-600" />
-            Inventory Movement Ledger
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Double-entry log of all stock inbound, outbound, and inventory
-            changes.
-          </p>
-        </div>
+        <PageHeader
+          className="mb-0 flex-1"
+          title="Inventory Movement Ledger"
+          subtitle="Double-entry log of all stock inbound, outbound, and inventory changes."
+        />
       </div>
 
-      <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+      <Card className="flex flex-1 flex-col overflow-hidden">
         {errorMsg && (
-          <div className="p-3 bg-rose-50 border-b border-rose-200 text-sm font-semibold text-rose-700 shrink-0">
+          <div className="shrink-0 border-b border-danger/30 bg-danger-bg px-3 py-2 text-body font-medium text-danger-fg">
             {errorMsg}
           </div>
         )}
 
-        <div className="flex-1 overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 sticky top-0 z-10">
-              <tr>
-                <th className="px-6 py-4 font-semibold">Date</th>
-                <th className="px-6 py-4 font-semibold">Product</th>
-                <th className="px-6 py-4 font-semibold">Movement</th>
-                <th className="px-6 py-4 font-semibold">Location</th>
-                <th className="px-6 py-4 font-semibold">Vendor / Source</th>
-                <th className="px-6 py-4 font-semibold text-right">Qty</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {isLoading ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="px-6 py-8 text-center text-slate-500"
-                  >
-                    Loading ledger...
-                  </td>
-                </tr>
-              ) : movements.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="px-6 py-8 text-center text-slate-500"
-                  >
-                    No movements found.
-                  </td>
-                </tr>
-              ) : (
-                movements.map((m) => (
-                  <tr
-                    key={m.id}
-                    className="hover:bg-slate-50 transition-colors"
-                  >
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 text-slate-600">
-                        <Calendar className="w-4 h-4 text-slate-400" />
-                        <span>{new Date(m.createdAt).toLocaleString()}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-slate-900">
-                          {m.product?.name || "Unknown"}
-                        </span>
-                        {m.product?.sku && (
-                          <span className="text-xs font-mono text-slate-500">
-                            {m.product.sku}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col gap-1">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="w-52">Date</TableHead>
+              <TableHead>Product</TableHead>
+              <TableHead>Movement</TableHead>
+              <TableHead>Location</TableHead>
+              <TableHead>Vendor / Source</TableHead>
+              <TableHead className="text-right">Qty</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableEmpty colSpan={6}>Loading ledger...</TableEmpty>
+            ) : movements.length === 0 ? (
+              <TableEmpty colSpan={6}>No movements found.</TableEmpty>
+            ) : (
+              movements.map((m) => (
+                <TableRow key={m.id}>
+                  <TableCell>
+                    <span className="flex items-center gap-1.5 text-caption text-gray-600">
+                      <Calendar className="h-3.5 w-3.5 text-gray-400" />
+                      {new Date(m.createdAt).toLocaleString()}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <p className="text-body font-semibold text-gray-900">
+                      {m.product?.name || "Unknown"}
+                    </p>
+                    {m.product?.sku && (
+                      <p className="font-mono text-caption text-gray-500">
+                        {m.product.sku}
+                      </p>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      <Badge
+                        variant={
+                          m.direction === "IN"
+                            ? "success"
+                            : m.direction === "OUT"
+                              ? "danger"
+                              : "brand"
+                        }
+                        className="w-fit"
+                      >
+                        {m.direction} ({m.referenceType})
+                      </Badge>
+                      {m.notes && (
                         <span
-                          className={`inline-flex w-fit px-2 py-0.5 rounded text-[10px] font-bold ${
-                            m.direction === "IN"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : m.direction === "OUT"
-                                ? "bg-rose-100 text-rose-700"
-                                : "bg-blue-100 text-blue-700"
-                          }`}
+                          className="max-w-52 truncate text-caption text-gray-500"
+                          title={m.notes}
                         >
-                          {m.direction} ({m.referenceType})
+                          {m.notes}
                         </span>
-                        {m.notes && (
-                          <span className="text-[10px] text-slate-500">
-                            {m.notes}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1.5 text-xs text-slate-600">
-                        <MapPin className="w-3.5 h-3.5 text-indigo-400" />
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="flex max-w-56 items-center gap-1.5 text-caption text-gray-600">
+                      <MapPin className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                      <span
+                        className="truncate"
+                        title={
+                          m.cabinet
+                            ? `${m.cabinet.name} ${m.cabinet.location ? `(${m.cabinet.location})` : ""}`
+                            : "Default"
+                        }
+                      >
                         {m.cabinet
                           ? `${m.cabinet.name} ${m.cabinet.location ? `(${m.cabinet.location})` : ""}`
                           : "Default"}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      {m.vendor ? (
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 bg-slate-100 px-2 py-1 rounded w-fit">
-                          <Truck className="w-3.5 h-3.5 text-indigo-600" />
-                          {m.vendor.businessName}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-slate-400">-</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <span
-                        className={`font-black text-sm ${m.direction === "IN" ? "text-emerald-600" : m.direction === "OUT" ? "text-rose-600" : "text-slate-700"}`}
-                      >
-                        {m.direction === "IN"
-                          ? "+"
-                          : m.direction === "OUT"
-                            ? "-"
-                            : ""}
-                        {m.quantity}
                       </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    {m.vendor ? (
+                      <div className="flex w-fit items-center gap-1.5 rounded border border-border bg-gray-50 px-2 py-0.5 text-caption font-medium text-gray-700">
+                        <Truck className="h-3.5 w-3.5 text-gray-500" />
+                        {m.vendor.businessName}
+                      </div>
+                    ) : (
+                      <span className="text-caption text-gray-400">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <span
+                      className={`text-body font-semibold ${
+                        m.direction === "IN"
+                          ? "text-success"
+                          : m.direction === "OUT"
+                            ? "text-danger"
+                            : "text-gray-700"
+                      }`}
+                    >
+                      {m.direction === "IN"
+                        ? "+"
+                        : m.direction === "OUT"
+                          ? "-"
+                          : ""}
+                      {m.quantity}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </Card>
     </div>
   );
 }
