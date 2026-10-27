@@ -43,16 +43,49 @@ at build time, so it must point to the API's preferred port. See "Known gaps".
 
 ## Build the Windows installer (on a Windows x64 machine)
 
-1. `npm ci` at the repo root (installs Electron, electron-builder, embedded-postgres win32 binaries).
-2. `npm run build -w server`
-3. `set NEXT_PUBLIC_API_URL=http://127.0.0.1:5000` then `npm run build -w client`
-4. Put `pg_dump.exe` and its DLLs (PostgreSQL 17 Windows binaries) into `apps/desktop/build/pgtools/`
-   (see the README there). embedded-postgres does not ship `pg_dump`.
-5. `npm run dist -w desktop`: compiles, runs `scripts/stage.js` (copies server dist + prisma +
-   production `node_modules` and the Next standalone output into `stage/`), then electron-builder
-   produces an NSIS x64 installer in `apps/desktop/release/`.
+Two desktop apps ship from this repo: the on-prem **Shop Server** (`apps/desktop`,
+this folder) and the **cloud shell** (`apps/desktop-online`). They are independent —
+build only the one you need.
 
-`npm run dist:dir -w desktop` builds an unpacked app for quick checks.
+Prerequisites for both: Windows 10/11 x64, Node 22+, Git, and PowerShell. Open
+PowerShell **in the repo root** for every command below.
+
+### A. On-prem Shop Server (`apps/desktop`)
+
+Extra prerequisite: PostgreSQL 17 installed (only `pg_dump.exe` is copied; the app
+runs its own embedded database).
+
+1. `npm ci` — installs Electron, electron-builder and the embedded-postgres win32 binaries.
+2. `npm run build -w server`
+3. `$env:NEXT_PUBLIC_API_URL="http://127.0.0.1:5000"; npm run build -w client`
+   (the API URL is baked into the client, so it must be the port the app uses).
+4. Copy `pg_dump.exe` and the DLLs it needs (`libpq.dll`, `libiconv-2.dll`,
+   `libwinpthread-1.dll`, `libintl-9.dll`, `libssl-*.dll`, `libcrypto-*.dll`,
+   `libzstd.dll`, `liblz4.dll`) from `C:\Program Files\PostgreSQL\17\bin` into
+   `apps/desktop/build/pgtools/` (see the README inside that folder).
+   embedded-postgres does not ship `pg_dump`; backups fail without it.
+5. `npm run dist -w desktop` — compiles TypeScript, runs `scripts/stage.js`
+   (server dist + prisma + production `node_modules` + Next standalone output into
+   `stage/`), then electron-builder writes
+   `apps/desktop/release/DeepKhata Setup <version>.exe` (NSIS, x64, per-machine).
+6. Install and launch it: the tray must show `Database: running` and `API: running`,
+   the window opens, and logging in works offline.
+
+`npm run dist:dir -w desktop` builds an unpacked folder instead, which is faster
+for checking that `stage/` is complete.
+
+### B. Cloud shell (`apps/desktop-online`)
+
+1. `npm ci` at the repo root.
+2. Point it at your domain: either set `$env:CLOUD_URL="https://app.<domain>"` for a
+   one-off build, or edit `DEFAULT_CLOUD_URL` in `apps/desktop-online/src/cloud.ts`
+   so the installed app always uses it (an installed app has no env vars).
+3. `npm run dist -w desktop-online` — compiles and writes
+   `apps/desktop-online/release/DeepKhata Setup <version>.exe`.
+4. Install, log in as the shop owner, then choose **Receipt printer** and
+   **Paper width** from the tray. Share the printer in Windows so the cash-drawer
+   kick can write to `\\localhost\<share>`.
+
 The product name comes from `APP_NAME` at build time (default `DeepKhata`).
 
 ## Code signing
