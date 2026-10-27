@@ -115,3 +115,9 @@ Status: Day-2 implementation queued.
 - Failing: nothing.
 - Decisions needed: none.
 - Next: Section C (Day 4, daily screens). Not started.
+
+## Day 4 — daily screens (Section C)
+
+| # | Task | State | Commit |
+| --- | --- | --- | --- |
+| C0 | Fix the Day 3 regressions seen against `docs/ui/pos-before.png`: Badge defaults to an 18px compact chip (11px, uppercase, `px-1`) with `size="md"` available for stand-alone use, so the POS header badges ("Parts + Labor", "0 lines") shrink too; POS product cards 138px tall vs 140px before with the category label full again and the status badge beside it; cabinet/bin chips stay on one line (10px, truncate + `title` tooltip); sidebar user block stacked (name + full email at 224px, role and compact Logout on their own row); after-shots retaken — category text and card height match before | done | c5c88ef |
