@@ -14,6 +14,9 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL, apiFetch } from "@/lib/auth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "DeepKhata";
 
@@ -96,220 +99,217 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans text-slate-900">
+    <div className="flex min-h-screen flex-col justify-center bg-gray-50 py-8 font-sans text-gray-900 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-2xl">
-        {/* Header & Progress Bar */}
-        <div className="mb-8 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="bg-blue-600 p-2 rounded-xl shadow-sm">
-              <Store className="w-6 h-6 text-white" />
+        {/* Header & Progress */}
+        <div className="mb-5 text-center">
+          <div className="mb-3 flex justify-center">
+            <div className="rounded-md bg-brand-700 p-2">
+              <Store className="h-6 w-6 text-white" />
             </div>
           </div>
-          <h2 className="text-3xl font-extrabold text-slate-900 mb-2">
+          <h1 className="text-heading font-semibold text-gray-900">
             Let&apos;s set up your workspace
-          </h2>
-          <p className="text-slate-600">Step {step} of 3</p>
+          </h1>
+          <p className="mt-1 text-body text-gray-500">Step {step} of 3</p>
 
-          {/* Progress Indicator */}
-          <div className="mt-6 flex items-center justify-center gap-2 max-w-xs mx-auto">
+          <div className="mx-auto mt-4 flex max-w-xs items-center justify-center gap-1.5">
             <div
-              className={`h-2 flex-1 rounded-full ${step >= 1 ? "bg-blue-600" : "bg-slate-200"} transition-colors`}
+              className={`h-1.5 flex-1 rounded-full transition-colors ${step >= 1 ? "bg-brand-700" : "bg-gray-200"}`}
             />
             <div
-              className={`h-2 flex-1 rounded-full ${step >= 2 ? "bg-blue-600" : "bg-slate-200"} transition-colors`}
+              className={`h-1.5 flex-1 rounded-full transition-colors ${step >= 2 ? "bg-brand-700" : "bg-gray-200"}`}
             />
             <div
-              className={`h-2 flex-1 rounded-full ${step >= 3 ? "bg-blue-600" : "bg-slate-200"} transition-colors`}
+              className={`h-1.5 flex-1 rounded-full transition-colors ${step >= 3 ? "bg-brand-700" : "bg-gray-200"}`}
             />
           </div>
         </div>
 
-        {/* Main Card */}
-        <div className="bg-white py-8 px-4 shadow-xl shadow-slate-200/50 sm:rounded-2xl sm:px-10 border border-slate-100 min-h-[400px] flex flex-col justify-between">
-          {/* 🟢 STEP 1: Core Identity */}
+        {/* Main card */}
+        <div className="flex min-h-[380px] flex-col justify-between rounded-lg border border-border bg-card px-4 py-6 shadow-sm sm:px-8">
+          {/* STEP 1: Core identity */}
           {step === 1 && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-                <Building2 className="w-5 h-5 text-blue-600" />
-                <h3 className="text-lg font-bold">Business Identity</h3>
+            <div className="animate-in fade-in slide-in-from-right-4 space-y-4 duration-300">
+              <div className="flex items-center gap-2 border-b border-border pb-3">
+                <Building2 className="h-4 w-4 text-brand-700" />
+                <h2 className="text-subtitle font-semibold text-gray-900">
+                  Business Identity
+                </h2>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="mb-1 block text-caption font-medium text-gray-700">
                   Business Name *
                 </label>
-                <input
+                <Input
                   type="text"
                   data-testid="onboarding-shop-name"
                   value={formData.businessName}
                   onChange={(e) => updateForm("businessName", e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                   placeholder="e.g. Al-Fatah Electronics"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                  <label className="mb-1 block text-caption font-medium text-gray-700">
                     City *
                   </label>
-                  <input
+                  <Input
                     type="text"
                     data-testid="onboarding-city"
                     value={formData.city}
                     onChange={(e) => updateForm("city", e.target.value)}
-                    className="w-full border border-slate-300 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                     placeholder="e.g. Lahore"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                  <label className="mb-1 block text-caption font-medium text-gray-700">
                     Market / Bazaar
                   </label>
-                  <input
+                  <Input
                     type="text"
                     data-testid="onboarding-market"
                     value={formData.market}
                     onChange={(e) => updateForm("market", e.target.value)}
-                    className="w-full border border-slate-300 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                     placeholder="e.g. Hall Road"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                  <label className="mb-1 block text-caption font-medium text-gray-700">
                     Industry
                   </label>
-                  <select
+                  <Select
                     value={formData.industry}
                     onChange={(e) => updateForm("industry", e.target.value)}
-                    className="w-full border border-slate-300 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
                   >
                     <option value="">Select industry...</option>
-                    <option value="retail">Retail & Shop</option>
+                    <option value="retail">Retail &amp; Shop</option>
                     <option value="wholesale">Wholesale / B2B</option>
-                    <option value="services">Services & Agency</option>
+                    <option value="services">Services &amp; Agency</option>
                     <option value="manufacturing">Manufacturing</option>
-                  </select>
+                  </Select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                  <label className="mb-1 block text-caption font-medium text-gray-700">
                     Team Size
                   </label>
-                  <select
+                  <Select
                     value={formData.teamSize}
                     onChange={(e) => updateForm("teamSize", e.target.value)}
-                    className="w-full border border-slate-300 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
                   >
                     <option value="">Select size...</option>
                     <option value="1">Just me</option>
                     <option value="2-5">2 - 5 employees</option>
                     <option value="6-15">6 - 15 employees</option>
                     <option value="16+">16+ employees</option>
-                  </select>
+                  </Select>
                 </div>
               </div>
             </div>
           )}
 
-          {/* 🟢 STEP 2: Localization & Contact */}
+          {/* STEP 2: Location & contact */}
           {step === 2 && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-                <MapPin className="w-5 h-5 text-blue-600" />
-                <h3 className="text-lg font-bold">Location & Currency</h3>
+            <div className="animate-in fade-in slide-in-from-right-4 space-y-4 duration-300">
+              <div className="flex items-center gap-2 border-b border-border pb-3">
+                <MapPin className="h-4 w-4 text-brand-700" />
+                <h2 className="text-subtitle font-semibold text-gray-900">
+                  Location &amp; Currency
+                </h2>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                  <label className="mb-1 block text-caption font-medium text-gray-700">
                     Base Currency
                   </label>
                   <div className="relative">
-                    <Wallet className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
-                    <select
+                    <Wallet className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <Select
                       value={formData.currency}
                       onChange={(e) => updateForm("currency", e.target.value)}
-                      className="w-full border border-slate-300 rounded-xl py-3 pl-10 pr-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
+                      className="pl-9"
                     >
                       <option value="PKR">PKR - Pakistani Rupee</option>
                       <option value="USD">USD - US Dollar</option>
                       <option value="AED">AED - UAE Dirham</option>
                       <option value="GBP">GBP - British Pound</option>
-                    </select>
+                    </Select>
                   </div>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="mt-1 text-caption text-gray-500">
                     This is how your invoices will be generated.
                   </p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                  <label className="mb-1 block text-caption font-medium text-gray-700">
                     Business Phone
                   </label>
-                  <input
+                  <Input
                     type="tel"
                     data-testid="onboarding-phone"
                     value={formData.phone}
                     onChange={(e) => updateForm("phone", e.target.value)}
-                    className="w-full border border-slate-300 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                     placeholder="03XX XXXXXXX"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="mb-1 block text-caption font-medium text-gray-700">
                   First Branch Name *
                 </label>
-                <input
+                <Input
                   type="text"
                   data-testid="onboarding-branch-name"
                   value={formData.branchName}
                   onChange={(e) => updateForm("branchName", e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                   placeholder="Main Branch"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="mb-1 block text-caption font-medium text-gray-700">
                   Headquarters / Shop Address
                 </label>
                 <textarea
                   rows={2}
                   value={formData.address}
                   onChange={(e) => updateForm("address", e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+                  className="w-full resize-none rounded-md border border-border bg-card px-3 py-2 text-body text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
                   placeholder="Street address, City"
                 />
               </div>
             </div>
           )}
 
-          {/* 🟢 STEP 3: Customer Portal Settings */}
+          {/* STEP 3: Customer portal */}
           {step === 3 && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-                <Globe className="w-5 h-5 text-blue-600" />
-                <h3 className="text-lg font-bold">Your Customer Portal</h3>
+            <div className="animate-in fade-in slide-in-from-right-4 space-y-4 duration-300">
+              <div className="flex items-center gap-2 border-b border-border pb-3">
+                <Globe className="h-4 w-4 text-brand-700" />
+                <h2 className="text-subtitle font-semibold text-gray-900">
+                  Your Customer Portal
+                </h2>
               </div>
 
-              <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-4">
-                <p className="text-sm text-blue-800">
-                  {APP_NAME} gives you a public link to share invoices and let
-                  customers place orders directly. Let&apos;s claim your unique URL.
-                </p>
+              <div className="rounded-md border border-brand-100 bg-brand-50 p-3 text-body text-brand-800">
+                {APP_NAME} gives you a public link to share invoices and let
+                customers place orders directly. Let&apos;s claim your unique
+                URL.
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="mb-1 block text-caption font-medium text-gray-700">
                   Portal URL Slug (optional)
                 </label>
-                <div className="flex rounded-xl shadow-sm border border-slate-300 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-shadow">
-                  <span className="inline-flex items-center px-4 bg-slate-50 text-slate-500 text-sm border-r border-slate-300">
+                <div className="flex overflow-hidden rounded-md border border-border transition-shadow focus-within:border-brand-500 focus-within:ring-1 focus-within:ring-brand-500">
+                  <span className="inline-flex items-center border-r border-border bg-gray-50 px-3 text-caption text-gray-500">
                     deepkhata.com/p/
                   </span>
                   <input
@@ -321,43 +321,46 @@ export default function OnboardingPage() {
                         e.target.value.toLowerCase().replace(/\s+/g, "-"),
                       )
                     }
-                    className="flex-1 block w-full py-3 px-4 outline-none text-slate-900"
+                    className="block w-full flex-1 bg-card px-3 py-2 text-body text-gray-900 outline-none placeholder:text-gray-400"
                     placeholder="your-brand"
                   />
                 </div>
               </div>
 
-              <label className="flex items-start gap-3 text-sm text-slate-700 cursor-pointer">
+              <label className="flex cursor-pointer items-start gap-2.5 text-body text-gray-700">
                 <input
                   type="checkbox"
                   data-testid="onboarding-sample-data"
                   checked={loadSampleData}
                   onChange={(e) => setLoadSampleData(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600"
+                  className="mt-0.5 h-4 w-4 cursor-pointer rounded border-border accent-brand-700"
                 />
                 <span>
-                  Load sample data (products, customers and a few udhar
-                  entries) so I can try the app. I can wipe it later.
+                  Load sample data (products, customers and a few udhar entries)
+                  so I can try the app. I can wipe it later.
                 </span>
               </label>
 
-              <label className="flex items-start gap-3 text-sm text-slate-700 cursor-pointer">
+              <label className="flex cursor-pointer items-start gap-2.5 text-body text-gray-700">
                 <input
                   type="checkbox"
                   data-testid="onboarding-accept-terms"
                   checked={acceptTerms}
                   onChange={(e) => setAcceptTerms(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600"
+                  className="mt-0.5 h-4 w-4 cursor-pointer rounded border-border accent-brand-700"
                 />
                 <span>I accept the Terms of Service and Privacy Policy. *</span>
               </label>
 
-              {/* Real-time preview */}
               {formData.slug && (
-                <div className="flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 p-3 rounded-lg border border-emerald-100">
-                  <CheckCircle2 className="w-4 h-4" />
-                  Your portal will be live at{" "}
-                  <strong>deepkhata.com/p/{formData.slug}</strong>
+                <div className="flex items-center gap-2 rounded-md border border-success/30 bg-success-bg p-2.5 text-body text-success-fg">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  <span>
+                    Your portal will be live at{" "}
+                    <strong className="font-semibold">
+                      deepkhata.com/p/{formData.slug}
+                    </strong>
+                  </span>
                 </div>
               )}
             </div>
@@ -366,7 +369,7 @@ export default function OnboardingPage() {
           {error && (
             <p
               data-testid="onboarding-error"
-              className="mt-4 text-sm text-rose-600 font-medium"
+              className="mt-3 rounded-md border border-danger/30 bg-danger-bg px-2.5 py-2 text-caption font-medium text-danger-fg"
             >
               {error}
             </p>
@@ -374,54 +377,53 @@ export default function OnboardingPage() {
           {success && (
             <p
               data-testid="onboarding-success"
-              className="mt-4 text-sm text-emerald-600 font-medium"
+              className="mt-3 rounded-md border border-success/30 bg-success-bg px-2.5 py-2 text-caption font-medium text-success-fg"
             >
               {success}
             </p>
           )}
 
-          {/* 🟢 NAVIGATION BUTTONS */}
-          <div className="pt-8 mt-4 border-t border-slate-100 flex items-center justify-between">
-            <button
+          {/* Navigation */}
+          <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
+            <Button
+              type="button"
+              variant="ghost"
               onClick={() => setStep(step - 1)}
               disabled={step === 1 || isSubmitting}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                step === 1
-                  ? "text-transparent cursor-default"
-                  : "text-slate-600 hover:bg-slate-100"
-              }`}
+              className={step === 1 ? "invisible" : ""}
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="h-4 w-4" />
               Back
-            </button>
+            </Button>
 
             {step < 3 ? (
-              <button
+              <Button
+                type="button"
                 data-testid="onboarding-next"
                 onClick={() => setStep(step + 1)}
                 disabled={
-                  step === 1 && (!formData.businessName.trim() || !formData.city.trim())
+                  step === 1 &&
+                  (!formData.businessName.trim() || !formData.city.trim())
                 }
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium bg-slate-900 text-white hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Next Step
-                <ArrowRight className="w-4 h-4" />
-              </button>
+                <ArrowRight className="h-4 w-4" />
+              </Button>
             ) : (
-              <button
+              <Button
+                type="button"
                 data-testid="onboarding-submit"
                 onClick={handleComplete}
+                loading={isSubmitting}
                 disabled={
                   !acceptTerms ||
                   !formData.phone.trim() ||
-                  !formData.branchName.trim() ||
-                  isSubmitting
+                  !formData.branchName.trim()
                 }
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 disabled:opacity-50"
               >
                 {isSubmitting ? "Provisioning Workspace..." : "Go to Dashboard"}
-                {!isSubmitting && <CheckCircle2 className="w-4 h-4" />}
-              </button>
+                {!isSubmitting && <CheckCircle2 className="h-4 w-4" />}
+              </Button>
             )}
           </div>
         </div>
