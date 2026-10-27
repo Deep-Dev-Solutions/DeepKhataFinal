@@ -26,6 +26,21 @@ import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 import { useAuth } from "@/context/AuthContext";
 import AddProductModal from "@/components/modals/AddProductModal";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/ui/page-header";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableEmpty,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const formatPrice = (val: any): string => {
   const num = Number(val);
@@ -302,271 +317,286 @@ function ProductsPageContent() {
   const outOfStockCount = filteredProducts.filter((p) => p.stock === 0).length;
 
   return (
-    <div data-testid="products-page" className="space-y-6 animate-in fade-in duration-500 pb-10 mt-2">
-      {/* 🟢 1. PAGE HEADER & ADD BUTTON */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <Package className="w-6 h-6 text-blue-600" />
-            Products & Inventory
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Manage catalog, categories, and track inventory value.
-          </p>
-        </div>
+    <div
+      data-testid="products-page"
+      className="mt-1 space-y-4 pb-10 animate-in fade-in duration-300"
+    >
+      {/* 1. PAGE HEADER & ADD BUTTON */}
+      <PageHeader
+        title="Products & Inventory"
+        subtitle="Manage catalog, categories, and track inventory value."
+        actions={
+          hasPermission("write:products") ? (
+            <div className="flex items-center gap-2">
+              {readOnly ? (
+                <span
+                  title="Subscription expired. System is in read-only mode."
+                  className="inline-flex h-9 cursor-not-allowed items-center gap-2 rounded-md bg-gray-100 px-3 text-body font-medium text-gray-500"
+                >
+                  <Lock className="w-4 h-4" /> Read-only
+                </span>
+              ) : (
+                <Button
+                  type="button"
+                  data-testid="products-add"
+                  onClick={() => setIsAddModalOpen(true)}
+                >
+                  <Plus className="w-4 h-4" /> Add Product
+                </Button>
+              )}
+            </div>
+          ) : null
+        }
+      />
 
-        {hasPermission("write:products") && (
-          <div className="flex items-center gap-2">
-            {readOnly ? (
-              <span
-                title="Subscription expired. System is in read-only mode."
-                className="inline-flex items-center justify-center gap-2 bg-slate-400 text-white px-5 py-2.5 rounded-xl text-sm font-bold cursor-not-allowed"
-              >
-                <Lock className="w-4 h-4" /> Read-only
-              </span>
-            ) : (
-              <button
-                type="button"
-                data-testid="products-add"
-                onClick={() => setIsAddModalOpen(true)}
-                className="flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200"
-              >
-                <Plus className="w-4 h-4" /> Add Product
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* 🟢 2. DYNAMIC METRICS CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {/* ... (Metrics code stays exactly the same) ... */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-slate-500">
+      {/* 2. DYNAMIC METRICS CARDS */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Card>
+          <CardContent className="px-4 py-3">
+            <p className="text-caption font-medium uppercase tracking-wide text-gray-500">
               Products in View
             </p>
-            <p className="text-2xl font-bold text-slate-900">
+            <p className="text-title font-semibold text-gray-900">
               {filteredProducts.length}
             </p>
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-slate-500">
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="px-4 py-3">
+            <p className="text-caption font-medium uppercase tracking-wide text-gray-500">
               Inventory Value
             </p>
-            <p className="text-2xl font-bold text-slate-900 text-emerald-600">
+            <p className="text-title font-semibold text-success">
               Rs. {totalInventoryValue.toLocaleString()}
             </p>
-          </div>
-        </div>
-        <div className="bg-rose-50 p-4 rounded-xl border border-rose-100 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-rose-600">Needs Restock</p>
-            <p className="text-2xl font-bold text-rose-700">
-              {lowStockCount + outOfStockCount} items
-            </p>
-          </div>
-          <AlertCircle className="w-8 h-8 text-rose-200" />
-        </div>
-      </div>
-
-      {/* 🟢 3. CATEGORY TABS & SEARCH BAR */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-4">
-        {/* Category Filter Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-2 sm:pb-0 border-b border-slate-100">
-          <FolderTree className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
-          <button
-            onClick={() => setActiveCategory("All")}
-            className={`px-4 py-1.5 rounded-lg text-sm font-semibold whitespace-nowrap transition-colors ${activeCategory === "All" ? "bg-slate-900 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
-          >
-            All Categories
-          </button>
-          {categories.map((category) => (
-            <button
-              key={category}
-              onClick={() => setActiveCategory(category)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${activeCategory === category ? "bg-slate-900 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
-            >
-              {category}
-            </button>
-          ))}
-        </div>
-
-        {/* Search */}
-        <div className="flex flex-col sm:flex-row gap-4 pt-2 relative">
-          <div className="relative flex-1">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 text-slate-400" />
-            </div>
-            <input
-              type="text"
-              data-testid="products-search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by product name or SKU barcode..."
-              className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl leading-5 bg-slate-50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 sm:text-sm transition-all"
-            />
-          </div>
-
-          <button
-            onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
-            className={`flex items-center justify-center gap-2 px-4 py-2 border rounded-xl text-sm font-medium transition-colors w-full sm:w-auto ${isFilterMenuOpen || stockFilter !== "all" ? "bg-blue-50 border-blue-200 text-blue-700" : "border-slate-200 text-slate-700 bg-white hover:bg-slate-50"}`}
-          >
-            <Filter className="w-4 h-4" />{" "}
-            {stockFilter === "all" ? "More Filters" : "Filters Active"}
-          </button>
-
-          {/* Filter Dropdown */}
-          {isFilterMenuOpen && (
-            <div className="absolute right-0 top-14 w-56 bg-white rounded-xl shadow-lg border border-slate-200 p-3 z-20 animate-in fade-in slide-in-from-top-2">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-                Stock Level
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center justify-between px-4 py-3">
+            <div>
+              <p className="text-caption font-medium uppercase tracking-wide text-gray-500">
+                Needs Restock
               </p>
-              <div className="space-y-1">
-                <button
-                  onClick={() => {
-                    setStockFilter("all");
-                    setIsFilterMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium ${stockFilter === "all" ? "bg-slate-100 text-slate-900" : "text-slate-600 hover:bg-slate-50"}`}
-                >
-                  All Products
-                </button>
-                <button
-                  onClick={() => {
-                    setStockFilter("low");
-                    setIsFilterMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium ${stockFilter === "low" ? "bg-yellow-50 text-yellow-700" : "text-slate-600 hover:bg-slate-50"}`}
-                >
-                  Low Stock (1-5)
-                </button>
-                <button
-                  onClick={() => {
-                    setStockFilter("out");
-                    setIsFilterMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium ${stockFilter === "out" ? "bg-rose-50 text-rose-700" : "text-slate-600 hover:bg-slate-50"}`}
-                >
-                  Out of Stock (0)
-                </button>
-              </div>
+              <p className="text-title font-semibold text-danger">
+                {lowStockCount + outOfStockCount} items
+              </p>
             </div>
-          )}
-        </div>
+            <AlertCircle className="h-5 w-5 text-danger" />
+          </CardContent>
+        </Card>
       </div>
 
-      {/* 🟢 4. INVENTORY TABLE */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1">
+      {/* 3. CATEGORY TABS & SEARCH BAR */}
+      <Card>
+        <CardContent className="space-y-3 px-4 py-3">
+          {/* Category Filter Pills */}
+          <div className="hide-scrollbar flex items-center gap-1.5 overflow-x-auto border-b border-border pb-2">
+            <FolderTree className="mr-1 h-4 w-4 shrink-0 text-gray-400" />
+            <Button
+              size="sm"
+              variant={activeCategory === "All" ? "primary" : "secondary"}
+              onClick={() => setActiveCategory("All")}
+            >
+              All Categories
+            </Button>
+            {categories.map((category) => (
+              <Button
+                key={category}
+                size="sm"
+                variant={activeCategory === category ? "primary" : "secondary"}
+                onClick={() => setActiveCategory(category)}
+              >
+                {category}
+              </Button>
+            ))}
+          </div>
+
+          {/* Search */}
+          <div className="relative flex flex-col gap-2 pt-1 sm:flex-row">
+            <div className="relative flex-1">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <Search className="h-4 w-4 text-gray-400" />
+              </div>
+              <Input
+                type="text"
+                data-testid="products-search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by product name or SKU barcode..."
+                className="pl-9"
+              />
+            </div>
+
+            <Button
+              variant="secondary"
+              onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
+              className="w-full sm:w-auto"
+            >
+              <Filter className="w-4 h-4" />{" "}
+              {stockFilter === "all" ? "More Filters" : "Filters Active"}
+            </Button>
+
+            {/* Filter Dropdown */}
+            {isFilterMenuOpen && (
+              <div className="animate-in fade-in slide-in-from-top-2 absolute right-0 top-12 z-20 w-56 rounded-md border border-border bg-card p-2 shadow-md">
+                <p className="mb-1 px-2 text-caption font-semibold uppercase tracking-wide text-gray-500">
+                  Stock Level
+                </p>
+                <div className="space-y-0.5">
+                  <button
+                    onClick={() => {
+                      setStockFilter("all");
+                      setIsFilterMenuOpen(false);
+                    }}
+                    className={`w-full rounded px-2 py-1.5 text-left text-body font-medium ${
+                      stockFilter === "all"
+                        ? "bg-gray-100 text-gray-900"
+                        : "text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    All Products
+                  </button>
+                  <button
+                    onClick={() => {
+                      setStockFilter("low");
+                      setIsFilterMenuOpen(false);
+                    }}
+                    className={`w-full rounded px-2 py-1.5 text-left text-body font-medium ${
+                      stockFilter === "low"
+                        ? "bg-warning-bg text-warning-fg"
+                        : "text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    Low Stock (1-5)
+                  </button>
+                  <button
+                    onClick={() => {
+                      setStockFilter("out");
+                      setIsFilterMenuOpen(false);
+                    }}
+                    className={`w-full rounded px-2 py-1.5 text-left text-body font-medium ${
+                      stockFilter === "out"
+                        ? "bg-danger-bg text-danger-fg"
+                        : "text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    Out of Stock (0)
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 4. INVENTORY TABLE */}
+      <Card className="flex-1 overflow-hidden">
         {pageError && (
-          <div className="border-b border-rose-100 bg-rose-50 px-6 py-3 text-sm text-rose-700">
+          <div className="border-b border-border bg-danger-bg px-4 py-2 text-body text-danger-fg">
             {pageError}
           </div>
         )}
         {actionMsg && (
-          <div className="border-b border-emerald-100 bg-emerald-50 px-6 py-3 text-sm text-emerald-700 flex items-center gap-2">
+          <div className="flex items-center gap-2 border-b border-border bg-success-bg px-4 py-2 text-body text-success-fg">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             {actionMsg}
           </div>
         )}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
-              <tr>
-                <th className="px-6 py-4 font-semibold">Product & Category</th>
-                <th className="px-6 py-4 font-semibold w-36">Price (Rs)</th>
-                <th className="px-6 py-4 font-semibold w-56">
-                  Spatial Location (Cabinet)
-                </th>
-                <th className="px-6 py-4 font-semibold w-40">
-                  Available Stock
-                </th>
-                <th className="px-6 py-4 font-semibold w-24 text-right">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {isLoadingProducts ? (
-                <tr>
-                  <td className="px-6 py-8 text-slate-500" colSpan={5}>
-                    Loading products from the server...
-                  </td>
-                </tr>
-              ) : filteredProducts.length === 0 ? (
-                <tr>
-                  <td className="px-6 py-8 text-slate-500" colSpan={5}>
-                    No products match the current filters.
-                  </td>
-                </tr>
-              ) : (
-                filteredProducts.map((product) => (
-                  <tr
-                    data-testid="product-row"
-                    key={product.id}
-                    className="hover:bg-slate-50 transition-colors group"
-                  >
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <Link
-                          href={`/products/${product.id}`}
-                          className="font-semibold text-slate-900 hover:text-blue-600 hover:underline transition-colors"
-                        >
-                          {product.name}
-                        </Link>
-                        <div className="flex items-center gap-3 mt-1.5">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold tracking-wider uppercase text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                            <Tag className="w-3 h-3" /> {product.category}
-                          </span>
-                          <span className="inline-flex items-center gap-1 text-[10px] font-mono text-slate-400">
-                            <Barcode className="w-3 h-3" /> {product.sku}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td className="px-6 py-4 font-bold text-slate-700">
-                      Rs. {formatPrice(product.price)}
-                    </td>
-
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200/80 px-2.5 py-1.5 rounded-lg w-fit">
-                        <MapPin className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                        <span className="truncate max-w-45">
-                          {product.location}
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead>Product & Category</TableHead>
+              <TableHead className="w-36">Price (Rs)</TableHead>
+              <TableHead className="w-56">Spatial Location (Cabinet)</TableHead>
+              <TableHead className="w-40">Available Stock</TableHead>
+              <TableHead className="w-24 text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoadingProducts ? (
+              <TableEmpty colSpan={5}>
+                <span className="inline-flex items-center gap-2 text-gray-500">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading products
+                  from the server...
+                </span>
+              </TableEmpty>
+            ) : filteredProducts.length === 0 ? (
+              <TableEmpty colSpan={5}>
+                <EmptyState
+                  className="border-0 bg-transparent py-6 shadow-none"
+                  icon={Package}
+                  title="No products found"
+                  description="No products match the current filters."
+                />
+              </TableEmpty>
+            ) : (
+              filteredProducts.map((product) => (
+                <TableRow data-testid="product-row" key={product.id}>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <Link
+                        href={`/products/${product.id}`}
+                        className="font-semibold text-gray-900 transition-colors hover:text-brand-700 hover:underline"
+                      >
+                        {product.name}
+                      </Link>
+                      <div className="mt-1 flex items-center gap-2">
+                        <Badge variant="neutral">
+                          <Tag className="w-3 h-3" /> {product.category}
+                        </Badge>
+                        <span className="inline-flex items-center gap-1 font-mono text-caption text-gray-400">
+                          <Barcode className="w-3 h-3" /> {product.sku}
                         </span>
                       </div>
-                      {product.hasDeletedBranchStock && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 mt-1.5">
-                          <AlertCircle className="w-3 h-3" />
-                          Includes stock from a deleted branch
-                        </span>
-                      )}
-                    </td>
+                    </div>
+                  </TableCell>
 
-                    <td className="px-6 py-4">
-                      <span data-testid="product-row-stock" className={`text-xs font-bold px-2.5 py-1 rounded-full ${
-                        product.stock > 3
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                          : product.stock > 0
-                            ? "bg-amber-50 text-amber-700 border border-amber-200"
-                            : "bg-slate-100 text-slate-500 border border-slate-200"
-                      }`}>
+                  <TableCell className="font-semibold text-gray-700">
+                    Rs. {formatPrice(product.price)}
+                  </TableCell>
+
+                  <TableCell>
+                    <span
+                      title={product.location}
+                      className="flex w-fit max-w-44 items-center gap-1 rounded border border-border bg-gray-50 px-1.5 h-[18px] text-caption font-medium text-gray-700"
+                    >
+                      <MapPin className="w-3 h-3 shrink-0 text-gray-500" />
+                      <span className="truncate">{product.location}</span>
+                    </span>
+                    {product.hasDeletedBranchStock && (
+                      <Badge variant="warning" className="mt-1">
+                        <AlertCircle className="w-3 h-3" />
+                        Stock from a deleted branch
+                      </Badge>
+                    )}
+                  </TableCell>
+
+                  <TableCell>
+                    <span data-testid="product-row-stock">
+                      <Badge
+                        variant={
+                          product.stock > 3
+                            ? "success"
+                            : product.stock > 0
+                              ? "warning"
+                              : "neutral"
+                        }
+                      >
                         {product.stock > 0
                           ? `${product.stock} units available`
                           : "Out of Stock"}
-                      </span>
-                    </td>
+                      </Badge>
+                    </span>
+                  </TableCell>
 
-                    <td className="px-6 py-4 text-right flex items-center justify-end gap-1">
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-0.5">
                       <Link
                         href={`/products/${product.id}`}
-                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors inline-block"
+                        className="rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-brand-700"
                         title="View details"
                       >
-                        <Eye className="w-4.5 h-4.5" />
+                        <Eye className="w-4 h-4" />
                       </Link>
                       {hasPermission("write:products") &&
                         product.hasDeletedBranchStock && (
@@ -580,36 +610,36 @@ function ProductsPageContent() {
                                 ? "Subscription expired. System is in read-only mode."
                                 : "Move stock from deleted branch to the active branch"
                             }
-                            className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
+                            className={`rounded p-1.5 transition-colors disabled:opacity-50 ${
                               readOnly
-                                ? "text-slate-300 bg-slate-50 cursor-not-allowed"
-                                : "text-amber-600 hover:text-amber-800 hover:bg-amber-50"
+                                ? "cursor-not-allowed bg-gray-50 text-gray-300"
+                                : "text-warning-fg hover:bg-warning-bg"
                             }`}
                           >
                             {movingId === product.id ? (
-                              <Loader2 className="w-4.5 h-4.5 animate-spin" />
+                              <Loader2 className="w-4 h-4 animate-spin" />
                             ) : (
-                              <MapPin className="w-4.5 h-4.5" />
+                              <MapPin className="w-4 h-4" />
                             )}
                           </button>
                         )}
                       {hasPermission("delete:products") && (
                         <button
                           onClick={() => setDeleteTarget(product)}
-                          className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                          className="rounded p-1.5 text-gray-300 transition-colors hover:bg-danger-bg hover:text-danger"
                           title="Delete product"
                         >
-                          <Trash2 className="w-4.5 h-4.5" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </Card>
 
       {/* ==========================================
           🟢 RENDER MODALS HERE
@@ -620,7 +650,7 @@ function ProductsPageContent() {
         title="Delete this product?"
         description={
           <>
-            <span className="font-bold text-slate-800">
+            <span className="font-semibold text-gray-900">
               &quot;{deleteTarget?.name}&quot;
             </span>{" "}
             will be deleted from the master catalog. It will no longer be
@@ -656,7 +686,7 @@ export default function ProductsPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex h-screen items-center justify-center text-slate-500">
+        <div className="flex h-64 items-center justify-center text-body text-gray-500">
           Loading products...
         </div>
       }

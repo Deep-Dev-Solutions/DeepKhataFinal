@@ -16,13 +16,24 @@ import {
   TrendingUp,
   ShoppingCart,
   DollarSign,
-  User,
-  Calendar,
   Pencil,
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import { usePermissions } from "@/hooks/usePermissions";
 import EditProductModal from "@/components/modals/EditProductModal";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableEmpty,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const formatPrice = (val: any): string => {
   if (val === null || val === undefined) return "0";
@@ -127,18 +138,15 @@ export default function ProductDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-full">
-        <div className="animate-spin text-indigo-600">
-          <BarChart2 className="w-8 h-8" />
-        </div>
+      <div className="flex h-64 items-center justify-center text-gray-500">
+        <BarChart2 className="mr-2 h-5 w-5 animate-pulse" />
+        <span className="text-body">Loading product...</span>
       </div>
     );
   }
 
   if (!product) {
-    return (
-      <div className="p-6 text-center text-slate-500">Product not found.</div>
-    );
+    return <div className="p-6 text-center text-body text-gray-500">Product not found.</div>;
   }
 
   // Group instances by Branch -> Cabinet
@@ -155,397 +163,369 @@ export default function ProductDetailPage() {
   });
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto p-6 font-sans">
-      <div className="mb-6 flex items-center gap-4">
-        <button
+    <div className="mt-1 space-y-4 pb-10 animate-in fade-in duration-300">
+      <div className="flex items-start gap-3">
+        <Button
+          variant="secondary"
+          size="icon"
           onClick={() => router.back()}
-          className="p-2 text-slate-400 hover:text-slate-900 bg-white rounded-lg border border-slate-200 shadow-sm transition-colors"
+          aria-label="Back to products"
+          title="Back"
+          className="mt-0.5"
         >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">{product.name}</h1>
-          <p className="text-sm text-slate-500">
-            Product Details & Performance
-          </p>
-        </div>
-        {hasPermission("write:products") && (
-          <button
-            type="button"
-            data-testid="product-edit"
-            onClick={() => setIsEditOpen(true)}
-            className="ml-auto flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
-          >
-            <Pencil className="h-4 w-4" /> Edit
-          </button>
-        )}
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <PageHeader
+          className="mb-0 flex-1"
+          title={product.name}
+          subtitle="Product details & performance"
+          actions={
+            hasPermission("write:products") ? (
+              <Button
+                type="button"
+                variant="secondary"
+                data-testid="product-edit"
+                onClick={() => setIsEditOpen(true)}
+              >
+                <Pencil className="h-4 w-4" /> Edit
+              </Button>
+            ) : null
+          }
+        />
       </div>
 
-      {/* KPI Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-6">
-        <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-3.5">
-          <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl shrink-0">
-            <Package className="w-5 h-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide truncate">
-              In Stock
-            </p>
-            <p className="text-lg sm:text-xl font-black text-slate-900">
-              {product.stock}
-            </p>
-          </div>
-        </div>
+      {/* KPI row */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <Card>
+          <CardContent className="flex items-center gap-2.5 px-3 py-2.5">
+            <span className="shrink-0 rounded-md bg-gray-100 p-1.5 text-gray-600">
+              <Package className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-caption font-medium uppercase tracking-wide text-gray-500">
+                In Stock
+              </p>
+              <p className="text-title font-semibold text-gray-900">
+                {product.stock}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-3.5">
-          <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl shrink-0">
-            <Tag className="w-5 h-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide truncate">
-              Base Price
-            </p>
-            <p className="text-lg sm:text-xl font-black text-slate-900 truncate">
-              Rs. {formatPrice(product.basePrice)}
-            </p>
-          </div>
-        </div>
+        <Card>
+          <CardContent className="flex items-center gap-2.5 px-3 py-2.5">
+            <span className="shrink-0 rounded-md bg-gray-100 p-1.5 text-gray-600">
+              <Tag className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-caption font-medium uppercase tracking-wide text-gray-500">
+                Base Price
+              </p>
+              <p className="truncate text-title font-semibold text-gray-900">
+                Rs. {formatPrice(product.basePrice)}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-3.5">
-          <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl shrink-0">
-            <TrendingUp className="w-5 h-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide truncate">
-              Total Sold
-            </p>
-            <p className="text-lg sm:text-xl font-black text-blue-600">
-              {product.totalSold || 0}{" "}
-              <span className="text-xs font-semibold text-slate-400">
-                units
-              </span>
-            </p>
-          </div>
-        </div>
+        <Card>
+          <CardContent className="flex items-center gap-2.5 px-3 py-2.5">
+            <span className="shrink-0 rounded-md bg-brand-50 p-1.5 text-brand-700">
+              <TrendingUp className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-caption font-medium uppercase tracking-wide text-gray-500">
+                Total Sold
+              </p>
+              <p className="text-title font-semibold text-gray-900">
+                {product.totalSold || 0}{" "}
+                <span className="text-caption font-medium text-gray-500">
+                  units
+                </span>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-3.5">
-          <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl shrink-0">
-            <DollarSign className="w-5 h-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide truncate">
-              Sales Revenue
-            </p>
-            <p className="text-lg sm:text-xl font-black text-purple-700 truncate">
-              Rs. {formatPrice(product.totalRevenue)}
-            </p>
-          </div>
-        </div>
+        <Card>
+          <CardContent className="flex items-center gap-2.5 px-3 py-2.5">
+            <span className="shrink-0 rounded-md bg-success-bg p-1.5 text-success">
+              <DollarSign className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-caption font-medium uppercase tracking-wide text-gray-500">
+                Sales Revenue
+              </p>
+              <p className="truncate text-title font-semibold text-success">
+                Rs. {formatPrice(product.totalRevenue)}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-3.5">
-          <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl shrink-0">
-            <Archive className="w-5 h-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide truncate">
-              Category
-            </p>
-            <p className="text-sm font-bold text-slate-900 truncate">
-              {product.category?.name || "Uncategorized"}
-            </p>
-          </div>
-        </div>
+        <Card>
+          <CardContent className="flex items-center gap-2.5 px-3 py-2.5">
+            <span className="shrink-0 rounded-md bg-gray-100 p-1.5 text-gray-600">
+              <Archive className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-caption font-medium uppercase tracking-wide text-gray-500">
+                Category
+              </p>
+              <div className="min-w-0 truncate">
+                <Badge variant="neutral">
+                  {product.category?.name || "Uncategorized"}
+                </Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-3.5">
-          <div className="p-2.5 bg-slate-100 text-slate-600 rounded-xl shrink-0">
-            <Barcode className="w-5 h-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide truncate">
-              SKU
-            </p>
-            <p className="text-sm font-bold text-slate-900 truncate font-mono">
-              {product.sku}
-            </p>
-          </div>
-        </div>
+        <Card>
+          <CardContent className="flex items-center gap-2.5 px-3 py-2.5">
+            <span className="shrink-0 rounded-md bg-gray-100 p-1.5 text-gray-600">
+              <Barcode className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-caption font-medium uppercase tracking-wide text-gray-500">
+                SKU
+              </p>
+              <p className="truncate font-mono text-body font-semibold text-gray-900">
+                {product.sku}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-2 mb-4">
-        <button
+      <div className="flex items-center gap-1.5">
+        <Button
+          size="sm"
+          variant={activeTab === "location" ? "primary" : "secondary"}
           onClick={() => setActiveTab("location")}
-          className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors cursor-pointer flex items-center gap-2 ${
-            activeTab === "location"
-              ? "bg-slate-900 text-white shadow-sm"
-              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-          }`}
         >
-          <MapPin className="w-4 h-4" />
+          <MapPin className="h-3.5 w-3.5" />
           Location Breakdown
-        </button>
-        <button
+        </Button>
+        <Button
+          size="sm"
+          variant={activeTab === "sales" ? "primary" : "secondary"}
           onClick={() => setActiveTab("sales")}
-          className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors cursor-pointer flex items-center gap-2 ${
-            activeTab === "sales"
-              ? "bg-slate-900 text-white shadow-sm"
-              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-          }`}
         >
-          <ShoppingCart className="w-4 h-4" />
+          <ShoppingCart className="h-3.5 w-3.5" />
           Sales History
-          <span
-            className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
-              activeTab === "sales"
-                ? "bg-blue-500 text-white"
-                : "bg-slate-100 text-slate-600"
-            }`}
-          >
+          <Badge variant={activeTab === "sales" ? "brand" : "neutral"}>
             {sales.length}
-          </span>
-        </button>
-        <button
+          </Badge>
+        </Button>
+        <Button
+          size="sm"
+          variant={activeTab === "audit" ? "primary" : "secondary"}
           onClick={() => setActiveTab("audit")}
-          className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors cursor-pointer flex items-center gap-2 ${
-            activeTab === "audit"
-              ? "bg-slate-900 text-white shadow-sm"
-              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-          }`}
         >
-          <Clock className="w-4 h-4" />
+          <Clock className="h-3.5 w-3.5" />
           Audit Trail
-        </button>
+        </Button>
       </div>
 
-      {/* Tab Content */}
-      <div className="flex-1 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+      {/* Tab content */}
+      <Card className="flex-1 overflow-hidden">
         {activeTab === "location" && (
-          <div className="p-4 overflow-y-auto">
+          <div className="space-y-3 p-3">
             {Object.keys(locationBreakdown).length === 0 ? (
-              <div className="py-12 text-center text-slate-400">
-                <Warehouse className="w-12 h-12 mx-auto mb-3 opacity-20" />
+              <div className="py-10 text-center text-body text-gray-500">
+                <Warehouse className="mx-auto mb-2 h-10 w-10 text-gray-300" />
                 <p>No available physical instances across any branch.</p>
               </div>
             ) : (
-              <div className="space-y-6">
-                {Object.entries(locationBreakdown).map(
-                  ([branch, cabinets]: [string, any]) => (
-                    <div
-                      key={branch}
-                      className="border border-slate-100 rounded-xl overflow-hidden"
-                    >
-                      <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-                        <MapPin className="w-5 h-5 text-indigo-500" />
-                        <h3 className="font-bold text-slate-800">{branch}</h3>
-                      </div>
-                      <div className="p-4 grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                        {Object.entries(cabinets).map(
-                          ([cabinet, qty]: [string, any]) => (
-                            <div
-                              key={cabinet}
-                              className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex items-center justify-between"
-                            >
-                              <div className="text-xs font-bold text-slate-700">
-                                {cabinet}
-                              </div>
-                              <span className="font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded text-sm">
-                                {qty} units
-                              </span>
-                            </div>
-                          ),
-                        )}
-                      </div>
+              Object.entries(locationBreakdown).map(
+                ([branch, cabinets]: [string, any]) => (
+                  <div
+                    key={branch}
+                    className="overflow-hidden rounded-md border border-border"
+                  >
+                    <div className="flex items-center gap-2 border-b border-border bg-gray-50 px-3 py-2">
+                      <MapPin className="h-4 w-4 text-brand-700" />
+                      <h3 className="text-body font-semibold text-gray-900">
+                        {branch}
+                      </h3>
                     </div>
-                  ),
-                )}
-              </div>
+                    <div className="grid grid-cols-1 gap-2 p-3 md:grid-cols-2 lg:grid-cols-3">
+                      {Object.entries(cabinets).map(
+                        ([cabinet, qty]: [string, any]) => (
+                          <div
+                            key={cabinet}
+                            className="flex items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-2"
+                          >
+                            <span className="truncate text-body font-medium text-gray-700">
+                              {cabinet}
+                            </span>
+                            <Badge variant="neutral" className="shrink-0">
+                              {qty} units
+                            </Badge>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  </div>
+                ),
+              )
             )}
           </div>
         )}
 
         {activeTab === "sales" && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200">
-                <tr>
-                  <th className="px-5 py-3.5">Date & Time</th>
-                  <th className="px-5 py-3.5">Order #</th>
-                  <th className="px-5 py-3.5">Customer</th>
-                  <th className="px-5 py-3.5">Branch</th>
-                  <th className="px-5 py-3.5 text-center">Qty Sold</th>
-                  <th className="px-5 py-3.5 text-right">Unit Price</th>
-                  <th className="px-5 py-3.5 text-right">Line Total</th>
-                  <th className="px-5 py-3.5 text-center">Order Status</th>
-                  <th className="px-5 py-3.5 text-center">Payment</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {sales.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={9}
-                      className="px-5 py-14 text-center text-slate-400"
-                    >
-                      <ShoppingCart className="w-10 h-10 mx-auto mb-2.5 opacity-25 text-slate-400" />
-                      <p className="font-semibold text-slate-600 text-sm">
-                        No sales recorded yet
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Date & Time</TableHead>
+                <TableHead>Order #</TableHead>
+                <TableHead>Customer</TableHead>
+                <TableHead>Branch</TableHead>
+                <TableHead className="text-center">Qty Sold</TableHead>
+                <TableHead className="text-right">Unit Price</TableHead>
+                <TableHead className="text-right">Line Total</TableHead>
+                <TableHead className="text-center">Order Status</TableHead>
+                <TableHead className="text-center">Payment</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sales.length === 0 ? (
+                <TableEmpty colSpan={9}>
+                  <ShoppingCart className="mx-auto mb-2 h-8 w-8 text-gray-300" />
+                  <p className="text-body font-semibold text-gray-700">
+                    No sales recorded yet
+                  </p>
+                  <p className="mt-0.5 text-caption text-gray-500">
+                    This product has not been sold in any orders yet.
+                  </p>
+                </TableEmpty>
+              ) : (
+                sales.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell className="text-caption text-gray-600">
+                      {new Date(s.createdAt).toLocaleString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        href={`/orders/${s.orderId}`}
+                        className="text-caption font-semibold text-brand-700 hover:underline"
+                      >
+                        #{s.orderNumber}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <p className="text-body font-medium text-gray-900">
+                        {s.customerName}
                       </p>
-                      <p className="text-xs text-slate-400 mt-1">
-                        This product has not been sold in any orders yet.
-                      </p>
-                    </td>
-                  </tr>
-                ) : (
-                  sales.map((s) => (
-                    <tr
-                      key={s.id}
-                      className="hover:bg-slate-50/70 transition-colors"
-                    >
-                      <td className="px-5 py-3.5 text-slate-600 text-xs font-medium">
-                        {new Date(s.createdAt).toLocaleString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <Link
-                          href={`/orders/${s.orderId}`}
-                          className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 hover:underline transition-colors"
-                        >
-                          #{s.orderNumber}
-                        </Link>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <div>
-                          <p className="font-bold text-slate-800 text-xs sm:text-sm">
-                            {s.customerName}
-                          </p>
-                          {s.customerPhone && (
-                            <p className="text-[11px] text-slate-400 font-mono">
-                              {s.customerPhone}
-                            </p>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <span className="text-xs font-medium text-slate-600 bg-slate-50 px-2 py-1 rounded border border-slate-200/60">
-                          {s.branchName}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5 text-center">
-                        <span className="font-black text-slate-900 bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md text-xs">
-                          {s.quantity}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5 text-right font-medium text-slate-700 text-xs sm:text-sm">
-                        Rs. {formatPrice(s.price)}
-                      </td>
-                      <td className="px-5 py-3.5 text-right font-black text-blue-600 text-xs sm:text-sm">
-                        Rs. {formatPrice(s.total)}
-                      </td>
-                      <td className="px-5 py-3.5 text-center">
-                        <span
-                          className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            s.status === "FINAL" || s.status === "COMPLETED"
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : s.status === "MEMO" || s.status === "PENDING"
-                                ? "bg-amber-50 text-amber-700 border border-amber-200"
-                                : s.status === "ESTIMATE"
-                                  ? "bg-purple-50 text-purple-700 border border-purple-200"
-                                  : s.status === "CANCELLED"
-                                    ? "bg-rose-50 text-rose-700 border border-rose-200"
-                                    : "bg-slate-100 text-slate-700"
-                          }`}
-                        >
-                          {s.status}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5 text-center">
-                        <span
-                          className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            s.paymentStatus === "PAID"
-                              ? "bg-emerald-50 text-emerald-700"
-                              : s.paymentStatus === "PARTIAL"
-                                ? "bg-amber-50 text-amber-700"
-                                : "bg-rose-50 text-rose-700"
-                          }`}
-                        >
-                          {s.paymentStatus}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                      {s.customerPhone && (
+                        <p className="font-mono text-caption text-gray-500">
+                          {s.customerPhone}
+                        </p>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="neutral">{s.branchName}</Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <span className="text-body font-semibold text-gray-900">
+                        {s.quantity}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right text-body text-gray-700">
+                      Rs. {formatPrice(s.price)}
+                    </TableCell>
+                    <TableCell className="text-right text-body font-semibold text-success">
+                      Rs. {formatPrice(s.total)}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {s.status === "FINAL" || s.status === "COMPLETED" ? (
+                        <Badge variant="success">{s.status}</Badge>
+                      ) : s.status === "MEMO" || s.status === "PENDING" ? (
+                        <Badge variant="warning">{s.status}</Badge>
+                      ) : s.status === "CANCELLED" ? (
+                        <Badge variant="danger">{s.status}</Badge>
+                      ) : (
+                        <Badge variant="neutral">{s.status}</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge
+                        variant={
+                          s.paymentStatus === "PAID"
+                            ? "success"
+                            : s.paymentStatus === "PARTIAL"
+                              ? "warning"
+                              : "danger"
+                        }
+                      >
+                        {s.paymentStatus}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         )}
 
         {activeTab === "audit" && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200">
-                <tr>
-                  <th className="px-4 py-3">Date</th>
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3 text-center">Qty</th>
-                  <th className="px-4 py-3">Location / Vendor</th>
-                  <th className="px-4 py-3">Notes</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {movements.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="px-4 py-8 text-center text-slate-400"
-                    >
-                      No movement history.
-                    </td>
-                  </tr>
-                ) : (
-                  movements.map((m) => (
-                    <tr key={m.id} className="hover:bg-slate-50/50">
-                      <td className="px-4 py-3 text-slate-600">
-                        {new Date(m.createdAt).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`px-2 py-1 rounded text-[10px] font-bold ${
-                            m.direction === "IN"
-                              ? "bg-emerald-50 text-emerald-700"
-                              : "bg-rose-50 text-rose-700"
-                          }`}
-                        >
-                          {m.direction} - {m.referenceType}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center font-black text-slate-900">
-                        {m.direction === "IN" ? "+" : "-"}
-                        {m.quantity}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {m.referenceType === "RESTOCK"
-                          ? m.vendor?.businessName || "Unknown Vendor"
-                          : m.cabinet?.name || "N/A"}
-                      </td>
-                      <td
-                        className="px-4 py-3 text-slate-500 truncate max-w-[200px]"
-                        title={m.notes || ""}
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Date</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead className="text-center">Qty</TableHead>
+                <TableHead>Location / Vendor</TableHead>
+                <TableHead>Notes</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {movements.length === 0 ? (
+                <TableEmpty colSpan={5}>No movement history.</TableEmpty>
+              ) : (
+                movements.map((m) => (
+                  <TableRow key={m.id}>
+                    <TableCell className="text-caption text-gray-600">
+                      {new Date(m.createdAt).toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={m.direction === "IN" ? "success" : "danger"}
                       >
-                        {m.notes || "-"}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                        {m.direction} - {m.referenceType}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center text-body font-semibold text-gray-900">
+                      {m.direction === "IN" ? "+" : "-"}
+                      {m.quantity}
+                    </TableCell>
+                    <TableCell className="text-body text-gray-700">
+                      {m.referenceType === "RESTOCK"
+                        ? m.vendor?.businessName || "Unknown Vendor"
+                        : m.cabinet?.name || "N/A"}
+                    </TableCell>
+                    <TableCell
+                      className="max-w-[200px] truncate text-body text-gray-500"
+                      title={m.notes || ""}
+                    >
+                      {m.notes || "-"}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         )}
-      </div>
+      </Card>
+
       {hasPermission("write:products") && (
         <EditProductModal
           isOpen={isEditOpen}
