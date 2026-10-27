@@ -16,6 +16,21 @@ import {
 } from "lucide-react";
 import { offlineDb } from "@/lib/db";
 import NewCustomerModal from "@/components/modals/NewCustomerModal";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/ui/page-header";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableEmpty,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type CustomerRow = {
   id: string;
@@ -125,233 +140,227 @@ function CustomersPageContent() {
   const settledCustomersCount = customers.length - unpaidCustomersCount;
 
   return (
-    <div data-testid="customers-page" className="space-y-6 animate-in fade-in duration-500 pb-10">
-      {/* 🟢 1. PAGE HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <Users className="w-6 h-6 text-blue-600" />
-            Customers & Ledger
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Manage your clients, track outstanding balances, and send reminders.
-          </p>
-        </div>
-        <button data-testid="customers-new"
-          onClick={() => setIsNewCustomerModalOpen(true)}
-          className="flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 w-full sm:w-auto cursor-pointer"
-        >
-          <Plus className="w-4 h-4" /> New Customer
-        </button>
-      </div>
+    <div data-testid="customers-page" className="mt-1 space-y-4 pb-10 animate-in fade-in duration-300">
+      {/* 1. PAGE HEADER */}
+      <PageHeader
+        title="Customers & Ledger"
+        subtitle="Manage your clients, track outstanding balances, and send reminders."
+        actions={
+          <Button
+            type="button"
+            data-testid="customers-new"
+            onClick={() => setIsNewCustomerModalOpen(true)}
+            className="w-full sm:w-auto"
+          >
+            <Plus className="w-4 h-4" /> New Customer
+          </Button>
+        }
+      />
 
-      {/* 🟢 2. CRM METRICS CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-slate-500">
-              Total Customers
-            </p>
-            <p className="text-2xl font-bold text-slate-900">
-              {isLoadingCustomers ? "..." : customers.length}
-            </p>
-          </div>
-          <div className="p-3 bg-blue-50 rounded-lg text-blue-600">
-            <Users className="w-5 h-5" />
-          </div>
-        </div>
+      {/* 2. CRM METRICS CARDS */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Card>
+          <CardContent className="flex items-center justify-between px-4 py-3">
+            <div>
+              <p className="text-caption font-medium uppercase tracking-wide text-gray-500">
+                Total Customers
+              </p>
+              <p className="text-title font-semibold text-gray-900">
+                {isLoadingCustomers ? "..." : customers.length}
+              </p>
+            </div>
+            <div className="rounded-md bg-brand-50 p-1.5 text-brand-700">
+              <Users className="w-4 h-4" />
+            </div>
+          </CardContent>
+        </Card>
 
         {/* The most important metric for the owner */}
-        <div className="bg-rose-50 p-4 rounded-xl border border-rose-100 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-rose-600">
-              Total Outstanding Debt
-            </p>
-            <p className="text-2xl font-bold text-rose-700">
-              Rs.{" "}
-              {isLoadingCustomers
-                ? "..."
-                : totalOutstandingDebt.toLocaleString()}
-            </p>
-          </div>
-          <div className="p-3 bg-rose-100 rounded-lg text-rose-600">
-            <Wallet className="w-5 h-5" />
-          </div>
-        </div>
+        <Card>
+          <CardContent className="flex items-center justify-between px-4 py-3">
+            <div>
+              <p className="text-caption font-medium uppercase tracking-wide text-gray-500">
+                Total Outstanding Debt
+              </p>
+              <p className="text-title font-semibold text-danger">
+                Rs.{" "}
+                {isLoadingCustomers
+                  ? "..."
+                  : totalOutstandingDebt.toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded-md bg-danger-bg p-1.5 text-danger">
+              <Wallet className="w-4 h-4" />
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-emerald-700">
-              Accounts Settled
-            </p>
-            <p className="text-2xl font-bold text-emerald-800">
-              {isLoadingCustomers ? "..." : settledCustomersCount} clients
-            </p>
-          </div>
-          <div className="p-3 bg-emerald-100 rounded-lg text-emerald-600">
-            <CheckCircle2 className="w-5 h-5" />
-          </div>
-        </div>
+        <Card>
+          <CardContent className="flex items-center justify-between px-4 py-3">
+            <div>
+              <p className="text-caption font-medium uppercase tracking-wide text-gray-500">
+                Accounts Settled
+              </p>
+              <p className="text-title font-semibold text-gray-900">
+                {isLoadingCustomers ? "..." : settledCustomersCount} clients
+              </p>
+            </div>
+            <div className="rounded-md bg-success-bg p-1.5 text-success-fg">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* 🟢 3. SEARCH & FILTERS BAR */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-slate-400" />
+      {/* 3. SEARCH & FILTERS BAR */}
+      <Card>
+        <CardContent className="flex flex-col gap-2 px-4 py-3 sm:flex-row">
+          <div className="relative flex-1">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+              <Search className="h-4 w-4 text-gray-400" />
+            </div>
+            <Input data-testid="customers-search"
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search customers by name or phone..."
+              className="pl-9"
+            />
           </div>
-          <input data-testid="customers-search"
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search customers by name or phone..."
-            className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl leading-5 bg-slate-50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 sm:text-sm transition-all"
-          />
-        </div>
 
-        {/* Active Toggle Button */}
-        <button
-          onClick={() => setShowUnpaidOnly(!showUnpaidOnly)}
-          className={`flex items-center justify-center gap-2 px-4 py-2 border rounded-xl text-sm font-medium transition-colors w-full sm:w-auto ${
-            showUnpaidOnly
-              ? "bg-rose-50 border-rose-200 text-rose-700"
-              : "border-slate-200 text-slate-700 bg-white hover:bg-slate-50"
-          }`}
-        >
-          <Filter className="w-4 h-4" />
-          {showUnpaidOnly ? "Showing Unpaid" : "Unpaid Only"}
-        </button>
-      </div>
+          {/* Active Toggle Button */}
+          <Button
+            variant={showUnpaidOnly ? "primary" : "secondary"}
+            onClick={() => setShowUnpaidOnly(!showUnpaidOnly)}
+            className="w-full sm:w-auto"
+          >
+            <Filter className="w-4 h-4" />
+            {showUnpaidOnly ? "Showing Unpaid" : "Unpaid Only"}
+          </Button>
+        </CardContent>
+      </Card>
 
-      {/* 🟢 4. INLINE CRM TABLE */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1">
+      {/* 4. INLINE CRM TABLE */}
+      <Card className="flex-1 overflow-hidden">
         {pageError && (
-          <div className="border-b border-rose-100 bg-rose-50 px-6 py-3 text-sm text-rose-700 flex items-center justify-between">
+          <div className="flex items-center justify-between border-b border-border bg-danger-bg px-4 py-2 text-body text-danger-fg">
             <span>{pageError}</span>
             <button
               onClick={() => setPageError("")}
-              className="text-rose-500 hover:text-rose-700 font-bold"
+              className="rounded px-1 text-danger hover:bg-danger-bg"
+              aria-label="Dismiss error"
             >
               &times;
             </button>
           </div>
         )}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
-              <tr>
-                <th className="px-6 py-4 font-semibold">Customer Details</th>
-                <th className="px-6 py-4 font-semibold">Orders</th>
-                <th className="px-6 py-4 font-semibold">Lifetime Spend</th>
-                <th className="px-6 py-4 font-semibold">Outstanding Balance</th>
-                <th className="px-6 py-4 font-semibold text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {/* --- ACTUAL DATA ROWS --- */}
-              {isLoadingCustomers ? (
-                <tr>
-                  <td
-                    className="px-6 py-8 text-slate-500 text-center"
-                    colSpan={5}
-                  >
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="animate-pulse">
-                        Loading customers from server...
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              ) : customers.length === 0 ? (
-                <tr>
-                  <td
-                    className="px-6 py-8 text-slate-500 text-center"
-                    colSpan={5}
-                  >
-                    No customers found.
-                  </td>
-                </tr>
-              ) : (
-                customers.map((customer) => {
-                  // Generate WhatsApp message for reminders
-                  const waMessage = encodeURIComponent(
-                    `Hello ${customer.name}, this is a gentle reminder that an amount of Rs. ${customer.balance.toLocaleString()} is currently pending. Please settle at your earliest convenience.`,
-                  );
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead>Customer Details</TableHead>
+              <TableHead className="w-24">Orders</TableHead>
+              <TableHead className="w-40">Lifetime Spend</TableHead>
+              <TableHead className="w-52">Outstanding Balance</TableHead>
+              <TableHead className="w-36 text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoadingCustomers ? (
+              <TableEmpty colSpan={5}>
+                <span className="inline-flex items-center gap-2 text-gray-500">
+                  <AlertCircle className="h-4 w-4 animate-pulse" /> Loading
+                  customers from server...
+                </span>
+              </TableEmpty>
+            ) : customers.length === 0 ? (
+              <TableEmpty colSpan={5}>
+                <EmptyState
+                  className="border-0 bg-transparent py-6 shadow-none"
+                  icon={Users}
+                  title="No customers found"
+                  description={
+                    searchQuery || showUnpaidOnly
+                      ? "No customers match the current search and filter."
+                      : "Add your first customer to start a khata."
+                  }
+                />
+              </TableEmpty>
+            ) : (
+              customers.map((customer) => {
+                // Generate WhatsApp message for reminders
+                const waMessage = encodeURIComponent(
+                  `Hello ${customer.name}, this is a gentle reminder that an amount of Rs. ${customer.balance.toLocaleString()} is currently pending. Please settle at your earliest convenience.`,
+                );
 
-                  return (
-                    <tr data-testid="customer-row"
-                      key={customer.id}
-                      className="hover:bg-slate-50 transition-colors group cursor-pointer"
-                      onClick={() => router.push(`/customers/${customer.id}`)}
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                            {customer.name}
-                          </span>
-                          {customer.shopName && (
-                            <span className="text-slate-400 text-[11px] font-medium">
-                              {customer.shopName}
-                            </span>
-                          )}
-                          <a
-                            href={`tel:${customer.phone}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-slate-500 text-xs flex items-center gap-1 mt-0.5 hover:text-blue-600"
-                          >
-                            <Phone className="w-3 h-3" />
-                            {customer.phone}
-                          </a>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 font-medium">
-                        {customer.totalOrders}
-                      </td>
-                      <td className="px-6 py-4 font-medium text-slate-600">
-                        Rs. {customer.lifetimeValue.toLocaleString()}
-                      </td>
-                      <td data-testid="customer-row-balance" className="px-6 py-4">
-                        {customer.balance > 0 ? (
-                          <div className="flex items-center gap-2">
-                            <span className="inline-flex items-center py-1 px-2.5 rounded-md text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                              Owes Rs. {customer.balance.toLocaleString()}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 py-1 px-2.5 rounded-md text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                            Settled
+                return (
+                  <TableRow data-testid="customer-row"
+                    key={customer.id}
+                    className="group cursor-pointer"
+                    onClick={() => router.push(`/customers/${customer.id}`)}
+                  >
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-gray-900 transition-colors group-hover:text-brand-700">
+                          {customer.name}
+                        </span>
+                        {customer.shopName && (
+                          <span className="text-caption font-medium text-gray-500">
+                            {customer.shopName}
                           </span>
                         )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {/* 🟢 WhatsApp Reminder Button (Only shows if they owe money) */}
-                          {customer.balance > 0 && (
-                            <a
-                              href={`https://wa.me/92${customer.phone.replace(/[^0-9]/g, "").substring(1)}?text=${waMessage}`}
-                              target="_blank"
-                              onClick={(e) => e.stopPropagation()}
-                              className="p-2 text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20 rounded-lg transition-colors flex items-center gap-1 text-xs font-bold"
-                              title="Send WhatsApp Reminder"
-                            >
-                              <MessageCircle className="w-4 h-4" />
-                              <span className="hidden xl:inline">Remind</span>
-                            </a>
-                          )}
+                        <a
+                          href={`tel:${customer.phone}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-0.5 flex items-center gap-1 font-mono text-caption text-gray-500 hover:text-brand-700"
+                        >
+                          <Phone className="w-3 h-3" />
+                          {customer.phone}
+                        </a>
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {customer.totalOrders}
+                    </TableCell>
+                    <TableCell className="font-medium text-gray-700">
+                      Rs. {customer.lifetimeValue.toLocaleString()}
+                    </TableCell>
+                    <TableCell data-testid="customer-row-balance">
+                      {customer.balance > 0 ? (
+                        <Badge variant="danger">
+                          Owes Rs. {customer.balance.toLocaleString()}
+                        </Badge>
+                      ) : (
+                        <Badge variant="neutral">Settled</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        {/* WhatsApp Reminder Button (Only shows if they owe money) */}
+                        {customer.balance > 0 && (
+                          <a
+                            href={`https://wa.me/92${customer.phone.replace(/[^0-9]/g, "").substring(1)}?text=${waMessage}`}
+                            target="_blank"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex h-[28px] items-center gap-1 rounded-md border border-border bg-card px-2 text-caption font-medium text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900"
+                            title="Send WhatsApp Reminder"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            <span className="hidden xl:inline">Remind</span>
+                          </a>
+                        )}
 
-                          <button className="p-2 text-slate-400 group-hover:text-blue-600 rounded-lg group-hover:bg-blue-50 transition-colors">
-                            <ArrowRight className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                        <button className="rounded p-1.5 text-gray-400 transition-colors group-hover:bg-brand-50 group-hover:text-brand-700">
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </Card>
 
       {/* 🟢 Interrupt Modal — create customer without leaving the page */}
       <NewCustomerModal
@@ -369,7 +378,7 @@ export default function CustomersPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex h-screen items-center justify-center text-slate-500">
+        <div className="flex h-screen items-center justify-center text-gray-500">
           Loading customers...
         </div>
       }
