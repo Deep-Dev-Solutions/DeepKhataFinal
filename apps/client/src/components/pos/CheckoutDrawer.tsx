@@ -381,7 +381,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                     Existing Credit / Udhaar
                   </span>
                   {existingBalance > 0 && (
-                    <Badge variant="danger">Outstanding</Badge>
+                    <Badge variant="danger" uppercase>Outstanding</Badge>
                   )}
                 </div>
                 <p
@@ -475,9 +475,9 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                   Balance Due (Udhar)
                 </span>
                 {pendingAmount > 0 ? (
-                  <Badge variant="danger">Udhar Pending</Badge>
+                  <Badge variant="danger" uppercase>Udhar Pending</Badge>
                 ) : (
-                  <Badge variant="success">Paid in Full</Badge>
+                  <Badge variant="success" uppercase>Paid in Full</Badge>
                 )}
               </div>
               <p

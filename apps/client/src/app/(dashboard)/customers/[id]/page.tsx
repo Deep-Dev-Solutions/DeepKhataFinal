@@ -360,7 +360,7 @@ export default function CustomerProfilePage() {
 
                 {/* Dynamic Badges */}
                 {isDefaulter && (
-                  <Badge variant="danger">
+                  <Badge variant="danger" uppercase>
                     <UserX className="w-3 h-3" /> Defaulter
                   </Badge>
                 )}
@@ -371,7 +371,7 @@ export default function CustomerProfilePage() {
                   </Badge>
                 )}
                 {!isDefaulter && customer.metrics.outstandingBalance === 0 && (
-                  <Badge variant="success">Account Settled</Badge>
+                  <Badge variant="success" uppercase>Account Settled</Badge>
                 )}
               </div>
               <p className="mt-0.5 text-caption text-gray-500">
@@ -455,12 +455,18 @@ export default function CustomerProfilePage() {
               </div>
 
               {/* Defaulter Toggle */}
-              <div className="flex items-center justify-between rounded-md border border-danger/20 bg-danger-bg p-2.5">
+              <div
+                className={`flex items-center justify-between rounded-md border p-2.5 ${isDefaulter ? "border-danger/30 bg-danger-bg" : "border-border bg-gray-50"}`}
+              >
                 <div>
-                  <p className="text-body font-semibold text-danger-fg">
+                  <p
+                    className={`text-body font-semibold ${isDefaulter ? "text-danger-fg" : "text-gray-700"}`}
+                  >
                     Mark as Defaulter
                   </p>
-                  <p className="mt-0.5 text-caption leading-tight text-danger-fg/80">
+                  <p
+                    className={`mt-0.5 text-caption leading-tight ${isDefaulter ? "text-danger-fg/80" : "text-gray-500"}`}
+                  >
                     Blocks staff from giving udhaar.
                   </p>
                 </div>
@@ -630,7 +636,9 @@ export default function CustomerProfilePage() {
                       <p className="text-caption font-semibold uppercase tracking-wide text-gray-500">
                         Total Wasool (Credits)
                       </p>
-                      <p className="mt-0.5 text-subtitle font-semibold text-success">
+                      <p
+                        className={`mt-0.5 text-subtitle font-semibold ${totalLedgerCredit > 0 ? "text-success" : "text-gray-900"}`}
+                      >
                         Rs. {totalLedgerCredit.toLocaleString()}
                       </p>
                     </div>
@@ -639,7 +647,7 @@ export default function CustomerProfilePage() {
                         Net Udhar Baqaya
                       </p>
                       <p
-                        className={`mt-0.5 text-subtitle font-semibold ${currentNetBalance > 0 ? "text-danger" : "text-success"}`}
+                        className={`mt-0.5 text-subtitle font-semibold ${currentNetBalance > 0 ? "text-danger" : currentNetBalance < 0 ? "text-success" : "text-gray-900"}`}
                       >
                         Rs. {currentNetBalance.toLocaleString()}
                       </p>
@@ -702,11 +710,11 @@ export default function CustomerProfilePage() {
                             </TableCell>
                             <TableCell>
                               {item.type === "PAYMENT" ? (
-                                <Badge variant="success">
+                                <Badge variant="success" uppercase>
                                   <ArrowDownLeft className="w-3 h-3" /> Payment
                                 </Badge>
                               ) : (
-                                <Badge variant="brand">
+                                <Badge variant="brand" uppercase>
                                   <ArrowUpRight className="w-3 h-3" /> Sale
                                 </Badge>
                               )}
@@ -818,19 +826,19 @@ export default function CustomerProfilePage() {
                           </TableCell>
                           <TableCell>
                             {order.status === "CANCELLED" ? (
-                              <Badge variant="neutral">
+                              <Badge variant="neutral" uppercase>
                                 <XCircle className="w-3 h-3" /> Cancelled
                               </Badge>
                             ) : order.payment === "PAID" ? (
-                              <Badge variant="success">
+                              <Badge variant="success" uppercase>
                                 <CheckCircle2 className="w-3 h-3" /> Paid
                               </Badge>
                             ) : order.payment === "PARTIAL" ? (
-                              <Badge variant="warning">
+                              <Badge variant="warning" uppercase>
                                 <Clock className="w-3 h-3" /> Partial
                               </Badge>
                             ) : (
-                              <Badge variant="danger">
+                              <Badge variant="danger" uppercase>
                                 <AlertCircle className="w-3 h-3" /> Unpaid
                               </Badge>
                             )}

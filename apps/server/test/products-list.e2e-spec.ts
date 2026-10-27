@@ -190,6 +190,36 @@ describe('Product list: pagination, search, freshness, cost hiding (e2e)', () =>
     });
   });
 
+  describe('restock signal (lowStockThreshold + branch stock)', () => {
+    // The Products page computes "Needs restock" on the client from these two
+    // fields, so the contract is: stock is the active branch's AVAILABLE count
+    // and lowStockThreshold is the product's own threshold (null = default 5).
+    it('returns both fields so the low-stock count matches the product rule', async () => {
+      const dbProduct = await prisma.product.findUnique({
+        where: { id: catalog.minPriceScreen.productId },
+        select: { lowStockThreshold: true },
+      });
+      expect(dbProduct?.lowStockThreshold).toBe(3);
+
+      const hafeez = (await list('ownerA', { search: 'SCR-T480-FHD' }).expect(200)).body.products.find(
+        (p: any) => p.id === catalog.minPriceScreen.productId,
+      );
+      expect(hafeez.lowStockThreshold).toBe(3);
+      expect(hafeez.stock).toBe(2);
+      // 2 units at a threshold of 3 is low stock, not healthy.
+      expect(hafeez.stock).toBeLessThanOrEqual(hafeez.lowStockThreshold);
+
+      const hallRoad = (await list('ownerA', { search: 'SCR-T480-FHD' }, HALL_ROAD).expect(200)).body.products.find(
+        (p: any) => p.id === catalog.minPriceScreen.productId,
+      );
+      expect(hallRoad.lowStockThreshold).toBe(3);
+      // Branch stock is counted per branch (2 here too, never the business total of 4).
+      expect(hallRoad.stock).toBe(2);
+      expect(hafeez.totalBusinessStock).toBe(4);
+      expect(hallRoad.stock).not.toBe(hafeez.totalBusinessStock);
+    });
+  });
+
   describe('freshness (no stale stock after a sale)', () => {
     async function makeProduct(units: number, branchId = HAFEEZ) {
       const id = randomUUID();

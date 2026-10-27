@@ -8,9 +8,13 @@ import { cn } from "@/lib/utils";
  * neutral, brand, success (money in / positive), warning, danger (money out /
  * negative), outline. Sizes: sm (18px compact chip, default), md (22px).
  * Forwards className and data-testid via rest props.
+ *
+ * Case: badges render in sentence case so money ("Owe Rs. 27,000") and names
+ * keep their real casing. Pass `uppercase` only for pure status words
+ * (OUT OF STOCK, SETTLED, SALE).
  */
 const badgeVariants = cva(
-  "inline-flex w-fit items-center gap-1 rounded-md border px-1.5 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap [&_svg]:size-3",
+  "inline-flex w-fit items-center gap-1 rounded-md border px-1.5 text-[11px] font-semibold whitespace-nowrap [&_svg]:size-3",
   {
     variants: {
       variant: {
@@ -24,7 +28,7 @@ const badgeVariants = cva(
       // Default is the compact 18px chip used in dense lists and POS cards.
       // `md` is for the rare stand-alone badge (22px, sentence case).
       size: {
-        sm: "h-[18px] px-1 leading-none",
+        sm: "h-[18px] px-1.5 leading-none",
         md: "h-[22px] px-2 text-[12px] font-medium normal-case tracking-normal",
       },
     },
@@ -37,13 +41,25 @@ const badgeVariants = cva(
 
 export interface BadgeProps
   extends React.HTMLAttributes<HTMLSpanElement>,
-    VariantProps<typeof badgeVariants> {}
+    VariantProps<typeof badgeVariants> {
+  /** Status words only (OUT OF STOCK, SETTLED, SALE). Money and names stay as written. */
+  uppercase?: boolean;
+}
 
-export function Badge({ className, variant, size, ...props }: BadgeProps) {
+export function Badge({
+  className,
+  variant,
+  size,
+  uppercase = false,
+  ...props
+}: BadgeProps) {
   return (
     <span
       data-slot="badge"
-      className={cn(badgeVariants({ variant, size, className }))}
+      className={cn(
+        badgeVariants({ variant, size, className }),
+        uppercase && "uppercase tracking-wide",
+      )}
       {...props}
     />
   );

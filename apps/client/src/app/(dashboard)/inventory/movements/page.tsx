@@ -135,6 +135,7 @@ export default function InventoryLedgerPage() {
                   <TableCell>
                     <div className="flex flex-col gap-1">
                       <Badge
+                        uppercase
                         variant={
                           m.direction === "IN"
                             ? "success"

@@ -186,12 +186,12 @@ function VendorsPageContent() {
               <p className="text-caption font-medium uppercase tracking-wide text-gray-500">
                 Total Paid Out
               </p>
-              <p className="text-title font-semibold text-success">
+              <p className="text-title font-semibold text-gray-900">
                 Rs. {isLoading ? "..." : totalPaid.toLocaleString()}
               </p>
               <p className="text-caption text-gray-400">Settled payments</p>
             </div>
-            <div className="rounded-md bg-success-bg p-1.5 text-success">
+            <div className="rounded-md bg-gray-100 p-1.5 text-gray-500">
               <CheckCircle2 className="h-5 w-5" />
             </div>
           </CardContent>
@@ -356,7 +356,7 @@ function VendorsPageContent() {
                     Rs. {(vendor.totalPurchased || 0).toLocaleString()}
                   </TableCell>
 
-                  <TableCell className="text-right font-medium text-success">
+                  <TableCell className="text-right font-medium text-gray-700">
                     Rs. {(vendor.totalPaid || 0).toLocaleString()}
                   </TableCell>
 
@@ -369,7 +369,7 @@ function VendorsPageContent() {
                         Owe Rs. {vendor.balance.toLocaleString()}
                       </Badge>
                     ) : (
-                      <Badge variant="success">
+                      <Badge variant="success" uppercase>
                         <CheckCircle2 className="h-3 w-3" /> Settled
                       </Badge>
                     )}

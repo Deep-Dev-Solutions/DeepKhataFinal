@@ -245,7 +245,7 @@ export default function VendorProfilePage() {
                     Owe Rs. {formatPrice(vendor.balance)}
                   </Badge>
                 ) : (
-                  <Badge variant="success">
+                  <Badge variant="success" uppercase>
                     <CheckCircle2 className="h-3 w-3" /> Settled
                   </Badge>
                 )}
@@ -307,7 +307,7 @@ export default function VendorProfilePage() {
 
         <Card>
           <CardContent className="flex items-center gap-2.5 px-3 py-2.5">
-            <div className="shrink-0 rounded-md bg-success-bg p-1.5 text-success">
+            <div className="shrink-0 rounded-md bg-gray-100 p-1.5 text-gray-500">
               <CheckCircle2 className="h-4 w-4" />
             </div>
             <div className="min-w-0">
@@ -317,7 +317,7 @@ export default function VendorProfilePage() {
               >
                 Paid
               </p>
-              <p className="truncate text-body font-semibold text-success">
+              <p className="truncate text-body font-semibold text-gray-900">
                 Rs. {formatPrice(metrics.totalPaid)}
               </p>
             </div>
@@ -330,7 +330,7 @@ export default function VendorProfilePage() {
               className={`shrink-0 rounded-md p-1.5 ${
                 vendor.balance > 0
                   ? "bg-danger-bg text-danger"
-                  : "bg-success-bg text-success"
+                  : "bg-gray-100 text-gray-500"
               }`}
             >
               <Wallet className="h-4 w-4" />
@@ -345,7 +345,7 @@ export default function VendorProfilePage() {
               <p
                 data-testid="vendor-balance"
                 className={`truncate text-body font-semibold ${
-                  vendor.balance > 0 ? "text-danger" : "text-success"
+                  vendor.balance > 0 ? "text-danger" : "text-gray-900"
                 }`}
               >
                 Rs. {formatPrice(vendor.balance)}
@@ -865,6 +865,7 @@ export default function VendorProfilePage() {
                         </TableCell>
                         <TableCell>
                           <Badge
+                            uppercase
                             variant={
                               item.type === "VENDOR_PAYMENT"
                                 ? "success"
@@ -942,6 +943,7 @@ export default function VendorProfilePage() {
                         </TableCell>
                         <TableCell>
                           <Badge
+                            uppercase
                             variant={m.direction === "IN" ? "success" : "danger"}
                           >
                             {m.direction} · {m.referenceType}

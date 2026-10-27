@@ -56,6 +56,7 @@ type ProductRecord = {
   basePrice?: number;
   price?: number;
   stock: number;
+  lowStockThreshold?: number | null;
   hasDeletedBranchStock?: boolean;
   category?: {
     name?: string | null;
@@ -77,6 +78,7 @@ type ProductRow = {
   category: string;
   price: number;
   stock: number;
+  lowStockThreshold: number | null;
   location: string;
   hasDeletedBranchStock: boolean;
 };
@@ -96,6 +98,11 @@ const normalizeProduct = (product: ProductRecord): ProductRow => {
     category: product.category?.name ?? "Uncategorized",
     price: Number(product.basePrice ?? product.price ?? 0),
     stock: Number(product.stock ?? 0),
+    lowStockThreshold:
+      product.lowStockThreshold === null ||
+      product.lowStockThreshold === undefined
+        ? null
+        : Number(product.lowStockThreshold),
     location,
     hasDeletedBranchStock: Boolean(product.hasDeletedBranchStock),
   };
@@ -312,7 +319,7 @@ function ProductsPageContent() {
     0,
   );
   const lowStockCount = filteredProducts.filter(
-    (p) => p.stock > 0 && p.stock <= 5,
+    (p) => p.stock > 0 && p.stock <= (p.lowStockThreshold ?? 5),
   ).length;
   const outOfStockCount = filteredProducts.filter((p) => p.stock === 0).length;
 
@@ -366,7 +373,7 @@ function ProductsPageContent() {
             <p className="text-caption font-medium uppercase tracking-wide text-gray-500">
               Inventory Value
             </p>
-            <p className="text-title font-semibold text-success">
+            <p className="text-title font-semibold text-gray-900">
               Rs. {totalInventoryValue.toLocaleString()}
             </p>
           </CardContent>
@@ -575,12 +582,13 @@ function ProductsPageContent() {
                     <span data-testid="product-row-stock">
                       <Badge
                         variant={
-                          product.stock > 3
+                          product.stock > (product.lowStockThreshold ?? 5)
                             ? "success"
                             : product.stock > 0
                               ? "warning"
                               : "neutral"
                         }
+                        uppercase={product.stock <= 0}
                       >
                         {product.stock > 0
                           ? `${product.stock} units available`

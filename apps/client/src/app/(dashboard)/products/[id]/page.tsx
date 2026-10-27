@@ -447,13 +447,13 @@ export default function ProductDetailPage() {
                     </TableCell>
                     <TableCell className="text-center">
                       {s.status === "FINAL" || s.status === "COMPLETED" ? (
-                        <Badge variant="success">{s.status}</Badge>
+                        <Badge variant="success" uppercase>{s.status}</Badge>
                       ) : s.status === "MEMO" || s.status === "PENDING" ? (
-                        <Badge variant="warning">{s.status}</Badge>
+                        <Badge variant="warning" uppercase>{s.status}</Badge>
                       ) : s.status === "CANCELLED" ? (
-                        <Badge variant="danger">{s.status}</Badge>
+                        <Badge variant="danger" uppercase>{s.status}</Badge>
                       ) : (
-                        <Badge variant="neutral">{s.status}</Badge>
+                        <Badge variant="neutral" uppercase>{s.status}</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-center">
@@ -465,6 +465,7 @@ export default function ProductDetailPage() {
                               ? "warning"
                               : "danger"
                         }
+                        uppercase
                       >
                         {s.paymentStatus}
                       </Badge>

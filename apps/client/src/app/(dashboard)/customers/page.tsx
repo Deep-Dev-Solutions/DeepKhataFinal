@@ -330,7 +330,7 @@ function CustomersPageContent() {
                           Owes Rs. {customer.balance.toLocaleString()}
                         </Badge>
                       ) : (
-                        <Badge variant="neutral">Settled</Badge>
+                        <Badge variant="neutral" uppercase>Settled</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-right">

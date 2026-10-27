@@ -565,7 +565,7 @@ export default function RestockPage() {
                 type="text"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Supplier note / invoice reference (optional)"
+                placeholder="Note / invoice no. (optional)"
                 className="flex-1"
               />
               <Button

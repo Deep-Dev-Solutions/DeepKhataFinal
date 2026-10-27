@@ -1331,10 +1331,6 @@ function CreateOrderPOSContent() {
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-success-fg bg-success-bg border border-success/30 px-2.5 py-1.5 rounded-md">
-                <Wifi className="w-3.5 h-3.5 text-success" />
-                <span className="hidden sm:inline">Online</span>
-              </div>
               {pendingCount > 0 && (
                 <Button
                   type="button"
@@ -1583,6 +1579,13 @@ function CreateOrderPOSContent() {
                             </span>
                             <Badge
                               data-testid="pos-remote-badge"
+                              uppercase={
+                                isOutOfStock &&
+                                !(
+                                  (product as any).otherBranchesWithStock
+                                    ?.length > 0
+                                )
+                              }
                               variant={
                                 isRemoteBranch
                                   ? "warning"
@@ -1638,7 +1641,7 @@ function CreateOrderPOSContent() {
                         onClick={() => handleProductClick(product)}
                         disabled={isRemoteBranch}
                         data-testid="pos-add-item"
-                        className={`group flex flex-col text-left p-3 rounded-md border transition-all relative overflow-hidden w-full h-full ${
+                        className={`group flex flex-col text-left px-2.5 py-3 rounded-md border transition-all relative overflow-hidden w-full h-full ${
                           isRemoteBranch
                             ? "bg-warning-bg/30 border-warning/40 cursor-not-allowed opacity-90"
                             : isOutOfStock
@@ -1647,16 +1650,17 @@ function CreateOrderPOSContent() {
                         }`}
                       >
                         {/* Card Header: Category & Stock Status */}
-                        <div className="flex items-center justify-between gap-1.5 mb-1.5 w-full">
+                        <div className="flex items-center justify-between gap-1 mb-1.5 w-full">
                           <span
                             title={product.category?.name || "General"}
-                            className="min-w-0 text-[11px] font-semibold text-gray-500 uppercase tracking-normal truncate"
+                            className="min-w-0 text-[10px] font-medium tracking-tight text-gray-500 truncate"
                           >
                             {product.category?.name || "General"}
                           </span>
                           {isRemoteBranch ? (
                             <Badge
                               data-testid="pos-remote-badge"
+                              uppercase
                               variant="warning"
                               className="shrink-0"
                             >
@@ -1665,6 +1669,12 @@ function CreateOrderPOSContent() {
                           ) : isOutOfStock ? (
                             <Badge
                               data-testid="pos-remote-badge"
+                              uppercase={
+                                !(
+                                  (product as any).otherBranchesWithStock
+                                    ?.length > 0
+                                )
+                              }
                               variant="danger"
                               className="shrink-0"
                             >
