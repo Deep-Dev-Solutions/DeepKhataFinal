@@ -128,3 +128,18 @@ Status: Day-2 implementation queued.
 | C5 | Customers list + khata profile on the tokens/kit: PageHeader, metric Cards, kit Table (balance as danger/neutral Badge), ledger/orders tabs as Buttons + Badges, date stacked, description truncate+title so all 6 ledger columns fit at 1366px, statement/WhatsApp actions as secondary Buttons; 29+5 badges all 18px, 0 clipped badges, dashboard gate clean | done | c5342af |
 | C6 | Customer + payment modals on the kit `Modal` (grey header, scrolling body, footer actions): NewCustomer, EditCustomer, RecordPayment. Kit Input/Select/Button, amount keeps Rs. prefix, `Pay in Full`, danger outstanding strip; testids `new-customer-*`, `record-payment-*` kept; 512px dialogs, controls 16/24/36, no overflow | done | f669dbd |
 | C7 | Vendors list + vendor profile on the tokens/kit: PageHeader, 4 KPI cards then 6 stacked-metric cards, kit Table with balance as danger/success Badge, vendor info + ledger-entry forms as Cards with kit Input/Button, 4 tab tables (products/batches/ledger/audit) with Badge type chips, ledger date stacked and money nowrap so the panel fits at 1366px; 0 palette utilities left, testids kept (`vendors-page`, `vendors-new`, `vendor-row`, `vendor-row-balance`, `vendor-detail`, `vendor-balance`, `vendor-amount`, `vendor-description`, `vendor-submit`, `vendor-purchase-open`, `vendor-payment-open`, `vendor-ledger-row`); `npm run build -w client` green, badges all 18px, 0 clipped badges, 0 table/body overflow | done | be6cc0c |
+| C8 | Section checks: `npm run build -w client` green (28 routes); E2E `inventory/* khata/* dues/* returns/* stock-finder/*` → 42 passed (3.7m); dev stack stopped before the run so specs used the e2e DB; `df -h /` 9.6 GB free | done | — |
+
+### Day 4 report
+
+Shipped: the daily screens now sit on the Day-3 tokens and UI kit — products list and product detail, add/edit product modals, restock hub, inventory movements, customers list and khata profile, new/edit customer and record-payment modals, vendors list and vendor profile. Behaviour, handlers and every existing `data-testid` are unchanged; the only token-exception is the shared `dialog.tsx`/`modal.tsx` chrome, de-blurred and tokenised as part of C2. Badges are the 18px compact chip everywhere, all lists are dense zebra tables, money is green/red only, and every screen was gated on a 1366x768 screenshot with a badge/text-clipping audit before being marked done.
+
+Also fixed in C0 (before this section): the Day-3 regressions found against `pos-before.png` — compact badges, POS cards back to 138px with full category labels and one-line cabinet chips, and the stacked sidebar user block.
+
+Checks: build green; 42 E2E specs green across inventory, khata, dues, returns and stock-finder; 9.6 GB free on `/`.
+
+Failing: nothing.
+
+Decisions needed: none. Screenshots for the section are in `docs/ui/` (`products-`, `product-detail-`, `add-product-`, `edit-product-`, `restock-`, `inventory-movements-`, `customers-`, `khata-`, `new-customer-`, `edit-customer-`, `record-payment-`, `vendors-`, `vendor-profile-`, `vendor-ledger-`, `vendor-batches-`, `vendor-audit-sec-c.png`); `docs/ui/` stays git-excluded as in B0.
+
+Next: Section D not started.
