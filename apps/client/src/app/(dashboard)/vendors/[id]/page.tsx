@@ -24,8 +24,28 @@ import {
   ShoppingBag,
   CreditCard,
   Warehouse,
+  Loader2,
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableEmpty,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+const splitDateTime = (value: string): [string, string] => {
+  const idx = value.lastIndexOf(", ");
+  return idx === -1 ? [value, ""] : [value.slice(0, idx), value.slice(idx + 2)];
+};
 
 const formatPrice = (val: any): string => {
   if (val === null || val === undefined) return "0";
@@ -152,10 +172,10 @@ export default function VendorProfilePage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px] text-slate-500">
-        <div className="animate-pulse flex flex-col items-center gap-2">
-          <Building2 className="w-8 h-8 text-indigo-500 animate-bounce" />
-          <p className="text-sm font-medium">Loading vendor profile...</p>
+      <div className="flex min-h-[400px] items-center justify-center">
+        <div className="flex flex-col items-center gap-2 text-gray-500">
+          <Loader2 className="h-6 w-6 animate-spin text-brand-700" />
+          <p className="text-body font-medium">Loading vendor profile...</p>
         </div>
       </div>
     );
@@ -163,13 +183,13 @@ export default function VendorProfilePage() {
 
   if (pageError || !vendor) {
     return (
-      <div className="p-6 text-center max-w-md mx-auto mt-10">
-        <div className="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl p-4 mb-4">
+      <div className="mx-auto mt-10 max-w-md p-6 text-center">
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger-bg p-3 text-body text-danger-fg">
           {pageError || "Vendor not found"}
         </div>
         <Link
           href="/vendors"
-          className="text-indigo-600 font-semibold hover:underline"
+          className="font-semibold text-brand-700 hover:underline"
         >
           &larr; Back to Vendors
         </Link>
@@ -203,381 +223,409 @@ export default function VendorProfilePage() {
   });
 
   return (
-    <div data-testid="vendor-detail" className="flex flex-col gap-6 animate-in fade-in duration-500 pb-10">
+    <div data-testid="vendor-detail" className="mt-1 flex flex-col gap-3 pb-10 animate-in fade-in duration-300">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl border bg-white border-slate-200 shadow-sm">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/vendors"
-            className="p-2 text-slate-400 hover:text-slate-900 bg-white rounded-lg border border-slate-200 transition-colors shadow-sm"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900">
-                {vendor.businessName}
-              </h1>
-              {vendor.balance > 0 ? (
-                <span className="bg-rose-50 text-rose-700 text-xs font-bold px-2.5 py-1 rounded-lg border border-rose-200">
-                  Owe Rs. {formatPrice(vendor.balance)}
-                </span>
-              ) : (
-                <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Settled
-                </span>
-              )}
+      <Card>
+        <CardContent className="flex flex-col justify-between gap-3 px-4 py-3 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/vendors"
+              aria-label="Back to vendors"
+              className={buttonVariants({ variant: "secondary", size: "icon" })}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-title font-semibold text-gray-900">
+                  {vendor.businessName}
+                </h1>
+                {vendor.balance > 0 ? (
+                  <Badge variant="danger">
+                    Owe Rs. {formatPrice(vendor.balance)}
+                  </Badge>
+                ) : (
+                  <Badge variant="success">
+                    <CheckCircle2 className="h-3 w-3" /> Settled
+                  </Badge>
+                )}
+              </div>
+              <p className="text-caption text-gray-500">
+                Supplier &amp; vendor profile
+              </p>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Supplier & Vendor Profile
-            </p>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            data-testid="vendor-purchase-open"
-            onClick={() => {
-              setActionType("purchase");
-              const el = document.getElementById("tx-form");
-              el?.scrollIntoView({ behavior: "smooth" });
-            }}
-            className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-          >
-            + Record Purchase
-          </button>
-          <button
-            data-testid="vendor-payment-open"
-            onClick={() => {
-              setActionType("payment");
-              const el = document.getElementById("tx-form");
-              el?.scrollIntoView({ behavior: "smooth" });
-            }}
-            className="px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-          >
-            + Record Payment
-          </button>
-        </div>
-      </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              data-testid="vendor-purchase-open"
+              onClick={() => {
+                setActionType("purchase");
+                const el = document.getElementById("tx-form");
+                el?.scrollIntoView({ behavior: "smooth" });
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" /> Record Purchase
+            </Button>
+            <Button
+              size="sm"
+              data-testid="vendor-payment-open"
+              onClick={() => {
+                setActionType("payment");
+                const el = document.getElementById("tx-form");
+                el?.scrollIntoView({ behavior: "smooth" });
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" /> Record Payment
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* KPI METRIC CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-        <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-3">
-          <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl shrink-0">
-            <ShoppingBag className="w-5 h-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide truncate">
-              Total Purchases
-            </p>
-            <p className="text-base sm:text-lg font-black text-slate-900 truncate">
-              Rs. {formatPrice(metrics.totalPurchases)}
-            </p>
-          </div>
-        </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <Card>
+          <CardContent className="flex items-center gap-2.5 px-3 py-2.5">
+            <div className="shrink-0 rounded-md bg-brand-50 p-1.5 text-brand-700">
+              <ShoppingBag className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p
+                title="Total Purchases"
+                className="truncate text-caption font-medium uppercase tracking-wide text-gray-500"
+              >
+                Purchases
+              </p>
+              <p className="truncate text-body font-semibold text-gray-900">
+                Rs. {formatPrice(metrics.totalPurchases)}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-3">
-          <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl shrink-0">
-            <CheckCircle2 className="w-5 h-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide truncate">
-              Total Paid
-            </p>
-            <p className="text-base sm:text-lg font-black text-emerald-700 truncate">
-              Rs. {formatPrice(metrics.totalPaid)}
-            </p>
-          </div>
-        </div>
+        <Card>
+          <CardContent className="flex items-center gap-2.5 px-3 py-2.5">
+            <div className="shrink-0 rounded-md bg-success-bg p-1.5 text-success">
+              <CheckCircle2 className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p
+                title="Total Paid"
+                className="truncate text-caption font-medium uppercase tracking-wide text-gray-500"
+              >
+                Paid
+              </p>
+              <p className="truncate text-body font-semibold text-success">
+                Rs. {formatPrice(metrics.totalPaid)}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-3">
-          <div
-            className={`p-2.5 rounded-xl shrink-0 ${vendor.balance > 0 ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"}`}
-          >
-            <Wallet className="w-5 h-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide truncate">
-              Balance Due
-            </p>
-            <p
-              data-testid="vendor-balance"
-              className={`text-base sm:text-lg font-black truncate ${vendor.balance > 0 ? "text-rose-600" : "text-emerald-700"}`}
+        <Card>
+          <CardContent className="flex items-center gap-2.5 px-3 py-2.5">
+            <div
+              className={`shrink-0 rounded-md p-1.5 ${
+                vendor.balance > 0
+                  ? "bg-danger-bg text-danger"
+                  : "bg-success-bg text-success"
+              }`}
             >
-              Rs. {formatPrice(vendor.balance)}
-            </p>
-          </div>
-        </div>
+              <Wallet className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p
+                title="Balance Due"
+                className="truncate text-caption font-medium uppercase tracking-wide text-gray-500"
+              >
+                Balance
+              </p>
+              <p
+                data-testid="vendor-balance"
+                className={`truncate text-body font-semibold ${
+                  vendor.balance > 0 ? "text-danger" : "text-success"
+                }`}
+              >
+                Rs. {formatPrice(vendor.balance)}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-3">
-          <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl shrink-0">
-            <Package className="w-5 h-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide truncate">
-              Units Supplied
-            </p>
-            <p className="text-base sm:text-lg font-black text-slate-900">
-              {metrics.totalUnitsSupplied || 0}{" "}
-              <span className="text-xs font-medium text-slate-400">units</span>
-            </p>
-          </div>
-        </div>
+        <Card>
+          <CardContent className="flex items-center gap-2.5 px-3 py-2.5">
+            <div className="shrink-0 rounded-md bg-gray-100 p-1.5 text-gray-500">
+              <Package className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p
+                title="Units Supplied"
+                className="truncate text-caption font-medium uppercase tracking-wide text-gray-500"
+              >
+                Units
+              </p>
+              <p className="text-body font-semibold text-gray-900">
+                {metrics.totalUnitsSupplied || 0}{" "}
+                <span className="text-caption font-normal text-gray-400">
+                  units
+                </span>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-3">
-          <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl shrink-0">
-            <Tag className="w-5 h-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide truncate">
-              Catalog Items
-            </p>
-            <p className="text-base sm:text-lg font-black text-slate-900">
-              {metrics.distinctProductsCount || products.length}{" "}
-              <span className="text-xs font-medium text-slate-400">prods</span>
-            </p>
-          </div>
-        </div>
+        <Card>
+          <CardContent className="flex items-center gap-2.5 px-3 py-2.5">
+            <div className="shrink-0 rounded-md bg-gray-100 p-1.5 text-gray-500">
+              <Tag className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p
+                title="Catalog Items"
+                className="truncate text-caption font-medium uppercase tracking-wide text-gray-500"
+              >
+                Items
+              </p>
+              <p className="text-body font-semibold text-gray-900">
+                {metrics.distinctProductsCount || products.length}{" "}
+                <span className="text-caption font-normal text-gray-400">
+                  prods
+                </span>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-3">
-          <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl shrink-0">
-            <Warehouse className="w-5 h-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide truncate">
-              Stock Status
-            </p>
-            <p className="text-xs font-bold text-slate-900 truncate">
-              <span className="text-emerald-600">
-                {metrics.availableUnits || 0} in stock
-              </span>
-              <span className="text-slate-400"> · </span>
-              <span className="text-slate-500">
-                {metrics.soldUnits || 0} sold
-              </span>
-            </p>
-          </div>
-        </div>
+        <Card>
+          <CardContent className="flex items-center gap-2.5 px-3 py-2.5">
+            <div className="shrink-0 rounded-md bg-gray-100 p-1.5 text-gray-500">
+              <Warehouse className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p
+                title="Stock Status"
+                className="truncate text-caption font-medium uppercase tracking-wide text-gray-500"
+              >
+                Stock
+              </p>
+              <p className="truncate text-caption font-semibold text-gray-900">
+                <span className="text-success">
+                  {metrics.availableUnits || 0} in stock
+                </span>
+                <span className="text-gray-400"> · </span>
+                <span className="text-gray-500">
+                  {metrics.soldUnits || 0} sold
+                </span>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
+      <div className="flex flex-col items-start gap-3 lg:flex-row">
         {/* Left Column: Vendor Info & Transaction Form */}
         <div
-          className="w-full lg:w-[350px] flex flex-col gap-6 shrink-0"
+          className="flex w-full shrink-0 flex-col gap-3 lg:w-[336px]"
           id="tx-form"
         >
           {/* Vendor Info Card */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
-              Vendor Information
-            </h3>
-            <div className="space-y-3.5 text-sm">
-              <div className="flex items-start gap-3 text-slate-700">
-                <Building2 className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
-                <div>
-                  <p className="font-semibold text-slate-900">
+          <Card>
+            <CardHeader className="border-b border-border bg-gray-50 px-4 py-2">
+              <CardTitle className="text-caption font-semibold uppercase tracking-wide text-gray-600">
+                Vendor Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 px-4 py-3 text-body">
+              <div className="flex items-start gap-2.5">
+                <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-gray-900">
                     {vendor.contactName || "Not provided"}
                   </p>
-                  <p className="text-xs text-slate-500">Contact Person</p>
+                  <p className="text-caption text-gray-500">Contact person</p>
                 </div>
               </div>
-              <div className="flex items-start gap-3 text-slate-700">
-                <Phone className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
-                <div>
-                  <p className="font-semibold text-slate-900 font-mono text-xs">
+              <div className="flex items-start gap-2.5">
+                <Phone className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
+                <div className="min-w-0">
+                  <p className="truncate font-mono text-caption font-semibold text-gray-900">
                     {vendor.phone || "Not provided"}
                   </p>
-                  <p className="text-xs text-slate-500">Phone Number</p>
+                  <p className="text-caption text-gray-500">Phone number</p>
                 </div>
               </div>
-              <div className="flex items-start gap-3 text-slate-700 pt-2 border-t border-slate-100">
-                <MapPin className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
-                <div>
-                  <p className="font-medium text-slate-800 leading-relaxed text-xs">
+              <div className="flex items-start gap-2.5 border-t border-border pt-2">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
+                <div className="min-w-0">
+                  <p className="text-caption font-medium leading-relaxed text-gray-700">
                     {vendor.address || "Not provided"}
                   </p>
-                  <p className="text-[11px] text-slate-500">Address</p>
+                  <p className="text-caption text-gray-500">Address</p>
                 </div>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Record Transaction Card (Purchase / Payment) */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-3">
-              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Ledger Transaction
-              </h3>
-              <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg text-xs font-bold">
-                <button
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2 border-b border-border bg-gray-50 px-4 py-2">
+              <CardTitle className="whitespace-nowrap text-caption font-semibold uppercase tracking-wide text-gray-600">
+                Ledger Entry
+              </CardTitle>
+              <div className="flex items-center gap-1 rounded-md bg-gray-100 p-0.5">
+                <Button
                   type="button"
+                  size="sm"
+                  variant={actionType === "purchase" ? "secondary" : "ghost"}
+                  className="h-6 px-2 text-caption"
                   onClick={() => setActionType("purchase")}
-                  className={`px-2.5 py-1 rounded-md transition-colors ${
-                    actionType === "purchase"
-                      ? "bg-white text-indigo-600 shadow-2xs"
-                      : "text-slate-500 hover:text-slate-900"
-                  }`}
                 >
                   Purchase
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  size="sm"
+                  variant={actionType === "payment" ? "secondary" : "ghost"}
+                  className="h-6 px-2 text-caption"
                   onClick={() => setActionType("payment")}
-                  className={`px-2.5 py-1 rounded-md transition-colors ${
-                    actionType === "payment"
-                      ? "bg-white text-emerald-700 shadow-2xs"
-                      : "text-slate-500 hover:text-slate-900"
-                  }`}
                 >
                   Payment
-                </button>
+                </Button>
               </div>
-            </div>
+            </CardHeader>
 
-            <form onSubmit={handleRecordTransaction} className="space-y-4">
-              {txError && (
-                <div className="p-3 bg-rose-50 text-rose-700 rounded-xl text-xs border border-rose-200">
-                  {txError}
+            <CardContent className="px-4 py-3">
+              <form onSubmit={handleRecordTransaction} className="space-y-3">
+                {txError && (
+                  <div className="rounded-md border border-danger/30 bg-danger-bg px-3 py-2 text-caption font-medium text-danger-fg">
+                    {txError}
+                  </div>
+                )}
+                {txSuccess && (
+                  <div className="rounded-md border border-success/30 bg-success-bg px-3 py-2 text-caption font-medium text-success-fg">
+                    {txSuccess}
+                  </div>
+                )}
+
+                <div>
+                  <label className="mb-1 block text-caption font-medium text-gray-700">
+                    {actionType === "purchase"
+                      ? "Purchase amount (Rs.) *"
+                      : "Payment amount to vendor (Rs.) *"}
+                  </label>
+                  <Input
+                    type="number"
+                    required
+                    min="1"
+                    data-testid="vendor-amount"
+                    value={txAmount}
+                    onChange={(e) => setTxAmount(e.target.value)}
+                    placeholder="e.g. 50000"
+                  />
                 </div>
-              )}
-              {txSuccess && (
-                <div className="p-3 bg-emerald-50 text-emerald-700 rounded-xl text-xs border border-emerald-200">
-                  {txSuccess}
+
+                <div>
+                  <label className="mb-1 block text-caption font-medium text-gray-700">
+                    Description / reference note
+                  </label>
+                  <Input
+                    type="text"
+                    data-testid="vendor-description"
+                    value={txDescription}
+                    onChange={(e) => setTxDescription(e.target.value)}
+                    placeholder={
+                      actionType === "purchase"
+                        ? "e.g. OLED screens batch #12"
+                        : "e.g. Cash settlement for invoice"
+                    }
+                  />
                 </div>
-              )}
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  {actionType === "purchase"
-                    ? "Purchase Amount (Rs.) *"
-                    : "Payment Amount to Vendor (Rs.) *"}
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="1"
-                  data-testid="vendor-amount"
-                  value={txAmount}
-                  onChange={(e) => setTxAmount(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                  placeholder="e.g. 50000"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Description / Reference Note
-                </label>
-                <input
-                  type="text"
-                  data-testid="vendor-description"
-                  value={txDescription}
-                  onChange={(e) => setTxDescription(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                  placeholder={
-                    actionType === "purchase"
-                      ? "e.g. OLED Screens Batch #12"
-                      : "e.g. Cash settlement for invoice"
-                  }
-                />
-              </div>
-
-              <button
-                type="submit"
-                data-testid="vendor-submit"
-                disabled={isSubmittingTx || !txAmount}
-                className={`w-full py-2.5 text-white font-bold rounded-xl text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer shadow-sm ${
-                  actionType === "purchase"
-                    ? "bg-indigo-600 hover:bg-indigo-700"
-                    : "bg-emerald-600 hover:bg-emerald-700"
-                }`}
-              >
-                <Plus className="w-4 h-4" />
-                {isSubmittingTx
-                  ? "Recording..."
-                  : actionType === "purchase"
-                    ? "Add Purchase to Ledger"
-                    : "Record Payment (Settle)"}
-              </button>
-            </form>
-          </div>
+                <Button
+                  type="submit"
+                  data-testid="vendor-submit"
+                  disabled={isSubmittingTx || !txAmount}
+                  loading={isSubmittingTx}
+                  className="w-full"
+                >
+                  {!isSubmittingTx && <Plus className="h-4 w-4" />}
+                  {isSubmittingTx
+                    ? "Recording..."
+                    : actionType === "purchase"
+                      ? "Add Purchase to Ledger"
+                      : "Record Payment (Settle)"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Right Section: Multi-tab content */}
-        <div className="flex-1 w-full bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+        <Card className="flex w-full flex-1 flex-col overflow-hidden">
           {/* Tabs bar */}
-          <div className="p-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/70">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <button
+          <div className="flex flex-col justify-between gap-3 border-b border-border bg-gray-50 px-3 py-2 sm:flex-row sm:items-center">
+            <div className="flex flex-wrap items-center gap-1">
+              <Button
+                size="sm"
+                variant={activeTab === "products" ? "secondary" : "ghost"}
                 onClick={() => setActiveTab("products")}
-                className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 ${
-                  activeTab === "products"
-                    ? "bg-white border border-slate-200 shadow-xs text-indigo-600"
-                    : "text-slate-500 hover:bg-slate-100"
-                }`}
               >
-                <Package className="w-3.5 h-3.5" />
-                Products Purchased
-                <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded-full text-[10px] font-black">
+                <Package className="h-3.5 w-3.5" /> Products
+                <Badge variant={activeTab === "products" ? "brand" : "neutral"}>
                   {products.length}
-                </span>
-              </button>
+                </Badge>
+              </Button>
 
-              <button
+              <Button
+                size="sm"
+                variant={activeTab === "inventory" ? "secondary" : "ghost"}
                 onClick={() => setActiveTab("inventory")}
-                className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 ${
-                  activeTab === "inventory"
-                    ? "bg-white border border-slate-200 shadow-xs text-indigo-600"
-                    : "text-slate-500 hover:bg-slate-100"
-                }`}
               >
-                <Layers className="w-3.5 h-3.5" />
-                Supplied Batches
-                <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded-full text-[10px] font-black">
+                <Layers className="h-3.5 w-3.5" /> Batches
+                <Badge
+                  variant={activeTab === "inventory" ? "brand" : "neutral"}
+                >
                   {suppliedInventory.length}
-                </span>
-              </button>
+                </Badge>
+              </Button>
 
-              <button
+              <Button
+                size="sm"
+                variant={activeTab === "ledger" ? "secondary" : "ghost"}
                 onClick={() => setActiveTab("ledger")}
-                className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 ${
-                  activeTab === "ledger"
-                    ? "bg-white border border-slate-200 shadow-xs text-indigo-600"
-                    : "text-slate-500 hover:bg-slate-100"
-                }`}
               >
-                <Wallet className="w-3.5 h-3.5" />
-                Ledger (Accounts Payable)
-                <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded-full text-[10px] font-black">
+                <Wallet className="h-3.5 w-3.5" /> Ledger
+                <Badge variant={activeTab === "ledger" ? "brand" : "neutral"}>
                   {vendor.ledger?.length || 0}
-                </span>
-              </button>
+                </Badge>
+              </Button>
 
-              <button
+              <Button
+                size="sm"
+                variant={activeTab === "movements" ? "secondary" : "ghost"}
                 onClick={() => setActiveTab("movements")}
-                className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 ${
-                  activeTab === "movements"
-                    ? "bg-white border border-slate-200 shadow-xs text-indigo-600"
-                    : "text-slate-500 hover:bg-slate-100"
-                }`}
               >
-                <Clock className="w-3.5 h-3.5" />
-                Audit Logs
-                <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded-full text-[10px] font-black">
+                <Clock className="h-3.5 w-3.5" /> Audit Logs
+                <Badge
+                  variant={activeTab === "movements" ? "brand" : "neutral"}
+                >
                   {movements.length}
-                </span>
-              </button>
+                </Badge>
+              </Button>
             </div>
 
             {(activeTab === "products" || activeTab === "inventory") && (
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-                <input
+              <div className="relative w-full sm:w-44">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                <Input
                   type="text"
+                  size="sm"
                   value={itemSearch}
                   onChange={(e) => setItemSearch(e.target.value)}
                   placeholder="Filter items..."
-                  className="pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none w-full sm:w-44"
+                  className="pl-8"
                 />
               </div>
             )}
@@ -586,389 +634,346 @@ export default function VendorProfilePage() {
           <div className="flex-1 flex flex-col">
             {/* TAB 1: PRODUCTS PURCHASED (CATALOG VIEW) */}
             {activeTab === "products" && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-100">
-                    <tr>
-                      <th className="px-5 py-3">Product</th>
-                      <th className="px-5 py-3">Category / SKU</th>
-                      <th className="px-5 py-3 text-center">Total Sourced</th>
-                      <th className="px-5 py-3 text-center">Current Stock</th>
-                      <th className="px-5 py-3 text-right">Avg Unit Cost</th>
-                      <th className="px-5 py-3 text-right">
-                        Total Purchase Value
-                      </th>
-                      <th className="px-5 py-3">Branches</th>
-                      <th className="px-5 py-3 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredProducts.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={8}
-                          className="px-5 py-14 text-center text-slate-400"
-                        >
-                          <Package className="w-10 h-10 mx-auto mb-2 opacity-25 text-slate-400" />
-                          <p className="font-semibold text-slate-600 text-sm">
-                            No products found from this vendor
-                          </p>
-                          <p className="text-xs text-slate-400 mt-1">
-                            Products attached to this vendor during creation or
-                            restock will appear here.
-                          </p>
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredProducts.map((p) => (
-                        <tr
-                          key={p.productId}
-                          className="hover:bg-slate-50/70 transition-colors"
-                        >
-                          <td className="px-5 py-3.5">
-                            <Link
-                              href={`/products/${p.productId}`}
-                              className="font-bold text-slate-900 hover:text-indigo-600 transition-colors block text-xs sm:text-sm hover:underline"
-                            >
-                              {p.productName}
-                            </Link>
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
-                                {p.category}
-                              </span>
-                              {p.sku && (
-                                <span className="text-[10px] font-mono text-slate-400">
-                                  {p.sku}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-5 py-3.5 text-center">
-                            <span className="font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded text-xs">
-                              {p.totalQuantity} units
-                            </span>
-                          </td>
-                          <td className="px-5 py-3.5 text-center">
+              <Table containerClassName="rounded-none border-0">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Product</TableHead>
+                    <TableHead>Category / SKU</TableHead>
+                    <TableHead className="text-center">Sourced</TableHead>
+                    <TableHead className="text-center">Stock</TableHead>
+                    <TableHead className="text-right">Avg Cost</TableHead>
+                    <TableHead className="text-right">Total Value</TableHead>
+                    <TableHead className="w-12 text-right">View</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredProducts.length === 0 ? (
+                    <TableEmpty colSpan={7}>
+                      <EmptyState
+                        className="border-0 bg-transparent py-4 shadow-none"
+                        icon={Package}
+                        title="No products found from this vendor"
+                        description="Products attached to this vendor during creation or restock will appear here."
+                      />
+                    </TableEmpty>
+                  ) : (
+                    filteredProducts.map((p) => (
+                      <TableRow key={p.productId}>
+                        <TableCell>
+                          <Link
+                            href={`/products/${p.productId}`}
+                            className="block text-body font-semibold text-gray-900 transition-colors hover:text-brand-700 hover:underline"
+                          >
+                            {p.productName}
+                          </Link>
+                          {p.branches?.length > 0 && (
                             <span
-                              className={`font-bold px-2 py-0.5 rounded text-xs ${
-                                p.availableQuantity > 0
-                                  ? "bg-emerald-50 text-emerald-700"
-                                  : "bg-slate-100 text-slate-400"
-                              }`}
+                              title={p.branches.join(", ")}
+                              className="block max-w-56 truncate text-caption text-gray-400"
                             >
-                              {p.availableQuantity} available
+                              {p.branches.join(" · ")}
                             </span>
-                            {p.soldQuantity > 0 && (
-                              <span className="text-[10px] text-slate-400 block mt-0.5">
-                                ({p.soldQuantity} sold)
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Badge variant="neutral">{p.category}</Badge>
+                            {p.sku && (
+                              <span className="font-mono text-caption text-gray-400">
+                                {p.sku}
                               </span>
                             )}
-                          </td>
-                          <td className="px-5 py-3.5 text-right font-medium text-slate-700 text-xs sm:text-sm">
-                            {p.avgUnitCost > 0
-                              ? `Rs. ${formatPrice(p.avgUnitCost)}`
-                              : "-"}
-                          </td>
-                          <td className="px-5 py-3.5 text-right font-black text-indigo-600 text-xs sm:text-sm">
-                            {p.totalCost > 0
-                              ? `Rs. ${formatPrice(p.totalCost)}`
-                              : "-"}
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <div className="flex items-center gap-1 flex-wrap max-w-xs">
-                              {p.branches?.map((b: string) => (
-                                <span
-                                  key={b}
-                                  className="text-[10px] font-medium bg-slate-50 text-slate-600 border border-slate-200/60 px-1.5 py-0.5 rounded"
-                                >
-                                  {b}
-                                </span>
-                              ))}
-                            </div>
-                          </td>
-                          <td className="px-5 py-3.5 text-right">
-                            <Link
-                              href={`/products/${p.productId}`}
-                              className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors inline-block"
-                              title="View product details"
-                            >
-                              <ExternalLink className="w-4 h-4" />
-                            </Link>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="neutral">{p.totalQuantity} units</Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {p.availableQuantity > 0 ? (
+                            <Badge variant="success">
+                              {p.availableQuantity} available
+                            </Badge>
+                          ) : (
+                            <Badge variant="neutral">0 available</Badge>
+                          )}
+                          {p.soldQuantity > 0 && (
+                            <span className="mt-0.5 block text-caption text-gray-400">
+                              {p.soldQuantity} sold
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right text-caption font-medium text-gray-700">
+                          {p.avgUnitCost > 0
+                            ? `Rs. ${formatPrice(p.avgUnitCost)}`
+                            : "-"}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right font-semibold text-gray-900">
+                          {p.totalCost > 0
+                            ? `Rs. ${formatPrice(p.totalCost)}`
+                            : "-"}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right">
+                          <Link
+                            href={`/products/${p.productId}`}
+                            className="inline-block rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-brand-700"
+                            title="View product details"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             )}
 
             {/* TAB 2: SUPPLIED INVENTORY BATCHES */}
             {activeTab === "inventory" && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-100">
-                    <tr>
-                      <th className="px-5 py-3">Received Date</th>
-                      <th className="px-5 py-3">Product Name</th>
-                      <th className="px-5 py-3">Branch & Cabinet</th>
-                      <th className="px-5 py-3 text-center">Batch Qty</th>
-                      <th className="px-5 py-3 text-center">Stock Status</th>
-                      <th className="px-5 py-3 text-right">Unit Cost</th>
-                      <th className="px-5 py-3 text-right">Total Batch Cost</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredInventory.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={7}
-                          className="px-5 py-14 text-center text-slate-400"
-                        >
-                          <Layers className="w-10 h-10 mx-auto mb-2 opacity-25 text-slate-400" />
-                          <p className="font-semibold text-slate-600 text-sm">
-                            No inventory batches found
-                          </p>
-                          <p className="text-xs text-slate-400 mt-1">
-                            Physical product instances sourced from this vendor
-                            will appear here.
-                          </p>
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredInventory.map((item: any) => (
-                        <tr
-                          key={item.key}
-                          className="hover:bg-slate-50/70 transition-colors"
-                        >
-                          <td className="px-5 py-3.5 text-xs text-slate-500 font-medium">
-                            {new Date(item.date).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            })}
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <Link
-                              href={`/products/${item.productId}`}
-                              className="font-bold text-slate-800 text-xs sm:text-sm hover:text-indigo-600 hover:underline block"
-                            >
-                              {item.productName}
-                            </Link>
-                            {item.sku && (
-                              <span className="text-[10px] font-mono text-slate-400">
-                                {item.sku}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <div className="text-xs">
-                              <span className="font-medium text-slate-700 block">
-                                {item.branchName}
-                              </span>
-                              <span className="text-[11px] text-slate-400">
-                                {item.cabinetName}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-5 py-3.5 text-center">
-                            <span className="font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded text-xs">
-                              {item.quantity} units
+              <Table containerClassName="rounded-none border-0">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Received</TableHead>
+                    <TableHead>Product</TableHead>
+                    <TableHead>Branch & Cabinet</TableHead>
+                    <TableHead className="text-center">Qty</TableHead>
+                    <TableHead className="text-center">Stock</TableHead>
+                    <TableHead className="text-right">Unit Cost</TableHead>
+                    <TableHead className="text-right">Batch Cost</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredInventory.length === 0 ? (
+                    <TableEmpty colSpan={7}>
+                      <EmptyState
+                        className="border-0 bg-transparent py-4 shadow-none"
+                        icon={Layers}
+                        title="No inventory batches found"
+                        description="Physical product instances sourced from this vendor will appear here."
+                      />
+                    </TableEmpty>
+                  ) : (
+                    filteredInventory.map((item: any) => (
+                      <TableRow key={item.key}>
+                        <TableCell className="text-caption font-medium text-gray-500">
+                          {new Date(item.date).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </TableCell>
+                        <TableCell>
+                          <Link
+                            href={`/products/${item.productId}`}
+                            className="block text-body font-semibold text-gray-800 transition-colors hover:text-brand-700 hover:underline"
+                          >
+                            {item.productName}
+                          </Link>
+                          {item.sku && (
+                            <span className="font-mono text-caption text-gray-400">
+                              {item.sku}
                             </span>
-                          </td>
-                          <td className="px-5 py-3.5 text-center">
-                            <span className="text-xs font-semibold text-emerald-700">
-                              {item.availableCount} avail
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <span className="block text-caption font-medium text-gray-700">
+                            {item.branchName}
+                          </span>
+                          <span className="text-caption text-gray-400">
+                            {item.cabinetName}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="neutral">{item.quantity} units</Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge
+                            variant={
+                              item.availableCount > 0 ? "success" : "neutral"
+                            }
+                          >
+                            {item.availableCount} avail
+                          </Badge>
+                          {item.soldCount > 0 && (
+                            <span className="block text-caption text-gray-400">
+                              {item.soldCount} sold
                             </span>
-                            {item.soldCount > 0 && (
-                              <span className="text-xs font-medium text-slate-400 block">
-                                {item.soldCount} sold
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-5 py-3.5 text-right">
-                            <span className="font-medium text-slate-700 text-xs">
-                              {item.unitCost !== null &&
-                              item.unitCost !== undefined
-                                ? `Rs. ${formatPrice(item.unitCost)}`
-                                : "-"}
-                            </span>
-                          </td>
-                          <td className="px-5 py-3.5 text-right font-black text-indigo-600 text-xs sm:text-sm">
-                            {item.totalCost > 0
-                              ? `Rs. ${formatPrice(item.totalCost)}`
-                              : "-"}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right text-caption font-medium text-gray-700">
+                          {item.unitCost !== null && item.unitCost !== undefined
+                            ? `Rs. ${formatPrice(item.unitCost)}`
+                            : "-"}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right font-semibold text-gray-900">
+                          {item.totalCost > 0
+                            ? `Rs. ${formatPrice(item.totalCost)}`
+                            : "-"}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             )}
 
             {/* TAB 3: LEDGER (ACCOUNTS PAYABLE) */}
             {activeTab === "ledger" && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-100">
-                    <tr>
-                      <th className="px-5 py-3">Date & Time</th>
-                      <th className="px-5 py-3">Description</th>
-                      <th className="px-5 py-3">Type</th>
-                      <th className="px-5 py-3 text-right">Credit (We Owe)</th>
-                      <th className="px-5 py-3 text-right">Debit (We Paid)</th>
-                      <th className="px-5 py-3 text-right">Running Balance</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {!vendor.ledger || vendor.ledger.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={6}
-                          className="px-5 py-14 text-center text-slate-400"
-                        >
-                          <Wallet className="w-10 h-10 mx-auto mb-2 opacity-25 text-slate-400" />
-                          <p className="font-semibold text-slate-600 text-sm">
-                            No ledger transactions found
+              <Table containerClassName="rounded-none border-0">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Date</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead className="text-right" title="Credit (We Owe)">
+                      Credit
+                    </TableHead>
+                    <TableHead className="text-right" title="Debit (We Paid)">
+                      Debit
+                    </TableHead>
+                    <TableHead className="text-right">Balance</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {!vendor.ledger || vendor.ledger.length === 0 ? (
+                    <TableEmpty colSpan={6}>
+                      <EmptyState
+                        className="border-0 bg-transparent py-4 shadow-none"
+                        icon={Wallet}
+                        title="No ledger transactions found"
+                        description="Record a credit purchase or payment on the left to start tracking payables."
+                      />
+                    </TableEmpty>
+                  ) : (
+                    vendor.ledger.map((item: any) => (
+                      <TableRow data-testid="vendor-ledger-row" key={item.id}>
+                        <TableCell className="align-top">
+                          <span className="block whitespace-nowrap text-caption font-medium text-gray-600">
+                            {splitDateTime(item.formattedDate)[0]}
+                          </span>
+                          <span className="block whitespace-nowrap text-caption text-gray-400">
+                            {splitDateTime(item.formattedDate)[1]}
+                          </span>
+                        </TableCell>
+                        <TableCell className="max-w-48">
+                          <p
+                            title={item.description}
+                            className="truncate text-body font-medium text-gray-800"
+                          >
+                            {item.description}
                           </p>
-                          <p className="text-xs text-slate-400 mt-1">
-                            Record a credit purchase or payment on the left to
-                            start tracking payables.
-                          </p>
-                        </td>
-                      </tr>
-                    ) : (
-                      vendor.ledger.map((item: any) => (
-                        <tr
-                          data-testid="vendor-ledger-row"
-                          key={item.id}
-                          className="hover:bg-slate-50/70 transition-colors"
-                        >
-                          <td className="px-5 py-3.5 text-xs text-slate-500 font-medium">
-                            {item.formattedDate}
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <p className="font-medium text-slate-800 text-xs sm:text-sm">
-                              {item.description}
-                            </p>
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                item.type === "VENDOR_PAYMENT"
-                                  ? "bg-emerald-50 text-emerald-700"
-                                  : "bg-indigo-50 text-indigo-700"
-                              }`}
-                            >
-                              {item.type}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              item.type === "VENDOR_PAYMENT"
+                                ? "success"
+                                : "brand"
+                            }
+                          >
+                            {item.type === "VENDOR_PAYMENT"
+                              ? "PAYMENT"
+                              : "PURCHASE"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right">
+                          {item.credit > 0 ? (
+                            <span className="font-semibold text-danger">
+                              Rs. {formatPrice(item.credit)}
                             </span>
-                          </td>
-                          <td className="px-5 py-3.5 text-right">
-                            {item.credit > 0 ? (
-                              <span className="font-bold text-rose-600">
-                                Rs. {formatPrice(item.credit)}
-                              </span>
-                            ) : (
-                              <span className="text-slate-300">-</span>
-                            )}
-                          </td>
-                          <td className="px-5 py-3.5 text-right">
-                            {item.debit > 0 ? (
-                              <span className="font-bold text-emerald-600">
-                                Rs. {formatPrice(item.debit)}
-                              </span>
-                            ) : (
-                              <span className="text-slate-300">-</span>
-                            )}
-                          </td>
-                          <td className="px-5 py-3.5 text-right">
-                            <span className="font-black text-slate-900">
-                              Rs. {formatPrice(item.balance)}
+                          ) : (
+                            <span className="text-gray-300">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right">
+                          {item.debit > 0 ? (
+                            <span className="font-semibold text-success">
+                              Rs. {formatPrice(item.debit)}
                             </span>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                          ) : (
+                            <span className="text-gray-300">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right font-semibold text-gray-900">
+                          Rs. {formatPrice(item.balance)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             )}
 
             {/* TAB 4: AUDIT LOGS */}
             {activeTab === "movements" && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-100">
-                    <tr>
-                      <th className="px-5 py-3">Date</th>
-                      <th className="px-5 py-3">Product</th>
-                      <th className="px-5 py-3">Type</th>
-                      <th className="px-5 py-3 text-center">Qty</th>
-                      <th className="px-5 py-3">Cabinet</th>
-                      <th className="px-5 py-3">Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {movements.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={6}
-                          className="px-5 py-14 text-center text-slate-400"
+              <Table containerClassName="rounded-none border-0">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Date</TableHead>
+                    <TableHead>Product</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead className="text-center">Qty</TableHead>
+                    <TableHead>Cabinet</TableHead>
+                    <TableHead>Notes</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {movements.length === 0 ? (
+                    <TableEmpty colSpan={6}>
+                      <EmptyState
+                        className="border-0 bg-transparent py-4 shadow-none"
+                        icon={Clock}
+                        title="No movement logs"
+                        description="Stock movements for this vendor will appear here."
+                      />
+                    </TableEmpty>
+                  ) : (
+                    movements.map((m: any) => (
+                      <TableRow key={m.id}>
+                        <TableCell className="text-caption text-gray-600">
+                          {new Date(m.createdAt).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </TableCell>
+                        <TableCell className="text-body font-semibold text-gray-800">
+                          {m.product?.name || "Product"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={m.direction === "IN" ? "success" : "danger"}
+                          >
+                            {m.direction} · {m.referenceType}
+                          </Badge>
+                        </TableCell>
+                        <TableCell
+                          className={`text-center font-semibold ${
+                            m.direction === "IN" ? "text-success" : "text-danger"
+                          }`}
                         >
-                          <Clock className="w-10 h-10 mx-auto mb-2 opacity-25 text-slate-400" />
-                          <p className="font-semibold text-slate-600 text-sm">
-                            No movement logs
-                          </p>
-                          <p className="text-xs text-slate-400 mt-1">
-                            Stock movements for this vendor will appear here.
-                          </p>
-                        </td>
-                      </tr>
-                    ) : (
-                      movements.map((m: any) => (
-                        <tr
-                          key={m.id}
-                          className="hover:bg-slate-50/70 transition-colors"
-                        >
-                          <td className="px-5 py-3.5 text-slate-600 text-xs">
-                            {new Date(m.createdAt).toLocaleString()}
-                          </td>
-                          <td className="px-5 py-3.5 font-bold text-slate-800 text-xs sm:text-sm">
-                            {m.product?.name || "Product"}
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                m.direction === "IN"
-                                  ? "bg-emerald-50 text-emerald-700"
-                                  : "bg-rose-50 text-rose-700"
-                              }`}
-                            >
-                              {m.direction} - {m.referenceType}
-                            </span>
-                          </td>
-                          <td className="px-5 py-3.5 text-center font-black text-slate-900">
-                            {m.direction === "IN" ? "+" : "-"}
-                            {m.quantity}
-                          </td>
-                          <td className="px-5 py-3.5 text-xs text-slate-600">
-                            {m.cabinet?.name || "-"}
-                          </td>
-                          <td className="px-5 py-3.5 text-xs text-slate-500 max-w-xs truncate">
+                          {m.direction === "IN" ? "+" : "-"}
+                          {m.quantity}
+                        </TableCell>
+                        <TableCell className="text-caption text-gray-600">
+                          {m.cabinet?.name || "-"}
+                        </TableCell>
+                        <TableCell className="max-w-48">
+                          <span
+                            title={m.notes || "-"}
+                            className="block truncate text-caption text-gray-500"
+                          >
                             {m.notes || "-"}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             )}
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );
