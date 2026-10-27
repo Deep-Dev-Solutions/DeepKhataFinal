@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { X, User, Phone, Mail, MapPin, QrCode, Save } from "lucide-react";
+import { User, Phone, Mail, MapPin, QrCode, Save } from "lucide-react";
 import { Customer } from "@/types/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
 
 interface EditCustomerModalProps {
   isOpen: boolean;
@@ -19,15 +22,13 @@ export default function EditCustomerModal({ isOpen, onClose, customer, onSave }:
   const [cnic, setCnic] = useState(customer.cnic || "");
   const [guarantor, setGuarantor] = useState(customer.guarantorPhone || "");
   const [address, setAddress] = useState(customer.address || "");
-  
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!isOpen) return null;
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     // Simulate API Call delay
     setTimeout(() => {
       onSave({
@@ -40,90 +41,78 @@ export default function EditCustomerModal({ isOpen, onClose, customer, onSave }:
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200" 
-        onClick={onClose} 
-      />
+    <Modal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title="Edit Customer Details"
+      description="Update contact and KYC information."
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" form="edit-customer-form" loading={isSubmitting}>
+            {!isSubmitting && <Save className="w-4 h-4" />}
+            {isSubmitting ? "Saving..." : "Save Details"}
+          </Button>
+        </>
+      }
+    >
+      <form id="edit-customer-form" onSubmit={handleSubmit} className="space-y-3">
 
-      {/* Modal Card */}
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
-        
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/50">
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Edit Customer Details</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Update contact and KYC information.</p>
+            <label className="mb-1 block text-caption font-medium text-gray-700">Full Name</label>
+            <div className="relative">
+              <User className="pointer-events-none absolute left-2.5 top-1/2 w-4 h-4 -translate-y-1/2 text-gray-400" />
+              <Input type="text" required value={name} onChange={(e) => setName(e.target.value)} className="pl-9" />
+            </div>
           </div>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
-            <X className="w-5 h-5" />
-          </button>
+          <div>
+            <label className="mb-1 block text-caption font-medium text-gray-700">Phone Number</label>
+            <div className="relative">
+              <Phone className="pointer-events-none absolute left-2.5 top-1/2 w-4 h-4 -translate-y-1/2 text-gray-400" />
+              <Input type="text" required value={phone} onChange={(e) => setPhone(e.target.value)} className="pl-9" />
+            </div>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Full Name</label>
-              <div className="relative">
-                <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                <input type="text" required value={name} onChange={(e) => setName(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Phone Number</label>
-              <div className="relative">
-                <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                <input type="text" required value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Email Address</label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Optional" className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">CNIC Number</label>
-              <div className="relative">
-                <QrCode className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                <input type="text" value={cnic} onChange={(e) => setCnic(e.target.value)} placeholder="xxxxx-xxxxxxx-x" className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono" />
-              </div>
-            </div>
-          </div>
-
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Guarantor Phone (Zamanat)</label>
+            <label className="mb-1 block text-caption font-medium text-gray-700">Email Address</label>
             <div className="relative">
-              <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-              <input type="text" value={guarantor} onChange={(e) => setGuarantor(e.target.value)} placeholder="Optional reference number" className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+              <Mail className="pointer-events-none absolute left-2.5 top-1/2 w-4 h-4 -translate-y-1/2 text-gray-400" />
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Optional" className="pl-9" />
             </div>
           </div>
-
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Shipping Address</label>
+            <label className="mb-1 block text-caption font-medium text-gray-700">CNIC Number</label>
             <div className="relative">
-              <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-              <textarea value={address} onChange={(e) => setAddress(e.target.value)} rows={2} placeholder="House / Shop address..." className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none" />
+              <QrCode className="pointer-events-none absolute left-2.5 top-1/2 w-4 h-4 -translate-y-1/2 text-gray-400" />
+              <Input type="text" value={cnic} onChange={(e) => setCnic(e.target.value)} placeholder="xxxxx-xxxxxxx-x" className="pl-9 font-mono" />
             </div>
           </div>
+        </div>
 
-          <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
-              Cancel
-            </button>
-            <button type="submit" disabled={isSubmitting} className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-70">
-              {isSubmitting ? "Saving..." : "Save Details"}
-              {!isSubmitting && <Save className="w-4 h-4" />}
-            </button>
+        <div>
+          <label className="mb-1 block text-caption font-medium text-gray-700">Guarantor Phone (Zamanat)</label>
+          <div className="relative">
+            <Phone className="pointer-events-none absolute left-2.5 top-1/2 w-4 h-4 -translate-y-1/2 text-gray-400" />
+            <Input type="text" value={guarantor} onChange={(e) => setGuarantor(e.target.value)} placeholder="Optional reference number" className="pl-9" />
           </div>
+        </div>
 
-        </form>
-      </div>
-    </div>
+        <div>
+          <label className="mb-1 block text-caption font-medium text-gray-700">Shipping Address</label>
+          <div className="relative">
+            <MapPin className="pointer-events-none absolute left-2.5 top-2.5 w-4 h-4 text-gray-400" />
+            <textarea value={address} onChange={(e) => setAddress(e.target.value)} rows={2} placeholder="House / Shop address..." className="w-full resize-none rounded-md border border-border bg-card py-2 pl-9 pr-2.5 text-body text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500" />
+          </div>
+        </div>
+
+      </form>
+    </Modal>
   );
 }
