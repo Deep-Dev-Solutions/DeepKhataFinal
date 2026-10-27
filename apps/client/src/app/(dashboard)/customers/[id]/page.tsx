@@ -7,6 +7,20 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import EditCustomerModal from "@/components/modals/EditCustomerModal";
 import AlertDialog from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableEmpty,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
   ArrowLeft,
@@ -301,7 +315,7 @@ export default function CustomerProfilePage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px] text-slate-500">
+      <div className="flex min-h-[400px] items-center justify-center text-body text-gray-500">
         <div className="animate-pulse">Loading customer profile...</div>
       </div>
     );
@@ -309,13 +323,13 @@ export default function CustomerProfilePage() {
 
   if (pageError || !customer) {
     return (
-      <div className="p-6 text-center max-w-md mx-auto mt-10">
-        <div className="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl p-4 mb-4">
+      <div className="mx-auto mt-10 max-w-md p-6 text-center">
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger-bg p-4 text-body text-danger-fg">
           {pageError || "Customer profile not found"}
         </div>
         <Link
           href="/customers"
-          className="text-blue-600 font-semibold hover:underline"
+          className="text-body font-semibold text-brand-700 hover:underline"
         >
           &larr; Back to Customers
         </Link>
@@ -324,95 +338,94 @@ export default function CustomerProfilePage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 animate-in fade-in duration-500 pb-10 mt-2">
-      {/* 🟢 TOP ACTION BAR */}
-      <div
-        className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl border shadow-sm transition-colors ${isDefaulter ? "bg-rose-50 border-rose-200" : "bg-white border-slate-200"}`}
+    <div className="mt-1 flex flex-col gap-3 pb-10 animate-in fade-in duration-300">
+      {/* TOP ACTION BAR */}
+      <Card
+        className={`px-4 py-3 ${isDefaulter ? "border-danger/30 bg-danger-bg" : ""}`}
       >
-        <div className="flex items-center gap-4">
-          <Link
-            href="/customers"
-            className="p-2 text-slate-400 hover:text-slate-900 bg-white rounded-lg border border-slate-200 transition-colors shadow-sm"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold text-slate-900">
-                {customer.name}
-              </h1>
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/customers"
+              title="Back to customers"
+              className={buttonVariants({ variant: "secondary", size: "icon" })}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-title font-semibold text-gray-900">
+                  {customer.name}
+                </h1>
 
-              {/* Dynamic Badges */}
-              {isDefaulter && (
-                <span className="bg-rose-600 text-white text-xs font-black px-2.5 py-1 rounded-md flex items-center gap-1 shadow-sm uppercase tracking-wide">
-                  <UserX className="w-3.5 h-3.5" /> Defaulter
-                </span>
-              )}
-              {!isDefaulter && customer.metrics.outstandingBalance > 0 && (
-                <span className="bg-rose-100 text-rose-700 text-xs font-bold px-2.5 py-1 rounded-md border border-rose-200">
-                  Owes Rs.{" "}
-                  {customer.metrics.outstandingBalance.toLocaleString()}
-                </span>
-              )}
-              {!isDefaulter && customer.metrics.outstandingBalance === 0 && (
-                <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-md border border-emerald-200">
-                  Account Settled
-                </span>
-              )}
+                {/* Dynamic Badges */}
+                {isDefaulter && (
+                  <Badge variant="danger">
+                    <UserX className="w-3 h-3" /> Defaulter
+                  </Badge>
+                )}
+                {!isDefaulter && customer.metrics.outstandingBalance > 0 && (
+                  <Badge variant="danger">
+                    Owes Rs.{" "}
+                    {customer.metrics.outstandingBalance.toLocaleString()}
+                  </Badge>
+                )}
+                {!isDefaulter && customer.metrics.outstandingBalance === 0 && (
+                  <Badge variant="success">Account Settled</Badge>
+                )}
+              </div>
+              <p className="mt-0.5 text-caption text-gray-500">
+                Customer since {customer.joined}
+              </p>
             </div>
-            <p className="text-sm text-slate-500 mt-0.5">
-              Customer since {customer.joined}
-            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="secondary" onClick={generatePDF}>
+              <FileSpreadsheet className="w-4 h-4" /> Download Statement
+            </Button>
+            <a
+              href={`https://wa.me/${formatPakistaniPhone(customer.phone)}?text=${encodeURIComponent(
+                `Assalam-o-Alaikum ${customer.name},\n\n*DeepKhata Account Statement*\n--------------------------------\n• Current Udhar Balance (Baqaya): Rs. ${(customer.metrics?.outstandingBalance || 0).toLocaleString()}\n• Credit Limit: Rs. ${(customer.creditLimit || 0).toLocaleString()}\n• Total Orders: ${customer.metrics?.totalOrders || 0}\n--------------------------------\nThank you for your business!\nDeepKhata`,
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              <MessageCircle className="w-4 h-4" /> WhatsApp Statement
+            </a>
+            <Link
+              href={`/orders/new?customerId=${customer.id}`}
+              className={buttonVariants({ variant: "primary" })}
+            >
+              <Plus className="w-4 h-4" /> New Order
+            </Link>
           </div>
         </div>
+      </Card>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={generatePDF}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 bg-white rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm"
-          >
-            <FileSpreadsheet className="w-4 h-4" /> Download Statement
-          </button>
-          <a
-            href={`https://wa.me/${formatPakistaniPhone(customer.phone)}?text=${encodeURIComponent(
-              `Assalam-o-Alaikum ${customer.name},\n\n*DeepKhata Account Statement*\n--------------------------------\n• Current Udhar Balance (Baqaya): Rs. ${(customer.metrics?.outstandingBalance || 0).toLocaleString()}\n• Credit Limit: Rs. ${(customer.creditLimit || 0).toLocaleString()}\n• Total Orders: ${customer.metrics?.totalOrders || 0}\n--------------------------------\nThank you for your business!\nDeepKhata / BizFlow`,
-            )}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-4 py-2 bg-[#25D366] text-white rounded-xl text-sm font-semibold hover:bg-[#20bd5a] transition-colors shadow-sm"
-          >
-            <MessageCircle className="w-4 h-4" /> WhatsApp Statement
-          </a>
-          <Link
-            href={`/orders/new?customerId=${customer.id}`}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-medium hover:bg-slate-800 transition-colors shadow-sm"
-          >
-            <Plus className="w-4 h-4" /> New Order
-          </Link>
-        </div>
-      </div>
-
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
+      <div className="flex flex-col items-start gap-3 lg:flex-row">
         {/* ==========================================
             LEFT COLUMN: INFO & RISK MANAGEMENT
         ========================================== */}
-        <div className="w-full lg:w-[350px] flex flex-col gap-6">
-          {/* 🔴 CREDIT & RISK MANAGEMENT */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4" /> Risk & Credit Rules
-              {!canManageRisk && <Lock className="w-3 h-3 text-slate-300" />}
-            </h3>
-
-            <div className="space-y-5">
+        <div className="flex w-full flex-col gap-3 lg:w-[336px]">
+          {/* CREDIT & RISK MANAGEMENT */}
+          <Card>
+            <CardHeader className="flex flex-row items-center gap-2 px-4 py-2.5">
+              <CardTitle className="flex items-center gap-2 text-caption font-semibold uppercase tracking-wide text-gray-500">
+                <ShieldAlert className="w-4 h-4" /> Risk & Credit Rules
+                {!canManageRisk && <Lock className="w-3 h-3 text-gray-400" />}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 px-4 py-3">
               {/* Credit Limit Input */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                  <CreditCard className="w-3.5 h-3.5 text-slate-400" /> Udhaar /
+                <label className="mb-1 flex items-center gap-1.5 text-caption font-medium text-gray-700">
+                  <CreditCard className="w-3.5 h-3.5 text-gray-400" /> Udhaar /
                   Credit Limit
                 </label>
-                <div className="flex items-center border border-slate-300 rounded-lg overflow-hidden bg-slate-50 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all">
-                  <span className="px-3 text-slate-500 text-sm font-medium border-r border-slate-300">
+                <div className="flex items-center overflow-hidden rounded-md border border-border bg-gray-50 focus-within:border-brand-500 focus-within:ring-1 focus-within:ring-brand-500">
+                  <span className="shrink-0 border-r border-border px-2.5 text-body font-medium text-gray-500">
                     Rs.
                   </span>
                   <input
@@ -422,16 +435,16 @@ export default function CustomerProfilePage() {
                     onChange={(e) => setCreditLimit(Number(e.target.value))}
                     onBlur={handleCreditLimitBlur}
                     onKeyDown={handleCreditLimitKeyDown}
-                    className={`w-full py-2 px-3 text-sm outline-none font-bold ${canManageRisk ? "bg-transparent text-slate-900" : "bg-slate-100 text-slate-500 cursor-not-allowed"}`}
+                    className={`h-9 w-full px-2.5 text-body font-semibold outline-none ${canManageRisk ? "bg-transparent text-gray-900" : "cursor-not-allowed bg-gray-100 text-gray-500"}`}
                   />
                 </div>
-                <div className="flex justify-between mt-1 text-[10px] font-medium">
-                  <span className="text-slate-500">
+                <div className="mt-1 flex justify-between text-caption font-medium">
+                  <span className="text-gray-500">
                     Currently used: Rs.{" "}
                     {customer.metrics.outstandingBalance.toLocaleString()}
                   </span>
                   <span
-                    className={`${creditLimit - customer.metrics.outstandingBalance < 0 ? "text-rose-600" : "text-emerald-600"}`}
+                    className={`${creditLimit - customer.metrics.outstandingBalance < 0 ? "text-danger" : "text-success"}`}
                   >
                     Available: Rs.{" "}
                     {(
@@ -442,113 +455,116 @@ export default function CustomerProfilePage() {
               </div>
 
               {/* Defaulter Toggle */}
-              <div className="flex items-center justify-between p-3 border border-rose-100 bg-rose-50/50 rounded-lg">
+              <div className="flex items-center justify-between rounded-md border border-danger/20 bg-danger-bg p-2.5">
                 <div>
-                  <p className="font-bold text-rose-900 text-sm">
+                  <p className="text-body font-semibold text-danger-fg">
                     Mark as Defaulter
                   </p>
-                  <p className="text-[10px] text-rose-700/80 leading-tight mt-0.5">
+                  <p className="mt-0.5 text-caption leading-tight text-danger-fg/80">
                     Blocks staff from giving udhaar.
                   </p>
                 </div>
                 <div
                   onClick={canManageRisk ? handleToggleDefaulter : undefined}
-                  className={`w-11 h-6 rounded-full p-1 transition-colors ${canManageRisk ? "cursor-pointer" : "cursor-not-allowed opacity-70"} ${isDefaulter ? "bg-rose-600" : "bg-slate-300"}`}
+                  className={`h-6 w-11 rounded-full p-1 transition-colors ${canManageRisk ? "cursor-pointer" : "cursor-not-allowed opacity-70"} ${isDefaulter ? "bg-danger" : "bg-gray-300"}`}
                 >
                   <div
-                    className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${isDefaulter ? "translate-x-5" : "translate-x-0"}`}
+                    className={`h-4 w-4 rounded-full bg-card shadow-xs transition-transform ${isDefaulter ? "translate-x-5" : "translate-x-0"}`}
                   ></div>
                 </div>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* CONTACT & KYC DETAILS */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between px-4 py-2.5">
+              <CardTitle className="text-caption font-semibold uppercase tracking-wide text-gray-500">
                 Contact & KYC
-              </h3>
-              <button
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setIsEditModalOpen(true)}
-                className="text-xs font-semibold text-blue-600 hover:underline px-2 py-1 rounded hover:bg-blue-50 transition-colors"
               >
                 Edit
-              </button>
-            </div>
+              </Button>
+            </CardHeader>
 
-            <div className="space-y-4 text-sm">
-              <div className="flex items-start gap-3 text-slate-700">
-                <Phone className="w-4 h-4 text-slate-400 mt-0.5" />
+            <CardContent className="space-y-3 px-4 py-3 text-body">
+              <div className="flex items-start gap-2.5 text-gray-700">
+                <Phone className="mt-0.5 w-4 h-4 shrink-0 text-gray-400" />
                 <div>
                   <p className="font-medium">{customer.phone}</p>
-                  <p className="text-xs text-slate-500">Mobile</p>
+                  <p className="text-caption text-gray-500">Mobile</p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 text-slate-700">
-                <QrCode className="w-4 h-4 text-slate-400 mt-0.5" />
+              <div className="flex items-start gap-2.5 text-gray-700">
+                <QrCode className="mt-0.5 w-4 h-4 shrink-0 text-gray-400" />
                 <div className="w-full">
-                  <div className="flex items-center justify-between">
-                    <p className="font-mono font-medium text-slate-900">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-mono font-medium text-gray-900">
                       {customer.cnic || "Not provided"}
                     </p>
-                    <button className="flex items-center gap-1 text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-200 hover:bg-blue-100 transition-colors">
-                      <QrCode className="w-3 h-3" /> SCAN QR
-                    </button>
+                    <Badge variant="brand">
+                      <QrCode className="w-3 h-3" /> Scan QR
+                    </Badge>
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5">CNIC Number</p>
+                  <p className="mt-0.5 text-caption text-gray-500">CNIC Number</p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 text-slate-700">
-                <User className="w-4 h-4 text-slate-400 mt-0.5" />
+              <div className="flex items-start gap-2.5 text-gray-700">
+                <User className="mt-0.5 w-4 h-4 shrink-0 text-gray-400" />
                 <div>
                   <p className="font-medium">
                     {customer.guarantorPhone || "Not provided"}
                   </p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-caption text-gray-500">
                     Guarantor Phone (Zamanat)
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 text-slate-700 pt-2 border-t border-slate-100">
-                <MapPin className="w-4 h-4 text-slate-400 mt-0.5" />
+              <div className="flex items-start gap-2.5 border-t border-border pt-3 text-gray-700">
+                <MapPin className="mt-0.5 w-4 h-4 shrink-0 text-gray-400" />
                 <div>
                   <p className="font-medium leading-relaxed">
                     {customer.address || "Not provided"}
                   </p>
-                  <p className="text-xs text-slate-500">Shipping Address</p>
+                  <p className="text-caption text-gray-500">Shipping Address</p>
                 </div>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Lifetime Metrics Card */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
-              Financial Overview
-            </h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="text-xs text-slate-500 font-medium">
+          <Card>
+            <CardHeader className="px-4 py-2.5">
+              <CardTitle className="text-caption font-semibold uppercase tracking-wide text-gray-500">
+                Financial Overview
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 px-4 py-3">
+              <div className="flex items-center justify-between rounded-md border border-border bg-gray-50 p-2.5">
+                <span className="text-caption font-medium text-gray-500">
                   Total Orders
                 </span>
-                <span className="text-base font-bold text-slate-900">
+                <span className="text-subtitle font-semibold text-gray-900">
                   {customer.metrics.totalOrders}
                 </span>
               </div>
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="text-xs text-slate-500 font-medium">
+              <div className="flex items-center justify-between rounded-md border border-border bg-gray-50 p-2.5">
+                <span className="text-caption font-medium text-gray-500">
                   Lifetime Spend
                 </span>
-                <span className="text-base font-bold text-slate-900">
+                <span className="text-subtitle font-semibold text-gray-900">
                   Rs. {customer.metrics.lifetimeValue.toLocaleString()}
                 </span>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* ==========================================
@@ -569,308 +585,278 @@ export default function CustomerProfilePage() {
               : customer.metrics?.outstandingBalance || 0;
 
           return (
-            <div className="flex-1 w-full bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+            <Card className="flex w-full flex-1 flex-col overflow-hidden">
               {/* TABS HEADER */}
-              <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/70">
-                <div className="flex items-center gap-2">
-                  <button
+              <div className="flex items-center justify-between gap-3 border-b border-border bg-gray-50 px-3 py-2">
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant={activeTab === "ledger" ? "secondary" : "ghost"}
                     onClick={() => setActiveTab("ledger")}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-                      activeTab === "ledger"
-                        ? "bg-white text-slate-900 shadow-sm border border-slate-200/80"
-                        : "text-slate-500 hover:text-slate-900 hover:bg-white/60"
-                    }`}
                   >
-                    <BookOpen className="w-4 h-4 text-blue-600" />
+                    <BookOpen className="w-4 h-4 text-brand-700" />
                     <span>Ledger Statement (Khata)</span>
-                    <span className="ml-1 text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-bold">
+                    <Badge variant="brand">
                       {customer.ledger?.length || 0}
-                    </span>
-                  </button>
-                  <button
+                    </Badge>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={activeTab === "orders" ? "secondary" : "ghost"}
                     onClick={() => setActiveTab("orders")}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-                      activeTab === "orders"
-                        ? "bg-white text-slate-900 shadow-sm border border-slate-200/80"
-                        : "text-slate-500 hover:text-slate-900 hover:bg-white/60"
-                    }`}
                   >
-                    <Calendar className="w-4 h-4 text-slate-500" />
+                    <Calendar className="w-4 h-4 text-gray-500" />
                     <span>Order History</span>
-                    <span className="ml-1 text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 font-bold">
+                    <Badge variant="neutral">
                       {customer.orderHistory?.length || 0}
-                    </span>
-                  </button>
+                    </Badge>
+                  </Button>
                 </div>
               </div>
 
               {activeTab === "ledger" ? (
-                <div className="flex-1 flex flex-col">
+                <div className="flex flex-1 flex-col">
                   {/* Financial Summary Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-slate-100 border-b border-slate-100 bg-slate-50/40">
-                    <div className="p-4">
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  <div className="grid grid-cols-1 divide-y divide-border border-b border-border bg-gray-50 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+                    <div className="px-4 py-2.5">
+                      <p className="text-caption font-semibold uppercase tracking-wide text-gray-500">
                         Total Udhar (Debits)
                       </p>
-                      <p className="text-lg font-bold text-rose-600 mt-0.5">
+                      <p className="mt-0.5 text-subtitle font-semibold text-danger">
                         Rs. {totalLedgerDebit.toLocaleString()}
                       </p>
                     </div>
-                    <div className="p-4">
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    <div className="px-4 py-2.5">
+                      <p className="text-caption font-semibold uppercase tracking-wide text-gray-500">
                         Total Wasool (Credits)
                       </p>
-                      <p className="text-lg font-bold text-emerald-600 mt-0.5">
+                      <p className="mt-0.5 text-subtitle font-semibold text-success">
                         Rs. {totalLedgerCredit.toLocaleString()}
                       </p>
                     </div>
-                    <div className="p-4 bg-rose-50/30">
-                      <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    <div className="px-4 py-2.5">
+                      <p className="text-caption font-semibold uppercase tracking-wide text-gray-700">
                         Net Udhar Baqaya
                       </p>
-                      <p className="text-xl font-black text-rose-700 mt-0.5">
+                      <p
+                        className={`mt-0.5 text-subtitle font-semibold ${currentNetBalance > 0 ? "text-danger" : "text-success"}`}
+                      >
                         Rs. {currentNetBalance.toLocaleString()}
                       </p>
                     </div>
                   </div>
 
                   {/* Ledger Postings Table */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm whitespace-nowrap">
-                      <thead className="bg-slate-50 text-slate-500 border-b border-slate-100">
-                        <tr>
-                          <th className="px-5 py-3 font-semibold">
-                            Date & Time
-                          </th>
-                          <th className="px-5 py-3 font-semibold">Type</th>
-                          <th className="px-5 py-3 font-semibold">
-                            Description / Ref
-                          </th>
-                          <th className="px-5 py-3 font-semibold text-right">
-                            Debit (+ Udhar)
-                          </th>
-                          <th className="px-5 py-3 font-semibold text-right">
-                            Credit (- Payment)
-                          </th>
-                          <th className="px-5 py-3 font-semibold text-right">
-                            Running Balance
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {!customer.ledger || customer.ledger.length === 0 ? (
-                          <tr>
-                            <td
-                              colSpan={6}
-                              className="px-5 py-12 text-center text-slate-500"
-                            >
-                              <BookOpen className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                              <p className="font-semibold text-slate-700">
-                                No Ledger Postings Yet
-                              </p>
-                              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                                Double-entry postings will appear here when
-                                orders are finalized or payments are recorded.
-                              </p>
-                            </td>
-                          </tr>
-                        ) : (
-                          customer.ledger.map((item: any) => (
-                            <tr
-                              key={item.id}
-                              className="hover:bg-slate-50/70 transition-colors"
-                            >
-                              <td className="px-5 py-3.5 text-xs text-slate-500 font-medium">
-                                {item.formattedDate}
-                              </td>
-                              <td className="px-5 py-3.5">
-                                <span
-                                  className={`inline-flex items-center gap-1 py-1 px-2 rounded-md text-[10px] font-extrabold uppercase tracking-wide border ${
-                                    item.type === "PAYMENT"
-                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                      : "bg-blue-50 text-blue-700 border-blue-200"
-                                  }`}
-                                >
-                                  {item.type === "PAYMENT" ? (
-                                    <>
-                                      <ArrowDownLeft className="w-3 h-3 text-emerald-600" />{" "}
-                                      Payment
-                                    </>
-                                  ) : (
-                                    <>
-                                      <ArrowUpRight className="w-3 h-3 text-blue-600" />{" "}
-                                      Sale
-                                    </>
-                                  )}
-                                </span>
-                              </td>
-                              <td className="px-5 py-3.5">
-                                <p className="font-medium text-slate-800 text-xs sm:text-sm">
-                                  {item.description}
-                                </p>
-                                {item.referenceId && (
-                                  <Link
-                                    href={`/orders/${item.referenceId}`}
-                                    className="text-[11px] text-blue-600 hover:underline flex items-center gap-0.5 mt-0.5"
-                                  >
-                                    <span>
-                                      Ref: ORD-{item.referenceId.slice(0, 8)}
-                                    </span>
-                                    <ArrowUpRight className="w-2.5 h-2.5" />
-                                  </Link>
-                                )}
-                              </td>
-                              <td className="px-5 py-3.5 text-right">
-                                {item.debit > 0 ? (
-                                  <span className="font-bold text-rose-600">
-                                    Rs. {item.debit.toLocaleString()}
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-300">-</span>
-                                )}
-                              </td>
-                              <td className="px-5 py-3.5 text-right">
-                                {item.credit > 0 ? (
-                                  <span className="font-bold text-emerald-600">
-                                    Rs. {item.credit.toLocaleString()}
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-300">-</span>
-                                )}
-                              </td>
-                              <td className="px-5 py-3.5 text-right">
-                                <span className="font-black text-slate-900">
-                                  Rs. {item.balance.toLocaleString()}
-                                </span>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm whitespace-nowrap">
-                    <thead className="bg-slate-50 text-slate-500 border-b border-slate-100">
-                      <tr>
-                        <th className="px-5 py-3 font-semibold">Order ID</th>
-                        <th className="px-5 py-3 font-semibold">Date</th>
-                        <th className="px-5 py-3 font-semibold">
-                          Total Amount
-                        </th>
-                        <th className="px-5 py-3 font-semibold">
-                          Payment Status
-                        </th>
-                        <th className="px-5 py-3 font-semibold">
-                          Pending Balance
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {customer.orderHistory &&
-                      customer.orderHistory.length === 0 ? (
-                        <tr>
-                          <td
-                            colSpan={5}
-                            className="px-5 py-8 text-center text-slate-500"
-                          >
-                            No order history found for this customer.
-                          </td>
-                        </tr>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="w-32 whitespace-nowrap">
+                          Date
+                        </TableHead>
+                        <TableHead className="w-24">Type</TableHead>
+                        <TableHead>Description / Ref</TableHead>
+                        <TableHead
+                          className="whitespace-nowrap text-right"
+                          title="Debit (+ Udhar)"
+                        >
+                          Debit
+                        </TableHead>
+                        <TableHead
+                          className="whitespace-nowrap text-right"
+                          title="Credit (Wasool)"
+                        >
+                          Credit
+                        </TableHead>
+                        <TableHead
+                          className="whitespace-nowrap text-right"
+                          title="Running Balance"
+                        >
+                          Balance
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {!customer.ledger || customer.ledger.length === 0 ? (
+                        <TableEmpty colSpan={6}>
+                          <EmptyState
+                            className="border-0 bg-transparent py-6 shadow-none"
+                            icon={BookOpen}
+                            title="No ledger postings yet"
+                            description="Double-entry postings will appear here when orders are finalized or payments are recorded."
+                          />
+                        </TableEmpty>
                       ) : (
-                        (customer.orderHistory || []).map((order: any) => (
-                          <tr
-                            key={order.id}
-                            className={`transition-colors group ${
-                              order.status === "CANCELLED"
-                                ? "bg-slate-50 opacity-60"
-                                : "hover:bg-slate-50"
-                            }`}
-                          >
-                            <td className="px-5 py-4">
-                              <Link
-                                href={`/orders/${order.id}`}
-                                className={`font-semibold hover:underline ${
-                                  order.status === "CANCELLED"
-                                    ? "text-slate-400 line-through"
-                                    : "text-blue-600"
-                                }`}
-                              >
-                                {order.orderNumber}
-                              </Link>
-                            </td>
-                            <td className="px-5 py-4 text-slate-600">
-                              <span
-                                className={
-                                  order.status === "CANCELLED"
-                                    ? "line-through"
-                                    : ""
-                                }
-                              >
-                                {order.date}
+                        customer.ledger.map((item: any) => (
+                          <TableRow key={item.id}>
+                            <TableCell className="whitespace-nowrap text-caption">
+                              <span className="font-medium text-gray-700">
+                                {item.formattedDate?.split(",").slice(0, 2).join(",")}
                               </span>
-                            </td>
-                            <td className="px-5 py-4 font-medium">
-                              <span
-                                className={
-                                  order.status === "CANCELLED"
-                                    ? "line-through text-slate-400"
-                                    : ""
-                                }
-                              >
-                                Rs. {order.total.toLocaleString()}
+                              <span className="block text-gray-400">
+                                {item.formattedDate
+                                  ?.split(",")
+                                  .slice(2)
+                                  .join(",")
+                                  .trim()}
                               </span>
-                            </td>
-                            <td className="px-5 py-4">
-                              {order.status === "CANCELLED" ? (
-                                <span className="inline-flex items-center gap-1 py-1 px-2.5 rounded-md text-[11px] font-bold bg-slate-200 text-slate-500 border border-slate-300">
-                                  <XCircle className="w-3 h-3" /> CANCELLED
+                            </TableCell>
+                            <TableCell>
+                              {item.type === "PAYMENT" ? (
+                                <Badge variant="success">
+                                  <ArrowDownLeft className="w-3 h-3" /> Payment
+                                </Badge>
+                              ) : (
+                                <Badge variant="brand">
+                                  <ArrowUpRight className="w-3 h-3" /> Sale
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <p
+                                title={item.description}
+                                className="max-w-36 truncate font-medium text-gray-800"
+                              >
+                                {item.description}
+                              </p>
+                              {item.referenceId && (
+                                <Link
+                                  href={`/orders/${item.referenceId}`}
+                                  className="mt-0.5 flex items-center gap-0.5 text-caption text-brand-700 hover:underline"
+                                >
+                                  <span>
+                                    Ref: ORD-{item.referenceId.slice(0, 8)}
+                                  </span>
+                                  <ArrowUpRight className="w-2.5 h-2.5" />
+                                </Link>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {item.debit > 0 ? (
+                                <span className="font-semibold text-danger">
+                                  Rs. {item.debit.toLocaleString()}
                                 </span>
                               ) : (
-                                <>
-                                  {order.payment === "PAID" && (
-                                    <span className="inline-flex items-center gap-1 py-1 px-2.5 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-700">
-                                      <CheckCircle2 className="w-3 h-3" /> PAID
-                                    </span>
-                                  )}
-                                  {order.payment === "PARTIAL" && (
-                                    <span className="inline-flex items-center gap-1 py-1 px-2.5 rounded-md text-[11px] font-bold bg-yellow-50 text-yellow-700">
-                                      <Clock className="w-3 h-3" /> PARTIAL
-                                    </span>
-                                  )}
-                                  {order.payment === "UNPAID" && (
-                                    <span className="inline-flex items-center gap-1 py-1 px-2.5 rounded-md text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                                      <AlertCircle className="w-3 h-3" /> UNPAID
-                                    </span>
-                                  )}
-                                </>
+                                <span className="text-gray-300">-</span>
                               )}
-                            </td>
-                            <td className="px-5 py-4">
-                              {order.status === "CANCELLED" ? (
-                                <span className="text-slate-400 font-medium italic">
-                                  -
-                                </span>
-                              ) : order.balance > 0 ? (
-                                <span className="font-bold text-rose-600">
-                                  Rs. {order.balance.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {item.credit > 0 ? (
+                                <span className="font-semibold text-success">
+                                  Rs. {item.credit.toLocaleString()}
                                 </span>
                               ) : (
-                                <span className="text-slate-400 font-medium">
-                                  Settled
-                                </span>
+                                <span className="text-gray-300">-</span>
                               )}
-                            </td>
-                          </tr>
+                            </TableCell>
+                            <TableCell className="text-right font-semibold text-gray-900">
+                              Rs. {item.balance.toLocaleString()}
+                            </TableCell>
+                          </TableRow>
                         ))
                       )}
-                    </tbody>
-                  </table>
+                    </TableBody>
+                  </Table>
                 </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>Order ID</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Total Amount</TableHead>
+                      <TableHead className="w-40">Payment Status</TableHead>
+                      <TableHead>Pending Balance</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {customer.orderHistory &&
+                    customer.orderHistory.length === 0 ? (
+                      <TableEmpty colSpan={5}>
+                        No order history found for this customer.
+                      </TableEmpty>
+                    ) : (
+                      (customer.orderHistory || []).map((order: any) => (
+                        <TableRow
+                          key={order.id}
+                          className={
+                            order.status === "CANCELLED" ? "opacity-60" : ""
+                          }
+                        >
+                          <TableCell>
+                            <Link
+                              href={`/orders/${order.id}`}
+                              className={`font-semibold hover:underline ${
+                                order.status === "CANCELLED"
+                                  ? "text-gray-400 line-through"
+                                  : "text-brand-700"
+                              }`}
+                            >
+                              {order.orderNumber}
+                            </Link>
+                          </TableCell>
+                          <TableCell className="text-gray-600">
+                            <span
+                              className={
+                                order.status === "CANCELLED"
+                                  ? "line-through"
+                                  : ""
+                              }
+                            >
+                              {order.date}
+                            </span>
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            <span
+                              className={
+                                order.status === "CANCELLED"
+                                  ? "text-gray-400 line-through"
+                                  : ""
+                              }
+                            >
+                              Rs. {order.total.toLocaleString()}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {order.status === "CANCELLED" ? (
+                              <Badge variant="neutral">
+                                <XCircle className="w-3 h-3" /> Cancelled
+                              </Badge>
+                            ) : order.payment === "PAID" ? (
+                              <Badge variant="success">
+                                <CheckCircle2 className="w-3 h-3" /> Paid
+                              </Badge>
+                            ) : order.payment === "PARTIAL" ? (
+                              <Badge variant="warning">
+                                <Clock className="w-3 h-3" /> Partial
+                              </Badge>
+                            ) : (
+                              <Badge variant="danger">
+                                <AlertCircle className="w-3 h-3" /> Unpaid
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {order.status === "CANCELLED" ? (
+                              <span className="font-medium italic text-gray-400">
+                                -
+                              </span>
+                            ) : order.balance > 0 ? (
+                              <span className="font-semibold text-danger">
+                                Rs. {order.balance.toLocaleString()}
+                              </span>
+                            ) : (
+                              <span className="font-medium text-gray-400">
+                                Settled
+                              </span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
               )}
-            </div>
+            </Card>
           );
         })()}
       </div>
