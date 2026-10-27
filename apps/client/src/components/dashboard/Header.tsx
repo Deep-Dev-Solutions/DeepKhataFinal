@@ -97,7 +97,7 @@ const searchIndex: SearchEntry[] = [
   },
   {
     keywords: ["galla", "rokarr", "cash", "register", "cash counter"],
-    label: "Galla / Cash Counter",
+    label: "Galla / Cash",
     description: "Open & close register, cash expenses",
     href: "/cash",
     icon: Banknote,

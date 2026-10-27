@@ -34,7 +34,7 @@ const navGroups = [
     items: [
       { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { name: "Point of Sale", href: "/orders", icon: ShoppingCart },
-      { name: "Galla / Cash Counter", href: "/cash", icon: Banknote },
+      { name: "Galla / Cash", href: "/cash", icon: Banknote },
     ],
   },
   {

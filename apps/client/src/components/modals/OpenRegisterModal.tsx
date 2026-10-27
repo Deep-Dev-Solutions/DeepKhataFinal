@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { X, Unlock, Sparkles } from "lucide-react";
+import { Unlock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
 
 type Props = {
   isOpen: boolean;
@@ -17,8 +20,6 @@ export default function OpenRegisterModal({
   const [openingBalance, setOpeningBalance] = useState<number>(0);
   const [notes, setNotes] = useState<string>("");
   const [submitting, setSubmitting] = useState<boolean>(false);
-
-  if (!isOpen) return null;
 
   const quickAmounts = [0, 1000, 2000, 5000, 10000];
 
@@ -39,98 +40,86 @@ export default function OpenRegisterModal({
   };
 
   return (
-    <div data-testid="open-register-modal" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
-        
-        {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-2xl">
-              <Unlock className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">Start Shift / Open Drawer</h2>
-              <p className="text-xs text-slate-500">Record initial opening cash float</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/60 transition-colors"
+    <Modal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      data-testid="open-register-modal"
+      title={
+        <span className="flex items-center gap-2">
+          <Unlock className="h-4 w-4 text-brand-700" />
+          Start Shift / Open Drawer
+        </span>
+      }
+      description="Record the initial cash float in the drawer."
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            data-testid="open-register-submit"
+            type="submit"
+            form="open-register-form"
+            loading={submitting}
           >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Opening Cash Float in Drawer (PKR)
-            </label>
-            <div className="relative">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">PKR</span>
-              <input data-testid="open-register-float"
-                type="number"
-                min="0"
-                required
-                value={openingBalance === 0 ? "" : openingBalance}
-                onChange={(e) => setOpeningBalance(Math.max(0, parseFloat(e.target.value) || 0))}
-                placeholder="0"
-                className="w-full pl-14 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-lg font-mono font-bold focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-            {/* Quick Chips */}
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {quickAmounts.map((amt) => (
-                <button
-                  key={amt}
-                  type="button"
-                  onClick={() => setOpeningBalance(amt)}
-                  className={`text-xs px-2.5 py-1 rounded-lg border transition-all ${
-                    openingBalance === amt
-                      ? "bg-emerald-50 border-emerald-300 text-emerald-700 font-bold"
-                      : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  Rs {amt.toLocaleString()}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Opening Shift Notes (Optional)
-            </label>
-            <textarea
-              rows={2}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. Received 2,000 PKR in 100s and 50s small change from owner..."
-              className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            Open Cash Drawer
+          </Button>
+        </>
+      }
+    >
+      <form id="open-register-form" onSubmit={handleSubmit} className="space-y-3">
+        <div>
+          <label className="mb-1 block text-caption font-medium text-gray-700">
+            Opening Cash Float in Drawer (PKR)
+          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-caption font-semibold text-gray-400">
+              PKR
+            </span>
+            <Input
+              data-testid="open-register-float"
+              type="number"
+              min="0"
+              required
+              value={openingBalance === 0 ? "" : openingBalance}
+              onChange={(e) =>
+                setOpeningBalance(Math.max(0, parseFloat(e.target.value) || 0))
+              }
+              placeholder="0"
+              className="pl-12 font-mono font-semibold"
             />
           </div>
-
-          <div className="pt-2 flex justify-end gap-2.5">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
-            >
-              Cancel
-            </button>
-            <button data-testid="open-register-submit"
-              type="submit"
-              disabled={submitting}
-              className="px-5 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition-all disabled:opacity-50 flex items-center gap-2"
-            >
-              <Sparkles className="w-4 h-4" />
-              {submitting ? "Opening..." : "Open Cash Drawer"}
-            </button>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {quickAmounts.map((amt) => (
+              <Button
+                key={amt}
+                type="button"
+                size="sm"
+                variant={openingBalance === amt ? "primary" : "secondary"}
+                className="h-6 px-2 text-caption"
+                onClick={() => setOpeningBalance(amt)}
+              >
+                Rs {amt.toLocaleString()}
+              </Button>
+            ))}
           </div>
-        </form>
+        </div>
 
-      </div>
-    </div>
+        <div>
+          <label className="mb-1 block text-caption font-medium text-gray-700">
+            Opening Shift Notes (Optional)
+          </label>
+          <textarea
+            rows={2}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="e.g. Received 2,000 PKR in 100s and 50s small change from owner..."
+            className="w-full rounded-md border border-border bg-card px-3 py-2 text-body text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+          />
+        </div>
+      </form>
+    </Modal>
   );
 }

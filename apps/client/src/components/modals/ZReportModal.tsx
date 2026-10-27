@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import {
-  X,
   Printer,
   Copy,
   Check,
@@ -12,6 +11,17 @@ import {
   ArrowDownRight,
   ArrowUpRight,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { ZReportData, ExpenseCategory, ItemizedExpense } from "@/types/api";
 
 type Props = {
@@ -23,7 +33,7 @@ type Props = {
 export default function ZReportModal({ isOpen, onClose, reportData }: Props) {
   const [copied, setCopied] = useState(false);
 
-  if (!isOpen || !reportData) return null;
+  if (!reportData) return null;
 
   const {
     session,
@@ -77,267 +87,254 @@ Notes: ${session.notes || "None"}
   };
 
   return (
-    <div data-testid="zreport-modal" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 text-blue-700 rounded-xl">
-              <FileText className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-slate-900">
-                End of Day Register Z-Report
-              </h2>
-              <p className="text-xs text-slate-500">
-                Official Daily Cash Audit & Reconciliation Slip
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleCopyText}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
-              title="Copy text summary for WhatsApp"
-            >
-              {copied ? (
-                <Check className="w-3.5 h-3.5 text-emerald-600" />
-              ) : (
-                <Copy className="w-3.5 h-3.5" />
-              )}
-              {copied ? "Copied!" : "Copy for WhatsApp"}
-            </button>
-            <button
-              onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-slate-900 rounded-xl hover:bg-slate-800 transition-colors shadow-sm"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              Print
-            </button>
-            <button
-              onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/60"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+    <Modal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      data-testid="zreport-modal"
+      size="lg"
+      title={
+        <span className="flex items-center gap-2">
+          <FileText className="h-4 w-4 text-brand-700" />
+          End of Day Z-Report
+        </span>
+      }
+      description="Official daily cash audit and reconciliation slip."
+      footer={
+        <Button data-testid="zreport-close" variant="secondary" onClick={onClose}>
+          Close Report
+        </Button>
+      }
+    >
+      <div className="space-y-3">
+        <div className="flex items-center justify-end gap-1.5">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleCopyText}
+            title="Copy text summary for WhatsApp"
+          >
+            {copied ? (
+              <Check className="h-3.5 w-3.5 text-success" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" />
+            )}
+            {copied ? "Copied!" : "Copy for WhatsApp"}
+          </Button>
+          <Button size="sm" onClick={handlePrint}>
+            <Printer className="h-3.5 w-3.5" />
+            Print
+          </Button>
         </div>
 
-        {/* Printable Report Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 text-slate-800">
-          {/* Metadata Card */}
-          <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-xs space-y-2">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-              <span className="font-bold text-slate-900 text-sm">
-                Register Session Summary
-              </span>
-              <span
-                className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] ${
-                  summary.discrepancyType === "BALANCED"
-                    ? "bg-emerald-100 text-emerald-800"
-                    : summary.discrepancyType === "SHORTAGE"
-                      ? "bg-rose-100 text-rose-800"
-                      : "bg-amber-100 text-amber-800"
-                }`}
-              >
-                {summary.discrepancyType}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-slate-600 pt-1">
-              <div>
-                <span className="text-slate-400">Opened: </span>
-                <span className="font-medium text-slate-700">
-                  {new Date(session.openedAt).toLocaleTimeString()} (
-                  {session.openedBy?.name || "Staff"})
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-400">Closed: </span>
-                <span className="font-medium text-slate-700">
-                  {session.closedAt
-                    ? `${new Date(session.closedAt).toLocaleTimeString()} (${session.closedBy?.name || "Staff"})`
-                    : "Still Open"}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-400">Branch: </span>
-                <span className="font-medium text-slate-700">
-                  {session.branch?.name || "Main Shop"}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-400">Session ID: </span>
-                <span className="font-mono text-[11px] text-slate-500 truncate">
-                  {session.id.slice(0, 13)}...
-                </span>
-              </div>
-            </div>
-            {session.notes && (
-              <div className="pt-2 border-t border-slate-200 text-slate-600 italic">
-                &ldquo;{session.notes}&rdquo;
-              </div>
-            )}
+        <div className="space-y-2 rounded-md border border-border bg-gray-50 p-3 text-caption">
+          <div className="flex items-center justify-between border-b border-border pb-2">
+            <span className="text-body font-semibold text-gray-900">
+              Register Session Summary
+            </span>
+            <Badge
+              variant={
+                summary.discrepancyType === "BALANCED"
+                  ? "success"
+                  : summary.discrepancyType === "SHORTAGE"
+                    ? "danger"
+                    : "warning"
+              }
+              uppercase
+            >
+              {summary.discrepancyType}
+            </Badge>
           </div>
-
-          {/* Core Reconciliation Math Grid */}
-          <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-            <div className="bg-slate-100/80 px-4 py-2 text-xs font-bold text-slate-700 border-b border-slate-200">
-              Double-Entry Cash Reconciliation
-            </div>
-            <div className="divide-y divide-slate-100 text-sm">
-              <div className="px-4 py-2.5 flex justify-between items-center">
-                <span className="text-slate-600">1. Opening Cash Float</span>
-                <span className="font-mono font-semibold">
-                  PKR {summary.openingBalance.toLocaleString()}
-                </span>
-              </div>
-              <div data-testid="zreport-total-sales" className="px-4 py-2.5 flex justify-between items-center bg-emerald-50/40">
-                <span className="text-emerald-800 flex items-center gap-1.5">
-                  <ArrowUpRight className="w-4 h-4 text-emerald-600" />
-                  2. Cash Sales Inflows ({reportData.salesCount} orders)
-                </span>
-                <span className="font-mono font-bold text-emerald-700">
-                  +PKR {summary.cashSales.toLocaleString()}
-                </span>
-              </div>
-              <div className="px-4 py-2.5 flex justify-between items-center bg-rose-50/40">
-                <span className="text-rose-800 flex items-center gap-1.5">
-                  <ArrowDownRight className="w-4 h-4 text-rose-600" />
-                  3. Cash Expenses Outflows ({reportData.expensesCount}{" "}
-                  receipts)
-                </span>
-                <span className="font-mono font-bold text-rose-700">
-                  -PKR {summary.cashExpenses.toLocaleString()}
-                </span>
-              </div>
-              <div data-testid="zreport-expected-cash" className="px-4 py-3 flex justify-between items-center bg-slate-900 text-white font-bold">
-                <span>4. Expected Drawer Balance (1 + 2 - 3)</span>
-                <span className="font-mono text-base">
-                  PKR {summary.expectedCash.toLocaleString()}
-                </span>
-              </div>
-              <div className="px-4 py-2.5 flex justify-between items-center bg-slate-50">
-                <span className="text-slate-700 font-medium">
-                  5. Actual Counted Cash
-                </span>
-                <span className="font-mono font-bold text-slate-900">
-                  PKR {summary.actualCash.toLocaleString()}
-                </span>
-              </div>
-              <div
-                className={`px-4 py-3 flex justify-between items-center font-bold ${
-                  summary.difference === 0
-                    ? "bg-emerald-100/80 text-emerald-900"
-                    : summary.difference < 0
-                      ? "bg-rose-100/90 text-rose-900"
-                      : "bg-amber-100/90 text-amber-900"
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  {summary.difference === 0 ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-700" />
-                  ) : (
-                    <AlertTriangle className="w-4 h-4" />
-                  )}
-                  Variance / Discrepancy (5 - 4)
-                </span>
-                <span className="font-mono text-base">
-                  {summary.difference >= 0 ? "+" : ""}PKR{" "}
-                  {summary.difference.toLocaleString()} (
-                  {summary.discrepancyType})
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Expenses Category Breakdown */}
-          <div>
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2.5">
-              Expenses Breakdown by Category
-            </h3>
-            {Object.keys(expensesByCategory || {}).length === 0 ? (
-              <p className="text-xs text-slate-400 italic">
-                No expenses recorded for this shift.
-              </p>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {Object.entries(expensesByCategory).map(([cat, val]: [string, ExpenseCategory]) => (
-                  <div
-                    key={cat}
-                    className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                  >
-                    <div className="text-slate-500 font-medium truncate mb-1">
-                      {cat.replace(/_/g, " ")}
-                    </div>
-                    <div className="font-mono font-bold text-slate-900 text-sm">
-                      PKR {val.total.toLocaleString()}
-                    </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">
-                      {val.count} voucher{val.count > 1 ? "s" : ""}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Itemized Expenses Table */}
-          {itemizedExpenses && itemizedExpenses.length > 0 && (
+          <div className="grid grid-cols-2 gap-2 text-gray-600">
             <div>
-              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">
-                Itemized Cash Disbursements
-              </h3>
-              <div className="border border-slate-200 rounded-xl overflow-hidden text-xs">
-                <table className="w-full text-left">
-                  <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
-                    <tr>
-                      <th className="py-2 px-3">Time</th>
-                      <th className="py-2 px-3">Category</th>
-                      <th className="py-2 px-3">Description</th>
-                      <th className="py-2 px-3">Staff</th>
-                      <th className="py-2 px-3 text-right">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-mono">
-                    {itemizedExpenses.map((exp: ItemizedExpense) => (
-                      <tr key={exp.id} className="hover:bg-slate-50/50">
-                        <td className="py-2 px-3 text-slate-500 font-sans">
-                          {new Date(exp.createdAt).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </td>
-                        <td className="py-2 px-3 font-sans font-medium text-slate-700">
-                          {exp.category}
-                        </td>
-                        <td className="py-2 px-3 font-sans text-slate-600">
-                          {exp.description || "-"}
-                        </td>
-                        <td className="py-2 px-3 font-sans text-slate-500">
-                          {exp.createdBy?.name || "Staff"}
-                        </td>
-                        <td className="py-2 px-3 text-right font-bold text-rose-600">
-                          -Rs {exp.amount.toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <span className="text-gray-400">Opened: </span>
+              <span className="font-medium text-gray-700">
+                {new Date(session.openedAt).toLocaleTimeString()} (
+                {session.openedBy?.name || "Staff"})
+              </span>
+            </div>
+            <div>
+              <span className="text-gray-400">Closed: </span>
+              <span className="font-medium text-gray-700">
+                {session.closedAt
+                  ? `${new Date(session.closedAt).toLocaleTimeString()} (${session.closedBy?.name || "Staff"})`
+                  : "Still Open"}
+              </span>
+            </div>
+            <div>
+              <span className="text-gray-400">Branch: </span>
+              <span className="font-medium text-gray-700">
+                {session.branch?.name || "Main Shop"}
+              </span>
+            </div>
+            <div>
+              <span className="text-gray-400">Session ID: </span>
+              <span className="truncate font-mono text-caption text-gray-500">
+                {session.id.slice(0, 13)}...
+              </span>
+            </div>
+          </div>
+          {session.notes && (
+            <div className="border-t border-border pt-2 italic text-gray-600">
+              &ldquo;{session.notes}&rdquo;
             </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex justify-end">
-          <button data-testid="zreport-close"
-            onClick={onClose}
-            className="px-5 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors shadow-sm"
-          >
-            Close Report
-          </button>
+        <div className="overflow-hidden rounded-md border border-border">
+          <div className="border-b border-border bg-gray-50 px-3 py-1.5 text-caption font-semibold uppercase tracking-wide text-gray-600">
+            Double-Entry Cash Reconciliation
+          </div>
+          <div className="divide-y divide-border text-body">
+            <div className="flex items-center justify-between px-3 py-2">
+              <span className="text-gray-600">1. Opening Cash Float</span>
+              <span className="font-mono font-semibold">
+                PKR {summary.openingBalance.toLocaleString()}
+              </span>
+            </div>
+            <div
+              data-testid="zreport-total-sales"
+              className="flex items-center justify-between bg-gray-50 px-3 py-2"
+            >
+              <span className="flex items-center gap-1.5 text-gray-700">
+                <ArrowUpRight className="h-4 w-4 text-success" />
+                2. Cash Sales Inflows ({reportData.salesCount} orders)
+              </span>
+              <span
+                className={`font-mono font-semibold ${summary.cashSales > 0 ? "text-success" : "text-gray-900"}`}
+              >
+                +PKR {summary.cashSales.toLocaleString()}
+              </span>
+            </div>
+            <div className="flex items-center justify-between bg-gray-50 px-3 py-2">
+              <span className="flex items-center gap-1.5 text-gray-700">
+                <ArrowDownRight className="h-4 w-4 text-danger" />
+                3. Cash Expenses Outflows ({reportData.expensesCount} receipts)
+              </span>
+              <span className="font-mono font-semibold text-danger">
+                -PKR {summary.cashExpenses.toLocaleString()}
+              </span>
+            </div>
+            <div
+              data-testid="zreport-expected-cash"
+              className="flex items-center justify-between bg-brand-700 px-3 py-2.5 font-semibold text-white"
+            >
+              <span>4. Expected Drawer Balance (1 + 2 − 3)</span>
+              <span className="font-mono">
+                PKR {summary.expectedCash.toLocaleString()}
+              </span>
+            </div>
+            <div className="flex items-center justify-between bg-gray-50 px-3 py-2">
+              <span className="font-medium text-gray-700">
+                5. Actual Counted Cash
+              </span>
+              <span className="font-mono font-semibold text-gray-900">
+                PKR {summary.actualCash.toLocaleString()}
+              </span>
+            </div>
+            <div
+              className={`flex items-center justify-between px-3 py-2.5 font-semibold ${
+                summary.difference === 0
+                  ? "bg-success-bg text-success-fg"
+                  : summary.difference < 0
+                    ? "bg-danger-bg text-danger-fg"
+                    : "bg-warning-bg text-warning-fg"
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                {summary.difference === 0 ? (
+                  <CheckCircle2 className="h-4 w-4" />
+                ) : (
+                  <AlertTriangle className="h-4 w-4" />
+                )}
+                Variance / Discrepancy (5 − 4)
+              </span>
+              <span className="font-mono">
+                {summary.difference >= 0 ? "+" : ""}PKR{" "}
+                {summary.difference.toLocaleString()} ({summary.discrepancyType})
+              </span>
+            </div>
+          </div>
         </div>
+
+        <div>
+          <h3 className="mb-2 text-caption font-semibold uppercase tracking-wide text-gray-600">
+            Expenses Breakdown by Category
+          </h3>
+          {Object.keys(expensesByCategory || {}).length === 0 ? (
+            <p className="text-caption italic text-gray-400">
+              No expenses recorded for this shift.
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {Object.entries(expensesByCategory).map(
+                ([cat, val]: [string, ExpenseCategory]) => (
+                  <div
+                    key={cat}
+                    className="rounded-md border border-border bg-gray-50 p-2.5 text-caption"
+                  >
+                    <div className="mb-0.5 truncate font-medium text-gray-500">
+                      {cat.replace(/_/g, " ")}
+                    </div>
+                    <div className="font-mono text-body font-semibold text-gray-900">
+                      PKR {val.total.toLocaleString()}
+                    </div>
+                    <div className="text-[10px] text-gray-400">
+                      {val.count} voucher{val.count > 1 ? "s" : ""}
+                    </div>
+                  </div>
+                ),
+              )}
+            </div>
+          )}
+        </div>
+
+        {itemizedExpenses && itemizedExpenses.length > 0 && (
+          <div>
+            <h3 className="mb-2 text-caption font-semibold uppercase tracking-wide text-gray-600">
+              Itemized Cash Disbursements
+            </h3>
+            <div className="overflow-hidden rounded-md border border-border">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-16">Time</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Staff</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {itemizedExpenses.map((exp: ItemizedExpense) => (
+                    <TableRow key={exp.id}>
+                      <TableCell className="text-gray-500">
+                        {new Date(exp.createdAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </TableCell>
+                      <TableCell className="font-medium text-gray-700">
+                        {exp.category}
+                      </TableCell>
+                      <TableCell className="max-w-52 truncate text-gray-600">
+                        {exp.description || "-"}
+                      </TableCell>
+                      <TableCell className="text-gray-500">
+                        {exp.createdBy?.name || "Staff"}
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-semibold text-danger">
+                        -Rs {exp.amount.toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }

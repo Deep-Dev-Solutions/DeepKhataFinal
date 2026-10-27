@@ -30,6 +30,20 @@ import CloseRegisterModal from "@/components/modals/CloseRegisterModal";
 import OpenRegisterModal from "@/components/modals/OpenRegisterModal";
 import ZReportModal from "@/components/modals/ZReportModal";
 import AlertDialog from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/ui/page-header";
+import { Select } from "@/components/ui/select";
 import { useAuth } from "@/context/AuthContext";
 
 const EXPENSE_CATEGORIES = [
@@ -317,436 +331,404 @@ export default function CashHubPage() {
   const quickAmounts = [50, 100, 200, 500, 1000];
 
   return (
-    <div data-testid="cash-page" className="space-y-6 max-w-7xl mx-auto pb-12">
-      {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-blue-600 text-white rounded-xl shadow-sm shadow-blue-200">
-              <Banknote className="w-5 h-5" />
-            </div>
-            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-              Cash Hub & Register Management
-            </h1>
-          </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Double-entry operational cash expense tracking and End of Day
-            (Z-Report) drawer reconciliation.
-          </p>
-        </div>
-
-        {/* Action Controls */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Shift Status Pill */}
-          <div data-testid="cash-register-status"
-            className={`px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 border ${
-              registerStatus?.isOpen
-                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                : "bg-slate-100 text-slate-600 border-slate-200"
-            }`}
-          >
+    <div data-testid="cash-page" className="mt-1 space-y-4 pb-10 animate-in fade-in duration-300">
+      <PageHeader
+        title="Cash Hub & Register"
+        subtitle="Petty-cash expense vouchers and end-of-day (Z-Report) drawer reconciliation."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
             <span
-              className={`w-2 h-2 rounded-full ${registerStatus?.isOpen ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`}
-            />
-            {registerStatus?.isOpen
-              ? "Shift Active (Drawer Open)"
-              : "Register Closed"}
-          </div>
-
-          <button data-testid="cash-zreport"
-            onClick={() => handleViewZReport()}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
-          >
-            <FileText className="w-4 h-4 text-slate-500" />
-            Z-Report Audit
-          </button>
-
-          {registerStatus?.isOpen ? (
-            <button data-testid="cash-close-register"
-              onClick={() => setIsCloseModalOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs transition-all"
+              data-testid="cash-register-status"
+              className={`inline-flex h-[26px] items-center gap-1.5 rounded-md border px-2 text-caption font-semibold ${
+                registerStatus?.isOpen
+                  ? "border-success/30 bg-success-bg text-success-fg"
+                  : "border-border bg-gray-100 text-gray-600"
+              }`}
             >
-              <Lock className="w-3.5 h-3.5" />
-              Close Register (Z-Report)
-            </button>
-          ) : (
-            <button data-testid="cash-open-register"
-              onClick={() => setIsOpenModalOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs transition-all"
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${registerStatus?.isOpen ? "bg-success" : "bg-gray-400"}`}
+              />
+              {registerStatus?.isOpen ? "Shift Active (Drawer Open)" : "Register Closed"}
+            </span>
+
+            <Button
+              data-testid="cash-zreport"
+              variant="secondary"
+              size="sm"
+              onClick={() => handleViewZReport()}
             >
-              <Unlock className="w-3.5 h-3.5" />
-              Start Shift / Open Drawer
-            </button>
-          )}
+              <FileText className="h-4 w-4" /> Z-Report
+            </Button>
 
-          <button
-            onClick={fetchCashData}
-            className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors"
-            title="Refresh drawer numbers"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-          </button>
-        </div>
-      </div>
+            {registerStatus?.isOpen ? (
+              <Button
+                data-testid="cash-close-register"
+                variant="danger"
+                size="sm"
+                onClick={() => setIsCloseModalOpen(true)}
+              >
+                <Lock className="h-3.5 w-3.5" /> Close Register
+              </Button>
+            ) : (
+              <Button
+                data-testid="cash-open-register"
+                size="sm"
+                onClick={() => setIsOpenModalOpen(true)}
+              >
+                <Unlock className="h-3.5 w-3.5" /> Start Shift
+              </Button>
+            )}
 
-      {/* Live KPI Drawer Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Opening Float */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs relative overflow-hidden">
-          <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-2">
-            <span>Opening Cash Float</span>
-            <span className="p-1.5 bg-slate-100 rounded-lg text-slate-600">
-              <Clock className="w-3.5 h-3.5" />
-            </span>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={fetchCashData}
+              title="Refresh drawer numbers"
+              aria-label="Refresh drawer numbers"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            </Button>
           </div>
-          <div className="text-2xl font-extrabold font-mono text-slate-900">
-            PKR {(registerStatus?.openingBalance || 0).toLocaleString()}
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1">
-            {registerStatus?.isOpen
-              ? `Opened at ${new Date(registerStatus.session.openedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-              : "Initial drawer base"}
-          </div>
-        </div>
+        }
+      />
 
-        {/* Card 2: Cash Inflows (Sales) */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs relative overflow-hidden">
-          <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-2">
-            <span>Cash Sales Inflows</span>
-            <span className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg">
-              <ArrowUpRight className="w-3.5 h-3.5" />
-            </span>
-          </div>
-          <div className="text-2xl font-extrabold font-mono text-emerald-600">
-            +PKR {(registerStatus?.cashSales || 0).toLocaleString()}
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1">
-            From {registerStatus?.salesCount || 0} cash orders & payments
-          </div>
-        </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardContent className="px-4 py-3">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-caption font-medium uppercase tracking-wide text-gray-500">
+                Opening Float
+              </span>
+              <Clock className="h-3.5 w-3.5 text-gray-400" />
+            </div>
+            <p className="font-mono text-title font-semibold text-gray-900">
+              PKR {(registerStatus?.openingBalance || 0).toLocaleString()}
+            </p>
+            <p className="text-caption text-gray-400">
+              {registerStatus?.isOpen
+                ? `Opened at ${new Date(registerStatus.session.openedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                : "Initial drawer base"}
+            </p>
+          </CardContent>
+        </Card>
 
-        {/* Card 3: Cash Outflows (Expenses) */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs relative overflow-hidden">
-          <div className="flex items-center justify-between text-xs font-medium text-slate-500 mb-2">
-            <span>Cash Expenses Out</span>
-            <span className="p-1.5 bg-rose-100 text-rose-700 rounded-lg">
-              <ArrowDownRight className="w-3.5 h-3.5" />
-            </span>
-          </div>
-          <div className="text-2xl font-extrabold font-mono text-rose-600">
-            -PKR {(registerStatus?.cashExpenses || 0).toLocaleString()}
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1">
-            {registerStatus?.expensesCount || 0} petty cash disbursements
-          </div>
-        </div>
+        <Card>
+          <CardContent className="px-4 py-3">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-caption font-medium uppercase tracking-wide text-gray-500">
+                Cash Sales Inflows
+              </span>
+              <ArrowUpRight
+                className={`h-3.5 w-3.5 ${(registerStatus?.cashSales || 0) > 0 ? "text-success" : "text-gray-400"}`}
+              />
+            </div>
+            <p
+              className={`font-mono text-title font-semibold ${(registerStatus?.cashSales || 0) > 0 ? "text-success" : "text-gray-900"}`}
+            >
+              +PKR {(registerStatus?.cashSales || 0).toLocaleString()}
+            </p>
+            <p className="text-caption text-gray-400">
+              From {registerStatus?.salesCount || 0} cash orders & payments
+            </p>
+          </CardContent>
+        </Card>
 
-        {/* Card 4: Expected Cash in Drawer */}
-        <div className="bg-slate-900 text-white p-5 rounded-3xl shadow-sm relative overflow-hidden flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between text-xs font-medium text-slate-400 mb-2">
-              <span className="font-semibold text-slate-300">
+        <Card>
+          <CardContent className="px-4 py-3">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-caption font-medium uppercase tracking-wide text-gray-500">
+                Cash Expenses Out
+              </span>
+              <ArrowDownRight
+                className={`h-3.5 w-3.5 ${(registerStatus?.cashExpenses || 0) > 0 ? "text-danger" : "text-gray-400"}`}
+              />
+            </div>
+            <p
+              className={`font-mono text-title font-semibold ${(registerStatus?.cashExpenses || 0) > 0 ? "text-danger" : "text-gray-900"}`}
+            >
+              -PKR {(registerStatus?.cashExpenses || 0).toLocaleString()}
+            </p>
+            <p className="text-caption text-gray-400">
+              {registerStatus?.expensesCount || 0} petty cash disbursements
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-brand-700 bg-brand-700 text-white">
+          <CardContent className="px-4 py-3">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-caption font-medium uppercase tracking-wide text-brand-100">
                 Expected in Drawer
               </span>
-              <span className="px-2 py-0.5 bg-slate-800 text-[10px] rounded text-emerald-400 font-mono">
-                Live Ledger
+              <span className="rounded bg-brand-800 px-1.5 py-0.5 font-mono text-[10px] text-brand-100">
+                Live ledger
               </span>
             </div>
-            <div className="text-2xl font-extrabold font-mono text-emerald-400">
+            <p className="font-mono text-title font-semibold">
               PKR {(registerStatus?.expectedCash || 0).toLocaleString()}
-            </div>
-          </div>
-          <div className="text-[10px] text-slate-400 pt-2 border-t border-slate-800 flex justify-between">
-            <span>Float + Sales - Expenses</span>
-            <span className="text-slate-300 font-semibold">
-              Must match physical cash
-            </span>
-          </div>
-        </div>
+            </p>
+            <p className="pt-1.5 text-caption text-brand-100">
+              Float + sales − expenses · must match physical cash
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Main Two-Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* LEFT: Quick Operational Expense Entry Form (5 Cols) */}
-        <div className="lg:col-span-5 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-5">
-          <div>
-            <div className="flex items-center gap-2 text-slate-900 font-bold text-base">
-              <Coffee className="w-5 h-5 text-amber-600" />
-              Quick Expense Voucher
-            </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Pulling petty cash from drawer for chai, rider, or parts? Log it
-              here to balance the double-entry ledger.
-            </p>
-          </div>
-
-          <form onSubmit={handleLogExpense} className="space-y-4">
-            {/* Category Chips */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-2">
-                Expense Category
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {EXPENSE_CATEGORIES.map((cat) => {
-                  const Icon = cat.icon;
-                  const isSelected = category === cat.id;
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => setCategory(cat.id)}
-                      className={`flex items-center gap-2.5 p-2.5 rounded-2xl border text-xs font-semibold transition-all text-left ${
-                        isSelected
-                          ? `${cat.color} ring-2 ring-blue-500/20 shadow-xs`
-                          : "bg-slate-50/70 border-slate-200 text-slate-600 hover:bg-slate-100/60"
-                      }`}
-                    >
-                      <Icon className="w-4 h-4 shrink-0" />
-                      <span className="truncate">{cat.label}</span>
-                    </button>
-                  );
-                })}
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12">
+        <Card className="lg:col-span-5">
+          <CardHeader>
+            <CardTitle>Quick Expense Voucher</CardTitle>
+            <CardDescription>
+              Pulling petty cash for chai, rider or parts? Log it here — the entry
+              posts to the ledger, balanced.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogExpense} className="space-y-3">
+              <div>
+                <label className="mb-1 block text-caption font-medium text-gray-700">
+                  Expense Category
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {EXPENSE_CATEGORIES.map((cat) => {
+                    const Icon = cat.icon;
+                    const isSelected = category === cat.id;
+                    return (
+                      <Button
+                        key={cat.id}
+                        type="button"
+                        size="sm"
+                        variant={isSelected ? "primary" : "secondary"}
+                        onClick={() => setCategory(cat.id)}
+                        className="justify-start"
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{cat.label}</span>
+                      </Button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
 
-            {/* Amount Input */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Amount (PKR)
-              </label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
-                  PKR
-                </span>
-                <input data-testid="cash-expense-amount"
-                  type="number"
-                  min="1"
-                  step="any"
-                  required
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="e.g. 500"
-                  className="w-full pl-14 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-base text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <div>
+                <label className="mb-1 block text-caption font-medium text-gray-700">
+                  Amount (PKR)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-caption font-semibold text-gray-400">
+                    PKR
+                  </span>
+                  <Input
+                    data-testid="cash-expense-amount"
+                    type="number"
+                    min="1"
+                    step="any"
+                    required
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="e.g. 500"
+                    className="pl-12 font-mono font-semibold"
+                  />
+                </div>
+
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  {quickAmounts.map((amt) => (
+                    <Button
+                      key={amt}
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="h-6 px-2 text-caption"
+                      onClick={() =>
+                        setAmount(String((parseFloat(amount) || 0) + amt))
+                      }
+                    >
+                      +{amt}
+                    </Button>
+                  ))}
+                  {amount && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="ml-auto h-6 px-2 text-caption text-danger hover:bg-danger-bg"
+                      onClick={() => setAmount("")}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-caption font-medium text-gray-700">
+                  Description / Shop Notes
+                </label>
+                <Input
+                  data-testid="cash-expense-description"
+                  type="text"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="e.g. 5 teas from Butt Tea Stall for customers"
                 />
               </div>
 
-              {/* Quick Rupees Addition Chips */}
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {quickAmounts.map((amt) => (
-                  <button
-                    key={amt}
-                    type="button"
-                    onClick={() =>
-                      setAmount(String((parseFloat(amount) || 0) + amt))
-                    }
-                    className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition-colors"
+              {branches.length > 0 && (
+                <div>
+                  <label className="mb-1 block text-caption font-medium text-gray-700">
+                    Shop Branch
+                  </label>
+                  <Select
+                    value={branchId}
+                    onChange={(e) => setBranchId(e.target.value)}
                   >
-                    +{amt}
-                  </button>
-                ))}
-                {amount && (
-                  <button
-                    type="button"
-                    onClick={() => setAmount("")}
-                    className="text-[11px] px-2 py-1 rounded-lg text-rose-600 hover:bg-rose-50 font-medium ml-auto"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-            </div>
+                    <option value="">All Branches / Main Counter</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              )}
 
-            {/* Description / Notes */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Description / Shop Notes
-              </label>
-              <input data-testid="cash-expense-description"
-                type="text"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="e.g. 5 teas from Butt Tea Stall for customers"
-                className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+              {expenseSuccessMsg && (
+                <div className="flex items-center gap-2 rounded-md border border-success/30 bg-success-bg px-3 py-2 text-body font-medium text-success-fg">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  {expenseSuccessMsg}
+                </div>
+              )}
 
-            {/* Branch Selector (if multiple branches exist) */}
-            {branches.length > 0 && (
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Shop Branch
-                </label>
-                <select
-                  value={branchId}
-                  onChange={(e) => setBranchId(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">All Branches / Main Counter</option>
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Feedback Message */}
-            {expenseSuccessMsg && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold flex items-center gap-2 animate-in fade-in">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                {expenseSuccessMsg}
-              </div>
-            )}
-
-            {/* Submit Button */}
-            <button data-testid="cash-expense-submit"
-              type="submit"
-              disabled={submittingExpense || !amount}
-              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              {submittingExpense
-                ? "Posting to Ledger..."
-                : "Record Cash Expense & Debit Ledger"}
-            </button>
-
-            <p className="text-[11px] text-slate-400 text-center italic">
-              Posting: Debits Expense Account • Credits Cash Drawer (Zero-Sum
-              Balanced)
-            </p>
-          </form>
-        </div>
-
-        {/* RIGHT: Today's Expense Disbursements Table (7 Cols) */}
-        <div className="lg:col-span-7 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200/80 pb-4">
-            <div>
-              <h2 className="text-base font-bold text-slate-900">
-                Today&apos;s Expense Ledger
-              </h2>
-              <p className="text-xs text-slate-500">
-                Chronological log of petty cash disbursements
-              </p>
-            </div>
-
-            {/* Search Input */}
-            <div className="relative w-full sm:w-48">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search notes..."
-                className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          {/* Category Filter Pills */}
-          <div className="flex flex-wrap gap-1.5 overflow-x-auto pb-1">
-            <button
-              onClick={() => setSelectedFilterCategory("ALL")}
-              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                selectedFilterCategory === "ALL"
-                  ? "bg-slate-900 text-white"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              All ({expenses.length})
-            </button>
-            {EXPENSE_CATEGORIES.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedFilterCategory(cat.id)}
-                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                  selectedFilterCategory === cat.id
-                    ? "bg-blue-600 text-white shadow-xs"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
+              <Button
+                data-testid="cash-expense-submit"
+                type="submit"
+                disabled={submittingExpense || !amount}
+                loading={submittingExpense}
+                className="w-full"
               >
-                {cat.label}
-              </button>
-            ))}
-          </div>
+                {!submittingExpense && <Plus className="h-4 w-4" />}
+                Record Cash Expense
+              </Button>
 
-          {/* Expenses List */}
-          {filteredExpenses.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 space-y-2">
-              <Coffee className="w-8 h-8 mx-auto text-slate-300" />
-              <p className="text-xs font-medium">
-                No expenses logged yet for today.
+              <p className="text-center text-caption italic text-gray-400">
+                Debits expense account · credits cash drawer (zero-sum balanced)
               </p>
-              <p className="text-[11px] text-slate-400">
-                Use the quick form on the left to record daily chai or rider
-                expenses.
-              </p>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-7">
+          <CardHeader>
+            <CardTitle>Today&apos;s Expense Ledger</CardTitle>
+            <CardDescription>
+              Chronological log of petty cash disbursements
+            </CardDescription>
+            <CardAction>
+              <div className="relative w-full sm:w-48">
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                <Input
+                  size="sm"
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search notes..."
+                  className="pl-8"
+                />
+              </div>
+            </CardAction>
+          </CardHeader>
+          <CardContent className="space-y-3 pt-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Button
+                size="sm"
+                variant={selectedFilterCategory === "ALL" ? "primary" : "secondary"}
+                onClick={() => setSelectedFilterCategory("ALL")}
+              >
+                All ({expenses.length})
+              </Button>
+              {EXPENSE_CATEGORIES.map((cat) => (
+                <Button
+                  key={cat.id}
+                  size="sm"
+                  variant={
+                    selectedFilterCategory === cat.id ? "primary" : "secondary"
+                  }
+                  onClick={() => setSelectedFilterCategory(cat.id)}
+                >
+                  {cat.label}
+                </Button>
+              ))}
             </div>
-          ) : (
-            <div className="border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-100">
-              {filteredExpenses.map((exp) => {
-                const catMeta =
-                  EXPENSE_CATEGORIES.find((c) => c.id === exp.category) ||
-                  EXPENSE_CATEGORIES[5];
-                const Icon = catMeta.icon;
 
-                return (
-                  <div data-testid="cash-expense-row"
-                    key={exp.id}
-                    className="p-3.5 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div
-                        className={`p-2 rounded-xl border shrink-0 ${catMeta.color}`}
-                      >
-                        <Icon className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-xs text-slate-900 truncate">
-                            {exp.description || catMeta.label}
-                          </span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 font-mono text-slate-600">
-                            {catMeta.label}
-                          </span>
+            {filteredExpenses.length === 0 ? (
+              <EmptyState
+                className="border-0 bg-transparent py-8 shadow-none"
+                icon={Coffee}
+                title="No expenses logged yet for today"
+                description="Use the quick form to record daily chai or rider expenses."
+              />
+            ) : (
+              <div className="divide-y divide-border overflow-hidden rounded-md border border-border">
+                {filteredExpenses.map((exp) => {
+                  const catMeta =
+                    EXPENSE_CATEGORIES.find((c) => c.id === exp.category) ||
+                    EXPENSE_CATEGORIES[5];
+                  const Icon = catMeta.icon;
+
+                  return (
+                    <div
+                      data-testid="cash-expense-row"
+                      key={exp.id}
+                      className="flex items-center justify-between gap-3 px-3 py-2.5 transition-colors hover:bg-gray-50"
+                    >
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <div className="shrink-0 rounded-md border border-border bg-gray-50 p-1.5 text-gray-600">
+                          <Icon className="h-4 w-4" />
                         </div>
-                        <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
-                          <span>
-                            {new Date(exp.createdAt).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                          <span>•</span>
-                          <span>By {exp.createdBy?.name || "Staff"}</span>
-                          {exp.branch && (
-                            <>
-                              <span>•</span>
-                              <span>{exp.branch.name}</span>
-                            </>
-                          )}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-body font-semibold text-gray-900">
+                              {exp.description || catMeta.label}
+                            </span>
+                            <Badge variant="neutral">{catMeta.label}</Badge>
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-1.5 text-caption text-gray-400">
+                            <span>
+                              {new Date(exp.createdAt).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                            <span>·</span>
+                            <span>By {exp.createdBy?.name || "Staff"}</span>
+                            {exp.branch && (
+                              <>
+                                <span>·</span>
+                                <span>{exp.branch.name}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="shrink-0 text-right">
+                        <div className="font-mono text-body font-semibold text-danger">
+                          -Rs {exp.amount.toLocaleString()}
+                        </div>
+                        <div className="flex items-center justify-end gap-1 text-caption text-gray-400">
+                          <CheckCircle2 className="h-2.5 w-2.5" />
+                          Balanced
                         </div>
                       </div>
                     </div>
-
-                    <div className="text-right shrink-0">
-                      <div className="font-mono font-bold text-sm text-rose-600">
-                        -Rs {exp.amount.toLocaleString()}
-                      </div>
-                      <div className="text-[10px] text-emerald-600 font-medium flex items-center justify-end gap-1">
-                        <CheckCircle2 className="w-2.5 h-2.5" />
-                        Balanced
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Close Register Modal */}
       <CloseRegisterModal
         isOpen={isCloseModalOpen}
         onClose={() => setIsCloseModalOpen(false)}
@@ -757,21 +739,18 @@ export default function CashHubPage() {
         onConfirmClose={handleCloseRegister}
       />
 
-      {/* Open Register Modal */}
       <OpenRegisterModal
         isOpen={isOpenModalOpen}
         onClose={() => setIsOpenModalOpen(false)}
         onConfirmOpen={handleOpenRegister}
       />
 
-      {/* End of Day Z-Report Modal */}
       <ZReportModal
         isOpen={isZReportModalOpen}
         onClose={() => setIsZReportModalOpen(false)}
         reportData={currentZReport}
       />
 
-      {/* Message Dialog (replaces native alert) */}
       <AlertDialog
         isOpen={messageAlert !== null}
         title={messageAlert?.title || ""}
