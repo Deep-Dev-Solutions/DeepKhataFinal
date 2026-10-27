@@ -10,10 +10,15 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { TrendingUp } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type RevenueChartProps = {
   chartData?: Array<{ name?: string; revenue?: number }>;
 };
+
+const BRAND = "#1d4ed8"; // var(--color-brand-700)
+const GRID = "var(--color-gray-100)";
+const TICK = { fill: "var(--color-gray-500)", fontSize: 12 };
 
 export default function RevenueChart({ chartData = [] }: RevenueChartProps) {
   const data = chartData.length ? chartData : [{ name: "No data", revenue: 0 }];
@@ -24,53 +29,55 @@ export default function RevenueChart({ chartData = [] }: RevenueChartProps) {
   );
 
   return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col h-full">
-      <div className="flex justify-between items-start mb-6">
+    <Card className="flex h-full flex-col">
+      <CardHeader className="flex-row items-start justify-between gap-3 pb-2">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Revenue Overview</h2>
-          <p className="text-sm text-slate-500">Last 7 days performance</p>
+          <CardTitle>Revenue Overview</CardTitle>
+          <p className="text-caption text-gray-500">Last 7 days performance</p>
         </div>
-        <div className="flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1.5 rounded-xl border border-blue-100/60">
-          <TrendingUp className="w-3.5 h-3.5" />
+        <div className="flex shrink-0 items-center gap-1.5 rounded-md border border-brand-100 bg-brand-50 px-2 py-1 text-caption font-semibold text-brand-700">
+          <TrendingUp className="h-3.5 w-3.5" />
           <span>7-Day Vol: Rs. {total7DayRevenue.toLocaleString()}</span>
         </div>
-      </div>
+      </CardHeader>
 
-      <div className="flex-1 w-full min-h-[250px]">
+      <CardContent className="min-h-[250px] flex-1 pt-2">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={data}
-            margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
+            margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
           >
             <defs>
               <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                <stop offset="5%" stopColor={BRAND} stopOpacity={0.25} />
+                <stop offset="95%" stopColor={BRAND} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid
-              strokeDasharray="3 3"
-              vertical={false}
-              stroke="#f1f5f9"
-            />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={GRID} />
             <XAxis
               dataKey="name"
               axisLine={false}
               tickLine={false}
-              tick={{ fill: "#64748b", fontSize: 12 }}
+              tick={TICK}
               dy={10}
             />
             <YAxis
               axisLine={false}
               tickLine={false}
-              tick={{ fill: "#64748b", fontSize: 12 }}
-              tickFormatter={(value) => `Rs.${value / 1000}k`}
+              tick={TICK}
+              width={44}
+              tickFormatter={(value) =>
+                Number(value) >= 1000
+                  ? `${Math.round(Number(value) / 1000)}k`
+                  : `${Number(value)}`
+              }
             />
             <Tooltip
               contentStyle={{
-                borderRadius: "12px",
-                border: "none",
-                boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                borderRadius: "6px",
+                border: "1px solid var(--color-border)",
+                boxShadow: "var(--shadow-md)",
+                fontSize: 12,
               }}
               formatter={(value) =>
                 value !== undefined
@@ -81,14 +88,14 @@ export default function RevenueChart({ chartData = [] }: RevenueChartProps) {
             <Area
               type="monotone"
               dataKey="revenue"
-              stroke="#2563eb"
-              strokeWidth={3}
+              stroke={BRAND}
+              strokeWidth={2}
               fillOpacity={1}
               fill="url(#colorRevenue)"
             />
           </AreaChart>
         </ResponsiveContainer>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

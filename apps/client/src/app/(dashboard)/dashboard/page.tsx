@@ -11,6 +11,8 @@ import GettingStartedChecklist from "@/components/dashboard/GettingStartedCheckl
 import DuesTodayWidget from "@/components/dashboard/widgets/DuesTodayWidget";
 import TransfersInboxWidget from "@/components/dashboard/widgets/TransfersInboxWidget";
 import { useDashboard } from "@/hooks/queries/useDashboard";
+import { buttonVariants } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 
 export default function DashboardHomePage() {
   const { data: dashboardData, isPending: isLoading, error: queryError } =
@@ -30,7 +32,7 @@ export default function DashboardHomePage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[400px] items-center justify-center gap-2 text-sm font-medium text-slate-500">
+      <div className="flex min-h-[400px] items-center justify-center gap-2 text-body font-medium text-gray-500">
         <Loader2 className="h-4 w-4 animate-spin" /> Loading dashboard data...
       </div>
     );
@@ -38,33 +40,27 @@ export default function DashboardHomePage() {
 
   if (error) {
     return (
-      <div className="flex min-h-[400px] items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-sm font-medium text-rose-600">
+      <div className="flex min-h-[400px] items-center justify-center rounded-lg border border-danger/30 bg-danger-bg text-body font-medium text-danger-fg">
         {error}
       </div>
     );
   }
 
   return (
-    <div data-testid="dashboard-root" className="space-y-6 animate-in fade-in duration-500 pb-10">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            Dashboard Overview
-          </h1>
-          <p className="text-sm text-slate-500">
-            Here&apos;s what&apos;s happening with your business today.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
+    <div data-testid="dashboard-root" className="mt-1 space-y-4 pb-10 animate-in fade-in duration-300">
+      <PageHeader
+        title="Dashboard Overview"
+        subtitle="Here's what's happening with your business today."
+        actions={
           <Link
             href="/orders/new"
-            className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200"
+            className={buttonVariants({ className: "w-full sm:w-auto" })}
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="h-4 w-4" />
             New Order
           </Link>
-        </div>
-      </div>
+        }
+      />
 
       <GettingStartedChecklist />
 
@@ -72,7 +68,7 @@ export default function DashboardHomePage() {
 
       <DuesTodayWidget />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <RevenueChart chartData={dashboardData?.chartData || []} />
         </div>

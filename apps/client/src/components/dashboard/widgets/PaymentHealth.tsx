@@ -1,67 +1,117 @@
 "use client";
 
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { Wallet } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type PaymentHealthProps = {
   paymentHealth?: Array<{ name?: string; value?: number; color?: string }>;
 };
 
+const SUCCESS = "var(--color-success)";
+const DANGER = "var(--color-danger)";
+
+/** Green for money actually collected, red for what is still owed. */
+function tokenColor(name?: string, fallback?: string) {
+  const label = (name || "").toLowerCase();
+  if (label.includes("paid")) return SUCCESS;
+  if (label.includes("pending") || label.includes("udhaar") || label.includes("udhar"))
+    return DANGER;
+  return fallback && fallback.startsWith("#") ? fallback : SUCCESS;
+}
+
 export default function PaymentHealth({ paymentHealth = [] }: PaymentHealthProps) {
-  const data = paymentHealth.length ? paymentHealth : [
-    { name: 'Paid', value: 0, color: '#10b981' },
-    { name: 'Pending/Udhaar', value: 0, color: '#f43f5e' },
-  ];
-  const totalVolume = data.reduce((sum, item) => sum + Number(item.value || 0), 0);
+  const data = paymentHealth.length
+    ? paymentHealth
+    : [
+        { name: "Paid", value: 0, color: SUCCESS },
+        { name: "Pending/Udhaar", value: 0, color: DANGER },
+      ];
+  const totalVolume = data.reduce(
+    (sum, item) => sum + Number(item.value || 0),
+    0,
+  );
 
   return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col h-full">
-      <div className="flex items-center gap-2 mb-2">
-        <div className="p-2 bg-slate-50 rounded-lg"><Wallet className="w-5 h-5 text-slate-600" /></div>
-        <h2 className="text-lg font-bold text-slate-900">Payment Health</h2>
-      </div>
-      <p className="text-sm text-slate-500 mb-6">Distribution of your receivables</p>
-      
-      <div className="flex-1 w-full min-h-[200px] relative">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={data}
-              cx="50%"
-              cy="50%"
-              innerRadius={60}
-              outerRadius={80}
-              paddingAngle={5}
-              dataKey="value"
-              stroke="none"
-            >
-              {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color || '#10b981'} />
-              ))}
-            </Pie>
-            <Tooltip 
-              formatter={(value) => `Rs. ${Number(value ?? 0).toLocaleString()}`}
-              contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className="text-xs text-slate-400 font-medium">Total Volume</span>
-          <span className="text-lg font-bold text-slate-900">Rs. {totalVolume.toLocaleString()}</span>
+    <Card className="flex h-full flex-col">
+      <CardHeader className="flex-row items-center gap-2 pb-1">
+        <span className="rounded-md bg-gray-100 p-1.5 text-gray-600">
+          <Wallet className="h-4 w-4" />
+        </span>
+        <div>
+          <CardTitle>Payment Health</CardTitle>
+          <p className="text-caption text-gray-500">
+            Distribution of your receivables
+          </p>
         </div>
-      </div>
+      </CardHeader>
 
-      <div className="mt-4 space-y-3">
-        {data.map((item, idx) => (
-          <div key={idx} className="flex justify-between items-center text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color || '#10b981' }}></div>
-              <span className="text-slate-600 font-medium">{item.name || "Payment"}</span>
-            </div>
-            <span className="font-bold text-slate-900">Rs. {Number(item.value || 0).toLocaleString()}</span>
+      <CardContent className="flex flex-1 flex-col pt-2">
+        <div className="relative min-h-[200px] w-full flex-1">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                innerRadius={58}
+                outerRadius={78}
+                paddingAngle={4}
+                dataKey="value"
+                stroke="none"
+              >
+                {data.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={tokenColor(entry.name, entry.color)}
+                  />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(value) =>
+                  `Rs. ${Number(value ?? 0).toLocaleString()}`
+                }
+                contentStyle={{
+                  borderRadius: "6px",
+                  border: "1px solid var(--color-border)",
+                  boxShadow: "var(--shadow-md)",
+                  fontSize: 12,
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-caption font-medium text-gray-400">
+              Total Volume
+            </span>
+            <span className="text-subtitle font-semibold text-gray-900">
+              Rs. {totalVolume.toLocaleString()}
+            </span>
           </div>
-        ))}
-      </div>
-    </div>
+        </div>
+
+        <div className="mt-3 space-y-1.5">
+          {data.map((item, idx) => (
+            <div
+              key={idx}
+              className="flex items-center justify-between text-body"
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: tokenColor(item.name, item.color) }}
+                />
+                <span className="truncate font-medium text-gray-600">
+                  {item.name || "Payment"}
+                </span>
+              </div>
+              <span className="shrink-0 font-semibold text-gray-900">
+                Rs. {Number(item.value || 0).toLocaleString()}
+              </span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

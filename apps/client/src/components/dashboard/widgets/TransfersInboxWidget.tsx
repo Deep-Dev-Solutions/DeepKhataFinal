@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ArrowRightLeft, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -81,58 +83,57 @@ export default function TransfersInboxWidget() {
     const busy = busyId === t.id;
     const since =
       t.status === "DISPATCHED" ? t.dispatchedAt ?? t.requestedAt : t.requestedAt;
-    const btn =
-      "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50";
     return (
       <li
         key={t.id}
         data-testid="transfer-row"
         data-transfer-id={t.id}
         data-status={t.status}
-        className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+        className="flex flex-col gap-2 px-4 py-2.5 transition-colors hover:bg-gray-50 sm:flex-row sm:items-center sm:justify-between"
       >
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-slate-900">
+          <p className="truncate text-body font-semibold text-gray-900">
             {t.fromBranch?.name} → {t.toBranch?.name}
           </p>
-          <p className="truncate text-xs text-slate-500">
+          <p className="truncate text-caption text-gray-500">
             {linesSummary(t)}
             {transferAge(since) ? ` · ${transferAge(since)}` : ""}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {canManage && t.status === "REQUESTED" && (
-            <button
+            <Button
               type="button"
+              size="sm"
               data-testid="transfer-dispatch"
               disabled={busy}
               onClick={() => act(t.id, "dispatch")}
-              className={`${btn} bg-blue-600 text-white hover:bg-blue-700`}
             >
               Dispatch
-            </button>
+            </Button>
           )}
           {canManage && t.status === "DISPATCHED" && (
-            <button
+            <Button
               type="button"
+              size="sm"
               data-testid="transfer-receive"
               disabled={busy}
               onClick={() => act(t.id, "receive")}
-              className={`${btn} bg-emerald-600 text-white hover:bg-emerald-700`}
             >
               Receive
-            </button>
+            </Button>
           )}
           {canManage && t.status === "REQUESTED" && (
-            <button
+            <Button
               type="button"
+              size="sm"
+              variant="secondary"
               data-testid="transfer-cancel"
               disabled={busy}
               onClick={() => act(t.id, "cancel")}
-              className={`${btn} border border-slate-200 text-slate-600 hover:bg-slate-50`}
             >
               Cancel
-            </button>
+            </Button>
           )}
         </div>
       </li>
@@ -142,40 +143,40 @@ export default function TransfersInboxWidget() {
   const section = (title: string, rows: StockTransfer[]) =>
     rows.length > 0 && (
       <div>
-        <p className="bg-slate-50 px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+        <p className="bg-gray-50 px-4 py-1.5 text-caption font-medium uppercase tracking-wide text-gray-500">
           {title} ({rows.length})
         </p>
-        <ul className="divide-y divide-slate-100">{rows.map(renderRow)}</ul>
+        <ul className="divide-y divide-border">{rows.map(renderRow)}</ul>
       </div>
     );
 
   return (
-    <div
-      data-testid="transfers-widget"
-      className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
-    >
-      <div className="p-4 border-b border-slate-100">
-        <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-          <ArrowRightLeft className="h-4 w-4 text-blue-600" /> Transfers
-        </h2>
-      </div>
-      {loading ? (
-        <div className="flex items-center justify-center gap-2 px-4 py-6 text-sm text-slate-500">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading...
-        </div>
-      ) : send.length + incoming.length === 0 ? (
-        <p
-          data-testid="transfers-empty"
-          className="px-4 py-6 text-center text-sm text-slate-500"
-        >
-          Koi transfer pending nahi
-        </p>
-      ) : (
-        <>
-          {section("Bhejna hai", send)}
-          {section("Aana hai", incoming)}
-        </>
-      )}
-    </div>
+    <Card data-testid="transfers-widget" className="overflow-hidden">
+      <CardHeader className="flex-row items-center gap-2 border-b border-border py-2.5">
+        <span className="rounded-md bg-brand-50 p-1.5 text-brand-700">
+          <ArrowRightLeft className="h-4 w-4" />
+        </span>
+        <CardTitle className="text-subtitle">Transfers</CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 px-4 py-6 text-body text-gray-500">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+          </div>
+        ) : send.length + incoming.length === 0 ? (
+          <p
+            data-testid="transfers-empty"
+            className="px-4 py-6 text-center text-body text-gray-500"
+          >
+            Koi transfer pending nahi
+          </p>
+        ) : (
+          <>
+            {section("Bhejna hai", send)}
+            {section("Aana hai", incoming)}
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }

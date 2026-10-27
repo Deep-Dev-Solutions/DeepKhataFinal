@@ -8,6 +8,7 @@ import {
   DollarSign,
   ShieldAlert,
 } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 
 type StatsCardsProps = {
   kpis?: {
@@ -49,121 +50,147 @@ export default function StatsCards({ kpis }: StatsCardsProps) {
   const dailyExpenses = Number(kpis?.dailyExpenses || 0);
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {/* 1. Daily Gross Sales */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
-        <div className="flex justify-between items-start">
-          <div className="min-w-0">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-              Daily Gross Sales
-            </p>
-            <h3 className="text-2xl font-black text-slate-900 truncate">
-              Rs. {dailyGrossSales.toLocaleString()}
-            </h3>
-          </div>
-          <div className="p-2 bg-blue-50 text-blue-600 rounded-xl shrink-0">
-            <TrendingUp className="w-5 h-5" />
-          </div>
-        </div>
-        <div className="mt-4 flex items-center text-xs font-semibold">
-          {hasGrowth ? (
-            <span className="text-emerald-600 flex items-center">
-              <ArrowUpRight className="w-3.5 h-3.5 mr-0.5" />+{revenueGrowth}%
+      <Card>
+        <CardContent className="flex flex-col justify-between px-4 py-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="mb-0.5 text-caption font-medium uppercase tracking-wide text-gray-500">
+                Daily Gross Sales
+              </p>
+              <p className="truncate text-title font-semibold text-gray-900">
+                Rs. {dailyGrossSales.toLocaleString()}
+              </p>
+            </div>
+            <span className="shrink-0 rounded-md bg-brand-50 p-1.5 text-brand-700">
+              <TrendingUp className="h-4 w-4" />
             </span>
-          ) : (
-            <span className="text-rose-600 flex items-center">
-              <ArrowDownRight className="w-3.5 h-3.5 mr-0.5" />
-              {revenueGrowth}%
+          </div>
+          <div className="mt-2 flex items-center text-caption font-medium">
+            {hasGrowth ? (
+              <span className="flex items-center text-success">
+                <ArrowUpRight className="mr-0.5 h-3 w-3" />+{revenueGrowth}%
+              </span>
+            ) : (
+              <span className="flex items-center text-danger">
+                <ArrowDownRight className="mr-0.5 h-3 w-3" />
+                {revenueGrowth}%
+              </span>
+            )}
+            <span className="ml-1.5 font-normal text-gray-400">
+              vs yesterday
             </span>
-          )}
-          <span className="text-slate-400 ml-1.5 font-normal">
-            vs yesterday
-          </span>
-        </div>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* 2. Customer Udhar (Receivables) */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
-        <div className="flex justify-between items-start">
-          <div className="min-w-0">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-              Customer Udhar
-            </p>
-            <h3 className="text-2xl font-black text-rose-600 truncate">
-              Rs. {pendingUdhar.toLocaleString()}
-            </h3>
+      <Card>
+        <CardContent className="flex flex-col justify-between px-4 py-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="mb-0.5 text-caption font-medium uppercase tracking-wide text-gray-500">
+                Customer Udhar
+              </p>
+              <p
+                className={`truncate text-title font-semibold ${pendingUdhar > 0 ? "text-danger" : "text-gray-900"}`}
+              >
+                Rs. {pendingUdhar.toLocaleString()}
+              </p>
+            </div>
+            <span
+              className={`shrink-0 rounded-md p-1.5 ${pendingUdhar > 0 ? "bg-danger-bg text-danger" : "bg-gray-100 text-gray-500"}`}
+            >
+              <Wallet className="h-4 w-4" />
+            </span>
           </div>
-          <div className="p-2 bg-rose-50 text-rose-600 rounded-xl shrink-0">
-            <Wallet className="w-5 h-5" />
+          <div className="mt-2 flex items-center text-caption text-gray-500">
+            <span>Across {pendingOrderCount} unsettled orders</span>
           </div>
-        </div>
-        <div className="mt-4 flex items-center text-xs text-slate-500">
-          <span>Across {pendingOrderCount} unsettled orders</span>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* 3. Net Profit (Owner Business Intelligence) */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
-        <div className="flex justify-between items-start">
-          <div className="min-w-0">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-              Today&apos;s Net Profit
-            </p>
+      <Card>
+        <CardContent className="flex flex-col justify-between px-4 py-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="mb-0.5 text-caption font-medium uppercase tracking-wide text-gray-500">
+                Today&apos;s Net Profit
+              </p>
+              {isStaff || netProfit === null ? (
+                <div className="flex items-center gap-1.5 py-0.5 text-gray-400">
+                  <ShieldAlert className="h-3.5 w-3.5 text-warning" />
+                  <span className="text-caption font-semibold">
+                    Owner Access Only
+                  </span>
+                </div>
+              ) : (
+                <p
+                  className={`truncate text-title font-semibold ${
+                    netProfit > 0
+                      ? "text-success"
+                      : netProfit < 0
+                        ? "text-danger"
+                        : "text-gray-900"
+                  }`}
+                >
+                  Rs. {netProfit.toLocaleString()}
+                </p>
+              )}
+            </div>
+            <span
+              className={`shrink-0 rounded-md p-1.5 ${
+                isStaff || netProfit === null
+                  ? "bg-gray-100 text-gray-500"
+                  : netProfit >= 0
+                    ? "bg-success-bg text-success"
+                    : "bg-danger-bg text-danger"
+              }`}
+            >
+              <DollarSign className="h-4 w-4" />
+            </span>
+          </div>
+          <div className="mt-2 flex items-center justify-between text-caption text-gray-500">
             {isStaff || netProfit === null ? (
-              <div className="flex items-center gap-1.5 text-slate-400 py-1">
-                <ShieldAlert className="w-4 h-4 text-amber-500" />
-                <span className="text-xs font-bold">Owner Access Only</span>
-              </div>
+              <span className="text-gray-400">Locked for Staff</span>
             ) : (
-              <h3
-                className={`text-2xl font-black truncate ${
-                  netProfit >= 0 ? "text-emerald-600" : "text-rose-600"
-                }`}
-              >
-                Rs. {netProfit.toLocaleString()}
-              </h3>
+              <>
+                <span className="truncate">
+                  COGS: Rs.{dailyCOGS.toLocaleString()} · Exp: Rs.
+                  {dailyExpenses.toLocaleString()}
+                </span>
+                <span className="ml-1 shrink-0 font-semibold text-gray-700">
+                  {profitMargin}%
+                </span>
+              </>
             )}
           </div>
-          <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl shrink-0">
-            <DollarSign className="w-5 h-5" />
-          </div>
-        </div>
-        <div className="mt-4 flex items-center justify-between text-[11px] text-slate-500">
-          {isStaff || netProfit === null ? (
-            <span className="text-slate-400">Locked for Staff</span>
-          ) : (
-            <>
-              <span className="truncate">
-                COGS: Rs.{dailyCOGS.toLocaleString()} | Exp: Rs.
-                {dailyExpenses.toLocaleString()}
-              </span>
-              <span className="font-bold text-slate-700 shrink-0 ml-1">
-                {profitMargin}% margin
-              </span>
-            </>
-          )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* 4. Active Orders */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
-        <div className="flex justify-between items-start">
-          <div className="min-w-0">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-              Active Orders
-            </p>
-            <h3 className="text-2xl font-black text-slate-900 truncate">
-              {activeOrders}
-            </h3>
+      <Card>
+        <CardContent className="flex flex-col justify-between px-4 py-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="mb-0.5 text-caption font-medium uppercase tracking-wide text-gray-500">
+                Active Orders
+              </p>
+              <p className="truncate text-title font-semibold text-gray-900">
+                {activeOrders}
+              </p>
+            </div>
+            <span className="shrink-0 rounded-md bg-gray-100 p-1.5 text-gray-500">
+              <ShoppingCart className="h-4 w-4" />
+            </span>
           </div>
-          <div className="p-2 bg-blue-50 text-blue-600 rounded-xl shrink-0">
-            <ShoppingCart className="w-5 h-5" />
+          <div className="mt-2 flex items-center text-caption text-gray-500">
+            <span>{pendingOrderCount} waiting for full settlement</span>
           </div>
-        </div>
-        <div className="mt-4 flex items-center text-xs text-slate-500">
-          <span>{pendingOrderCount} waiting for full settlement</span>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

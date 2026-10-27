@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   fetchDues,
   formatRs,
@@ -44,67 +45,66 @@ function Column({
   Icon: React.ComponentType<{ className?: string }>;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-      <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-        <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+    <Card className="overflow-hidden">
+      <CardHeader className="flex-row items-center justify-between border-b border-border pb-2.5">
+        <CardTitle className="flex items-center gap-2 text-subtitle">
           <Icon className={`h-4 w-4 ${tone}`} /> {title}
-        </h2>
+        </CardTitle>
         <Link
           href="/dues"
-          className="text-sm font-medium text-blue-600 hover:text-blue-700"
+          className="text-caption font-medium text-brand-700 hover:text-brand-800 hover:underline"
         >
           Sab dekhein
         </Link>
-      </div>
-      <ul className="divide-y divide-slate-100">
-        {loading ? (
-          <li className="px-4 py-6 text-center text-sm text-slate-500">
-            Loading...
-          </li>
-        ) : rows.length === 0 ? (
-          <li className="px-4 py-6 text-center text-sm text-slate-500">
-            Aaj koi nahi
-          </li>
-        ) : (
-          rows.map((r) => {
-            const content = (
-              <>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-900">
-                    {r.partyName}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {r.daysOverdue > 0
-                      ? `${r.daysOverdue} din late`
-                      : "Aaj due"}
-                    {r.reference ? ` · ${r.reference}` : ""}
-                  </p>
-                </div>
-                <span className={`text-sm font-bold ${tone}`}>
-                  {formatRs(r.amountOpen)}
-                </span>
-              </>
-            );
-            const cls =
-              "flex items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50 transition-colors";
-            return (
-              <li
-                key={`${r.entityType}-${r.entityId}`}
-                data-testid={testId}
-              >
-                {r.link ? (
-                  <Link href={r.link} className={cls}>
-                    {content}
-                  </Link>
-                ) : (
-                  <div className={cls}>{content}</div>
-                )}
-              </li>
-            );
-          })
-        )}
-      </ul>
-    </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        <ul className="divide-y divide-border">
+          {loading ? (
+            <li className="px-4 py-6 text-center text-body text-gray-500">
+              Loading...
+            </li>
+          ) : rows.length === 0 ? (
+            <li className="px-4 py-6 text-center text-body text-gray-500">
+              Aaj koi nahi
+            </li>
+          ) : (
+            rows.map((r) => {
+              const content = (
+                <>
+                  <div className="min-w-0">
+                    <p className="truncate text-body font-semibold text-gray-900">
+                      {r.partyName}
+                    </p>
+                    <p className="text-caption text-gray-500">
+                      {r.daysOverdue > 0
+                        ? `${r.daysOverdue} din late`
+                        : "Aaj due"}
+                      {r.reference ? ` · ${r.reference}` : ""}
+                    </p>
+                  </div>
+                  <span className={`shrink-0 text-body font-semibold ${tone}`}>
+                    {formatRs(r.amountOpen)}
+                  </span>
+                </>
+              );
+              const cls =
+                "flex items-center justify-between gap-3 px-4 py-2.5 transition-colors hover:bg-gray-50";
+              return (
+                <li key={`${r.entityType}-${r.entityId}`} data-testid={testId}>
+                  {r.link ? (
+                    <Link href={r.link} className={cls}>
+                      {content}
+                    </Link>
+                  ) : (
+                    <div className={cls}>{content}</div>
+                  )}
+                </li>
+              );
+            })
+          )}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -146,14 +146,14 @@ export default function DuesTodayWidget() {
   return (
     <div
       data-testid="dues-today-widget"
-      className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6"
+      className="grid grid-cols-1 gap-3 md:grid-cols-2"
     >
       <Column
         title="Aaj wasooli"
         rows={receivable}
         loading={loading}
         testId="dues-today-row"
-        tone="text-emerald-600"
+        tone="text-success"
         Icon={ArrowDownLeft}
       />
       <Column
@@ -161,7 +161,7 @@ export default function DuesTodayWidget() {
         rows={payable}
         loading={loading}
         testId="dues-pay-today-row"
-        tone="text-rose-600"
+        tone="text-danger"
         Icon={ArrowUpRight}
       />
     </div>

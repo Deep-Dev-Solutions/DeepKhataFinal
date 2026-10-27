@@ -56,8 +56,8 @@ export default function SubscriptionBanner() {
       data-testid="subscription-banner"
       className={`w-full px-4 py-2 text-center text-sm font-semibold flex items-center justify-center gap-2 ${
         isExpired
-          ? "bg-red-600 text-white"
-          : "bg-amber-500 text-white"
+          ? "bg-danger text-danger-foreground"
+          : "bg-warning text-warning-foreground"
       }`}
       role="alert"
     >
