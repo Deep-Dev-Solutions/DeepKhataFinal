@@ -116,8 +116,7 @@ test.describe.serial('J: tenant lifecycle from the console', () => {
     const newExpiry = new Date(before.subscriptionExpiresAt!.getTime() + 120 * 24 * 3600 * 1000);
     const isoDay = newExpiry.toISOString().slice(0, 10);
     await page.getByTestId('tenant-payment-amount').fill('15000');
-    // MISSING testid: payment date input (fallback: the only input[type=date]).
-    await page.locator('input[type="date"]').fill(isoDay);
+    await page.getByTestId('tenant-payment-date').fill(isoDay);
     await page.getByTestId('tenant-payment-submit').click();
 
     await expect(page.getByTestId('tenant-billing-row')).toHaveCount(1, { timeout: 30_000 });

@@ -794,6 +794,7 @@ export default function TenantDetailPage() {
               <input
                 type="date"
                 required
+                data-testid="tenant-payment-date"
                 value={paymentDate}
                 onChange={(e) => setPaymentDate(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-success/300"
