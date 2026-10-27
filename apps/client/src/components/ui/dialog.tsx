@@ -37,7 +37,7 @@ function DialogOverlay({
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0",
+        "fixed inset-0 z-50 bg-gray-950/50 transition-opacity duration-200 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0",
         className,
       )}
       {...props}
@@ -56,7 +56,7 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed left-1/2 top-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 duration-200 sm:max-w-lg data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
+          "fixed left-1/2 top-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-border bg-card p-4 shadow-overlay duration-200 sm:max-w-lg data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
           className,
         )}
         {...props}
@@ -64,7 +64,7 @@ function DialogContent({
         {children}
         <DialogPrimitive.Close
           data-slot="dialog-close"
-          className="absolute right-4 top-4 rounded-lg opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:pointer-events-none p-1 text-slate-500 hover:bg-slate-100 cursor-pointer"
+          className="absolute right-3 top-3 cursor-pointer rounded-md p-1 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:pointer-events-none"
         >
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>
@@ -92,7 +92,7 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="dialog-footer"
       className={cn(
-        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end pt-2 border-t border-slate-100",
+        "flex flex-col-reverse gap-2 border-t border-border pt-2 sm:flex-row sm:justify-end",
         className,
       )}
       {...props}
@@ -108,7 +108,7 @@ function DialogTitle({
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cn(
-        "text-lg font-bold text-slate-900 leading-none tracking-tight",
+        "text-title font-semibold leading-tight tracking-normal text-gray-900",
         className,
       )}
       {...props}
@@ -123,7 +123,7 @@ function DialogDescription({
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
-      className={cn("text-sm text-slate-500", className)}
+      className={cn("text-body text-gray-500", className)}
       {...props}
     />
   );

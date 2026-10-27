@@ -50,20 +50,20 @@ export function Modal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         data-testid={props["data-testid"]}
-        className={cn("gap-0 overflow-hidden p-0", SIZE_CLASSES[size], className)}
+        className={cn("gap-0 overflow-hidden p-0 pb-3", SIZE_CLASSES[size], className)}
       >
         {(title || description) && (
-          <DialogHeader className="px-5 py-4">
+          <DialogHeader className="border-b border-border bg-gray-50 px-4 py-3">
             {title ? <DialogTitle>{title}</DialogTitle> : null}
             {description ? (
               <DialogDescription>{description}</DialogDescription>
             ) : null}
           </DialogHeader>
         )}
-        <div data-slot="modal-body" className="max-h-[70vh] overflow-y-auto px-5 py-4">
+        <div data-slot="modal-body" className="max-h-[70vh] overflow-y-auto px-4 py-3">
           {children}
         </div>
-        {footer ? <DialogFooter className="px-5 py-3">{footer}</DialogFooter> : null}
+        {footer ? <DialogFooter className="border-t border-border px-4 py-3">{footer}</DialogFooter> : null}
       </DialogContent>
     </Dialog>
   );
