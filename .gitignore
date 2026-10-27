@@ -19,3 +19,6 @@ others/*
 
 tsconfig.build.tsbuildinfo
 **/.next-e2e*/
+
+# --- playwright auth state (session cookies) ---
+**/.auth/
