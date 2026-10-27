@@ -172,3 +172,27 @@ Decisions needed: these screens still use parts of the old palette and were not 
 Screenshots for the section are in `docs/ui/` (`cash-*-d1`, `dashboard-d2`, `{login,register,verify-email,forgot-password,reset-password}-d3`, `onboarding-step*-d4`, `settings-*-d5`, `agency-*-d6`); `docs/ui/` stays git-excluded.
 
 Next: Section D complete. STOP — Section E not started.
+
+## Day 6 — desktop (Section E)
+
+| # | Task | State | Commit |
+| --- | --- | --- | --- |
+| E1 | New workspace `apps/desktop-online`: Electron shell that loads `CLOUD_URL` (env, default `https://app.deepkhata.com`, bare hosts get `https://`), single instance that re-focuses the running window, tray with Open / Receipt printer / Paper width (80/58 mm) / Start with Windows / Quit, window size+position remembered in `userData/window-state.json` (off-screen positions dropped, 1024x680 minimum, 1366x768 default), closing hides to tray, a hard load failure retries every 5 s instead of showing a local mode; preload exposes only `printReceipt(html, {width})` and `openCashDrawer()` with `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true` | done | bd657f9 |
+| E2 | Client: `lib/receipt-print.ts` detects `window.deepkhata`, serialises the printed slip with its computed styles inlined (the print window never loads Tailwind), and calls the bridge at 80 mm; every other case — no bridge, no slip, printer error — falls through to the existing `window.print()`. `OrderSuccessModal` uses it, new `pos-print-slip` testid; Playwright `tests/pos/print-bridge.spec.ts` proves browser dialog, bridge hand-off (`SALE SLIP`, no `class=`, inlined flex), and the error fallback — 3 passed | done | 7da3e12 |
+| E3 | Shell tests (vitest, 53 passing): preload bridge exposes exactly the two methods and forwards the channels, IPC sanitises the receipt (drops `<script>`, `on*`, `javascript:`) and never throws on bad input or a dead printer, ESC/POS pulse + `\\localhost\<share>` raw target, receipt page sizing in microns with clamps, window-state sanitising/persistence, `CLOUD_URL` parsing, autostart entry, tray menu radios. electron-builder config for Windows NSIS x64 in `package.json` (not run here) | done | bd657f9 |
+| E4 | Installer docs: `apps/desktop/README.md` "Build the Windows installer" rewritten as two followable tracks — on-prem Shop Server (npm ci, server+client build, the exact `pg_dump.exe`/DLL list for `build/pgtools/`, `dist`, first-run smoke check) and the cloud shell (`CLOUD_URL`, `dist`, tray printer setup); new `apps/desktop-online/README.md` documents layout, env, printing/drawer wiring, dev and build steps; runtime of `apps/desktop` untouched | done | a9e0dab |
+| E5 | Checks: `npm run build -w desktop-online` green (tsc), `npm test -w desktop-online` 53 passed, `npm test -w desktop` 40 passed (on-prem unaffected), `npm run build -w client` green, new print-bridge spec 3/3 in 1.2 m; lockfile registers the new workspace; Day 6 report written | done | bd657f9, 7da3e12 |
+
+### Day 6 report
+
+Shipped: `apps/desktop-online`, an Electron shell for the hosted app — single instance, tray (Open, receipt printer, paper width, Start with Windows, Quit), remembered window geometry, and a two-method preload bridge (`printReceipt`, `openCashDrawer`) behind `contextIsolation`/no `nodeIntegration`/`sandbox`. Receipts print silently through a measured hidden window (58/80 mm, no wasted paper); the drawer kick writes the ESC/POS pulse to `\\localhost\<share>`. Offline is the cloud app's own mode — no local server, no second database.
+
+Client: the POS "Print Slip" button now uses the bridge when it exists and otherwise calls `window.print()` exactly as before, including when the printer errors; the slip is serialised with inlined styles so it prints identically without the app stylesheet.
+
+Checks: `npm run build -w desktop-online` green; `npm test -w desktop-online` 53 passed; `npm test -w desktop` 40 passed; `npm run build -w client` green; `tests/pos/print-bridge.spec.ts` 3 passed (CI=1, line reporter).
+
+Not run here, by design: the Windows NSIS build (`npm run dist -w desktop-online`) and the `linux/arm64` Docker builds — both are documented in the READMEs for a Windows/CI machine.
+
+Decisions needed: `DEFAULT_CLOUD_URL` is `https://app.deepkhata.com` as a placeholder because the real domain is not in the repo; set `CLOUD_URL` or edit that constant before shipping. The drawer kick needs the printer shared on Windows (or `drawerTarget` pointed at a device on Linux/macOS) — no native module was added.
+
+Next: Section E complete. STOP — Section F not started.
