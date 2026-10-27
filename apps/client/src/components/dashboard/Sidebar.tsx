@@ -249,57 +249,55 @@ export default function Sidebar() {
             </button>
           </div>
         ) : (
-          <div className="bg-white border border-gray-200 p-2.5 rounded-xl shadow-xs space-y-2">
-            {/* User row + Prominent Logout button */}
-            <div className="flex items-center justify-between gap-2">
+          <div className="bg-card border border-border p-2.5 rounded-md shadow-xs">
+            {/* User identity — full width so the name and email stay readable at 224px */}
+            <Link
+              href="/settings?tab=profile"
+              className="flex items-center gap-2 min-w-0 p-1 -m-1 rounded-md hover:bg-gray-50 transition-colors cursor-pointer group"
+              title="View Profile Settings"
+            >
+              <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-semibold text-xs shrink-0 border border-brand-200 group-hover:border-brand-400 transition-all">
+                {initials || "U"}
+              </div>
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="text-xs font-semibold text-gray-900 truncate leading-tight group-hover:text-brand-600 transition-colors">
+                  {user?.name || "User"}
+                </span>
+                <span className="text-[10px] text-gray-500 truncate leading-tight" title={user?.email || ""}>
+                  {user?.email || ""}
+                </span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all shrink-0" />
+            </Link>
+
+            {/* Role, agency link and a compact logout */}
+            <div className="flex items-center justify-between gap-2 pt-1.5 mt-1.5 border-t border-border text-[10px]">
               <Link
                 href="/settings?tab=profile"
-                className="flex items-center gap-2 min-w-0 p-1 -m-1 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer group flex-1"
+                className="flex items-center gap-1 min-w-0 text-gray-500 hover:text-brand-600 font-medium transition-colors cursor-pointer"
                 title="View Profile Settings"
               >
-                <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-xs shrink-0 border border-brand-200 group-hover:border-brand-400 group-hover:scale-105 transition-all">
-                  {initials || "U"}
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-bold text-gray-900 truncate leading-tight group-hover:text-brand-600 transition-colors">
-                    {user?.name || "User"}
-                  </span>
-                  <span className="text-[10px] text-gray-500 truncate leading-tight">
-                    {user?.email || ""}
-                  </span>
-                </div>
-                <ChevronRight className="w-4 h-4 ml-auto text-gray-300 group-hover:text-brand-500 group-hover:trangray-x-0.5 transition-all shrink-0" />
-              </Link>
-
-              <button
-                onClick={handleLogout}
-                data-testid="sidebar-logout"
-                className="flex items-center gap-1 px-2.5 py-1 text-gray-600 hover:text-danger hover:bg-danger-bg rounded-lg transition-colors cursor-pointer text-xs font-semibold shrink-0 border border-gray-200"
-                title="Log out"
-              >
-                <LogOut className="w-3.5 h-3.5 text-danger" />
-                <span>Logout</span>
-              </button>
-            </div>
-
-            {/* Role & Super Admin Link */}
-            <div className="flex items-center justify-between pt-1.5 border-t border-gray-100 text-[10px]">
-              <Link
-                href="/settings?tab=profile"
-                className="flex items-center gap-1 text-gray-500 hover:text-brand-600 font-medium transition-colors cursor-pointer"
-                title="View Profile Settings"
-              >
-                <ShieldCheck className="w-3 h-3 text-gray-400" />
-                <span>{(user?.role || "OWNER").toUpperCase()}</span>
+                <ShieldCheck className="w-3 h-3 text-gray-400 shrink-0" />
+                <span className="truncate">{(user?.role || "OWNER").toUpperCase()}</span>
               </Link>
               {user?.role === "SUPER_ADMIN" && (
                 <Link
                   href={AGENCY_APP_URL}
-                  className="font-semibold text-brand-600 hover:text-brand-800"
+                  className="font-semibold text-brand-600 hover:text-brand-800 shrink-0"
                 >
-                  Agency Portal →
+                  Agency →
                 </Link>
               )}
+              <button
+                onClick={handleLogout}
+                data-testid="sidebar-logout"
+                className="flex items-center gap-1 ml-auto px-1.5 py-0.5 text-gray-500 hover:text-danger hover:bg-danger-bg rounded transition-colors cursor-pointer shrink-0"
+                title="Log out"
+                aria-label="Log out"
+              >
+                <LogOut className="w-3.5 h-3.5 text-danger" />
+                <span>Logout</span>
+              </button>
             </div>
           </div>
         )}

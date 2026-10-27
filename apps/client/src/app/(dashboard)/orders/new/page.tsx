@@ -1572,7 +1572,7 @@ function CreateOrderPOSContent() {
                         <div className="flex items-center justify-between gap-1.5 w-full">
                           <div className="flex items-center gap-1 flex-wrap min-w-0">
                             <span className="inline-flex items-center gap-1 text-caption font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 border border-border shrink-0 truncate max-w-32">
-                              <Box className="w-2.5 h-2.5 shrink-0 text-gray-600" />
+                              <Box className="w-2 h-2 shrink-0 text-gray-600" />
                               <span className="truncate">
                                 {product.cabinet?.name ||
                                   (Array.isArray(product.instances)
@@ -1648,14 +1648,17 @@ function CreateOrderPOSContent() {
                       >
                         {/* Card Header: Category & Stock Status */}
                         <div className="flex items-center justify-between gap-1.5 mb-1.5 w-full">
-                          <span className="text-caption font-semibold text-gray-500 uppercase tracking-wider truncate">
+                          <span
+                            title={product.category?.name || "General"}
+                            className="min-w-0 text-[11px] font-semibold text-gray-500 uppercase tracking-normal truncate"
+                          >
                             {product.category?.name || "General"}
                           </span>
                           {isRemoteBranch ? (
                             <Badge
                               data-testid="pos-remote-badge"
                               variant="warning"
-                              className="shrink-0 uppercase"
+                              className="shrink-0"
                             >
                               Remote Stock
                             </Badge>
@@ -1663,7 +1666,7 @@ function CreateOrderPOSContent() {
                             <Badge
                               data-testid="pos-remote-badge"
                               variant="danger"
-                              className="shrink-0 uppercase"
+                              className="shrink-0"
                             >
                               {(product as any).otherBranchesWithStock?.length >
                               0
@@ -1682,7 +1685,7 @@ function CreateOrderPOSContent() {
 
                         {/* Product Title (2 lines max, never clipped or cut off) */}
                         <h4
-                          className={`font-bold text-xs sm:text-sm line-clamp-2 leading-snug mb-1.5 wrap-break-words ${
+                          className={`font-bold text-xs sm:text-sm line-clamp-2 leading-tight mb-1.5 wrap-break-words ${
                             isRemoteBranch
                               ? "text-gray-800"
                               : isOutOfStock
@@ -1693,9 +1696,14 @@ function CreateOrderPOSContent() {
                           {product.name}
                         </h4>
 
-                        {/* Cabinet & Spatial Bin Location */}
-                        <div className="flex flex-wrap items-center gap-1 mb-2">
-                          <span className="inline-flex items-center gap-1 text-caption font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 border border-border truncate max-w-36">
+                        {/* Cabinet & Spatial Bin Location — always one line */}
+                        <div className="flex flex-nowrap items-center gap-1 mb-1 w-full overflow-hidden">
+                          <span
+                            title={
+                              product.cabinet?.name || primaryCabinet?.name || "No Cabinet"
+                            }
+                            className="inline-flex min-w-0 items-center gap-0.5 text-[10px] font-semibold px-1 h-[18px] rounded bg-gray-100 text-gray-700 border border-border"
+                          >
                             <Box className="w-2.5 h-2.5 shrink-0 text-gray-600" />
                             <span className="truncate">
                               {product.cabinet?.name ||
@@ -1706,15 +1714,18 @@ function CreateOrderPOSContent() {
 
                           {/* Spatial Bin Location */}
                           {loc && (
-                            <span className="inline-flex items-center gap-0.5 text-caption font-medium text-gray-600 bg-gray-100 border border-border px-1.5 py-0.5 rounded truncate max-w-28">
-                              <MapPin className="w-2.5 h-2.5 shrink-0" />
+                            <span
+                              title={String(loc)}
+                              className="inline-flex min-w-0 items-center gap-0.5 text-[10px] font-medium text-gray-600 bg-gray-100 border border-border px-1 h-[18px] rounded"
+                            >
+                              <MapPin className="w-2 h-2 shrink-0" />
                               <span className="truncate">{String(loc)}</span>
                             </span>
                           )}
                         </div>
 
                         {/* Bottom: Price & Quick Action */}
-                        <div className="mt-auto pt-2 border-t border-border flex items-center justify-between gap-1 w-full">
+                        <div className="mt-auto pt-1 border-t border-border flex items-center justify-between gap-1 w-full">
                           <span
                             className={`font-semibold text-xs sm:text-sm ${
                               isRemoteBranch
