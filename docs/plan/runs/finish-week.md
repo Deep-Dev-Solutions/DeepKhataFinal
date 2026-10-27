@@ -104,3 +104,14 @@ Status: Day-2 implementation queued.
 | B4a | POS screen on the tokens/UI kit: brand+neutral+success/danger only, shared Input/Button/Badge/EmptyState/Skeleton, no handler changes, 23/23 `pos-*` testids kept; `npm run build -w client` green, `tests/pos` 19 passed / 1 pre-existing skip | done | fb8cbf5 |
 | B4b | Checkout drawer on the tokens/UI kit: solid backdrop (no blur), shared Button/Input/Select/Badge, `lg` submit + 44px controls, 18/18 testids kept, no handler changes; `npm run build -w client` green, `tests/pos` 19 passed / 1 pre-existing skip | done | 8f8527e |
 | B5 | After screenshots at 1366x768 via `node apps/e2e/scripts/ui-shots.mjs after`: new blue/gray shell, tokenised POS; `docs/ui/*-after.png` written next to the before shots (docs/ui stays git-excluded, same as B0) | done | docs-only |
+| B6 | Section checks: `npm run build -w client` green (28 routes), `tests/pos` 19 passed / 1 pre-existing skip, `tests/smoke.spec.ts` 7/7 after reseed; Day 3 report below | done | — |
+
+### Day 3 report
+
+- Shipped: design tokens in `globals.css` (brand blue, gray scale, success/warning/danger, 14px base type scale, control heights, 6px radius, flat shadows, `.dk-zebra`) with Inter via `next/font`; a 12-part shared UI kit under `components/ui/` (Button, Input, Select, Table, Card, Modal, PageHeader, EmptyState, Badge, Toast, Skeleton, plus the existing dialogs); app shell at 224px/56px with a brand active state; POS screen and checkout drawer rebuilt on tokens + kit — deep blue actions, neutral structure, green/red only for money, 44px touch targets on the checkout controls, no gradients or blur.
+- Behaviour unchanged: POS handlers untouched; 23 `pos-*` and 18 checkout testids kept; only `className`/element swaps.
+- Checks: `npm run build -w client` green (28 routes); `tests/pos` 19 passed / 1 pre-existing skip; `tests/smoke.spec.ts` 7 passed after reseed.
+- Screenshots: `docs/ui/{dashboard,pos}-{before,after}.png` at 1366x768 (git-excluded like B0; rerun needs dev servers on :3000/:5000).
+- Failing: nothing.
+- Decisions needed: none.
+- Next: Section C (Day 4, daily screens). Not started.
