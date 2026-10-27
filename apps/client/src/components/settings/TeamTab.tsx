@@ -427,10 +427,10 @@ export default function TeamTab() {
       {/* 🟢 HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-base font-semibold text-slate-900">
+          <h2 className="text-base font-semibold text-gray-900">
             Team Management
           </h2>
-          <p className="text-sm text-slate-500">
+          <p className="text-body text-gray-500">
             Invite staff, manage roles, and monitor access.
           </p>
         </div>
@@ -441,7 +441,7 @@ export default function TeamTab() {
             data-testid="team-create-open"
             onClick={openCreate}
             disabled={readOnly || !canManageTeam}
-            className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border border-blue-200 text-blue-700 bg-white hover:bg-blue-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+            className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-body font-semibold border border-brand-200 text-brand-700 bg-card hover:bg-brand-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
           >
             <UserCog className="w-4 h-4" /> Create staff login
           </button>
@@ -454,10 +454,10 @@ export default function TeamTab() {
                 ? "Subscription expired. System is in read-only mode."
                 : undefined
             }
-            className={`flex items-center justify-center gap-2 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow-sm shadow-blue-200 disabled:opacity-60 ${
+            className={`flex items-center justify-center gap-2 text-white px-4 py-2 rounded-lg text-body font-semibold transition-colors shadow-sm shadow-brand disabled:opacity-60 ${
               readOnly
-                ? "bg-slate-400 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-700 cursor-pointer"
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-brand-700 hover:bg-brand-700 cursor-pointer"
             }`}
           >
             <UserPlus className="w-4 h-4" /> {readOnly ? "Read-only" : "Invite Staff"}
@@ -466,15 +466,15 @@ export default function TeamTab() {
       </div>
 
       {error && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="rounded-lg border border-danger bg-danger-bg px-4 py-3 text-body text-danger">
           {error}
         </div>
       )}
 
       {/* 🟢 RBAC INFO BOX */}
-      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-start gap-3">
-        <Shield className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-        <p className="text-sm text-blue-800 leading-relaxed">
+      <div className="bg-brand-50 border border-brand-200 rounded-lg p-4 flex items-start gap-3">
+        <Shield className="w-5 h-5 text-brand-700 shrink-0 mt-0.5" />
+        <p className="text-body text-brand-700 leading-relaxed">
           <strong>Role Definitions:</strong> Owners have full access, can delete
           records, and see total revenue. Managers can view reports but cannot
           delete workspaces. Staff can only create orders and process payments.
@@ -484,16 +484,16 @@ export default function TeamTab() {
       {/* ==========================================
           UNIFIED TEAM TABLE
       ========================================== */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-card rounded-lg border border-border shadow-sm overflow-hidden">
         {/* 🟢 SUB-TABS (Toggle Active vs Pending) */}
-        <div className="border-b border-slate-200 bg-slate-50 px-5 pt-4 flex gap-6">
+        <div className="border-b border-border bg-gray-50 px-5 pt-4 flex gap-6">
           <button
             data-testid="team-tab-active"
             onClick={() => setViewState("active")}
-            className={`pb-3 text-sm font-bold border-b-2 transition-colors -mb-px ${
+            className={`pb-3 text-body font-semibold border-b-2 transition-colors -mb-px ${
               viewState === "active"
-                ? "border-blue-600 text-blue-700"
-                : "border-transparent text-slate-500 hover:text-slate-800"
+                ? "border-brand-200 text-brand-700"
+                : "border-transparent text-gray-500 hover:text-gray-800"
             }`}
           >
             Active Members ({activeMembers.filter((m) => !m.deactivatedAt).length})
@@ -502,15 +502,15 @@ export default function TeamTab() {
           <button
             data-testid="team-tab-pending"
             onClick={() => setViewState("pending")}
-            className={`pb-3 text-sm font-bold border-b-2 transition-colors -mb-px flex items-center gap-2 ${
+            className={`pb-3 text-body font-semibold border-b-2 transition-colors -mb-px flex items-center gap-2 ${
               viewState === "pending"
-                ? "border-amber-500 text-amber-700"
-                : "border-transparent text-slate-500 hover:text-slate-800"
+                ? "border-warning/300 text-warning"
+                : "border-transparent text-gray-500 hover:text-gray-800"
             }`}
           >
             Pending Invites
             <span
-              className={`px-1.5 py-0.5 rounded-full text-[10px] ${viewState === "pending" ? "bg-amber-100 text-amber-700" : "bg-slate-200 text-slate-600"}`}
+              className={`px-1.5 py-0.5 rounded-full text-caption ${viewState === "pending" ? "bg-warning-bg text-warning" : "bg-gray-200 text-gray-600"}`}
             >
               {pending.length}
             </span>
@@ -518,25 +518,25 @@ export default function TeamTab() {
         </div>
 
         <div className="overflow-x-auto min-h-[250px]">
-          <table className="w-full text-left text-sm whitespace-nowrap">
+          <table className="w-full text-left text-body whitespace-nowrap">
             {/* 🟢 ACTIVE MEMBERS VIEW */}
             {viewState === "active" && (
               <>
-                <thead className="border-b border-slate-100 text-slate-500 bg-white">
+                <thead className="border-b border-border text-gray-500 bg-card">
                   <tr>
-                    <th className="px-5 py-3 font-medium">User Details</th>
-                    <th className="px-5 py-3 font-medium">Role</th>
-                    <th className="px-5 py-3 font-medium text-right">
+                    <th className="px-3 py-2.5 font-medium">User Details</th>
+                    <th className="px-3 py-2.5 font-medium">Role</th>
+                    <th className="px-3 py-2.5 font-medium text-right">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50 text-slate-700">
+                <tbody className="divide-y divide-gray-50 text-gray-700">
                   {loading && (
                     <tr>
                       <td
                         colSpan={3}
-                        className="px-5 py-12 text-center text-slate-500 text-sm"
+                        className="px-3 py-12 text-center text-gray-500 text-body"
                       >
                         Loading active members...
                       </td>
@@ -547,21 +547,21 @@ export default function TeamTab() {
                       <tr
                         key={user.id}
                         data-testid="team-member-row"
-                        className={`hover:bg-slate-50 transition-colors ${
+                        className={`hover:bg-gray-50 transition-colors ${
                           user.deactivatedAt ? "opacity-70" : ""
                         }`}
                       >
-                        <td className="px-5 py-3">
+                        <td className="px-3 py-2.5">
                           <div className="flex flex-col">
-                            <span className="font-bold text-slate-900">
+                            <span className="font-semibold text-gray-900">
                               {user.name}
                             </span>
-                            <span className="text-xs text-slate-500">
+                            <span className="text-caption text-gray-500">
                               {user.email || user.username}
                             </span>
                             <span
                               data-testid="team-member-activity"
-                              className="text-[11px] text-slate-400"
+                              className="text-caption text-gray-400"
                             >
                               {formatLastActive(user.lastActiveAt)} ·{" "}
                               {user.activeSessions} active session
@@ -569,33 +569,33 @@ export default function TeamTab() {
                             </span>
                           </div>
                         </td>
-                        <td className="px-5 py-3">
+                        <td className="px-3 py-2.5">
                           {user.deactivatedAt && (
                             <span
                               data-testid="team-member-deactivated"
-                              className="mr-2 px-2 py-1 rounded-md text-[10px] font-bold tracking-wider bg-rose-100 text-rose-700"
+                              className="mr-2 px-2 py-1 rounded-md text-caption font-semibold tracking-wider bg-danger-bg text-danger"
                             >
                               DEACTIVATED
                             </span>
                           )}
                           {/* Static Badge in the Role Column */}
                           <span
-                            className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider ${
+                            className={`px-2.5 py-1 rounded-md text-caption font-semibold tracking-wider ${
                               user.role === "OWNER"
-                                ? "bg-indigo-100 text-indigo-700"
-                                : "bg-slate-100 text-slate-600 border border-slate-200"
+                                ? "bg-brand-50 text-brand-700"
+                                : "bg-gray-100 text-gray-600 border border-border"
                             }`}
                           >
                             {user.role}
                           </span>
                         </td>
-                        <td className="px-5 py-3 text-right">
+                        <td className="px-3 py-2.5 text-right">
                           {user.isOwner ? (
-                            <span className="text-xs font-medium text-slate-400 italic pr-2">
+                            <span className="text-caption font-medium text-gray-400 italic pr-2">
                               Cannot edit owner
                             </span>
                           ) : (
-                            <div className="flex items-center justify-end gap-2">
+                            <div className="flex items-center justify-end gap-1.5">
                               {/* 🟢 MOVED: Change Role Dropdown inside Actions */}
                               <div className="relative">
                                 <select
@@ -615,14 +615,14 @@ export default function TeamTab() {
                                       });
                                     }
                                   }}
-                                  className="bg-white border border-slate-200 text-slate-700 py-1.5 pl-3 pr-7 rounded-md text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer appearance-none hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="h-[var(--control-md)] rounded-md border border-input bg-white pl-2.5 pr-7 text-sm text-foreground text-caption font-semibold focus:outline-none focus:ring-2 focus:ring-brand-300 cursor-pointer appearance-none hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   <option value="STAFF">Change to STAFF</option>
                                   <option value="MANAGER">
                                     Change to MANAGER
                                   </option>
                                 </select>
-                                <ChevronDown className="w-3 h-3 absolute right-2 top-2 text-slate-400 pointer-events-none" />
+                                <ChevronDown className="w-3 h-3 absolute right-2 top-2 text-gray-400 pointer-events-none" />
                               </div>
 
                               <button
@@ -639,7 +639,7 @@ export default function TeamTab() {
                                   isSelf(user)
                                 }
                                 title="Set a new password"
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-slate-600 hover:bg-slate-100 rounded-md transition-colors text-xs font-semibold border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1.5 text-caption font-semibold text-gray-600 transition-colors hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 <KeyRound className="w-3.5 h-3.5" /> Reset password
                               </button>
@@ -655,7 +655,7 @@ export default function TeamTab() {
                                   user.activeSessions === 0
                                 }
                                 title="Sign out of every device"
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-slate-600 hover:bg-slate-100 rounded-md transition-colors text-xs font-semibold border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1.5 text-caption font-semibold text-gray-600 transition-colors hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 <LogOut className="w-3.5 h-3.5" /> Sign out
                               </button>
@@ -671,7 +671,7 @@ export default function TeamTab() {
                                     )
                                   }
                                   disabled={readOnly || !canManageTeam || memberBusy}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 text-emerald-700 hover:bg-emerald-50 rounded-md transition-colors text-xs font-semibold border border-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="flex items-center gap-1.5 px-2 py-1.5 text-success hover:bg-success-bg rounded-md transition-colors text-caption font-semibold border border-success disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   <UserCheck className="w-3.5 h-3.5" /> Reactivate
                                 </button>
@@ -685,7 +685,7 @@ export default function TeamTab() {
                                     memberBusy ||
                                     isSelf(user)
                                   }
-                                  className="flex items-center gap-1.5 px-3 py-1.5 text-amber-700 hover:bg-amber-50 rounded-md transition-colors text-xs font-semibold border border-amber-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="flex items-center gap-1.5 px-2 py-1.5 text-warning hover:bg-warning-bg rounded-md transition-colors text-caption font-semibold border border-warning disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   <UserX className="w-3.5 h-3.5" /> Deactivate
                                 </button>
@@ -701,7 +701,7 @@ export default function TeamTab() {
                                   memberBusy ||
                                   isSelf(user)
                                 }
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-rose-600 hover:bg-rose-50 rounded-md transition-colors text-xs font-semibold border border-transparent hover:border-rose-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="flex items-center gap-1.5 px-2 py-1.5 text-danger hover:bg-danger-bg rounded-md transition-colors text-caption font-semibold border border-transparent hover:border-danger/30 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 <Trash2 className="w-3.5 h-3.5" /> Revoke
                               </button>
@@ -715,7 +715,7 @@ export default function TeamTab() {
                     <tr>
                       <td
                         colSpan={3}
-                        className="px-5 py-12 text-center text-slate-500 text-sm"
+                        className="px-3 py-12 text-center text-gray-500 text-body"
                       >
                         No active members found.
                       </td>
@@ -728,21 +728,21 @@ export default function TeamTab() {
             {/* 🟢 PENDING INVITES VIEW */}
             {viewState === "pending" && (
               <>
-                <thead className="border-b border-slate-100 text-slate-500 bg-white">
+                <thead className="border-b border-border text-gray-500 bg-card">
                   <tr>
-                    <th className="px-5 py-3 font-medium">Invited Email</th>
-                    <th className="px-5 py-3 font-medium">Role Assigned</th>
-                    <th className="px-5 py-3 font-medium text-right">
+                    <th className="px-3 py-2.5 font-medium">Invited Email</th>
+                    <th className="px-3 py-2.5 font-medium">Role Assigned</th>
+                    <th className="px-3 py-2.5 font-medium text-right">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50 text-slate-700 bg-amber-50/10">
+                <tbody className="divide-y divide-gray-50 text-gray-700 bg-warning-bg/10">
                   {loading && (
                     <tr>
                       <td
                         colSpan={3}
-                        className="px-5 py-12 text-center text-slate-500 text-sm"
+                        className="px-3 py-12 text-center text-gray-500 text-body"
                       >
                         Loading pending invites...
                       </td>
@@ -753,30 +753,30 @@ export default function TeamTab() {
                       <tr
                         key={invite.id}
                         data-testid="team-invite-row"
-                        className="hover:bg-amber-50/50 transition-colors"
+                        className="hover:bg-warning-bg/50 transition-colors"
                       >
-                        <td className="px-5 py-3">
+                        <td className="px-3 py-2.5">
                           <div className="flex flex-col">
-                            <span className="font-semibold text-slate-900">
+                            <span className="font-semibold text-gray-900">
                               {invite.email}
                             </span>
-                            <span className="text-xs text-amber-600">
+                            <span className="text-caption text-warning">
                               Sent {invite.sentAt}
                             </span>
                           </div>
                         </td>
-                        <td className="px-5 py-3">
-                          <span className="px-2 py-1 rounded text-[10px] font-bold tracking-wider bg-white text-slate-600 border border-slate-200 shadow-sm">
+                        <td className="px-3 py-2.5">
+                          <span className="px-2 py-1 rounded text-caption font-semibold tracking-wider bg-card text-gray-600 border border-border shadow-sm">
                             {invite.role}
                           </span>
                         </td>
-                        <td className="px-5 py-3 text-right">
-                          <div className="flex items-center justify-end gap-2">
+                        <td className="px-3 py-2.5 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
                             <button
                               data-testid="team-invite-resend"
                               onClick={() => handleResendInvite(invite.email)}
                               disabled={processing !== null}
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors text-xs font-semibold border border-transparent hover:border-blue-100 bg-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-brand-700 hover:bg-brand-50 rounded-md transition-colors text-caption font-semibold border border-transparent hover:border-brand-200 bg-card shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               <Mail className="w-3.5 h-3.5" />
                               {processing?.email === invite.email &&
@@ -788,7 +788,7 @@ export default function TeamTab() {
                               data-testid="team-invite-cancel"
                               onClick={() => setCancelInviteEmail(invite.email)}
                               disabled={processing !== null}
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-600 rounded-md transition-colors text-xs font-semibold border border-transparent hover:border-rose-100 bg-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-gray-500 hover:bg-danger-bg hover:text-danger rounded-md transition-colors text-caption font-semibold border border-transparent hover:border-danger/30 bg-card shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               <XCircle className="w-3.5 h-3.5" />
                               {processing?.email === invite.email &&
@@ -805,7 +805,7 @@ export default function TeamTab() {
                     <tr>
                       <td
                         colSpan={3}
-                        className="px-5 py-12 text-center text-slate-500 text-sm"
+                        className="px-3 py-12 text-center text-gray-500 text-body"
                       >
                         No pending invitations.
                       </td>
@@ -939,17 +939,17 @@ export default function TeamTab() {
 
       {/* Reset password modal */}
       {resetTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4">
           <div
             data-testid="team-reset-dialog"
-            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+            className="w-full max-w-md rounded-lg bg-card p-6 shadow-xl"
           >
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="text-base font-bold text-slate-900">
+                <h3 className="text-base font-semibold text-gray-900">
                   Reset password
                 </h3>
-                <p className="text-sm text-slate-500">
+                <p className="text-body text-gray-500">
                   New password for {resetTarget.name}. They are signed out
                   everywhere.
                 </p>
@@ -957,7 +957,7 @@ export default function TeamTab() {
               <button
                 type="button"
                 onClick={() => setResetTarget(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-gray-400 hover:text-gray-600"
                 aria-label="Close"
               >
                 <X className="w-4 h-4" />
@@ -971,12 +971,12 @@ export default function TeamTab() {
               value={resetPassword}
               onChange={(e) => setResetPassword(e.target.value)}
               placeholder="At least 8 characters"
-              className="mt-4 w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 h-[var(--control-md)] px-2.5 py-1"
             />
             {resetError && (
               <p
                 data-testid="team-reset-error"
-                className="mt-2 text-sm text-rose-600"
+                className="mt-2 text-body text-danger"
               >
                 {resetError}
               </p>
@@ -985,7 +985,7 @@ export default function TeamTab() {
               <button
                 type="button"
                 onClick={() => setResetTarget(null)}
-                className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100"
+                className="px-4 py-2 rounded-lg text-body font-semibold text-gray-600 hover:bg-gray-100"
               >
                 Cancel
               </button>
@@ -994,7 +994,7 @@ export default function TeamTab() {
                 data-testid="team-reset-submit"
                 disabled={memberBusy || resetPassword.length < 8}
                 onClick={() => void handleResetPassword()}
-                className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60"
+                className="px-4 py-2 rounded-lg text-body font-semibold text-white bg-brand-700 hover:bg-brand-700 disabled:opacity-60"
               >
                 {memberBusy ? "Saving..." : "Reset password"}
               </button>
@@ -1005,17 +1005,17 @@ export default function TeamTab() {
 
       {/* Create staff login modal */}
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 overflow-y-auto">
           <div
             data-testid="team-create-dialog"
-            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+            className="w-full max-w-md rounded-lg bg-card p-6 shadow-xl"
           >
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="text-base font-bold text-slate-900">
+                <h3 className="text-base font-semibold text-gray-900">
                   Create staff login
                 </h3>
-                <p className="text-sm text-slate-500">
+                <p className="text-body text-gray-500">
                   For staff without email. They sign in with a username and the
                   password you set.
                 </p>
@@ -1024,7 +1024,7 @@ export default function TeamTab() {
                 type="button"
                 data-testid="team-create-close"
                 onClick={closeCreate}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-gray-400 hover:text-gray-600"
                 aria-label="Close"
               >
                 <X className="w-4 h-4" />
@@ -1034,18 +1034,18 @@ export default function TeamTab() {
             {createResult ? (
               <div
                 data-testid="team-create-result"
-                className="mt-4 space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900"
+                className="mt-4 space-y-3 rounded-lg border border-success bg-success-bg p-4 text-body text-success"
               >
                 <p className="font-semibold">
                   Login created for {createResult.member.name}.
                 </p>
                 <dl className="space-y-1">
                   <div>
-                    <dt className="text-xs text-emerald-700">Login page</dt>
+                    <dt className="text-caption text-success">Login page</dt>
                     <dd className="break-all">{createResult.loginUrl}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-emerald-700">Username</dt>
+                    <dt className="text-caption text-success">Username</dt>
                     <dd
                       data-testid="team-create-result-username"
                       className="font-mono break-all"
@@ -1054,7 +1054,7 @@ export default function TeamTab() {
                     </dd>
                   </div>
                 </dl>
-                <p className="text-xs text-emerald-700">
+                <p className="text-caption text-success">
                   The password is shown only in the WhatsApp message below. Share
                   it now; it cannot be viewed later.
                 </p>
@@ -1063,7 +1063,7 @@ export default function TeamTab() {
                   href={`https://wa.me/?text=${encodeURIComponent(createResult.whatsappText)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700"
+                  className="inline-flex items-center gap-2 rounded-lg bg-success px-4 py-2 text-body font-semibold text-white hover:bg-success"
                 >
                   <MessageCircle className="w-4 h-4" /> Share on WhatsApp
                 </a>
@@ -1072,7 +1072,7 @@ export default function TeamTab() {
                     type="button"
                     data-testid="team-create-done"
                     onClick={closeCreate}
-                    className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-700 hover:bg-white"
+                    className="px-4 py-2 rounded-lg text-body font-semibold text-gray-700 hover:bg-card"
                   >
                     Done
                   </button>
@@ -1083,7 +1083,7 @@ export default function TeamTab() {
                 <div>
                   <label
                     htmlFor="team-create-name"
-                    className="block text-xs font-semibold text-slate-600 mb-1"
+                    className="block text-caption font-semibold text-gray-600 mb-1"
                   >
                     Full name
                   </label>
@@ -1096,14 +1096,14 @@ export default function TeamTab() {
                     onChange={(e) =>
                       setCreateForm((f) => ({ ...f, name: e.target.value }))
                     }
-                    className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 h-[var(--control-md)] px-2.5 py-1"
                     placeholder="Ali Raza"
                   />
                 </div>
                 <div>
                   <label
                     htmlFor="team-create-username"
-                    className="block text-xs font-semibold text-slate-600 mb-1"
+                    className="block text-caption font-semibold text-gray-600 mb-1"
                   >
                     Username (login becomes username@your-shop)
                   </label>
@@ -1118,14 +1118,14 @@ export default function TeamTab() {
                     onChange={(e) =>
                       setCreateForm((f) => ({ ...f, username: e.target.value }))
                     }
-                    className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 h-[var(--control-md)] px-2.5 py-1"
                     placeholder="ali"
                   />
                 </div>
                 <div>
                   <label
                     htmlFor="team-create-password"
-                    className="block text-xs font-semibold text-slate-600 mb-1"
+                    className="block text-caption font-semibold text-gray-600 mb-1"
                   >
                     Password
                   </label>
@@ -1141,14 +1141,14 @@ export default function TeamTab() {
                     onChange={(e) =>
                       setCreateForm((f) => ({ ...f, password: e.target.value }))
                     }
-                    className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 h-[var(--control-md)] px-2.5 py-1"
                     placeholder="At least 8 characters"
                   />
                 </div>
                 <div>
                   <label
                     htmlFor="team-create-role"
-                    className="block text-xs font-semibold text-slate-600 mb-1"
+                    className="block text-caption font-semibold text-gray-600 mb-1"
                   >
                     Role
                   </label>
@@ -1159,17 +1159,17 @@ export default function TeamTab() {
                     onChange={(e) =>
                       setCreateForm((f) => ({ ...f, role: e.target.value }))
                     }
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 h-[var(--control-md)] px-2.5 py-1"
                   >
                     <option value="STAFF">STAFF</option>
                     <option value="MANAGER">MANAGER</option>
                   </select>
                 </div>
                 <fieldset data-testid="team-create-branches" className="space-y-2">
-                  <legend className="text-xs font-semibold text-slate-600 mb-1">
+                  <legend className="text-caption font-semibold text-gray-600 mb-1">
                     Branch access
                   </legend>
-                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <label className="flex items-center gap-2 text-body text-gray-700">
                     <input
                       type="checkbox"
                       data-testid="team-create-all-branches"
@@ -1180,7 +1180,7 @@ export default function TeamTab() {
                           allBranches: e.target.checked,
                         }))
                       }
-                      className="h-4 w-4 rounded border-slate-300"
+                      className="h-4 w-4 rounded border-gray-300"
                     />
                     All branches
                   </label>
@@ -1188,7 +1188,7 @@ export default function TeamTab() {
                     branches.map((branch) => (
                       <label
                         key={branch.id}
-                        className="flex items-center gap-2 pl-6 text-sm text-slate-700"
+                        className="flex items-center gap-2 pl-6 text-body text-gray-700"
                       >
                         <input
                           type="checkbox"
@@ -1202,7 +1202,7 @@ export default function TeamTab() {
                                 : f.branchIds.filter((id) => id !== branch.id),
                             }))
                           }
-                          className="h-4 w-4 rounded border-slate-300"
+                          className="h-4 w-4 rounded border-gray-300"
                         />
                         {branch.name}
                       </label>
@@ -1211,7 +1211,7 @@ export default function TeamTab() {
                 {createError && (
                   <p
                     data-testid="team-create-error"
-                    className="text-sm text-rose-600"
+                    className="text-body text-danger"
                   >
                     {createError}
                   </p>
@@ -1220,7 +1220,7 @@ export default function TeamTab() {
                   <button
                     type="button"
                     onClick={closeCreate}
-                    className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100"
+                    className="px-4 py-2 rounded-lg text-body font-semibold text-gray-600 hover:bg-gray-100"
                   >
                     Cancel
                   </button>
@@ -1228,7 +1228,7 @@ export default function TeamTab() {
                     type="submit"
                     data-testid="team-create-submit"
                     disabled={createBusy}
-                    className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60"
+                    className="px-4 py-2 rounded-lg text-body font-semibold text-white bg-brand-700 hover:bg-brand-700 disabled:opacity-60"
                   >
                     {createBusy ? "Creating..." : "Create login"}
                   </button>

@@ -14,6 +14,7 @@ import {
   Loader2,
   Lock,
 } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
 import { useAuth } from "@/context/AuthContext";
@@ -223,37 +224,28 @@ export default function CabinetsSettingsPage() {
   };
 
   return (
-    <div data-testid="cabinets-page" className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-500 pb-12 mt-2 font-sans">
-      {/* Header */}
-      <div className="flex items-center gap-3 pb-5 border-b border-slate-200">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Archive className="w-6 h-6 text-indigo-600" />
-            Spatial Cabinets
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Define the physical Rack &rarr; Shelf &rarr; Bin layout of Hafeez
-            Centre so every part has a home.
-          </p>
-        </div>
-      </div>
+    <div data-testid="cabinets-page" className="mt-1 space-y-4 animate-in pb-12 fade-in duration-300">
+      <PageHeader
+        title="Spatial Cabinets"
+        subtitle="Define the physical Rack &rarr; Shelf &rarr; Bin layout of Hafeez Centre so every part has a home."
+      />
 
       {successMsg && (
-        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-sm font-bold text-emerald-800 shadow-sm animate-in fade-in">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+        <div className="p-3.5 bg-success-bg border border-success/30 rounded-lg flex items-center gap-2 text-body font-semibold text-success shadow-sm animate-in fade-in">
+          <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
           {successMsg}
         </div>
       )}
 
       {pageError && (
-        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between text-sm font-semibold text-rose-800 shadow-sm animate-in fade-in">
+        <div className="p-3.5 bg-danger-bg border border-danger/30 rounded-lg flex items-center justify-between text-body font-semibold text-danger shadow-sm animate-in fade-in">
           <span className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+            <AlertCircle className="w-4 h-4 shrink-0 text-danger" />
             {pageError}
           </span>
           <button
             onClick={() => setPageError("")}
-            className="text-rose-500 hover:text-rose-700 font-bold cursor-pointer"
+            className="text-danger hover:text-danger font-semibold cursor-pointer"
           >
             &times;
           </button>
@@ -264,15 +256,15 @@ export default function CabinetsSettingsPage() {
         {/* CREATE FORM */}
         <form
           onSubmit={handleCreateCabinet}
-          className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4"
+          className="bg-card rounded-lg border border-border shadow-sm p-6 space-y-4"
         >
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-indigo-500" />
+          <h3 className="flex items-center gap-1.5 text-subtitle font-semibold text-gray-900">
+            <Layers className="w-3.5 h-3.5 text-brand-700" />
             Create New Cabinet
           </h3>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+            <label className="block text-body font-semibold text-gray-700 mb-1.5">
               Cabinet Name (Optional)
             </label>
             <input
@@ -281,13 +273,13 @@ export default function CabinetsSettingsPage() {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="e.g. Display Rack"
-              className="w-full border border-slate-300 rounded-xl py-2.5 px-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 h-[var(--control-md)] px-2.5 py-1"
             />
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label className="block text-caption font-semibold text-gray-700 mb-1">
                 Rack
               </label>
               <input
@@ -296,11 +288,11 @@ export default function CabinetsSettingsPage() {
                 value={newRack}
                 onChange={(e) => setNewRack(e.target.value)}
                 placeholder="e.g. A"
-                className="w-full border border-slate-300 rounded-xl py-2 px-3 text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 h-[var(--control-md)] px-2.5 py-1 font-medium"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label className="block text-caption font-semibold text-gray-700 mb-1">
                 Shelf
               </label>
               <input
@@ -309,11 +301,11 @@ export default function CabinetsSettingsPage() {
                 value={newShelf}
                 onChange={(e) => setNewShelf(e.target.value)}
                 placeholder="e.g. 2"
-                className="w-full border border-slate-300 rounded-xl py-2 px-3 text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 h-[var(--control-md)] px-2.5 py-1 font-medium"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label className="block text-caption font-semibold text-gray-700 mb-1">
                 Bin
               </label>
               <input
@@ -322,17 +314,17 @@ export default function CabinetsSettingsPage() {
                 value={newBin}
                 onChange={(e) => setNewBin(e.target.value)}
                 placeholder="e.g. 04"
-                className="w-full border border-slate-300 rounded-xl py-2 px-3 text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 h-[var(--control-md)] px-2.5 py-1 font-medium"
               />
             </div>
           </div>
 
-          <p className="text-[11px] text-slate-400">
+          <p className="text-caption text-gray-400">
             If no name is given, the cabinet is auto-named from its location
             (e.g. &quot;Rack A / Shelf 2 / Bin 04&quot;).
           </p>
 
-          <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
+          <div className="pt-2 flex items-center justify-end gap-3 border-t border-border">
             <button
               type="submit"
               data-testid="cabinet-submit"
@@ -342,10 +334,10 @@ export default function CabinetsSettingsPage() {
                   ? "Subscription expired. System is in read-only mode."
                   : undefined
               }
-              className={`px-5 py-2.5 text-white text-sm font-bold rounded-xl transition-all shadow-md shadow-indigo-200 disabled:opacity-50 flex items-center gap-2 ${
+              className={`px-5 py-2.5 text-white text-body font-semibold rounded-lg transition-all shadow-sm disabled:opacity-50 flex items-center gap-2 ${
                 readOnly
-                  ? "bg-slate-400 cursor-not-allowed"
-                  : "bg-indigo-600 hover:bg-indigo-700 cursor-pointer"
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-brand-700 hover:bg-brand-700 cursor-pointer"
               }`}
             >
               {isSaving
@@ -358,26 +350,26 @@ export default function CabinetsSettingsPage() {
         </form>
 
         {/* CABINET LIST */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between">
-            <h3 className="font-bold text-slate-800 flex items-center gap-2">
-              <Archive className="w-4 h-4 text-indigo-600" />
+        <div className="bg-card rounded-lg border border-border shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-border bg-gray-50 flex items-center justify-between">
+            <h3 className="flex items-center gap-2 text-subtitle font-semibold text-gray-900">
+              <Archive className="w-4 h-4 text-brand-700" />
               Existing Cabinets
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+              <span className="text-caption font-semibold px-2 py-0.5 rounded-full bg-brand-50 text-brand-700">
                 {cabinets.length}
               </span>
             </h3>
           </div>
 
-          <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto">
+          <div className="divide-y divide-border max-h-96 overflow-y-auto">
             {isLoading ? (
-              <div className="p-8 text-center text-slate-400 text-sm">
+              <div className="p-8 text-center text-gray-400 text-body">
                 Loading cabinets...
               </div>
             ) : cabinets.length === 0 ? (
-              <div className="p-8 flex flex-col items-center justify-center text-slate-400 gap-2">
+              <div className="p-8 flex flex-col items-center justify-center text-gray-400 gap-2">
                 <MapPin className="w-8 h-8 opacity-30" />
-                <p className="text-sm">
+                <p className="text-body">
                   No cabinets yet. Create your first one on the left.
                 </p>
               </div>
@@ -386,7 +378,7 @@ export default function CabinetsSettingsPage() {
                 editingId === cab.id ? (
                   <div
                     key={cab.id}
-                    className="p-4 bg-indigo-50/30"
+                    className="p-4 bg-brand-50"
                   >
                     <div className="flex items-center gap-2">
                       <input
@@ -403,7 +395,7 @@ export default function CabinetsSettingsPage() {
                           }
                         }}
                         placeholder="Cabinet name"
-                        className="flex-1 border border-indigo-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                        className="flex-1 border border-brand-200 rounded-lg px-3 py-2 text-body focus:ring-2 focus:ring-brand-300 outline-none"
                       />
                     </div>
                     <div className="grid grid-cols-3 gap-2 mt-2">
@@ -412,21 +404,21 @@ export default function CabinetsSettingsPage() {
                         value={editRack}
                         onChange={(e) => setEditRack(e.target.value)}
                         placeholder="Rack A"
-                        className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                        className="rounded-md border border-input bg-white px-2 text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 h-[var(--control-sm)]"
                       />
                       <input
                         type="text"
                         value={editShelf}
                         onChange={(e) => setEditShelf(e.target.value)}
                         placeholder="Shelf 2"
-                        className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                        className="rounded-md border border-input bg-white px-2 text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 h-[var(--control-sm)]"
                       />
                       <input
                         type="text"
                         value={editBin}
                         onChange={(e) => setEditBin(e.target.value)}
                         placeholder="Bin 04"
-                        className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                        className="rounded-md border border-input bg-white px-2 text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 h-[var(--control-sm)]"
                       />
                     </div>
                     <div className="flex items-center justify-end gap-2 mt-2">
@@ -440,8 +432,8 @@ export default function CabinetsSettingsPage() {
                         }
                         className={`p-2 rounded-lg disabled:opacity-50 ${
                           readOnly
-                            ? "bg-slate-300 text-white cursor-not-allowed"
-                            : "bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"
+                            ? "bg-gray-300 text-white cursor-not-allowed"
+                            : "bg-brand-700 text-white hover:bg-brand-700 cursor-pointer"
                         }`}
                       >
                         {isSavingEdit ? (
@@ -452,7 +444,7 @@ export default function CabinetsSettingsPage() {
                       </button>
                       <button
                         onClick={cancelEdit}
-                        className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 cursor-pointer"
+                        className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 cursor-pointer"
                         title="Cancel"
                       >
                         <X className="w-4 h-4" />
@@ -463,24 +455,24 @@ export default function CabinetsSettingsPage() {
                   <div
                     key={cab.id}
                     data-testid="cabinet-row"
-                    className="p-4 flex items-center justify-between hover:bg-slate-50/60 transition-colors"
+                    className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
+                      <div className="p-2 bg-brand-50 text-brand-700 rounded-lg shrink-0">
                         <Archive className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-slate-900 truncate">
+                        <p className="text-body font-semibold text-gray-900 truncate">
                           {cab.name}
                         </p>
-                        <p className="text-[11px] text-slate-500 flex items-center gap-1 truncate">
+                        <p className="text-caption text-gray-500 flex items-center gap-1 truncate">
                           <MapPin className="w-3 h-3 shrink-0" />
                           {cab.location || "Shop Storage"}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[11px] font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-600 shrink-0 mr-1">
+                      <span className="text-caption font-semibold px-2 py-1 rounded-lg bg-gray-100 text-gray-600 shrink-0 mr-1">
                         {cab._count?.instances ?? 0} instances
                       </span>
                       <button
@@ -493,8 +485,8 @@ export default function CabinetsSettingsPage() {
                         }
                         className={`p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                           readOnly
-                            ? "text-slate-300"
-                            : "text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 cursor-pointer"
+                            ? "text-gray-300"
+                            : "text-gray-400 hover:text-brand-700 hover:bg-brand-50 cursor-pointer"
                         }`}
                       >
                         <Pencil className="w-4 h-4" />
@@ -505,7 +497,7 @@ export default function CabinetsSettingsPage() {
                         }
                         data-testid="cabinet-delete"
                         disabled={deletingId === cab.id}
-                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+                        className="p-2 text-gray-400 hover:text-danger hover:bg-danger-bg rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
                         title="Delete cabinet (destroys stock inside)"
                       >
                         {deletingId === cab.id ? (
@@ -527,7 +519,7 @@ export default function CabinetsSettingsPage() {
           title="Delete this cabinet?"
           description={
             <>
-              <span className="font-bold text-slate-800">
+              <span className="font-semibold text-gray-800">
                 &quot;{deleteTarget?.name}&quot;
               </span>{" "}
               contains physical inventory. Deleting it will permanently destroy

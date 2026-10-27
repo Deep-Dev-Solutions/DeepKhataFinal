@@ -13,6 +13,8 @@ import NotificationsTab from "@/components/settings/NotificationsTab";
 import AccessLogTab from "@/components/settings/AccessLogTab";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Loader2, AlertCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page-header";
 import { API_BASE_URL, apiFetch, getAuthHeaders } from "@/lib/auth";
 
 function SettingsPageContent() {
@@ -79,44 +81,37 @@ function SettingsPageContent() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand-700" />
       </div>
     );
   }
 
   if (error || !userProfile) {
     return (
-      <div className="flex items-center justify-center min-h-[400px] text-rose-600 font-bold gap-2">
+      <div className="flex items-center justify-center min-h-[400px] text-danger font-semibold gap-2">
         <AlertCircle className="w-5 h-5" /> {error}
       </div>
     );
   }
 
   return (
-    <div className="flex w-full flex-col animate-in fade-in duration-500 pb-24 mt-2">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            Settings & Workspace
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Manage your profile, preferences, and workspace.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg border border-slate-200">
-          <span className="text-xs text-slate-500 font-medium">Role:</span>
-          <span
-            className={`text-xs font-bold px-2 py-0.5 rounded-md ${userProfile.role === "OWNER" ? "bg-indigo-100 text-indigo-700" : "bg-slate-200 text-slate-700"}`}
-          >
-            {userProfile.role}
-          </span>
-        </div>
-      </div>
+    <div className="mt-1 flex w-full animate-in flex-col gap-4 pb-24 fade-in duration-300">
+      <PageHeader
+        title="Settings & Workspace"
+        subtitle="Manage your profile, preferences, and workspace."
+        actions={
+          <div className="flex items-center gap-2">
+            <span className="text-caption font-medium text-gray-500">Role</span>
+            <Badge variant={userProfile.role === "OWNER" ? "brand" : "neutral"}>
+              {userProfile.role}
+            </Badge>
+          </div>
+        }
+      />
 
       <SettingsNav activeTab={activeTab} setActiveTab={setActiveTab} />
 
-      <div className="w-full flex flex-col gap-8">
+      <div className="flex w-full flex-col gap-4">
         {activeTab === "profile" && (
           <ProfileTab user={userProfile} onProfileUpdate={updateUserProfile} />
         )}
@@ -150,7 +145,7 @@ export default function SettingsPage() {
     <Suspense
       fallback={
         <div className="flex items-center justify-center min-h-[400px]">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          <Loader2 className="h-6 w-6 animate-spin text-brand-700" />
         </div>
       }
     >

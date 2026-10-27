@@ -30,14 +30,14 @@ export default function PlanUsageTab() {
 
   if (isPending) {
     return (
-      <div className="flex items-center gap-2 py-10 text-sm text-slate-500">
+      <div className="flex items-center gap-2 py-10 text-body text-gray-500">
         <Loader2 className="h-4 w-4 animate-spin" /> Loading plan...
       </div>
     );
   }
   if (error || !data) {
     return (
-      <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-600">
+      <div className="rounded-lg border border-danger bg-danger-bg p-4 text-body text-danger">
         {error?.message || "Could not load plan details."}
       </div>
     );
@@ -50,23 +50,23 @@ export default function PlanUsageTab() {
 
   return (
     <div className="space-y-6" data-testid="plan-usage-tab">
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+      <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+            <p className="text-caption font-semibold uppercase tracking-widest text-gray-400">
               Current plan
             </p>
             <h2
               data-testid="plan-name"
-              className="text-2xl font-black text-slate-900"
+              className="text-heading font-semibold text-gray-900"
             >
               {plan.name}
             </h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-body text-gray-500">
               Status:{" "}
               <span
                 data-testid="plan-status"
-                className="font-semibold text-slate-800"
+                className="font-semibold text-gray-800"
               >
                 {subscription.status}
               </span>
@@ -77,7 +77,7 @@ export default function PlanUsageTab() {
             {trialDays !== null && (
               <p
                 data-testid="trial-days-left"
-                className="mt-2 inline-block rounded-lg bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-700"
+                className="mt-2 inline-block rounded-lg bg-warning-bg px-3 py-1 text-body font-semibold text-warning"
               >
                 {trialDays} {trialDays === 1 ? "day" : "days"} left in your trial
               </p>
@@ -89,14 +89,14 @@ export default function PlanUsageTab() {
               href={whatsapp}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-xl bg-emerald-600 px-5 py-2.5 text-center text-sm font-semibold text-white hover:bg-emerald-700"
+              className="rounded-lg bg-success px-5 py-2.5 text-center text-body font-semibold text-white hover:bg-success"
             >
               Upgrade on WhatsApp
             </a>
           ) : (
             <span
               data-testid="plan-upgrade-whatsapp"
-              className="rounded-xl bg-slate-100 px-5 py-2.5 text-center text-sm text-slate-500"
+              className="rounded-lg bg-gray-100 px-5 py-2.5 text-center text-body text-gray-500"
             >
               Contact your agency to upgrade
             </span>
@@ -104,8 +104,8 @@ export default function PlanUsageTab() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 space-y-5">
-        <h3 className="text-sm font-bold text-slate-900">Usage</h3>
+      <section className="rounded-lg border border-border bg-card p-5 sm:p-6 space-y-5">
+        <h3 className="text-body font-semibold text-gray-900">Usage</h3>
         {RESOURCES.map(({ key, limit }) => {
           const used = usage[key];
           const max = limits[limit];
@@ -113,23 +113,23 @@ export default function PlanUsageTab() {
           const full = max !== null && used >= max;
           return (
             <div key={key} data-testid="usage-meter" data-resource={key}>
-              <div className="mb-1 flex justify-between text-sm">
-                <span className="font-medium text-slate-700">
+              <div className="mb-1 flex justify-between text-body">
+                <span className="font-medium text-gray-700">
                   {RESOURCE_LABEL[key]}
                 </span>
-                <span className="text-slate-500">
+                <span className="text-gray-500">
                   {used} / {max ?? "Unlimited"}
                 </span>
               </div>
               <div
-                className="h-2 w-full overflow-hidden rounded-full bg-slate-100"
+                className="h-2 w-full overflow-hidden rounded-full bg-gray-100"
                 role="progressbar"
                 aria-valuenow={used}
                 aria-valuemin={0}
                 aria-valuemax={max ?? undefined}
               >
                 <div
-                  className={`h-full rounded-full ${full ? "bg-rose-500" : pct >= 80 ? "bg-amber-500" : "bg-blue-600"}`}
+                  className={`h-full rounded-full ${full ? "bg-warning" : "bg-brand-700"}`}
                   style={{ width: max === null ? "0%" : `${pct}%` }}
                 />
               </div>
@@ -138,9 +138,9 @@ export default function PlanUsageTab() {
         })}
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-        <h3 className="text-sm font-bold text-slate-900">Invoices</h3>
-        <p className="mt-1 text-sm text-slate-500">
+      <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
+        <h3 className="text-body font-semibold text-gray-900">Invoices</h3>
+        <p className="mt-1 text-body text-gray-500">
           Invoices are sent by email/WhatsApp.
         </p>
       </section>

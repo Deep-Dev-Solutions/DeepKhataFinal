@@ -18,7 +18,7 @@ import {
 } from "@/lib/notification-settings";
 
 const inputCls =
-  "border border-slate-300 rounded-lg py-1.5 px-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm shadow-sm disabled:bg-slate-50 disabled:text-slate-400";
+  "h-[var(--control-md)] rounded-md border border-input bg-white px-2.5 text-sm text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 shadow-sm disabled:bg-gray-50 disabled:text-gray-400";
 
 function offsetsToText(v?: number[]) {
   return (v ?? []).join(", ");
@@ -156,33 +156,33 @@ export default function NotificationsTab() {
       data-testid="notif-settings"
     >
       <div>
-        <h2 className="text-base font-semibold text-slate-900">Notification Preferences</h2>
-        <p className="text-sm text-slate-500">
+        <h2 className="text-base font-semibold text-gray-900">Notification Preferences</h2>
+        <p className="text-body text-gray-500">
           Yaad-dehani ke rules, khulasa ka waqt aur kis ko alerts milein.
         </p>
         {!canEdit && !loading && (
-          <p className="mt-1 text-xs font-medium text-amber-600">
+          <p className="mt-1 text-caption font-medium text-warning">
             Aap sirf dekh sakte hain. Tabdeeli ke liye Owner ya Manager se kahein.
           </p>
         )}
       </div>
 
       {loading || !draft ? (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 flex items-center justify-center">
-          <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+        <div className="bg-card rounded-lg border border-border shadow-sm p-12 flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : (
         <>
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+          <div className="bg-card rounded-lg border border-border shadow-sm overflow-x-auto">
+            <table className="w-full text-body">
+              <thead className="bg-gray-50 text-left text-caption uppercase tracking-wide text-gray-500">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Rule</th>
                   <th className="px-4 py-3 font-semibold">Setting</th>
                   <th className="px-4 py-3 font-semibold">Channels</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-border">
                 {RULE_META.map((m) => {
                   const rule = draft.rules[m.key];
                   if (!rule) return null;
@@ -197,14 +197,14 @@ export default function NotificationsTab() {
                             checked={rule.enabled}
                             disabled={!canEdit}
                             onChange={(e) => updateRule(m.key, { enabled: e.target.checked })}
-                            className="h-4 w-4 accent-blue-600"
+                            className="h-4 w-4 accent-brand-700"
                           />
-                          <span className="font-medium text-slate-800">{m.label}</span>
+                          <span className="font-medium text-gray-800">{m.label}</span>
                         </label>
                       </td>
                       <td className="px-4 py-3">
                         {m.setting === "daysBefore" && (
-                          <div className="flex items-center gap-2 text-slate-600">
+                          <div className="flex items-center gap-2 text-gray-600">
                             <input
                               type="number"
                               min={1}
@@ -219,11 +219,11 @@ export default function NotificationsTab() {
                               }
                               className={`${inputCls} w-20`}
                             />
-                            <span className="text-xs">din pehle</span>
+                            <span className="text-caption">din pehle</span>
                           </div>
                         )}
                         {m.setting === "offsetsDays" && (
-                          <div className="flex items-center gap-2 text-slate-600">
+                          <div className="flex items-center gap-2 text-gray-600">
                             <input
                               type="text"
                               data-testid="notif-rule-offsets"
@@ -235,7 +235,7 @@ export default function NotificationsTab() {
                               }
                               className={`${inputCls} w-36`}
                             />
-                            <span className="text-xs">din baad</span>
+                            <span className="text-caption">din baad</span>
                           </div>
                         )}
                         {m.setting === "time" && (
@@ -249,18 +249,18 @@ export default function NotificationsTab() {
                           />
                         )}
                         {m.setting === "digestTime" && (
-                          <span className="text-xs text-slate-500">Neeche diye waqt par</span>
+                          <span className="text-caption text-gray-500">Neeche diye waqt par</span>
                         )}
-                        {!m.setting && <span className="text-xs text-slate-400">—</span>}
+                        {!m.setting && <span className="text-caption text-gray-400">—</span>}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex flex-wrap items-center gap-4 text-xs text-slate-700">
+                        <div className="flex flex-wrap items-center gap-4 text-caption text-gray-700">
                           <label className="flex items-center gap-1.5">
-                            <input type="checkbox" checked disabled className="h-3.5 w-3.5" />
+                            <input type="checkbox" checked disabled className="h-4 w-4" />
                             In-app
                           </label>
-                          <label className="flex items-center gap-1.5 text-slate-400">
-                            <input type="checkbox" disabled className="h-3.5 w-3.5" />
+                          <label className="flex items-center gap-1.5 text-gray-400">
+                            <input type="checkbox" disabled className="h-4 w-4" />
                             Email setup ke baad
                           </label>
                           <label className="flex items-center gap-1.5">
@@ -270,7 +270,7 @@ export default function NotificationsTab() {
                               checked={whatsapp}
                               disabled={!canEdit}
                               onChange={(e) => toggleWhatsapp(m.key, e.target.checked)}
-                              className="h-3.5 w-3.5 accent-blue-600"
+                              className="h-4 w-4 accent-brand-700"
                             />
                             WhatsApp link
                           </label>
@@ -283,9 +283,9 @@ export default function NotificationsTab() {
             </table>
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="bg-card rounded-lg border border-border shadow-sm p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="block text-body font-medium text-gray-700 mb-1.5">
                 Roz ke khulasa ka waqt
               </label>
               <input
@@ -298,10 +298,10 @@ export default function NotificationsTab() {
               />
             </div>
             <div>
-              <span className="block text-sm font-medium text-slate-700 mb-1.5">
+              <span className="block text-body font-medium text-gray-700 mb-1.5">
                 Alerts kis ko milein
               </span>
-              <div className="space-y-2 text-sm text-slate-700">
+              <div className="space-y-2 text-body text-gray-700">
                 {(
                   [
                     ["OWNER_ONLY", "Sirf owner", "notif-recipients-owner"],
@@ -316,7 +316,7 @@ export default function NotificationsTab() {
                       checked={draft.recipients === value}
                       disabled={!canEdit}
                       onChange={() => setDraft({ ...draft, recipients: value })}
-                      className="h-4 w-4 accent-blue-600"
+                      className="h-4 w-4 accent-brand-700"
                     />
                     {label}
                   </label>

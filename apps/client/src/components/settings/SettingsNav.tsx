@@ -13,11 +13,11 @@ export default function SettingsNav({
   const { hasPermission } = usePermissions();
 
   return (
-    <nav className="flex items-center gap-6 border-b border-slate-200 w-full overflow-x-auto hide-scrollbar mb-8">
+    <nav className="flex items-center gap-3.5 border-b border-border w-full overflow-x-auto hide-scrollbar">
       {/* 🟢 HUMAN USER TABS (Visible to Everyone) */}
       <button
         onClick={() => setActiveTab("profile")}
-        className={`flex items-center gap-2 pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "profile" ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"}`}
+        className={`flex items-center gap-2 pb-3 text-body font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "profile" ? "border-brand-700 text-brand-700" : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"}`}
       >
         <User className="w-4 h-4" /> My Profile
       </button>
@@ -28,7 +28,7 @@ export default function SettingsNav({
           {hasPermission("manage:business") && (
             <button
               onClick={() => setActiveTab("general")}
-              className={`flex items-center gap-2 pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "general" ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"}`}
+              className={`flex items-center gap-2 pb-3 text-body font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "general" ? "border-brand-700 text-brand-700" : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"}`}
             >
               <Store className="w-4 h-4" /> General Info
             </button>
@@ -37,7 +37,7 @@ export default function SettingsNav({
           {hasPermission("manage:team") && (
             <button
               onClick={() => setActiveTab("team")}
-              className={`flex items-center gap-2 pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "team" ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"}`}
+              className={`flex items-center gap-2 pb-3 text-body font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "team" ? "border-brand-700 text-brand-700" : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"}`}
             >
               <Users className="w-4 h-4" /> Team & Roles
             </button>
@@ -46,7 +46,7 @@ export default function SettingsNav({
           {hasPermission("manage:team") && (
             <button
               onClick={() => setActiveTab("plan")}
-              className={`flex items-center gap-2 pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "plan" ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"}`}
+              className={`flex items-center gap-2 pb-3 text-body font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "plan" ? "border-brand-700 text-brand-700" : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"}`}
             >
               <CreditCard className="w-4 h-4" /> Plan & Usage
             </button>
@@ -55,7 +55,7 @@ export default function SettingsNav({
           {hasPermission("manage:business") && (
             <button
               onClick={() => setActiveTab("branches")}
-              className={`flex items-center gap-2 pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "branches" ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"}`}
+              className={`flex items-center gap-2 pb-3 text-body font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "branches" ? "border-brand-700 text-brand-700" : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"}`}
             >
               <GitBranch className="w-4 h-4" /> Branches / Locations
             </button>
@@ -64,7 +64,7 @@ export default function SettingsNav({
           {hasPermission("manage:business") && (
             <button
               onClick={() => setActiveTab("portal")}
-              className={`flex items-center gap-2 pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "portal" ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"}`}
+              className={`flex items-center gap-2 pb-3 text-body font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "portal" ? "border-brand-700 text-brand-700" : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"}`}
             >
               <Globe className="w-4 h-4" /> Customer Portal
             </button>
@@ -74,7 +74,7 @@ export default function SettingsNav({
             <button
               onClick={() => setActiveTab("access-log")}
               data-testid="settings-tab-access-log"
-              className={`flex items-center gap-2 pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "access-log" ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"}`}
+              className={`flex items-center gap-2 pb-3 text-body font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "access-log" ? "border-brand-700 text-brand-700" : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"}`}
             >
               <Shield className="w-4 h-4" /> Access Log
             </button>
@@ -85,7 +85,7 @@ export default function SettingsNav({
       {/* Visible to Everyone */}
       <button
         onClick={() => setActiveTab("notifications")}
-        className={`flex items-center gap-2 pb-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "notifications" ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"}`}
+        className={`flex items-center gap-2 pb-3 text-body font-medium border-b-2 transition-colors whitespace-nowrap -mb-px ${activeTab === "notifications" ? "border-brand-700 text-brand-700" : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"}`}
       >
         <Bell className="w-4 h-4" /> Notifications
       </button>

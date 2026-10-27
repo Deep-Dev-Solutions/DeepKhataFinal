@@ -85,10 +85,10 @@ export default function ProfileTab({ user }: { user: User }) {
       <section>
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h2 className="text-base font-semibold text-slate-900">
+            <h2 className="text-base font-semibold text-gray-900">
               Personal Information
             </h2>
-            <p className="text-sm text-slate-500">
+            <p className="text-body text-gray-500">
               Update your personal details.
             </p>
           </div>
@@ -96,24 +96,24 @@ export default function ProfileTab({ user }: { user: User }) {
           {/* 🟢 STATUS INDICATOR */}
           <div className="h-6">
             {saveStatus === "saving" && (
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+              <span className="flex items-center gap-1.5 text-caption font-semibold text-gray-500">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...
               </span>
             )}
             {saveStatus === "saved" && (
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+              <span className="flex items-center gap-1.5 text-caption font-semibold text-success">
                 <CheckCircle2 className="w-3.5 h-3.5" /> Saved
               </span>
             )}
             {saveStatus === "error" && (
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-rose-600">
+              <span className="flex items-center gap-1.5 text-caption font-semibold text-danger">
                 <AlertCircle className="w-3.5 h-3.5" /> Error saving
               </span>
             )}
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col sm:flex-row gap-8 items-start">
+        <div className="bg-card rounded-lg border border-border shadow-sm p-6 flex flex-col sm:flex-row gap-8 items-start">
           {/* AVATAR UPLOADER */}
           <div className="flex flex-col items-center gap-3">
             <input
@@ -125,10 +125,10 @@ export default function ProfileTab({ user }: { user: User }) {
             />
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="w-20 h-20 rounded-full bg-slate-50 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:border-blue-400 hover:text-blue-500 transition-colors cursor-pointer group relative overflow-hidden"
+              className="w-20 h-20 rounded-full bg-gray-50 border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:border-brand-200 hover:text-brand-700 transition-colors cursor-pointer group relative overflow-hidden"
             >
               {isUploading ? (
-                <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                <Loader2 className="w-6 h-6 animate-spin text-brand-700" />
               ) : avatarUrl ? (
                 <img
                   src={avatarUrl}
@@ -139,7 +139,7 @@ export default function ProfileTab({ user }: { user: User }) {
                 <UserIcon className="w-6 h-6 group-hover:scale-110 transition-transform" />
               )}
             </div>
-            <span className="text-xs font-medium text-slate-500">
+            <span className="text-caption font-medium text-gray-500">
               {isUploading ? "Uploading..." : "Change Avatar"}
             </span>
           </div>
@@ -147,7 +147,7 @@ export default function ProfileTab({ user }: { user: User }) {
           <div className="flex-1 w-full space-y-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                <label className="block text-body font-medium text-gray-700 mb-1.5">
                   Full Name
                 </label>
                 <input
@@ -155,11 +155,11 @@ export default function ProfileTab({ user }: { user: User }) {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   onBlur={(e) => handleAutoSave("name", e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm text-sm"
+                  className="w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 h-[var(--control-md)] px-2.5 py-1"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                <label className="block text-body font-medium text-gray-700 mb-1.5">
                   Personal Phone
                 </label>
                 <input
@@ -167,19 +167,19 @@ export default function ProfileTab({ user }: { user: User }) {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   onBlur={(e) => handleAutoSave("phone", e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm text-sm"
+                  className="w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 h-[var(--control-md)] px-2.5 py-1"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="block text-body font-medium text-gray-700 mb-1.5">
                 Login Email
               </label>
               <input
                 type="email"
                 defaultValue={user.email}
                 disabled
-                className="w-full border border-slate-200 rounded-lg py-2 px-3 outline-none text-sm bg-slate-100 text-slate-500 cursor-not-allowed"
+                className="w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 h-[var(--control-md)] px-2.5 py-1 bg-gray-100 text-gray-500"
               />
             </div>
           </div>

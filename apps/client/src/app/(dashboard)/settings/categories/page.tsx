@@ -15,6 +15,7 @@ import {
   Layers,
   Loader2,
 } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
 import { useAuth } from "@/context/AuthContext";
@@ -187,40 +188,31 @@ export default function CategoriesSettingsPage() {
   };
 
   const input =
-    "w-full border border-slate-300 rounded-xl py-2.5 px-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none";
+    "w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 h-[var(--control-md)] px-2.5 py-1";
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-500 pb-12 mt-2 font-sans">
-      {/* Header */}
-      <div className="flex items-center gap-3 pb-5 border-b border-slate-200">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Tag className="w-6 h-6 text-indigo-600" />
-            Product Categories
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Full CRUD hub for the categories used across the POS and product
-            creation forms — managed directly from the database.
-          </p>
-        </div>
-      </div>
+    <div className="mt-1 space-y-4 animate-in pb-12 fade-in duration-300">
+      <PageHeader
+        title="Product Categories"
+        subtitle="Full CRUD hub for the categories used across the POS and product creation forms — managed directly from the database."
+      />
 
       {successMsg && (
-        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-sm font-bold text-emerald-800 shadow-sm animate-in fade-in">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+        <div className="p-3.5 bg-success-bg border border-success/30 rounded-lg flex items-center gap-2 text-body font-semibold text-success shadow-sm animate-in fade-in">
+          <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
           {successMsg}
         </div>
       )}
 
       {pageError && (
-        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between text-sm font-semibold text-rose-800 shadow-sm animate-in fade-in">
+        <div className="p-3.5 bg-danger-bg border border-danger/30 rounded-lg flex items-center justify-between text-body font-semibold text-danger shadow-sm animate-in fade-in">
           <span className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+            <AlertCircle className="w-4 h-4 shrink-0 text-danger" />
             {pageError}
           </span>
           <button
             onClick={() => setPageError("")}
-            className="text-rose-500 hover:text-rose-700 font-bold cursor-pointer"
+            className="text-danger hover:text-danger font-semibold cursor-pointer"
           >
             &times;
           </button>
@@ -231,15 +223,15 @@ export default function CategoriesSettingsPage() {
         {/* CREATE FORM */}
         <form
           onSubmit={handleCreate}
-          className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4"
+          className="bg-card rounded-lg border border-border shadow-sm p-6 space-y-4"
         >
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-indigo-500" />
+          <h3 className="flex items-center gap-1.5 text-subtitle font-semibold text-gray-900">
+            <Layers className="w-3.5 h-3.5 text-brand-700" />
             Create New Category
           </h3>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+            <label className="block text-body font-semibold text-gray-700 mb-1.5">
               Category Name *
             </label>
             <input
@@ -249,17 +241,17 @@ export default function CategoriesSettingsPage() {
               placeholder="e.g. Display Screens"
               className={input}
             />
-            <p className="text-[11px] text-slate-400 mt-1.5">
+            <p className="text-caption text-gray-400 mt-1.5">
               Appears instantly in the POS category filter and the Add Product
               form.
             </p>
           </div>
 
-          <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
+          <div className="pt-2 flex items-center justify-end gap-3 border-t border-border">
             <button
               type="submit"
               disabled={isSaving}
-              className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-md shadow-indigo-200 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+              className="px-5 py-2.5 bg-brand-700 text-white text-body font-semibold rounded-lg hover:bg-brand-700 transition-all shadow-sm disabled:opacity-50 flex items-center gap-2 cursor-pointer"
             >
               {isSaving ? (
                 <>
@@ -277,26 +269,26 @@ export default function CategoriesSettingsPage() {
         </form>
 
         {/* CATEGORY LIST */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between">
-            <h3 className="font-bold text-slate-800 flex items-center gap-2">
-              <Archive className="w-4 h-4 text-indigo-600" />
+        <div className="bg-card rounded-lg border border-border shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-border bg-gray-50 flex items-center justify-between">
+            <h3 className="flex items-center gap-2 text-subtitle font-semibold text-gray-900">
+              <Archive className="w-4 h-4 text-brand-700" />
               Existing Categories
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+              <span className="text-caption font-semibold px-2 py-0.5 rounded-full bg-brand-50 text-brand-700">
                 {categories.length}
               </span>
             </h3>
           </div>
 
-          <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto">
+          <div className="divide-y divide-border max-h-96 overflow-y-auto">
             {isLoading ? (
-              <div className="p-8 text-center text-slate-400 text-sm">
+              <div className="p-8 text-center text-gray-400 text-body">
                 Loading categories...
               </div>
             ) : categories.length === 0 ? (
-              <div className="p-8 flex flex-col items-center justify-center text-slate-400 gap-2">
+              <div className="p-8 flex flex-col items-center justify-center text-gray-400 gap-2">
                 <Tag className="w-8 h-8 opacity-30" />
-                <p className="text-sm">
+                <p className="text-body">
                   No categories yet. Create your first one on the left.
                 </p>
               </div>
@@ -304,7 +296,7 @@ export default function CategoriesSettingsPage() {
               categories.map((cat) => (
                 <div
                   key={cat.id}
-                  className="p-4 flex items-center justify-between gap-3 hover:bg-slate-50/60 transition-colors"
+                  className="p-4 flex items-center justify-between gap-3 hover:bg-gray-50 transition-colors"
                 >
                   {editingId === cat.id ? (
                     <div className="flex items-center gap-2 w-full">
@@ -321,12 +313,12 @@ export default function CategoriesSettingsPage() {
                             cancelEdit();
                           }
                         }}
-                        className="flex-1 border border-indigo-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                        className="flex-1 border border-brand-200 rounded-lg px-3 py-2 text-body focus:ring-2 focus:ring-brand-300 outline-none"
                       />
                       <button
                         onClick={() => void handleUpdate(cat.id)}
                         disabled={isSavingEdit}
-                        className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 cursor-pointer"
+                        className="p-2 bg-brand-700 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 cursor-pointer"
                         title="Save"
                       >
                         {isSavingEdit ? (
@@ -337,7 +329,7 @@ export default function CategoriesSettingsPage() {
                       </button>
                       <button
                         onClick={cancelEdit}
-                        className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 cursor-pointer"
+                        className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 cursor-pointer"
                         title="Cancel"
                       >
                         <X className="w-4 h-4" />
@@ -346,14 +338,14 @@ export default function CategoriesSettingsPage() {
                   ) : (
                     <>
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
+                        <div className="p-2 bg-brand-50 text-brand-700 rounded-lg shrink-0">
                           <Tag className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-bold text-slate-900 truncate">
+                          <p className="text-body font-semibold text-gray-900 truncate">
                             {cat.name}
                           </p>
-                          <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                          <p className="text-caption text-gray-500 flex items-center gap-1">
                             <Package className="w-3 h-3 shrink-0" />
                             {cat._count?.products ?? 0} product(s) linked
                           </p>
@@ -362,7 +354,7 @@ export default function CategoriesSettingsPage() {
                       <div className="flex items-center gap-1.5 shrink-0">
                         <button
                           onClick={() => startEdit(cat)}
-                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                          className="p-2 text-gray-400 hover:text-brand-700 hover:bg-brand-50 rounded-lg transition-colors cursor-pointer"
                           title="Rename"
                         >
                           <Pencil className="w-4 h-4" />
@@ -372,7 +364,7 @@ export default function CategoriesSettingsPage() {
                             setDeleteTarget({ id: cat.id, name: cat.name })
                           }
                           disabled={deletingId === cat.id}
-                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+                          className="p-2 text-gray-400 hover:text-danger hover:bg-danger-bg rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
                           title="Delete (products become uncategorized)"
                         >
                           {deletingId === cat.id ? (
@@ -395,11 +387,11 @@ export default function CategoriesSettingsPage() {
           title="Delete category?"
           description={
             <>
-              <span className="font-bold text-slate-800">
+              <span className="font-semibold text-gray-800">
                 &quot;{deleteTarget?.name}&quot;
               </span>{" "}
               will be permanently deleted. Products using it will become{" "}
-              <span className="font-bold text-slate-800">Uncategorized</span>.
+              <span className="font-semibold text-gray-800">Uncategorized</span>.
               This cannot be undone.
             </>
           }

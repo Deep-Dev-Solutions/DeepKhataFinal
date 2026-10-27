@@ -265,25 +265,25 @@ export default function BranchesTab() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="border-b border-slate-200 bg-slate-50 px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="bg-card rounded-lg border border-border shadow-sm overflow-hidden">
+        <div className="border-b border-border bg-gray-50 px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <div className="flex items-center gap-2.5">
-              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <GitBranch className="w-5 h-5 text-indigo-600" />
+              <h2 className="text-subtitle font-semibold text-gray-900 flex items-center gap-2">
+                <GitBranch className="w-5 h-5 text-brand-700" />
                 Branches & Locations
               </h2>
               <span
-                className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                className={`px-2 py-0.5 rounded-full text-caption font-semibold ${
                   isLimitReached
-                    ? "bg-amber-100 text-amber-800 border border-amber-200"
-                    : "bg-slate-200/80 text-slate-700"
+                    ? "bg-warning-bg text-warning border border-warning"
+                    : "bg-gray-200/80 text-gray-700"
                 }`}
               >
                 {safeBranches.length} / 2 Base Plan
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-caption text-gray-500 mt-1">
               Manage your business branches. Your base plan includes up to 2
               active locations.
             </p>
@@ -292,10 +292,10 @@ export default function BranchesTab() {
           {isLimitReached ? (
             <button
               onClick={() => setIsUpgradeDialogOpen(true)}
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 cursor-pointer"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-warning-bg hover:bg-warning-bg text-warning border border-warning rounded-lg text-caption font-semibold transition-all shadow-xs shrink-0 cursor-pointer"
               title="Base plan limit reached (2 branches). Click to upgrade."
             >
-              <Lock className="w-3.5 h-3.5 text-amber-600" />
+              <Lock className="w-3.5 h-3.5 text-warning" />
               Limit Reached (2/2)
             </button>
           ) : (
@@ -307,10 +307,10 @@ export default function BranchesTab() {
                   ? "Subscription expired. System is in read-only mode."
                   : undefined
               }
-              className={`inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 ${
+              className={`inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-caption font-semibold transition-all shadow-xs shrink-0 ${
                 readOnly
-                  ? "bg-slate-300 text-white cursor-not-allowed"
-                  : "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer"
+                  ? "bg-gray-300 text-white cursor-not-allowed"
+                  : "bg-brand-700 hover:bg-brand-700 text-white cursor-pointer"
               }`}
             >
               <Plus className="w-4 h-4" />
@@ -321,16 +321,16 @@ export default function BranchesTab() {
 
         {/* Tier Limit Notice Banner when 2 branches reached */}
         {isLimitReached && (
-          <div className="mx-5 mt-4 p-4 rounded-xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-950">
+          <div className="mx-5 mt-4 p-4 rounded-lg bg-warning-bg border border-warning flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-warning">
             <div className="flex items-start sm:items-center gap-3">
-              <div className="p-2 bg-amber-100 rounded-lg text-amber-700 shrink-0 mt-0.5 sm:mt-0">
+              <div className="p-2 bg-warning-bg rounded-lg text-warning shrink-0 mt-0.5 sm:mt-0">
                 <Lock className="w-5 h-5" />
               </div>
               <div>
-                <p className="font-bold text-sm text-amber-950">
+                <p className="font-semibold text-body text-warning">
                   Base Plan Limit Reached (2/2 Locations Active)
                 </p>
-                <p className="text-xs text-amber-800 mt-0.5">
+                <p className="text-caption text-warning mt-0.5">
                   Your current Base Plan includes up to 2 branch locations.
                   Upgrade your subscription to provision additional branches.
                 </p>
@@ -338,7 +338,7 @@ export default function BranchesTab() {
             </div>
             <button
               onClick={() => setIsUpgradeDialogOpen(true)}
-              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors shrink-0 cursor-pointer"
+              className="px-3.5 py-1.5 bg-warning hover:bg-warning text-white rounded-lg text-caption font-semibold shadow-xs transition-colors shrink-0 cursor-pointer"
             >
               Upgrade Plan
             </button>
@@ -347,15 +347,15 @@ export default function BranchesTab() {
 
         <div className="p-5">
           {isLoading ? (
-            <div className="flex justify-center items-center py-12 text-slate-500 gap-2">
-              <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
-              <span className="text-sm font-medium">Loading branches...</span>
+            <div className="flex justify-center items-center py-12 text-gray-500 gap-2">
+              <Loader2 className="w-5 h-5 animate-spin text-brand-700" />
+              <span className="text-body font-medium">Loading branches...</span>
             </div>
           ) : safeBranches.length === 0 ? (
-            <div className="text-center py-12 text-slate-500 text-sm">
-              <GitBranch className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-              <p className="font-semibold text-slate-700">No branches found</p>
-              <p className="text-xs text-slate-400 mt-0.5">
+            <div className="text-center py-12 text-gray-500 text-body">
+              <GitBranch className="w-10 h-10 mx-auto text-gray-300 mb-2" />
+              <p className="font-semibold text-gray-700">No branches found</p>
+              <p className="text-caption text-gray-400 mt-0.5">
                 Click &quot;Add Branch&quot; above to create your location.
               </p>
             </div>
@@ -364,15 +364,15 @@ export default function BranchesTab() {
               {safeBranches.map((b: Branch) => (
                 <div
                   key={b.id}
-                  className="border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all bg-white flex flex-col justify-between"
+                  className="border border-border rounded-lg p-4 shadow-sm hover:border-gray-300 transition-all bg-card flex flex-col justify-between"
                 >
                   <div>
                     <div className="flex justify-between items-start mb-3 gap-2">
                       <div className="min-w-0 flex-1">
-                        <h3 className="font-bold text-slate-900 text-base truncate">
+                        <h3 className="font-semibold text-gray-900 text-base truncate">
                           {b.name}
                         </h3>
-                        <span className="inline-block mt-0.5 px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[11px] font-semibold rounded-md border border-indigo-100">
+                        <span className="inline-block mt-0.5 px-2 py-0.5 bg-brand-50 text-brand-700 text-caption font-semibold rounded-md border border-brand-200">
                           Active Branch
                         </span>
                       </div>
@@ -384,10 +384,10 @@ export default function BranchesTab() {
                             ? "Subscription expired. System is in read-only mode."
                             : "Edit Branch"
                         }
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-caption font-semibold rounded-lg transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
                           readOnly
-                            ? "text-slate-400 bg-slate-100 border border-slate-200"
-                            : "text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 cursor-pointer"
+                            ? "text-gray-400 bg-gray-100 border border-border"
+                            : "text-brand-700 hover:text-brand-700 bg-brand-50 hover:bg-brand-50 border border-brand-200 cursor-pointer"
                         }`}
                       >
                         <Pencil className="w-3.5 h-3.5" />
@@ -397,7 +397,7 @@ export default function BranchesTab() {
                         <button
                           onClick={() => setDeleteTarget(b)}
                           disabled={isDeleting}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-caption font-semibold text-danger hover:text-danger bg-danger-bg hover:bg-danger-bg border border-danger rounded-lg transition-colors cursor-pointer shrink-0 disabled:opacity-50"
                           title="Delete Branch"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -406,29 +406,29 @@ export default function BranchesTab() {
                       )}
                     </div>
 
-                    <div className="space-y-2 text-sm text-slate-600 mt-3 pt-3 border-t border-slate-100">
+                    <div className="space-y-2 text-body text-gray-600 mt-3 pt-3 border-t border-border">
                       <div className="flex items-center gap-2">
-                        <Phone className="w-4 h-4 text-slate-400 shrink-0" />
-                        <span className="truncate text-xs font-mono">
+                        <Phone className="w-4 h-4 text-gray-400 shrink-0" />
+                        <span className="truncate text-caption font-mono">
                           {b.phone ? (
                             b.phone
                           ) : (
-                            <span className="text-slate-400 italic">
+                            <span className="text-gray-400 italic">
                               No phone provided
                             </span>
                           )}
                         </span>
                       </div>
                       <div className="flex items-start gap-2">
-                        <MapPin className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                        <MapPin className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
                         <span
-                          className="truncate text-xs"
+                          className="truncate text-caption"
                           title={b.location || "No address provided"}
                         >
                           {b.location ? (
                             b.location
                           ) : (
-                            <span className="text-slate-400 italic">
+                            <span className="text-gray-400 italic">
                               No address provided
                             </span>
                           )}
@@ -449,7 +449,7 @@ export default function BranchesTab() {
         title="Delete this branch?"
         description={
           <>
-            <span className="font-bold text-slate-800">
+            <span className="font-semibold text-gray-800">
               &quot;{deleteTarget?.name}&quot;
             </span>{" "}
             will be permanently removed, along with all cabinets inside it.
@@ -476,7 +476,7 @@ export default function BranchesTab() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Plus className="w-5 h-5 text-indigo-600" />
+              <Plus className="w-5 h-5 text-brand-700" />
               Add New Branch
             </DialogTitle>
             <DialogDescription>
@@ -486,11 +486,11 @@ export default function BranchesTab() {
           </DialogHeader>
 
           {modalError && (
-            <div className="mt-1 p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 flex items-start gap-3 text-xs shadow-xs">
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="mt-1 p-3.5 rounded-lg bg-warning-bg border border-warning text-warning flex items-start gap-3 text-caption shadow-xs">
+              <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="font-bold text-amber-950 text-sm">Action Blocked</p>
-                <p className="text-amber-900 mt-0.5 leading-relaxed font-medium">
+                <p className="font-semibold text-warning text-body">Action Blocked</p>
+                <p className="text-warning mt-0.5 leading-relaxed font-medium">
                   {modalError}
                 </p>
               </div>
@@ -499,8 +499,8 @@ export default function BranchesTab() {
 
           <form onSubmit={handleAddBranch} className="space-y-4 py-2">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Branch Name <span className="text-rose-500">*</span>
+              <label className="block text-caption font-semibold uppercase tracking-wider text-gray-700 mb-1.5">
+                Branch Name <span className="text-danger">*</span>
               </label>
               <input
                 type="text"
@@ -510,17 +510,17 @@ export default function BranchesTab() {
                   setModalError(null);
                   setAddFormData({ ...addFormData, name: e.target.value });
                 }}
-                className="w-full px-3 h-10 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none shadow-xs"
+                className="w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 h-[var(--control-md)] px-2.5 py-1 font-medium"
                 placeholder="e.g. Liberty Branch"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+              <label className="block text-caption font-semibold uppercase tracking-wider text-gray-700 mb-1.5">
                 Phone Number
               </label>
               <div className="relative">
-                <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Phone className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="tel"
                   value={addFormData.phone}
@@ -528,18 +528,18 @@ export default function BranchesTab() {
                     setModalError(null);
                     setAddFormData({ ...addFormData, phone: e.target.value });
                   }}
-                  className="w-full pl-9 pr-3 h-10 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none shadow-xs font-mono"
+                  className="w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 h-[var(--control-md)] px-2.5 py-1 pl-9 font-mono font-medium"
                   placeholder="e.g. +92 300 1234567"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+              <label className="block text-caption font-semibold uppercase tracking-wider text-gray-700 mb-1.5">
                 Address / Location
               </label>
               <div className="relative">
-                <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                <MapPin className="w-4 h-4 text-gray-400 absolute left-3 top-3 pointer-events-none" />
                 <textarea
                   rows={2}
                   value={addFormData.address}
@@ -550,7 +550,7 @@ export default function BranchesTab() {
                       address: e.target.value,
                     });
                   }}
-                  className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none shadow-xs resize-none"
+                  className="min-h-20 w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 px-2.5 py-1.5 pl-9 font-medium resize-none"
                   placeholder="e.g. Shop #12, Liberty Market, Lahore"
                 />
               </div>
@@ -560,7 +560,7 @@ export default function BranchesTab() {
               <button
                 type="button"
                 onClick={() => setIsAddDialogOpen(false)}
-                className="px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                className="px-4 py-2 text-body font-semibold text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -572,10 +572,10 @@ export default function BranchesTab() {
                     ? "Subscription expired. System is in read-only mode."
                     : undefined
                 }
-                className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl transition-colors shadow-sm disabled:opacity-50 ${
+                className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors shadow-sm disabled:opacity-50 ${
                   readOnly
-                    ? "bg-slate-400 text-white cursor-not-allowed"
-                    : "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer"
+                    ? "bg-gray-400 text-white cursor-not-allowed"
+                    : "bg-brand-700 hover:bg-brand-700 text-white cursor-pointer"
                 }`}
               >
                 {isAdding && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -590,39 +590,39 @@ export default function BranchesTab() {
       <Dialog open={isUpgradeDialogOpen} onOpenChange={setIsUpgradeDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <div className="w-12 h-12 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center mx-auto mb-2 text-amber-600">
+            <div className="w-12 h-12 rounded-lg bg-warning-bg border border-warning flex items-center justify-center mx-auto mb-2 text-warning">
               <Lock className="w-6 h-6" />
             </div>
-            <DialogTitle className="text-center text-lg font-bold text-slate-900">
+            <DialogTitle className="text-center text-subtitle font-semibold text-gray-900">
               Base Plan Limit Reached
             </DialogTitle>
-            <DialogDescription className="text-center text-slate-600 text-xs mt-1">
+            <DialogDescription className="text-center text-gray-600 text-caption mt-1">
               Your current subscription includes up to 2 branch locations and 5
               user accounts.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2">
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-500 font-medium">
+            <div className="p-3.5 rounded-lg bg-gray-50 border border-border space-y-2">
+              <div className="flex justify-between items-center text-caption">
+                <span className="text-gray-500 font-medium">
                   Current Branches
                 </span>
-                <span className="font-bold text-slate-900">
+                <span className="font-semibold text-gray-900">
                   {safeBranches.length} / 2 Used
                 </span>
               </div>
-              <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                <div className="bg-amber-500 h-full w-full rounded-full" />
+              <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+                <div className="bg-warning h-full w-full rounded-full" />
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/80 text-amber-900 text-xs space-y-1.5">
-              <p className="font-bold flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-amber-600" />
+            <div className="p-3.5 rounded-lg bg-warning-bg/80 border border-warning/80 text-warning text-caption space-y-1.5">
+              <p className="font-semibold flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-warning" />
                 Unlock Multi-Branch Expansion
               </p>
-              <p className="text-amber-800 leading-relaxed">
+              <p className="text-warning leading-relaxed">
                 Need more branches or team members? Contact administration to
                 upgrade your plan for isolated branch inventory, advanced
                 reporting, and additional locations.
@@ -634,13 +634,13 @@ export default function BranchesTab() {
             <button
               type="button"
               onClick={() => setIsUpgradeDialogOpen(false)}
-              className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              className="w-full sm:w-auto px-4 py-2 text-body font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
             >
               Close
             </button>
             <a
               href="mailto:support@bizflow.com?subject=Upgrade%20Tier%20Request%20-%20Additional%20Branches"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-colors shadow-sm cursor-pointer"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-brand-700 hover:bg-brand-700 text-white text-body font-semibold rounded-lg transition-colors shadow-sm cursor-pointer"
             >
               <ExternalLink className="w-4 h-4" />
               Contact Administration
@@ -654,7 +654,7 @@ export default function BranchesTab() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Pencil className="w-5 h-5 text-indigo-600" />
+              <Pencil className="w-5 h-5 text-brand-700" />
               Edit Branch
             </DialogTitle>
             <DialogDescription>
@@ -665,8 +665,8 @@ export default function BranchesTab() {
 
           <form onSubmit={handleUpdate} className="space-y-4 py-2">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Branch Name <span className="text-rose-500">*</span>
+              <label className="block text-caption font-semibold uppercase tracking-wider text-gray-700 mb-1.5">
+                Branch Name <span className="text-danger">*</span>
               </label>
               <input
                 type="text"
@@ -675,35 +675,35 @@ export default function BranchesTab() {
                 onChange={(e) =>
                   setEditFormData({ ...editFormData, name: e.target.value })
                 }
-                className="w-full px-3 h-10 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none shadow-xs"
+                className="w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 h-[var(--control-md)] px-2.5 py-1 font-medium"
                 placeholder="e.g. Main Branch"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+              <label className="block text-caption font-semibold uppercase tracking-wider text-gray-700 mb-1.5">
                 Phone Number
               </label>
               <div className="relative">
-                <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Phone className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="tel"
                   value={editFormData.phone}
                   onChange={(e) =>
                     setEditFormData({ ...editFormData, phone: e.target.value })
                   }
-                  className="w-full pl-9 pr-3 h-10 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none shadow-xs font-mono"
+                  className="w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 h-[var(--control-md)] px-2.5 py-1 pl-9 font-mono font-medium"
                   placeholder="e.g. +92 300 0000000"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+              <label className="block text-caption font-semibold uppercase tracking-wider text-gray-700 mb-1.5">
                 Address / Location
               </label>
               <div className="relative">
-                <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                <MapPin className="w-4 h-4 text-gray-400 absolute left-3 top-3 pointer-events-none" />
                 <textarea
                   rows={2}
                   value={editFormData.address}
@@ -713,7 +713,7 @@ export default function BranchesTab() {
                       address: e.target.value,
                     })
                   }
-                  className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none shadow-xs resize-none"
+                  className="min-h-20 w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 px-2.5 py-1.5 pl-9 font-medium resize-none"
                   placeholder="e.g. Shop #4, Commercial Market, Lahore"
                 />
               </div>
@@ -723,7 +723,7 @@ export default function BranchesTab() {
               <button
                 type="button"
                 onClick={() => setIsEditDialogOpen(false)}
-                className="px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                className="px-4 py-2 text-body font-semibold text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -735,10 +735,10 @@ export default function BranchesTab() {
                     ? "Subscription expired. System is in read-only mode."
                     : undefined
                 }
-                className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl transition-colors shadow-sm disabled:opacity-50 ${
+                className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors shadow-sm disabled:opacity-50 ${
                   readOnly
-                    ? "bg-slate-400 text-white cursor-not-allowed"
-                    : "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer"
+                    ? "bg-gray-400 text-white cursor-not-allowed"
+                    : "bg-brand-700 hover:bg-brand-700 text-white cursor-pointer"
                 }`}
               >
                 {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
