@@ -201,6 +201,13 @@ Open [http://localhost:3001](http://localhost:3001) (or your assigned Next.js po
 
 ---
 
+## 🎬 Live Demo
+
+Running DeepKhata in front of a client — stack setup, demo logins, the 12-minute script and
+the offline beat — is documented in [`DEMO.md`](DEMO.md).
+
+---
+
 ## 🧪 Testing & Code Quality
 
 ### Server Tests

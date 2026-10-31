@@ -13,6 +13,7 @@
     "db:down": "docker compose -f docker-compose.dev.yml down",
     "db:migrate": "npm run prisma:migrate -w server",
     "db:seed": "npm exec -w server -- prisma db seed",
+    "demo:seed": "npm run demo:seed -w server --",
     "db:reset": "npm exec -w server -- prisma migrate reset --force",
     "stack:up": "COMPOSE_PARALLEL_LIMIT=1 docker compose --profile full up -d --build --wait",
     "stack:down": "docker compose --profile full down",

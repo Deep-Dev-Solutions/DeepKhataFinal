@@ -30,6 +30,7 @@ Mailpit UI: http://localhost:8025
 | `npm run db:down` | Stop the dev docker compose stack. |
 | `npm run db:migrate` | Apply server Prisma migrations. |
 | `npm run db:seed` | Seed the dev database via the Prisma seed script. |
+| `npm run demo:seed` | Add today's sales, udhar, wasooli and petty cash on top of the seed data. |
 | `npm run db:reset` | Force-reset the dev database with `prisma migrate reset`. |
 | `npm run test:api` | Run the server API tests. |
 | `npm run test:e2e` | Run the Playwright specs in `apps/e2e`. |

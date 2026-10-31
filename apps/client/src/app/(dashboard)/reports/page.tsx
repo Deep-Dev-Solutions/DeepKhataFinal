@@ -74,7 +74,7 @@ export default function ReportsPage() {
             >
               <option value="today">Today</option>
               <option value="last-7-days">Last 7 Days</option>
-              <option value="this-month">This Month (June)</option>
+              <option value="this-month">This Month</option>
               <option value="ytd">Year to Date</option>
             </select>
             <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
