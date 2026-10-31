@@ -22,3 +22,6 @@ tsconfig.build.tsbuildinfo
 
 # --- playwright auth state (session cookies) ---
 **/.auth/
+
+.agents/
+skills-lock.json
