@@ -61,6 +61,8 @@ test.describe.serial('P8: agency view-as (read-only support session)', () => {
 
     const popupPromise = ctx.waitForEvent('page');
     await row.getByTestId('tenant-view-as').click();
+    // P1 added a confirmation dialog before a view-as session is created.
+    await adminPage.getByTestId('view-as-confirm-accept').click();
     viewPage = await popupPromise;
 
     await expect(viewPage).toHaveURL(new RegExp(`^${E2E.webUrl}/dashboard`), { timeout: 60_000 });

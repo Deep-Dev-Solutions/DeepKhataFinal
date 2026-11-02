@@ -4,6 +4,9 @@ import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Download, Loader2, MessageCircle, Send, Wallet, Ban } from "lucide-react";
 import { api } from "@/lib/api";
+import { describeError } from "@/lib/errors";
+import InlineError from "@/components/InlineError";
+import { useToast } from "@/context/ToastContext";
 import { API_BASE_URL } from "@/lib/auth";
 import {
   Invoice,
@@ -31,6 +34,7 @@ const actionBtn =
   "inline-flex items-center gap-2 px-3 py-2 text-body font-medium rounded-lg border transition-colors disabled:opacity-50";
 
 export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
+  const { showToast } = useToast();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -49,7 +53,7 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
       setInvoice(await api.get<Invoice>(`/agency/billing/invoices/${invoiceId}`));
       setError("");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load invoice");
+      setError(describeError(err, "this invoice"));
     } finally {
       setLoading(false);
     }
@@ -81,7 +85,9 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to download PDF");
+      const message = describeError(err, "the invoice PDF");
+      setError(message);
+      showToast(message, "error");
     } finally {
       setBusy("");
     }
@@ -98,7 +104,9 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
       setWhatsappUrl(res.whatsappUrl);
       setNotice("Invoice emailed to the owner.");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to send invoice");
+      const message = describeError(err, "the invoice send");
+      setError(message);
+      showToast(message, "error");
     } finally {
       setBusy("");
     }
@@ -115,7 +123,9 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
       await load();
       setNotice("Invoice voided.");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to void invoice");
+      const message = describeError(err, "the invoice void");
+      setError(message);
+      showToast(message, "error");
     } finally {
       setBusy("");
     }
@@ -140,7 +150,9 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
       setNotice(`Payment recorded. Total paid ${formatMoney(res.totalPaid)}, invoice is ${res.invoiceStatus}.`);
       await load();
     } catch (err: unknown) {
-      setPayError(err instanceof Error ? err.message : "Failed to record payment");
+      const message = describeError(err, "the payment");
+      setPayError(message);
+      showToast(message, "error");
     } finally {
       setBusy("");
     }
@@ -162,9 +174,12 @@ export default function InvoiceDetail({ invoiceId }: { invoiceId: string }) {
           <ArrowLeft size={16} />
           Back to Billing
         </Link>
-        <div role="alert" className="bg-danger-bg text-danger border border-danger rounded-lg p-4 text-body font-medium">
-          {error || "Invoice not found"}
-        </div>
+        <InlineError
+          area="invoice-detail"
+          message={error || "Invoice not found"}
+          onRetry={load}
+          retrying={loading}
+        />
       </div>
     );
   }

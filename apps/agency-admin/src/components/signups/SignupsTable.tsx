@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { describeError } from "@/lib/errors";
+import InlineError from "@/components/InlineError";
 import SignupRow from "./SignupRow";
 import { FOLLOW_UP_STATUSES, Signup } from "./types";
 
@@ -24,7 +26,7 @@ export default function SignupsTable() {
       setSignups(await api.get<Signup[]>(`/agency/signups${q ? `?${q}` : ""}`));
       setError("");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load signups");
+      setError(describeError(err, "the signups list"));
     } finally {
       setLoading(false);
     }
@@ -66,11 +68,7 @@ export default function SignupsTable() {
         </div>
       </div>
 
-      {error && (
-        <div role="alert" className="bg-danger-bg text-danger border border-danger rounded-lg p-3 text-body font-medium">
-          {error}
-        </div>
-      )}
+      {error && <InlineError area="signups" message={error} onRetry={load} retrying={loading} />}
 
       {loading ? (
         <div className="flex items-center justify-center p-16 text-gray-500">
@@ -94,11 +92,13 @@ export default function SignupsTable() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {signups.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                      No signups match these filters.
-                    </td>
-                  </tr>
+                  error ? null : (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                        No signups match these filters.
+                      </td>
+                    </tr>
+                  )
                 ) : (
                   signups.map((s) => (
                     <SignupRow

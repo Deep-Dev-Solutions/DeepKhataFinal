@@ -5,6 +5,11 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
+import { API_BASE_URL } from "@/lib/auth";
+import { describeError } from "@/lib/errors";
+import InlineError from "@/components/InlineError";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/context/ToastContext";
 import {
   Building2,
   Users,
@@ -91,6 +96,7 @@ export default function TenantDetailPage() {
   const params = useParams<{ id: string }>();
   const tenantId = params?.id;
   const { token, isLoading: isAuthLoading } = useAuth();
+  const { showToast } = useToast();
 
   const [tenant, setTenant] = useState<TenantDetail | null>(null);
   const [analytics, setAnalytics] = useState<TenantAnalyticsDetail | null>(null);
@@ -128,6 +134,9 @@ export default function TenantDetailPage() {
   const [dealError, setDealError] = useState("");
   const [dealSuccess, setDealSuccess] = useState("");
   const [dealHistory, setDealHistory] = useState<DealHistoryRow[]>([]);
+  const [dealHistoryError, setDealHistoryError] = useState("");
+  const [analyticsError, setAnalyticsError] = useState("");
+  const [viewAsConfirm, setViewAsConfirm] = useState(false);
 
   const fetchTenant = useCallback(async () => {
     if (!tenantId || !token) {
@@ -137,12 +146,20 @@ export default function TenantDetailPage() {
     try {
       const [tData, aData] = await Promise.all([
         api.get<TenantDetail>(`/agency/tenants/${tenantId}`),
-        api.get<TenantAnalyticsDetail>(`/agency/analytics/tenants/${tenantId}`).catch(() => null),
+        api
+          .get<TenantAnalyticsDetail>(`/agency/analytics/tenants/${tenantId}`)
+          .catch((analyticsErr: unknown) => {
+            // The chart is secondary, but a rejection must not look like "no data".
+            setAnalyticsError(describeError(analyticsErr, "the usage chart"));
+            return null;
+          }),
       ]);
       setTenant(tData);
       setAnalytics(aData);
+      setError("");
+      if (aData) setAnalyticsError("");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load tenant");
+      setError(describeError(err, "this tenant"));
     } finally {
       setLoading(false);
     }
@@ -155,8 +172,9 @@ export default function TenantDetailPage() {
         `/agency/tenants/${tenantId}/deal-history`,
       );
       setDealHistory(data || []);
+      setDealHistoryError("");
     } catch (err) {
-      console.error("Failed to load deal history:", err);
+      setDealHistoryError(describeError(err, "the deal history"));
     }
   }, [tenantId, token]);
 
@@ -184,7 +202,7 @@ export default function TenantDetailPage() {
       });
       setTenant({ ...tenant, status: newStatus });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to update status");
+      showToast(describeError(err, "the status change"), "error");
     } finally {
       setStatusUpdating(false);
     }
@@ -213,13 +231,15 @@ export default function TenantDetailPage() {
       );
       await fetchTenant();
     } catch (err: unknown) {
-      setBillingError(err instanceof Error ? err.message : "Failed to log payment");
+      const message = describeError(err, "the payment");
+      setBillingError(message);
+      showToast(message, "error");
     } finally {
       setBillingSubmitting(false);
     }
   };
 
-  const handleViewAs = async () => {
+  const performViewAs = async () => {
     if (!tenant) return;
     setViewAsLoading(true);
     try {
@@ -230,18 +250,22 @@ export default function TenantDetailPage() {
         window.open(res.url, "_blank");
       }
     } catch (err) {
-      console.error("View as failed:", err);
+      showToast(describeError(err, "the view-as session"), "error");
     } finally {
       setViewAsLoading(false);
     }
+  };
+
+  const handleViewAs = () => {
+    if (!tenant) return;
+    setViewAsConfirm(true);
   };
 
   const handleDownloadPdf = async () => {
     if (!tenant) return;
     setPdfDownloading(true);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-      const res = await fetch(`${apiUrl}/agency/analytics/tenants/${tenant.id}/usage-statement.pdf`, {
+      const res = await fetch(`${API_BASE_URL}/agency/analytics/tenants/${tenant.id}/usage-statement.pdf`, {
         credentials: "include",
       });
       if (!res.ok) throw new Error("PDF download failed");
@@ -255,7 +279,7 @@ export default function TenantDetailPage() {
       a.remove();
       window.URL.revokeObjectURL(downloadUrl);
     } catch (err) {
-      console.error("Failed to download PDF:", err);
+      showToast(describeError(err, "the usage statement"), "error");
     } finally {
       setPdfDownloading(false);
     }
@@ -292,7 +316,9 @@ export default function TenantDetailPage() {
       await fetchTenant();
       await fetchDealHistory();
     } catch (err: unknown) {
-      setDealError(err instanceof Error ? err.message : "Failed to set deal");
+      const message = describeError(err, "the deal");
+      setDealError(message);
+      showToast(message, "error");
     } finally {
       setDealSubmitting(false);
     }
@@ -317,9 +343,11 @@ export default function TenantDetailPage() {
           <ArrowLeft size={16} />
           Back to Tenants
         </Link>
-        <div className="bg-danger-bg text-danger border border-danger rounded-lg p-4 text-body font-medium">
-          {error}
-        </div>
+        <InlineError
+          area="tenant-detail"
+          message={error}
+          onRetry={fetchTenant}
+        />
       </div>
     );
   }
@@ -400,9 +428,7 @@ export default function TenantDetailPage() {
       </div>
 
       {error && (
-        <div className="bg-danger-bg text-danger border border-danger rounded-lg p-3 text-body font-medium">
-          {error}
-        </div>
+        <InlineError area="tenant-detail" message={error} onRetry={fetchTenant} compact />
       )}
 
       {/* ── KPI Header ───────────────────────────────────────────────────── */}
@@ -431,7 +457,15 @@ export default function TenantDetailPage() {
       </div>
 
       {/* ── 90-Day Volume Trend Chart ────────────────────────────────────── */}
-      {analytics?.series && analytics.series.length > 0 && (
+      {analyticsError && (
+        <InlineError
+          area="tenant-analytics"
+          message={analyticsError}
+          onRetry={fetchTenant}
+          compact
+        />
+      )}
+      {!analyticsError && analytics?.series && analytics.series.length > 0 && (
         <div
           data-testid="tenant-daily-chart"
           className="bg-card border border-gray-200 rounded-lg p-6 shadow-sm"
@@ -997,7 +1031,13 @@ export default function TenantDetailPage() {
             <h3 className="font-semibold text-gray-900">Deal History</h3>
           </div>
           <div className="overflow-x-auto p-6">
-            {dealHistory.length === 0 ? (
+            {dealHistoryError ? (
+              <InlineError
+                area="deal-history"
+                message={dealHistoryError}
+                onRetry={fetchDealHistory}
+              />
+            ) : dealHistory.length === 0 ? (
               <p className="text-caption text-gray-400 italic text-center py-8">
                 No deal changes recorded yet.
               </p>
@@ -1093,6 +1133,44 @@ export default function TenantDetailPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── View-as Confirmation ─────────────────────────────────────────── */}
+      {viewAsConfirm && tenant && (
+        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div
+            data-testid="view-as-confirm"
+            role="dialog"
+            aria-modal="true"
+            className="bg-card rounded-lg shadow-xl max-w-md w-full border border-gray-100 p-6 space-y-4 animate-in zoom-in-95 duration-200"
+          >
+            <h3 className="font-semibold text-gray-900">
+              Open {tenant.name} as the shop?
+            </h3>
+            <p className="text-body text-gray-600">
+              Viewing as this shop switches this browser&apos;s session until you
+              press Exit in the shop tab. The console will pause meanwhile.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setViewAsConfirm(false)}
+                data-testid="view-as-confirm-cancel"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  setViewAsConfirm(false);
+                  void performViewAs();
+                }}
+                data-testid="view-as-confirm-accept"
+              >
+                Continue
+              </Button>
+            </div>
           </div>
         </div>
       )}

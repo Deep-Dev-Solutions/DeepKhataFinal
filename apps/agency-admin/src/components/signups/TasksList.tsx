@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { describeError } from "@/lib/errors";
+import InlineError from "@/components/InlineError";
+import { useToast } from "@/context/ToastContext";
 import { AgencyTask, formatDate } from "./types";
 
 const TYPE_LABEL: Record<AgencyTask["type"], string> = {
@@ -17,13 +20,14 @@ export default function TasksList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [doneId, setDoneId] = useState("");
+  const { showToast } = useToast();
 
   const load = useCallback(async () => {
     try {
       setTasks(await api.get<AgencyTask[]>("/agency/tasks?status=OPEN"));
       setError("");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load tasks");
+      setError(describeError(err, "the open tasks"));
     } finally {
       setLoading(false);
     }
@@ -43,7 +47,7 @@ export default function TasksList() {
       await api.patch(`/agency/tasks/${id}`, { status: "DONE" });
       setTasks((prev) => prev.filter((t) => t.id !== id));
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to update task");
+      showToast(describeError(err, "the task update"), "error");
     } finally {
       setDoneId("");
     }
@@ -56,8 +60,8 @@ export default function TasksList() {
         <span className="text-caption font-semibold text-gray-500">{tasks.length} open</span>
       </div>
       {error && (
-        <div role="alert" className="m-4 bg-danger-bg text-danger border border-danger rounded-lg p-3 text-body font-medium">
-          {error}
+        <div className="m-4">
+          <InlineError area="tasks" message={error} onRetry={load} retrying={loading} />
         </div>
       )}
       {loading ? (
@@ -66,7 +70,9 @@ export default function TasksList() {
           Loading tasks...
         </div>
       ) : tasks.length === 0 ? (
-        <div className="p-8 text-center text-body text-gray-400">No open tasks. All caught up.</div>
+        error ? null : (
+          <div className="p-8 text-center text-body text-gray-400">No open tasks. All caught up.</div>
+        )
       ) : (
         <ul data-testid="tasks-list" className="divide-y divide-gray-100">
           {tasks.map((t) => {

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus } from "lucide-react";
 import { api } from "@/lib/api";
+import { describeError } from "@/lib/errors";
+import InlineError from "@/components/InlineError";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import InvoiceForm from "./InvoiceForm";
@@ -30,7 +32,7 @@ export default function InvoiceList({ businessId }: { businessId?: string }) {
       setInvoices(await api.get<Invoice[]>(`/agency/billing/invoices${q ? `?${q}` : ""}`));
       setError("");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load invoices");
+      setError(describeError(err, "the invoice list"));
     } finally {
       setLoading(false);
     }
@@ -69,18 +71,14 @@ export default function InvoiceList({ businessId }: { businessId?: string }) {
         </Button>
       </div>
 
-      {error && (
-        <div role="alert" className="bg-danger-bg text-danger border border-danger rounded-lg p-3 text-body font-medium">
-          {error}
-        </div>
-      )}
+      {error && <InlineError area="invoices" message={error} onRetry={load} retrying={loading} />}
 
       {loading ? (
         <div className="flex items-center justify-center p-16 text-gray-500">
           <Loader2 className="w-6 h-6 animate-spin mr-2" />
           Loading invoices...
         </div>
-      ) : (
+      ) : error ? null : (
         <InvoicesTable invoices={invoices} showBusiness={!businessId} />
       )}
 

@@ -36,16 +36,16 @@ Severity: S1 security/data loss, S2 broken core flow, S3 wrong or misleading beh
 
 | ID | Sev | Area | Finding | Where |
 | --- | --- | --- | --- | --- |
-| A1 | S2 | Session | View-as or a client login in the same browser silently switches the admin console's identity; every agency call 403s | view-as.controller.ts, shared cookie |
-| A2 | S2 | Session | `AuthContext` verifies `/user/me` only on mount; never on focus, visibility change, or after a 401/403 | src/context/AuthContext.tsx |
-| A3 | S3 | Errors | Load failures are swallowed and shown as empty data: tenants list, overview cards, deal history, signups, tasks, invoice list/detail | app/page.tsx 117-147, tenants/[id]/page.tsx 151-172, components/signups/*, components/billing/* |
-| A4 | S3 | Errors | View-as, CSV export, usage PDF and invoice PDF failures only hit `console.error`; the user sees nothing | page.tsx 157-190, tenants/[id]/page.tsx 222-260, InvoiceDetail.tsx 70 |
-| A5 | S3 | Errors | `api.ts` has no central 401/403 handling; each page invents its own | src/lib/api.ts |
+| A1 | S2 | Session | **Fixed (UI side) in P1** - the console now pauses and says who it is; the cookie itself is still shared (P7). View-as or a client login in the same browser silently switches the admin console's identity; every agency call 403s | view-as.controller.ts, shared cookie |
+| A2 | S2 | Session | **Fixed in P1.** `AuthContext` verifies `/user/me` only on mount; never on focus, visibility change, or after a 401/403 | src/context/AuthContext.tsx |
+| A3 | S3 | Errors | **Fixed in P1.** Load failures are swallowed and shown as empty data: tenants list, overview cards, deal history, signups, tasks, invoice list/detail | app/page.tsx 117-147, tenants/[id]/page.tsx 151-172, components/signups/*, components/billing/* |
+| A4 | S3 | Errors | **Fixed in P1.** View-as, CSV export, usage PDF and invoice PDF failures only hit `console.error`; the user sees nothing | page.tsx 157-190, tenants/[id]/page.tsx 222-260, InvoiceDetail.tsx 70 |
+| A5 | S3 | Errors | **Fixed in P1.** `api.ts` has no central 401/403 handling; each page invents its own | src/lib/api.ts |
 | A6 | S1 | Secrets | `prisma/seedSuperAdmin.ts` hardcodes a real email and plaintext password in the repo, and bcrypt-hashes into `User.password` (may not match Better Auth's account table) | apps/server/prisma/seedSuperAdmin.ts |
 | A7 | S2 | API input | `@Body() data: any` on `onboard-tenant`, `tenants/:id/status`, `tenants/:id/billing`, `branch/:businessId` (breaks the "DTO for every body" rule; unknown fields pass through) | agency.controller.ts |
 | A8 | S3 | API input | No `ParseUUIDPipe` on `GET tenants/:id`, `PATCH tenants/:id/status`, `POST tenants/:id/billing`, `POST branch/:businessId`, `PATCH signups/:businessId`, `PATCH tasks/:id`; a bad id likely becomes a 500 | agency.controller.ts |
 | A9 | S3 | Money | Log payment sends `amount: parseFloat(amount)` (JS number); deal `maxProducts` via `Number()`; money must travel as strings | tenants/[id]/page.tsx 204, 283 |
-| A10 | S3 | Data | Duplicate API base URL logic: `process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"` inlined instead of `API_BASE_URL` | page.tsx 156, tenants/[id]/page.tsx 243 |
+| A10 | S3 | Data | **Fixed in P1.** Duplicate API base URL logic: `process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"` inlined instead of `API_BASE_URL` | page.tsx 156, tenants/[id]/page.tsx 243 |
 | A11 | S3 | UX | "Store Dashboard →" sends the super admin into the client app with the shared cookie (see D3, F13) | src/components/AppShell.tsx 90 |
 | A12 | S4 | Auth | Admin login has no Turnstile widget (BUGS.md open item) | app/login/page.tsx |
 | A13 | S3 | Tests | No E2E for: admin tab while view-as is open, error states, bad tenant id, signups/tasks actions, invoice send/void/payment from the console | apps/e2e/tests/agency/ |
@@ -100,3 +100,25 @@ In all three the `session-switched` notice is absent and the list renders the em
 - A plain client-app login in the same browser produces an identical console state, so the bug is the shared cookie, not view-as itself.
 - Nothing was fixed in P0 (out of scope). The spec asserts the fixed behaviour and stays red until P1.
 - P1 must add: central 401/403 handling in `api.ts`, a `session-switched` notice with `session-switched-exit` / `session-switched-login`, honest per-area error states instead of the empty state, and the real role in the header.
+
+### P1 - the console always knows who it is
+
+| Phase | Task | State | Commit |
+| --- | --- | --- | --- |
+| P1 | `api.ts`: 401/403 -> one `/user/me` re-check (single flight) -> `session-expired` / `session-switched` / `forbidden` app event | done | feat(admin-p1) |
+| P1 | `AuthContext`: listens for the events, re-verifies on focus and visibility change (10 s throttle), self-heals when Exit lands | done | feat(admin-p1) |
+| P1 | `SessionSwitchedNotice`: names who the browser is, "Exit view-as" only when impersonated, always "Sign in again" | done | feat(admin-p1) |
+| P1 | Inline error + retry for tenants, overview, tenant detail, analytics note, deal history, signups, tasks, invoices, invoice detail | done | feat(admin-p1) |
+| P1 | Action failures to toast (view-as, CSV, PDFs, status, payment, deal, branch, onboarding) | done | feat(admin-p1) |
+| P1 | `API_BASE_URL` replaces both inlined `NEXT_PUBLIC_API_URL` fallbacks; view-as confirm dialog on list and detail | done | feat(admin-p1) |
+| P1 | `getMe` also returns `business.name` so the notice can name the shop | done | feat(admin-p1) |
+| P1 | Checks: `npm run lint` 0 errors, `build -w agency-admin` clean, `tests/agency/` 24 passed | done | feat(admin-p1) |
+
+**P1 report (10 lines max)**
+- The console can no longer present a rejected request as real data: every listed area has `<area>-error` + `<area>-retry`, and empty text only renders after a successful zero-row response.
+- While the shared cookie belongs to the shop user, the console pauses behind `session-switched` naming the account and shop, instead of showing "No tenants match the selected filters".
+- "Exit view-as" appears only when `/auth/session-info` reports an impersonated session; "Sign in again" is always offered. Exit restores the admin cookie and the list reloads (verified).
+- The header now prints the real role, so it cannot claim SUPER_ADMIN while the browser is not.
+- Cookie behaviour is untouched by design - P7 owns it. In P0 the role/tenants assertions ran while the shop tab was open, which no P1 change can satisfy; they now run after Exit and additionally assert the restored list. Nothing was weakened.
+- Two specs gained one line each (`view-as-confirm-accept`) because P1 added the confirm dialog; no assertion was changed.
+- New: `src/lib/session.ts`, `src/lib/errors.ts`, `src/components/InlineError.tsx`, `src/components/SessionSwitchedNotice.tsx`.

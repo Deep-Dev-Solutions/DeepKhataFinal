@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "@/lib/auth";
+import { dispatchSessionEvent, type SessionIdentity } from "@/lib/session";
 
 export class ApiError extends Error {
   status: number;
@@ -30,6 +31,65 @@ function buildHeaders(extra?: HeadersInit): Headers {
 
 function isFormData(value: JsonValue | FormData): value is FormData {
   return typeof FormData !== "undefined" && value instanceof FormData;
+}
+
+/** 401/403 are the only statuses that can mean "this browser is someone else now". */
+function isAuthFailure(status: number): boolean {
+  return status === 401 || status === 403;
+}
+
+/**
+ * `/user/me` and the view-as endpoints are the probes themselves - re-checking
+ * inside them would recurse.
+ */
+function shouldRecheckIdentity(path: string): boolean {
+  return !path.startsWith("/user/me") && !path.startsWith("/auth/");
+}
+
+let identityRecheck: Promise<void> | null = null;
+
+/**
+ * Single-flight re-check: one `/user/me` per burst of auth failures, then exactly
+ * one app event. 401/no-session means the cookie is gone, a non-SUPER_ADMIN role
+ * means another tab signed in as somebody else, and SUPER_ADMIN means the caller
+ * really is forbidden and should render its own error.
+ */
+function recheckIdentity(): Promise<void> {
+  if (identityRecheck) return identityRecheck;
+
+  identityRecheck = (async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/user/me`, {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+
+      if (!res.ok) {
+        dispatchSessionEvent({ type: "session-expired" });
+        return;
+      }
+
+      let identity: SessionIdentity | null = null;
+      try {
+        identity = (await res.json()) as SessionIdentity;
+      } catch {
+        identity = null;
+      }
+
+      if (identity && identity.role !== "SUPER_ADMIN") {
+        dispatchSessionEvent({ type: "session-switched", user: identity });
+        return;
+      }
+
+      dispatchSessionEvent({ type: "forbidden" });
+    } catch {
+      dispatchSessionEvent({ type: "session-expired" });
+    } finally {
+      identityRecheck = null;
+    }
+  })();
+
+  return identityRecheck;
 }
 
 export async function apiFetch<T = unknown>(
@@ -66,6 +126,11 @@ export async function apiFetch<T = unknown>(
     } catch {
       message = res.statusText || message;
     }
+    if (isAuthFailure(res.status) && shouldRecheckIdentity(path)) {
+      // Fire and forget: the caller still throws so its own error state renders.
+      void recheckIdentity();
+    }
+
     throw new ApiError(message, res.status);
   }
 

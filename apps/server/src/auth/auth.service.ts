@@ -236,6 +236,7 @@ export class AuthService {
         business: {
           select: {
             id: true,
+            name: true,
             status: true,
             subscriptionExpiresAt: true,
           },

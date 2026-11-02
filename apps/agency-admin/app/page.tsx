@@ -4,6 +4,10 @@ import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
+import { API_BASE_URL } from "@/lib/auth";
+import { describeError } from "@/lib/errors";
+import InlineError from "@/components/InlineError";
+import { useToast } from "@/context/ToastContext";
 import {
   Building2,
   Users,
@@ -82,6 +86,7 @@ function formatRelativeTime(dateStr: string | null): string {
 
 export default function AgencyAdminPage() {
   const { token, isLoading: isAuthLoading } = useAuth();
+  const { showToast } = useToast();
   const [tenants, setTenants] = useState<TenantRow[]>([]);
   const [overview, setOverview] = useState<OverviewAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -103,6 +108,11 @@ export default function AgencyAdminPage() {
   });
   const [submitLoading, setSubmitLoading] = useState(false);
   const [error, setError] = useState("");
+  const [listError, setListError] = useState("");
+  const [overviewError, setOverviewError] = useState("");
+  const [viewAsConfirm, setViewAsConfirm] = useState<
+    { businessId: string; name: string } | null
+  >(null);
 
   // Branch provisioning state
   const [expandedTenantId, setExpandedTenantId] = useState<string | null>(null);
@@ -116,8 +126,9 @@ export default function AgencyAdminPage() {
     try {
       const data = await api.get<OverviewAnalytics>("/agency/analytics/overview");
       setOverview(data);
+      setOverviewError("");
     } catch (err) {
-      console.error("Failed to fetch overview analytics:", err);
+      setOverviewError(describeError(err, "the overview numbers"));
     }
   }, []);
 
@@ -129,8 +140,9 @@ export default function AgencyAdminPage() {
       const url = `/agency/analytics/tenants${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
       const data = await api.get<TenantRow[]>(url);
       setTenants(data);
+      setListError("");
     } catch (err) {
-      console.error("Failed to fetch tenants:", err);
+      setListError(describeError(err, "the tenants list"));
     } finally {
       setLoading(false);
     }
@@ -153,8 +165,7 @@ export default function AgencyAdminPage() {
       const queryParams = new URLSearchParams({ format: "csv" });
       if (filter && filter !== "all") queryParams.set("filter", filter);
       if (sort && sort !== "name") queryParams.set("sort", sort);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-      const res = await fetch(`${apiUrl}/agency/analytics/tenants?${queryParams.toString()}`, {
+      const res = await fetch(`${API_BASE_URL}/agency/analytics/tenants?${queryParams.toString()}`, {
         credentials: "include",
       });
       if (!res.ok) throw new Error("CSV export failed");
@@ -168,13 +179,13 @@ export default function AgencyAdminPage() {
       a.remove();
       window.URL.revokeObjectURL(downloadUrl);
     } catch (err) {
-      console.error("CSV export failed:", err);
+      showToast(describeError(err, "the CSV export"), "error");
     } finally {
       setExportingCsv(false);
     }
   };
 
-  const handleViewAs = async (businessId: string) => {
+  const performViewAs = async (businessId: string) => {
     setViewAsLoadingId(businessId);
     try {
       const res = await api.post<{ token: string; url: string; expiresAt: string }>(
@@ -182,12 +193,18 @@ export default function AgencyAdminPage() {
       );
       if (res?.url) {
         window.open(res.url, "_blank");
+        showToast("View-as opened. Press Exit in the shop tab to come back.", "info");
       }
     } catch (err) {
-      console.error("View as failed:", err);
+      showToast(describeError(err, "the view-as session"), "error");
     } finally {
       setViewAsLoadingId(null);
     }
+  };
+
+  // Switching the whole browser session deserves one explicit confirmation.
+  const handleViewAs = (businessId: string, name: string) => {
+    setViewAsConfirm({ businessId, name });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -282,6 +299,13 @@ export default function AgencyAdminPage() {
       />
 
       {/* ── Overview Metrics Cards ────────────────────────────────────────────── */}
+      {overviewError && (
+        <InlineError
+          area="overview"
+          message={overviewError}
+          onRetry={fetchOverview}
+        />
+      )}
       {overview && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
@@ -407,7 +431,17 @@ export default function AgencyAdminPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredTenants.length === 0 ? (
+              {listError ? (
+                <tr>
+                  <td colSpan={9} className="px-3 py-6">
+                    <InlineError
+                      area="tenants"
+                      message={listError}
+                      onRetry={fetchTenants}
+                    />
+                  </td>
+                </tr>
+              ) : filteredTenants.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                     No tenants match the selected filters.
@@ -535,7 +569,7 @@ export default function AgencyAdminPage() {
 
                           <button
                             type="button"
-                            onClick={() => handleViewAs(t.businessId)}
+                            onClick={() => handleViewAs(t.businessId, t.name)}
                             disabled={viewAsLoadingId === t.businessId}
                             data-testid="tenant-view-as"
                             className="inline-flex items-center gap-1 text-caption font-semibold px-2.5 py-1 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-100 hover:text-brand-700 transition-colors disabled:opacity-50"
@@ -565,6 +599,45 @@ export default function AgencyAdminPage() {
           </table>
         </div>
       </div>
+
+      {/* ── View As Confirmation ──────────────────────────────────────────── */}
+      {viewAsConfirm && (
+        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div
+            data-testid="view-as-confirm"
+            role="dialog"
+            aria-modal="true"
+            className="bg-card rounded-lg shadow-xl max-w-md w-full border border-gray-100 p-6 space-y-4 animate-in zoom-in-95 duration-200"
+          >
+            <h3 className="font-semibold text-gray-900">
+              Open {viewAsConfirm.name} as the shop?
+            </h3>
+            <p className="text-body text-gray-600">
+              Viewing as this shop switches this browser&apos;s session until you
+              press Exit in the shop tab. The console will pause meanwhile.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setViewAsConfirm(null)}
+                data-testid="view-as-confirm-cancel"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  const id = viewAsConfirm.businessId;
+                  setViewAsConfirm(null);
+                  void performViewAs(id);
+                }}
+                data-testid="view-as-confirm-accept"
+              >
+                Continue
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Provision Tenant Modal ────────────────────────────────────────── */}
       {isModalOpen && (

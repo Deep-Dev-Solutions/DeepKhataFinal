@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LogOut, Loader2, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import SessionSwitchedNotice from "@/components/SessionSwitchedNotice";
 import { CLIENT_APP_URL } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -20,26 +21,30 @@ export default function AppShell({
 }: {
   children: React.ReactNode;
 }) {
-  const { logout, user, isAuthenticated, isLoading } = useAuth();
+  const { logout, user, isAuthenticated, isLoading, sessionState } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
   const isLoginPage = pathname === "/login";
 
+  // A switched session is not a logged-out session: the admin cookie is usually
+  // still recoverable (Exit view-as), so hold the page instead of bouncing to /login.
+  const isSwitched = sessionState === "switched";
+
   useEffect(() => {
-    if (!isLoading && !isAuthenticated && !isLoginPage) {
+    if (!isLoading && !isAuthenticated && !isLoginPage && !isSwitched) {
       router.replace("/login");
     }
     if (isLoginPage && isAuthenticated) {
       router.replace("/");
     }
-  }, [isLoading, isAuthenticated, isLoginPage, router]);
+  }, [isLoading, isAuthenticated, isLoginPage, isSwitched, router]);
 
   if (isLoginPage) {
     return <>{children}</>;
   }
 
-  if (isLoading || !isAuthenticated) {
+  if (isLoading || (!isAuthenticated && !isSwitched)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-gray-500">
@@ -92,15 +97,24 @@ export default function AppShell({
           >
             Store Dashboard →
           </Link>
-          <div className="text-body">
-            <span className="text-gray-500">Logged in as </span>
-            <span className="font-semibold text-gray-900">
-              {user?.name || "Super Admin"}
-            </span>
-            <Badge variant="neutral" uppercase className="ml-1.5">
-              SUPER_ADMIN
-            </Badge>
-          </div>
+          {isSwitched ? (
+            <div className="text-body" data-testid="app-shell-identity-paused">
+              <span className="text-gray-500">Console paused</span>
+              <Badge variant="neutral" uppercase className="ml-1.5">
+                NOT SUPER_ADMIN
+              </Badge>
+            </div>
+          ) : (
+            <div className="text-body">
+              <span className="text-gray-500">Logged in as </span>
+              <span className="font-semibold text-gray-900">
+                {user?.name || "Super Admin"}
+              </span>
+              <Badge variant="neutral" uppercase className="ml-1.5">
+                {user?.role || "SUPER_ADMIN"}
+              </Badge>
+            </div>
+          )}
           <button
             onClick={() => logout()}
             className="flex items-center gap-2 text-body font-medium text-gray-600 hover:text-danger transition-colors"
@@ -113,6 +127,7 @@ export default function AppShell({
       <main className="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8">
         {children}
       </main>
+      {isSwitched && <SessionSwitchedNotice />}
     </div>
   );
 }

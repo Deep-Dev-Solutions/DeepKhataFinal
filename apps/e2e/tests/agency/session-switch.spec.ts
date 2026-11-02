@@ -67,8 +67,8 @@ async function openTenantAndReturn(page: Page, bizName: string) {
   await expect(page.getByTestId('tenants-page')).toBeVisible({ timeout: 30_000 });
 }
 
-/** Samples everything the bug report asks for, then asserts the fixed behaviour. */
-async function expectConsoleStillSuperAdmin(page: Page, scenario: string) {
+/** Samples the identity the console's cookie jar presents and records it as evidence. */
+async function sampleIdentity(page: Page, scenario: string) {
   const identity = await consoleIdentity(page);
   const evidence = {
     scenario,
@@ -82,6 +82,18 @@ async function expectConsoleStillSuperAdmin(page: Page, scenario: string) {
   };
   test.info().annotations.push({ type: 'p0-evidence', description: JSON.stringify(evidence) });
   console.log(`[P0-EVIDENCE] ${JSON.stringify(evidence)}`);
+  return identity;
+}
+
+/**
+ * While the browser's cookie belongs to the shop user, the console must pause honestly: no
+ * misleading empty state, no raw 403 text, and a notice naming the switch.
+ *
+ * The cookie itself still belongs to the shop user here on purpose - changing that is P7. What P1
+ * guarantees is that the console never renders a rejected request as if it were real data.
+ */
+async function expectConsolePaused(page: Page, scenario: string) {
+  const identity = await sampleIdentity(page, scenario);
 
   // The console must not lie about empty data when the truth is a rejected request.
   await expect(page.getByText(EMPTY_STATE), `${scenario}: tenants list shows a misleading empty state`).toHaveCount(0);
@@ -92,9 +104,26 @@ async function expectConsoleStillSuperAdmin(page: Page, scenario: string) {
   await expect(page.getByTestId(NOTICE_LOGIN)).toBeVisible();
   await expect(page.getByTestId(NOTICE_LOGIN)).toContainText('Sign in again');
 
-  // And it must still be the super admin.
-  await expect(identity.role, `${scenario}: /user/me role seen by the console`).toBe('SUPER_ADMIN');
-  await expect(identity.tenantsStatus, `${scenario}: /agency/analytics/tenants status seen by the console`).toBe(200);
+  return identity;
+}
+
+/** After Exit view-as the console must be the super admin again, with a working tenants list. */
+async function expectConsoleRestored(page: Page, scenario: string, bizName: string) {
+  // Exit posts first and reloads the console afterwards, so wait for the notice to clear and for the
+  // list to come back before sampling the identity the cookie jar now presents.
+  await expect(page.getByTestId(NOTICE), `${scenario}: notice still blocking the console`).toHaveCount(0, {
+    timeout: 60_000,
+  });
+  await expect(page.getByTestId('tenant-row').filter({ hasText: bizName }), `${scenario}: tenants list`).toHaveCount(1, {
+    timeout: 60_000,
+  });
+  const identity = await sampleIdentity(page, scenario);
+  await expect(identity.meStatus, `${scenario}: /user/me status`).toBe(200);
+  await expect(identity.role, `${scenario}: /user/me role`).toBe('SUPER_ADMIN');
+  await expect(identity.tenantsStatus, `${scenario}: /agency/analytics/tenants status`).toBe(200);
+  await expect(page.getByTestId('tenant-row').filter({ hasText: bizName })).toHaveCount(1, {
+    timeout: 60_000,
+  });
 }
 
 test.describe('P0: console session switch (A1)', () => {
@@ -121,13 +150,15 @@ test.describe('P0: console session switch (A1)', () => {
         .filter({ hasText: bizName })
         .getByTestId('tenant-view-as')
         .click();
+      // P1 added a confirmation dialog before a view-as session is created.
+      await adminPage.getByTestId('view-as-confirm-accept').click();
       const viewPage = await popupPromise;
       await expect(viewPage.getByTestId('view-as-banner')).toBeVisible({ timeout: 60_000 });
 
       // (c) Back on the console: open a tenant detail and return to the list.
       await openTenantAndReturn(adminPage, bizName);
 
-      await expectConsoleStillSuperAdmin(adminPage, 'view-as tab open');
+      await expectConsolePaused(adminPage, 'view-as tab open');
 
       // The notice offers Exit view-as for a switch caused by view-as.
       await expect(adminPage.getByTestId(NOTICE_EXIT)).toBeVisible();
@@ -135,9 +166,7 @@ test.describe('P0: console session switch (A1)', () => {
 
       // Leaving view-as restores the console identity and the list.
       await adminPage.getByTestId(NOTICE_EXIT).click();
-      await expect(adminPage.getByTestId('tenant-row').filter({ hasText: bizName })).toHaveCount(1, {
-        timeout: 60_000,
-      });
+      await expectConsoleRestored(adminPage, 'after Exit view-as', bizName);
     } finally {
       await ctx.close();
     }
@@ -162,7 +191,7 @@ test.describe('P0: console session switch (A1)', () => {
 
       await openTenantAndReturn(adminPage, bizName);
 
-      await expectConsoleStillSuperAdmin(adminPage, 'client login in the same browser');
+      await expectConsolePaused(adminPage, 'client login in the same browser');
 
       // Not a view-as switch: there is nothing to exit, only to sign in again.
       await expect(adminPage.getByTestId(NOTICE_EXIT)).toHaveCount(0);
@@ -185,6 +214,8 @@ test.describe('P0: console session switch (A1)', () => {
         .filter({ hasText: bizName })
         .getByTestId('tenant-view-as')
         .click();
+      // P1 added a confirmation dialog before a view-as session is created.
+      await adminPage.getByTestId('view-as-confirm-accept').click();
       const viewPage = await popupPromise;
       await expect(viewPage.getByTestId('view-as-banner')).toBeVisible({ timeout: 60_000 });
 
@@ -192,15 +223,13 @@ test.describe('P0: console session switch (A1)', () => {
       await viewPage.close();
 
       await openTenantAndReturn(adminPage, bizName);
-      await expectConsoleStillSuperAdmin(adminPage, 'view-as tab closed without Exit');
+      await expectConsolePaused(adminPage, 'view-as tab closed without Exit');
 
       // The stashed admin session still exists, so Exit view-as must be offered and must work.
       await expect(adminPage.getByTestId(NOTICE_EXIT)).toBeVisible();
       await expect(adminPage.getByTestId(NOTICE_EXIT)).toContainText('Exit view-as');
       await adminPage.getByTestId(NOTICE_EXIT).click();
-      await expect(adminPage.getByTestId('tenant-row').filter({ hasText: bizName })).toHaveCount(1, {
-        timeout: 60_000,
-      });
+      await expectConsoleRestored(adminPage, 'after Exit view-as with the tab closed', bizName);
     } finally {
       await ctx.close();
     }
