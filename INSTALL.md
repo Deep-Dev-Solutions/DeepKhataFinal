@@ -42,6 +42,7 @@ npm install
    npm run db:up
    ```
    The compose file creates the databases `deepkhata`, `deepkhata_test`, `deepkhata_e2e` and `deepkhata_shadow` on first start. Redis is optional: `docker compose -f docker-compose.dev.yml --profile redis up -d`, then set `REDIS_URL`.
+   `npm run dev` (step 5) starts these two containers itself, on the ports `apps/server/.env` points at — this step is here so the migrate and seed commands have a database.
 4. **Create the schema and seed data.**
    ```bash
    npm run db:migrate
@@ -69,7 +70,9 @@ For a large dataset (about 10,000 products and 100,000 orders, used by the bench
 ### Everyday commands
 | Command | What it does |
 | --- | --- |
-| `npm run dev` | API, client and admin together |
+| `npm run dev` | Postgres + Mailpit, then API, client and admin together (watch mode) |
+| `npm run prod` | Build every workspace, apply migrations, then run API, client and admin in production mode |
+| `npm run start:prod` | Run the production servers only (after `npm run build`) |
 | `npm run build` | Build every workspace |
 | `npm run lint` | Lint every workspace |
 | `npm run test:api` | API tests (Vitest and Supertest) against `deepkhata_test`; resets that database |
@@ -88,7 +91,7 @@ Notes for the two test commands:
 - When an AI agent runs them, the database reset needs `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION` set inline for that one command. Never write that value into a file.
 
 ### Database changes
-Schema changes only through `npx prisma migrate dev --name <change>` inside `apps/server`. `prisma db push` is banned. Migration folders are numbered (`0000_`, `0001_`, ...) and must be safe on existing production data.
+Schema changes only through `npx prisma migrate dev --name <change>` inside `apps/server`. `prisma db push` is banned. Migration folders keep Prisma's `<timestamp>_<seq>_<name>` form and must be safe on existing production data.
 
 ### Checking the local database
 
