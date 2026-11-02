@@ -12,9 +12,9 @@
 ## Run the stack
 
 1. `npm i`
-2. `npm run db:up` starts Postgres 17 and Mailpit.
+2. `npm run db:up` starts Postgres 17 and Mailpit (also runs automatically before `npm run dev`, on the ports `apps/server/.env` points at).
    - Redis is optional: `docker compose -f docker-compose.dev.yml --profile redis up -d`.
-   - If host port 5432 is taken, `export POSTGRES_PORT=5433` and update `apps/server/.env` to match.
+   - If host port 5432 is taken, set `POSTGRES_PORT` and point `apps/server/.env` at the same port; `npm run dev` reads the port from `.env`.
 3. `npm run db:migrate`
 4. `npm run db:seed`
 5. `npm run dev` starts the api on :5000, client on :3000, admin on :3001.
@@ -25,8 +25,11 @@ Mailpit UI: http://localhost:8025
 
 | Command | Description |
 | --- | --- |
-| `npm run dev` | Start api (:5000), client (:3000) and admin (:3001) together. |
+| `npm run dev` | Start Postgres + Mailpit (ports from `apps/server/.env`), then api (:5000), client (:3000) and admin (:3001) in watch mode. |
+| `npm run prod` | Production build of every workspace, then api (:5000), client (:3000) and admin (:3001) in production mode. Also starts the dev database and applies migrations first. |
+| `npm run start:prod` | Run the production servers only — assumes `npm run build` and `npm run db:migrate` already ran. |
 | `npm run db:up` | Start dev Postgres and Mailpit via docker compose, waiting until healthy. |
+| `npm run db:up:dev` | Start dev Postgres and Mailpit on the ports in `apps/server/.env`; runs before `npm run dev`. |
 | `npm run db:down` | Stop the dev docker compose stack. |
 | `npm run db:migrate` | Apply server Prisma migrations. |
 | `npm run db:seed` | Seed the dev database via the Prisma seed script. |
