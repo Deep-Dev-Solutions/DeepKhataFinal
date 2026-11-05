@@ -18,6 +18,13 @@ import { Role } from '@prisma/client';
 import { AccessLogAction } from '../analytics/access-log.decorator';
 import { SetDealDto } from './deal.dto';
 import {
+  AddBranchDto,
+  CreatePlanDto,
+  LogPaymentDto,
+  UpdatePlanDto,
+  UpdateTenantStatusDto,
+} from './plan.dto';
+import {
   SignupsQueryDto,
   TasksQueryDto,
   UpdateSignupDto,
@@ -56,8 +63,11 @@ export class AgencyController {
   }
 
   @Patch('tenants/:id/status')
-  async updateTenantStatus(@Param('id') id: string, @Body() data: any) {
-    return this.agencyService.updateTenantStatus(id, data?.status);
+  async updateTenantStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: UpdateTenantStatusDto,
+  ) {
+    return this.agencyService.updateTenantStatus(id, body.status);
   }
 
   /** Agency sets a custom deal (price, limits, dates) for a tenant. */
@@ -76,17 +86,40 @@ export class AgencyController {
     return this.agencyService.getDealHistory(id);
   }
 
+  /** A payment extends the paid-through date and can also change the plan. */
   @Post('tenants/:id/billing')
-  async logPaymentAndExtend(@Param('id') id: string, @Body() data: any) {
-    return this.agencyService.logPaymentAndExtend(id, data);
+  async logPaymentAndExtend(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: LogPaymentDto,
+  ) {
+    return this.agencyService.logPaymentAndExtend(id, body);
   }
 
   @Post('branch/:businessId')
   async addBranchToTenant(
-    @Param('businessId') businessId: string,
-    @Body() data: any,
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+    @Body() body: AddBranchDto,
   ) {
-    return this.agencyService.addBranchToTenant(businessId, data);
+    return this.agencyService.addBranchToTenant(businessId, body);
+  }
+
+  /** Named plan presets shown by the console's plan picker. */
+  @Get('plans')
+  async listPlans() {
+    return this.agencyService.listPlans();
+  }
+
+  @Post('plans')
+  async createPlan(@Body() body: CreatePlanDto) {
+    return this.agencyService.createPlan(body);
+  }
+
+  @Patch('plans/:id')
+  async updatePlan(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: UpdatePlanDto,
+  ) {
+    return this.agencyService.updatePlan(id, body);
   }
 
   @Get('signups')

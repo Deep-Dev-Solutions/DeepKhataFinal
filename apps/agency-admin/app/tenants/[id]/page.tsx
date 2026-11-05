@@ -34,6 +34,7 @@ import type {
   SetDealResponse,
   DealHistoryRow,
   TenantAnalyticsDetail,
+  PlanPreset,
 } from "@/types/agency";
 
 const STATUS_META: Record<
@@ -138,6 +139,13 @@ export default function TenantDetailPage() {
   const [analyticsError, setAnalyticsError] = useState("");
   const [viewAsConfirm, setViewAsConfirm] = useState(false);
 
+  // Named plan presets and the "payment also sets the plan" fields.
+  const [plans, setPlans] = useState<PlanPreset[]>([]);
+  const [plansError, setPlansError] = useState("");
+  const [dealPrefilled, setDealPrefilled] = useState(false);
+  const [payPlanId, setPayPlanId] = useState("");
+  const [payCycle, setPayCycle] = useState("MONTHLY");
+
   const fetchTenant = useCallback(async () => {
     if (!tenantId || !token) {
       if (!isAuthLoading) setLoading(false);
@@ -178,17 +186,118 @@ export default function TenantDetailPage() {
     }
   }, [tenantId, token]);
 
+  const fetchPlans = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await api.get<PlanPreset[]>("/agency/plans");
+      setPlans(data || []);
+      setPlansError("");
+    } catch (err: unknown) {
+      setPlansError(describeError(err, "the plan presets"));
+    }
+  }, [token]);
+
   useEffect(() => {
     const load = async () => {
       if (tenantId && token) {
         await fetchTenant();
         await fetchDealHistory();
+        await fetchPlans();
       } else if (!isAuthLoading) {
         setLoading(false);
       }
     };
     load().catch(console.error);
-  }, [tenantId, token, isAuthLoading, fetchTenant, fetchDealHistory]);
+  }, [tenantId, token, isAuthLoading, fetchTenant, fetchDealHistory, fetchPlans]);
+
+  /**
+   * Fill the plan editor from what the tenant is actually on, once. Admins can
+   * still type over every field afterwards; re-fetching the tenant must not
+   * wipe an edit in progress.
+   */
+  useEffect(() => {
+    const sub = tenant?.subscription;
+    if (!sub || dealPrefilled) return;
+    // Deferred so the effect does not set state synchronously (cascading renders).
+    void Promise.resolve().then(() => {
+    const limits = sub.customLimits ?? {};
+    setDealPlan(sub.planCode || sub.plan?.code || "CUSTOM");
+    setDealCycle(sub.billingCycle || "MONTHLY");
+    setDealPrice(
+      sub.priceOverride ??
+        (sub.billingCycle === "YEARLY"
+          ? sub.plan?.priceYearly
+          : sub.plan?.priceMonthly) ??
+        "",
+    );
+    setDealStart(sub.currentPeriodStart ? sub.currentPeriodStart.slice(0, 10) : "");
+    setDealEnd(sub.currentPeriodEnd ? sub.currentPeriodEnd.slice(0, 10) : "");
+    if (limits.maxBranches != null) setDealMaxBranches(limits.maxBranches);
+    else if (sub.plan?.maxBranches != null) setDealMaxBranches(sub.plan.maxBranches);
+    if (limits.maxUsers != null) setDealMaxUsers(limits.maxUsers);
+    else if (sub.plan?.maxUsers != null) setDealMaxUsers(sub.plan.maxUsers);
+    const products = limits.maxProducts ?? sub.plan?.maxProducts;
+    setDealMaxProducts(products == null ? "" : String(products));
+    setPayPlanId(sub.planId ?? sub.plan?.id ?? "");
+    setPayCycle(sub.billingCycle || "MONTHLY");
+    setDealPrefilled(true);
+    });
+  }, [tenant, dealPrefilled]);
+
+  const cyclePrice = (preset: PlanPreset, cycle: string) =>
+    cycle === "YEARLY" ? preset.priceYearly : preset.priceMonthly;
+
+  /** Selecting a preset fills its price and limits; every field stays editable. */
+  const applyPlanPreset = (code: string, cycle = dealCycle) => {
+    setDealPlan(code);
+    const preset = plans.find((p) => p.code === code);
+    if (!preset) return;
+    const price = cyclePrice(preset, cycle);
+    if (price != null) setDealPrice(price);
+    if (preset.maxBranches != null) setDealMaxBranches(preset.maxBranches);
+    if (preset.maxUsers != null) setDealMaxUsers(preset.maxUsers);
+    if (preset.maxProducts != null) {
+      setDealMaxProducts(String(preset.maxProducts));
+    }
+  };
+
+  const applyPaymentPreset = (id: string) => {
+    setPayPlanId(id);
+    const preset = plans.find((p) => p.id === id);
+    if (!preset) return;
+    const price = payCycle === "YEARLY" ? preset.priceYearly : preset.priceMonthly;
+    if (price != null) setAmount(price);
+  };
+
+  /**
+   * Switching Monthly/Yearly re-prices from the preset, but only while the
+   * price still shows the preset's own figure for the previous cycle. A price
+   * the agent typed by hand is never overwritten.
+   */
+  const applyPlanCycle = (cycle: string) => {
+    const preset = plans.find((p) => p.code === dealPlan);
+    if (preset) {
+      const previous = cyclePrice(preset, dealCycle);
+      const next = cyclePrice(preset, cycle);
+      if (next != null && (dealPrice === "" || dealPrice === (previous ?? ""))) {
+        setDealPrice(next);
+      }
+    }
+    setDealCycle(cycle);
+  };
+
+  /** Same rule for the payment form: never clobber a hand-typed amount. */
+  const applyPaymentCycle = (cycle: string) => {
+    const preset = plans.find((p) => p.id === payPlanId);
+    if (preset) {
+      const previous = cyclePrice(preset, payCycle);
+      const next = cyclePrice(preset, cycle);
+      if (next != null && (amount === "" || amount === (previous ?? ""))) {
+        setAmount(next);
+      }
+    }
+    setPayCycle(cycle);
+  };
 
   const handleStatusChange = async (
     e: React.ChangeEvent<HTMLSelectElement>,
@@ -219,15 +328,19 @@ export default function TenantDetailPage() {
       const data = await api.post<LogPaymentResponse>(
         `/agency/tenants/${tenant.id}/billing`,
         {
-          amount: parseFloat(amount),
+          amount,
           paymentDate,
           notes: notes || undefined,
+          planId: payPlanId || undefined,
+          billingCycle: payCycle,
         },
       );
       setAmount("");
       setNotes("");
+      const planName =
+        plans.find((p) => p.id === payPlanId)?.name ?? "the selected plan";
       setBillingSuccess(
-        `Payment of Rs. ${formatAmount(data.billingLog.amount)} logged. Subscription extended to ${formatDate(data.subscriptionExpiresAt)}.`,
+        `Payment of Rs. ${formatAmount(data.billingLog.amount)} logged. Plan set to ${planName}, subscription extended to ${formatDate(data.subscriptionExpiresAt)}.`,
       );
       await fetchTenant();
     } catch (err: unknown) {
@@ -800,18 +913,54 @@ export default function TenantDetailPage() {
               </div>
             )}
             {billingSuccess && (
-              <div className="bg-success-bg text-success border border-success rounded-lg p-3 text-body">
+              <div data-testid="tenant-payment-success" className="bg-success-bg text-success border border-success rounded-lg p-3 text-body">
                 {billingSuccess}
               </div>
             )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-caption font-medium text-gray-700 mb-1">
+                  Plan bought
+                </label>
+                <select
+                  data-testid="tenant-payment-plan"
+                  value={payPlanId}
+                  onChange={(e) => applyPaymentPreset(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-success/300"
+                >
+                  <option value="">Keep current plan</option>
+                  {plans.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-caption font-medium text-gray-700 mb-1">
+                  Billing cycle
+                </label>
+                <select
+                  data-testid="tenant-payment-cycle"
+                  value={payCycle}
+                  onChange={(e) => applyPaymentCycle(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-success/300"
+                >
+                  <option value="MONTHLY">Monthly</option>
+                  <option value="YEARLY">Yearly</option>
+                  <option value="CUSTOM">Custom</option>
+                </select>
+              </div>
+            </div>
 
             <div>
               <label className="block text-caption font-medium text-gray-700 mb-1">
                 Amount (PKR) *
               </label>
               <input
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 required
                 data-testid="tenant-payment-amount"
                 value={amount}
@@ -867,9 +1016,28 @@ export default function TenantDetailPage() {
         <div className="bg-card border border-gray-200 rounded-lg shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex items-center gap-2">
             <CreditCard size={16} className="text-brand-700" />
-            <h3 className="font-semibold text-gray-900">Set Custom Deal</h3>
+            <div>
+              <h3 className="font-semibold text-gray-900">Plan &amp; Deal</h3>
+              <p data-testid="tenant-plan-current" className="text-caption text-gray-500">
+                {tenant.subscription
+                  ? `Now: ${tenant.subscription.planName} · ${tenant.subscription.billingCycle}${
+                      tenant.subscription.currentPeriodEnd
+                        ? ` · renews ${formatDate(tenant.subscription.currentPeriodEnd)}`
+                        : ""
+                    }`
+                  : "This shop has no subscription row yet."}
+              </p>
+            </div>
           </div>
           <form onSubmit={handleSetDeal} className="p-6 space-y-4">
+            {plansError && (
+              <InlineError
+                area="plan-presets"
+                message={plansError}
+                onRetry={fetchPlans}
+                compact
+              />
+            )}
             {dealError && (
               <div className="bg-danger-bg text-danger border border-danger rounded-lg p-3 text-body">
                 {dealError}
@@ -889,13 +1057,18 @@ export default function TenantDetailPage() {
                 <select
                   data-testid="deal-plan"
                   value={dealPlan}
-                  onChange={(e) => setDealPlan(e.target.value)}
+                  onChange={(e) => applyPlanPreset(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-brand-300"
                 >
-                  <option value="TRIAL">TRIAL (Free Trial)</option>
-                  <option value="BASIC">BASIC</option>
-                  <option value="STANDARD">STANDARD</option>
-                  <option value="CUSTOM">CUSTOM</option>
+                  {!plans.some((p) => p.code === dealPlan) && (
+                    <option value={dealPlan}>{dealPlan}</option>
+                  )}
+                  {plans.map((p) => (
+                    <option key={p.id} value={p.code}>
+                      {p.name}
+                      {p.priceMonthly ? ` · Rs ${p.priceMonthly}/mo` : ""}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -920,7 +1093,7 @@ export default function TenantDetailPage() {
               <select
                 data-testid="deal-cycle"
                 value={dealCycle}
-                onChange={(e) => setDealCycle(e.target.value)}
+                onChange={(e) => applyPlanCycle(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-brand-300"
               >
                 <option value="MONTHLY">Monthly</option>
@@ -1019,7 +1192,7 @@ export default function TenantDetailPage() {
               className="w-full py-2 bg-brand-700 text-white rounded-lg text-body font-medium hover:bg-brand-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
             >
               {dealSubmitting && <Loader2 size={16} className="animate-spin" />}
-              Set Deal & Save History
+              Save Plan &amp; Deal
             </button>
           </form>
         </div>

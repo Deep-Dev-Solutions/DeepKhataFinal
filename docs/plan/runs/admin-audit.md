@@ -44,11 +44,15 @@ Severity: S1 security/data loss, S2 broken core flow, S3 wrong or misleading beh
 | A6 | S1 | Secrets | `prisma/seedSuperAdmin.ts` hardcodes a real email and plaintext password in the repo, and bcrypt-hashes into `User.password` (may not match Better Auth's account table) | apps/server/prisma/seedSuperAdmin.ts |
 | A7 | S2 | API input | `@Body() data: any` on `onboard-tenant`, `tenants/:id/status`, `tenants/:id/billing`, `branch/:businessId` (breaks the "DTO for every body" rule; unknown fields pass through) | agency.controller.ts |
 | A8 | S3 | API input | No `ParseUUIDPipe` on `GET tenants/:id`, `PATCH tenants/:id/status`, `POST tenants/:id/billing`, `POST branch/:businessId`, `PATCH signups/:businessId`, `PATCH tasks/:id`; a bad id likely becomes a 500 | agency.controller.ts |
-| A9 | S3 | Money | Log payment sends `amount: parseFloat(amount)` (JS number); deal `maxProducts` via `Number()`; money must travel as strings | tenants/[id]/page.tsx 204, 283 |
+| A9 | S3 | Money | **Fixed in P1.1.** Log payment sent `amount: parseFloat(amount)` (JS number); the console now posts the raw money string and `LogPaymentDto` validates it | tenants/[id]/page.tsx, plan.dto.ts |
 | A10 | S3 | Data | **Fixed in P1.** Duplicate API base URL logic: `process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"` inlined instead of `API_BASE_URL` | page.tsx 156, tenants/[id]/page.tsx 243 |
 | A11 | S3 | UX | "Store Dashboard →" sends the super admin into the client app with the shared cookie (see D3, F13) | src/components/AppShell.tsx 90 |
 | A12 | S4 | Auth | Admin login has no Turnstile widget (BUGS.md open item) | app/login/page.tsx |
 | A13 | S3 | Tests | No E2E for: admin tab while view-as is open, error states, bad tenant id, signups/tasks actions, invoice send/void/payment from the console | apps/e2e/tests/agency/ |
+| A17 | S2 | Billing | **Fixed in P1.1.** Logging a payment never changed the plan: `extend()` kept `opts.planId ?? existing.planId`, so a Rs 30,000 yearly payment left the shop on Free Trial in both the console and the client | agency.service.ts logPaymentAndExtend, subscriptions.service.ts extend |
+| A18 | S2 | Billing | **Fixed in P1.1.** Expiry was sticky: `setDeal()` cleared neither `trialEndsAt` nor `graceEndsAt`, so a TRIALING row stayed READ_ONLY via `computeEffectiveStatus` no matter how far the end date moved | agency.service.ts setDeal, subscriptions.service.ts |
+| A19 | S3 | Billing UX | **Fixed in P1.1.** No edit affordance and no named presets: the Set Deal form mounted blank and used raw plan codes with free-typed price and limits | app/tenants/[id]/page.tsx, app/plans/page.tsx |
+| A20 | S3 | Client | **Fixed in P1.1.** `PlanUsageTab` compared `status === "TRIAL"` but the Prisma enum is `TRIALING`, so the trial-days pill never rendered | apps/client/src/components/settings/PlanUsageTab.tsx |
 
 ## 4. Audit checklist (Phase 2 walks every cell)
 
@@ -122,3 +126,27 @@ In all three the `session-switched` notice is absent and the list renders the em
 - Cookie behaviour is untouched by design - P7 owns it. In P0 the role/tenants assertions ran while the shop tab was open, which no P1 change can satisfy; they now run after Exit and additionally assert the restored list. Nothing was weakened.
 - Two specs gained one line each (`view-as-confirm-accept`) because P1 added the confirm dialog; no assertion was changed.
 - New: `src/lib/session.ts`, `src/lib/errors.ts`, `src/components/InlineError.tsx`, `src/components/SessionSwitchedNotice.tsx`.
+
+### P1.1 - editable plan presets, and a payment that sets the plan
+
+| Phase | Task | State | Commit |
+| --- | --- | --- | --- |
+| P1.1 | Payments accept `planId` + `billingCycle` and apply them in the same transaction | done | feat(admin-p1.1) |
+| P1.1 | `setDeal()` and `extend()` clear `trialEndsAt` / `graceEndsAt` so a paid period replaces a trial | done | feat(admin-p1.1) |
+| P1.1 | `GET/POST /agency/plans`, `PATCH /agency/plans/:id` with DTOs, ParseUUIDPipe and RBAC | done | feat(admin-p1.1) |
+| P1.1 | Tenant detail: plan editor prefilled from the live subscription, preset select, cycle re-pricing that never overwrites a typed price | done | feat(admin-p1.1) |
+| P1.1 | Payment form: preset + cycle, amount pre-filled from the preset, posts the plan with the payment | done | feat(admin-p1.1) |
+| P1.1 | `/plans` preset manager (rename, re-price, change limits, create, activate) | done | feat(admin-p1.1) |
+| P1.1 | Sales copy bug: `TRIALING` trial-days pill in the client | done | feat(admin-p1.1) |
+| P1.1 | Tests: `apps/server/test/agency-plans.e2e-spec.ts` (8) and `apps/e2e/tests/agency/plans.spec.ts` (5) | done | feat(admin-p1.1) |
+
+**P1.1 report (10 lines max)**
+- Three separate defects, not one: the plan was never written on payment; expiry could not be lifted because a stale `trialEndsAt` pins `computeEffectiveStatus` to READ_ONLY; and there was no edit path or preset UI.
+- A payment now carries the plan, so one action sets plan + cycle + paid-through date and posts the billing row in the same `$transaction`.
+- `setDeal()` and `extend()` both clear `trialEndsAt` and `graceEndsAt`; that is what makes "expired, then extend by a day" actually come back to ACTIVE.
+- Presets are the existing `Plan` rows (Free Trial, Basic, Standard, Custom) and are editable in the new `/plans` page; no migration needed.
+- Cycle changes re-price only while the field still shows the preset's own figure, so a hand-typed deal price survives (this caused a regression in `deals.spec.ts` that is now covered).
+- `AddBranchDto` had to declare `override`, because `whitelist: true` stripped it and branch adds started 400ing.
+- API suite 448/452; the 4 failures are `accounts.e2e-spec.ts` needing Mailpit, which cannot start because host port 1025 is taken - environmental, not this change.
+- Agency E2E 29/29, including the 3 session-switch and 2 deals specs that guard the earlier work.
+- Lint 0 errors; both admin and client builds clean.

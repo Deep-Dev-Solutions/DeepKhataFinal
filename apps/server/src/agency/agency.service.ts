@@ -21,6 +21,11 @@ import {
   UpdateTaskDto,
 } from '../lifecycle/dto/agency-signups.dto';
 import { SetDealDto } from './deal.dto';
+import {
+  CreatePlanDto,
+  LogPaymentDto,
+  UpdatePlanDto,
+} from './plan.dto';
 import { addDays, daysBetween, karachiDateOnly } from '../common/dates';
 import { claimTrial, requireNormalizedPhone } from '../common/trial-claim';
 
@@ -164,10 +169,26 @@ export class AgencyService {
         where: { businessId: { in: businessIds } },
         select: {
           businessId: true,
+          planId: true,
           status: true,
           trialEndsAt: true,
+          currentPeriodStart: true,
           currentPeriodEnd: true,
-          plan: { select: { code: true, name: true } },
+          billingCycle: true,
+          priceOverride: true,
+          customLimits: true,
+          plan: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              priceMonthly: true,
+              priceYearly: true,
+              maxBranches: true,
+              maxUsers: true,
+              maxProducts: true,
+            },
+          },
         },
       }),
       this.prisma.tenantDailyUsage.groupBy({
@@ -192,11 +213,32 @@ export class AgencyService {
       ...b,
       subscription: sub
         ? {
+            planId: sub.planId,
             status: sub.status,
             planCode: sub.plan.code,
             planName: sub.plan.name,
             trialEndsAt: sub.trialEndsAt,
+            currentPeriodStart: sub.currentPeriodStart,
             currentPeriodEnd: sub.currentPeriodEnd,
+            billingCycle: sub.billingCycle,
+            priceOverride: sub.priceOverride
+              ? sub.priceOverride.toString()
+              : null,
+            customLimits: sub.customLimits,
+            plan: {
+              id: sub.plan.id,
+              code: sub.plan.code,
+              name: sub.plan.name,
+              priceMonthly: sub.plan.priceMonthly
+                ? sub.plan.priceMonthly.toString()
+                : null,
+              priceYearly: sub.plan.priceYearly
+                ? sub.plan.priceYearly.toString()
+                : null,
+              maxBranches: sub.plan.maxBranches,
+              maxUsers: sub.plan.maxUsers,
+              maxProducts: sub.plan.maxProducts,
+            },
           }
         : null,
       usage30: {
@@ -420,6 +462,9 @@ export class AgencyService {
           billingCycle: data.billingCycle,
           customLimits,
           priceOverride: M.money(data.price),
+          // A paid period replaces the trial and there is no grace window.
+          trialEndsAt: null,
+          graceEndsAt: null,
         },
         update: {
           planId: plan.id,
@@ -429,6 +474,9 @@ export class AgencyService {
           billingCycle: data.billingCycle,
           customLimits,
           priceOverride: M.money(data.price),
+          // A paid period replaces the trial and there is no grace window.
+          trialEndsAt: null,
+          graceEndsAt: null,
         },
       });
 
@@ -479,10 +527,7 @@ export class AgencyService {
     });
   }
 
-  async logPaymentAndExtend(
-    businessId: string,
-    data: { amount?: number; paymentDate?: Date | string; notes?: string },
-  ) {
+  async logPaymentAndExtend(businessId: string, data: LogPaymentDto) {
     const business = await this.prisma.business.findUnique({
       where: { id: businessId },
       select: { id: true },
@@ -528,10 +573,15 @@ export class AgencyService {
           },
         });
 
-        // Subscription follows the same paid-through date (period end = paymentDate).
+        // Subscription follows the same paid-through date (period end = paymentDate)
+        // and, when the payment names a plan, that plan is what the shop now buys.
         await this.subscriptions.extend(
           businessId,
-          { until: paymentDate },
+          {
+            until: paymentDate,
+            planId: data.planId,
+            billingCycle: data.billingCycle,
+          },
           tx,
         );
 
@@ -542,10 +592,111 @@ export class AgencyService {
 
     return {
       message:
-        'Payment logged and subscription extended successfully',
+        'Payment logged, subscription extended and plan updated',
       billingLog,
       subscriptionExpiresAt: updatedBusiness.subscriptionExpiresAt,
       status: updatedBusiness.status,
+    };
+  }
+
+  /** Every plan preset (active or not) so the console can manage them. */
+  async listPlans() {
+    const plans = await this.prisma.plan.findMany({
+      orderBy: [{ isPublic: 'desc' }, { priceMonthly: 'asc' }, { code: 'asc' }],
+      include: { _count: { select: { subscriptions: true } } },
+    });
+    return plans.map((plan) => ({
+      ...this.toPlanDto(plan),
+      subscribers: plan._count.subscriptions,
+    }));
+  }
+
+  async createPlan(data: CreatePlanDto) {
+    const existing = await this.prisma.plan.findUnique({
+      where: { code: data.code },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new ConflictException(`Plan code ${data.code} already exists`);
+    }
+    const plan = await this.prisma.plan.create({
+      data: {
+        code: data.code,
+        name: data.name,
+        priceMonthly: data.priceMonthly == null ? null : M.money(data.priceMonthly),
+        priceYearly: data.priceYearly == null ? null : M.money(data.priceYearly),
+        maxBranches: data.maxBranches ?? null,
+        maxUsers: data.maxUsers ?? null,
+        maxProducts: data.maxProducts ?? null,
+        trialDays: data.trialDays ?? null,
+        isPublic: data.isPublic ?? true,
+        active: data.active ?? true,
+      },
+    });
+    return this.toPlanDto(plan);
+  }
+
+  async updatePlan(id: string, data: UpdatePlanDto) {
+    const existing = await this.prisma.plan.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!existing) {
+      throw new NotFoundException(`Plan with ID ${id} not found`);
+    }
+
+    const patch: Prisma.PlanUpdateInput = {};
+    if (data.name !== undefined) patch.name = data.name;
+    if (data.priceMonthly !== undefined) {
+      patch.priceMonthly =
+        data.priceMonthly == null ? null : M.money(data.priceMonthly);
+    }
+    if (data.priceYearly !== undefined) {
+      patch.priceYearly =
+        data.priceYearly == null ? null : M.money(data.priceYearly);
+    }
+    if (data.maxBranches !== undefined) {
+      patch.maxBranches = data.maxBranches ?? null;
+    }
+    if (data.maxUsers !== undefined) patch.maxUsers = data.maxUsers ?? null;
+    if (data.maxProducts !== undefined) {
+      patch.maxProducts = data.maxProducts ?? null;
+    }
+    if (data.trialDays !== undefined) {
+      patch.trialDays = data.trialDays ?? null;
+    }
+    if (data.isPublic !== undefined) patch.isPublic = data.isPublic;
+    if (data.active !== undefined) patch.active = data.active;
+
+    const plan = await this.prisma.plan.update({ where: { id }, data: patch });
+    return this.toPlanDto(plan);
+  }
+
+  private toPlanDto(plan: {
+    id: string;
+    code: string;
+    name: string;
+    priceMonthly: Prisma.Decimal | null;
+    priceYearly: Prisma.Decimal | null;
+    maxBranches: number | null;
+    maxUsers: number | null;
+    maxProducts: number | null;
+    trialDays: number | null;
+    isPublic: boolean;
+    active: boolean;
+  }) {
+    return {
+      id: plan.id,
+      code: plan.code,
+      name: plan.name,
+      priceMonthly: plan.priceMonthly ? plan.priceMonthly.toString() : null,
+      priceYearly: plan.priceYearly ? plan.priceYearly.toString() : null,
+      maxBranches: plan.maxBranches,
+      maxUsers: plan.maxUsers,
+      maxProducts: plan.maxProducts,
+      trialDays: plan.trialDays,
+      isPublic: plan.isPublic,
+      active: plan.active,
     };
   }
 

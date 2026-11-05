@@ -45,7 +45,9 @@ export default function PlanUsageTab() {
 
   const { plan, limits, usage, subscription } = data;
   const trialDays =
-    subscription.status === "TRIAL" ? daysUntil(subscription.trialEndsAt) : null;
+    subscription.status === "TRIAL" || subscription.status === "TRIALING"
+      ? daysUntil(subscription.trialEndsAt)
+      : null;
   const whatsapp = upgradeWhatsappUrl(shopNameFromCache(), plan.name);
 
   return (

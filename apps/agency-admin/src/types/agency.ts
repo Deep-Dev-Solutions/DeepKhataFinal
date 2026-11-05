@@ -38,12 +38,46 @@ export interface BillingLog {
   createdAt: string;
 }
 
+export interface PlanPreset {
+  id: string;
+  code: string;
+  name: string;
+  priceMonthly: string | null;
+  priceYearly: string | null;
+  maxBranches: number | null;
+  maxUsers: number | null;
+  maxProducts: number | null;
+  trialDays: number | null;
+  isPublic: boolean;
+  active: boolean;
+  subscribers?: number;
+}
+
+export interface SubscriptionSummary {
+  planId: string | null;
+  status: string;
+  planCode: string;
+  planName: string;
+  trialEndsAt: string | null;
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+  billingCycle: string;
+  priceOverride: string | null;
+  customLimits: {
+    maxBranches?: number | null;
+    maxUsers?: number | null;
+    maxProducts?: number | null;
+  } | null;
+  plan: PlanPreset | null;
+}
+
 export interface TenantDetail extends Tenant {
   email: string | null;
   phone: string | null;
   address: string | null;
   status: 'ACTIVE' | 'READ_ONLY' | 'SUSPENDED';
   subscriptionExpiresAt: string | null;
+  subscription?: SubscriptionSummary | null;
   billingLogs: BillingLog[];
 }
 

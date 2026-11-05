@@ -14,6 +14,7 @@ const NAV_LINKS = [
   { href: "/", label: "Tenants", testId: "nav-tenants" },
   { href: "/signups", label: "New Signups", testId: "nav-signups" },
   { href: "/billing", label: "Billing", testId: "nav-billing" },
+  { href: "/plans", label: "Plans", testId: "nav-plans" },
 ];
 
 export default function AppShell({

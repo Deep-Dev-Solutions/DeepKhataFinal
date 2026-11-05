@@ -229,6 +229,9 @@ export class SubscriptionsService {
             : (existing?.currentPeriodStart ?? now),
           currentPeriodEnd: periodEnd,
           graceEndsAt: null,
+          // The trial is history once a paid period is set; leaving a past
+          // trialEndsAt behind makes a TRIALING row look expired forever.
+          trialEndsAt: null,
         },
       });
       await this.mirrorBusiness(db, sub);
