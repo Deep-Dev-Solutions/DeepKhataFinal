@@ -11,7 +11,6 @@ Symptom: logged into the admin console (localhost:3001) as SUPER_ADMIN, opened a
 
 Cause: one shared session cookie for every app.
 
-- The API sets one Better Auth cookie (`better-auth.session_token`). Cookies ignore ports, so client (:3000), admin (:3001) and api (:5000) on localhost all share it. In production the same happens whenever `COOKIE_DOMAIN` spans both subdomains.
 - `POST /auth/view-as/activate` (apps/server/src/analytics/view-as.controller.ts) replaces that shared cookie with the impersonated tenant OWNER session. It stashes the admin session in `dk_admin_return` and only puts it back on `/auth/view-as/exit` (BUGS.md T9).
 - So the moment "View as" opens the tenant tab, every request from the admin tab is sent as the tenant OWNER. `RolesGuard` correctly answers 403 "Required role: SUPER_ADMIN".
 - Logging into the client app as any shop user in the same browser does the same thing.
@@ -24,35 +23,31 @@ Dev workaround until fixed: use a separate browser profile (or a private window)
 
 ## 2. Decisions needed from the owner (agent must not decide these)
 
-| ID | Question | Planner recommendation |
-| --- | --- | --- |
-| D1 | Structural view-as fix: should view-as stop touching the shared cookie (per-tab token in `sessionStorage`, sent as `Authorization: Bearer`, which SessionGuard already accepts)? Touches the client app (middleware cookie check, api client, Dexie sync). | Yes, but after Phase 1. Phase 1 makes the console detect and explain the switch; that unblocks you today. |
-| D2 | Three ways to change a tenant's money/subscription: "Log payment and extend" (`POST /agency/tenants/:id/billing`), "Set deal" (`/deal`), and invoices with payments (`/agency/billing/invoices/:id/payments`). Which one is canonical? | Invoices plus deals. Retire "log payment" from the UI, or make it create an invoice and payment under the hood. |
-| D3 | Should the SUPER_ADMIN have a `businessId` at all? `prisma/seedSuperAdmin.ts` attaches it to the first business. That feeds BUGS.md F13 (super admin `GET /dashboard` shows another tenant's data) and the "Store Dashboard →" link. | No. Super admin is business-less; remove the "Store Dashboard" link or point it at the public site. |
+| ID  | Question                                                                                                                                                                                                                                                   | Planner recommendation                                                                                          |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| D1  | Structural view-as fix: should view-as stop touching the shared cookie (per-tab token in `sessionStorage`, sent as `Authorization: Bearer`, which SessionGuard already accepts)? Touches the client app (middleware cookie check, api client, Dexie sync). | Yes, but after Phase 1. Phase 1 makes the console detect and explain the switch; that unblocks you today.       |
+| D2  | Three ways to change a tenant's money/subscription: "Log payment and extend" (`POST /agency/tenants/:id/billing`), "Set deal" (`/deal`), and invoices with payments (`/agency/billing/invoices/:id/payments`). Which one is canonical?                     | Invoices plus deals. Retire "log payment" from the UI, or make it create an invoice and payment under the hood. |
+| D3  | Should the SUPER_ADMIN have a `businessId` at all? `prisma/seedSuperAdmin.ts` attaches it to the first business. That feeds BUGS.md F13 (super admin `GET /dashboard` shows another tenant's data) and the "Store Dashboard →" link.                       | No. Super admin is business-less; remove the "Store Dashboard" link or point it at the public site.             |
 
 ## 3. Known findings (seeded by planner, agent verifies and extends)
 
 Severity: S1 security/data loss, S2 broken core flow, S3 wrong or misleading behaviour, S4 polish.
 
-| ID | Sev | Area | Finding | Where |
-| --- | --- | --- | --- | --- |
-| A1 | S2 | Session | **Fixed (UI side) in P1** - the console now pauses and says who it is; the cookie itself is still shared (P7). View-as or a client login in the same browser silently switches the admin console's identity; every agency call 403s | view-as.controller.ts, shared cookie |
-| A2 | S2 | Session | **Fixed in P1.** `AuthContext` verifies `/user/me` only on mount; never on focus, visibility change, or after a 401/403 | src/context/AuthContext.tsx |
-| A3 | S3 | Errors | **Fixed in P1.** Load failures are swallowed and shown as empty data: tenants list, overview cards, deal history, signups, tasks, invoice list/detail | app/page.tsx 117-147, tenants/[id]/page.tsx 151-172, components/signups/*, components/billing/* |
-| A4 | S3 | Errors | **Fixed in P1.** View-as, CSV export, usage PDF and invoice PDF failures only hit `console.error`; the user sees nothing | page.tsx 157-190, tenants/[id]/page.tsx 222-260, InvoiceDetail.tsx 70 |
-| A5 | S3 | Errors | **Fixed in P1.** `api.ts` has no central 401/403 handling; each page invents its own | src/lib/api.ts |
-| A6 | S1 | Secrets | `prisma/seedSuperAdmin.ts` hardcodes a real email and plaintext password in the repo, and bcrypt-hashes into `User.password` (may not match Better Auth's account table) | apps/server/prisma/seedSuperAdmin.ts |
-| A7 | S2 | API input | `@Body() data: any` on `onboard-tenant`, `tenants/:id/status`, `tenants/:id/billing`, `branch/:businessId` (breaks the "DTO for every body" rule; unknown fields pass through) | agency.controller.ts |
-| A8 | S3 | API input | No `ParseUUIDPipe` on `GET tenants/:id`, `PATCH tenants/:id/status`, `POST tenants/:id/billing`, `POST branch/:businessId`, `PATCH signups/:businessId`, `PATCH tasks/:id`; a bad id likely becomes a 500 | agency.controller.ts |
-| A9 | S3 | Money | **Fixed in P1.1.** Log payment sent `amount: parseFloat(amount)` (JS number); the console now posts the raw money string and `LogPaymentDto` validates it | tenants/[id]/page.tsx, plan.dto.ts |
-| A10 | S3 | Data | **Fixed in P1.** Duplicate API base URL logic: `process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"` inlined instead of `API_BASE_URL` | page.tsx 156, tenants/[id]/page.tsx 243 |
-| A11 | S3 | UX | "Store Dashboard →" sends the super admin into the client app with the shared cookie (see D3, F13) | src/components/AppShell.tsx 90 |
-| A12 | S4 | Auth | Admin login has no Turnstile widget (BUGS.md open item) | app/login/page.tsx |
-| A13 | S3 | Tests | No E2E for: admin tab while view-as is open, error states, bad tenant id, signups/tasks actions, invoice send/void/payment from the console | apps/e2e/tests/agency/ |
-| A17 | S2 | Billing | **Fixed in P1.1.** Logging a payment never changed the plan: `extend()` kept `opts.planId ?? existing.planId`, so a Rs 30,000 yearly payment left the shop on Free Trial in both the console and the client | agency.service.ts logPaymentAndExtend, subscriptions.service.ts extend |
-| A18 | S2 | Billing | **Fixed in P1.1.** Expiry was sticky: `setDeal()` cleared neither `trialEndsAt` nor `graceEndsAt`, so a TRIALING row stayed READ_ONLY via `computeEffectiveStatus` no matter how far the end date moved | agency.service.ts setDeal, subscriptions.service.ts |
-| A19 | S3 | Billing UX | **Fixed in P1.1.** No edit affordance and no named presets: the Set Deal form mounted blank and used raw plan codes with free-typed price and limits | app/tenants/[id]/page.tsx, app/plans/page.tsx |
-| A20 | S3 | Client | **Fixed in P1.1.** `PlanUsageTab` compared `status === "TRIAL"` but the Prisma enum is `TRIALING`, so the trial-days pill never rendered | apps/client/src/components/settings/PlanUsageTab.tsx |
+| ID  | Sev | Area      | Finding                                                                                                                                                                                                   | Where                                                                                           |
+| --- | --- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| A1  | S2  | Session   | View-as or a client login in the same browser silently switches the admin console's identity; every agency call 403s                                                                                      | view-as.controller.ts, shared cookie                                                            |
+| A2  | S2  | Session   | `AuthContext` verifies `/user/me` only on mount; never on focus, visibility change, or after a 401/403                                                                                                    | src/context/AuthContext.tsx                                                                     |
+| A3  | S3  | Errors    | Load failures are swallowed and shown as empty data: tenants list, overview cards, deal history, signups, tasks, invoice list/detail                                                                      | app/page.tsx 117-147, tenants/[id]/page.tsx 151-172, components/signups/_, components/billing/_ |
+| A4  | S3  | Errors    | View-as, CSV export, usage PDF and invoice PDF failures only hit `console.error`; the user sees nothing                                                                                                   | page.tsx 157-190, tenants/[id]/page.tsx 222-260, InvoiceDetail.tsx 70                           |
+| A5  | S3  | Errors    | `api.ts` has no central 401/403 handling; each page invents its own                                                                                                                                       | src/lib/api.ts                                                                                  |
+| A6  | S1  | Secrets   | `prisma/seedSuperAdmin.ts` hardcodes a real email and plaintext password in the repo, and bcrypt-hashes into `User.password` (may not match Better Auth's account table)                                  | apps/server/prisma/seedSuperAdmin.ts                                                            |
+| A7  | S2  | API input | `@Body() data: any` on `onboard-tenant`, `tenants/:id/status`, `tenants/:id/billing`, `branch/:businessId` (breaks the "DTO for every body" rule; unknown fields pass through)                            | agency.controller.ts                                                                            |
+| A8  | S3  | API input | No `ParseUUIDPipe` on `GET tenants/:id`, `PATCH tenants/:id/status`, `POST tenants/:id/billing`, `POST branch/:businessId`, `PATCH signups/:businessId`, `PATCH tasks/:id`; a bad id likely becomes a 500 | agency.controller.ts                                                                            |
+| A9  | S3  | Money     | Log payment sends `amount: parseFloat(amount)` (JS number); deal `maxProducts` via `Number()`; money must travel as strings                                                                               | tenants/[id]/page.tsx 204, 283                                                                  |
+| A10 | S3  | Data      | Duplicate API base URL logic: `process.env.NEXT_PUBLIC_API_URL                                                                                                                                            |                                                                                                 | "http://localhost:5000"` inlined instead of `API_BASE_URL` | page.tsx 156, tenants/[id]/page.tsx 243 |
+| A11 | S3  | UX        | "Store Dashboard →" sends the super admin into the client app with the shared cookie (see D3, F13)                                                                                                        | src/components/AppShell.tsx 90                                                                  |
+| A12 | S4  | Auth      | Admin login has no Turnstile widget (BUGS.md open item)                                                                                                                                                   | app/login/page.tsx                                                                              |
+| A13 | S3  | Tests     | No E2E for: admin tab while view-as is open, error states, bad tenant id, signups/tasks actions, invoice send/void/payment from the console                                                               | apps/e2e/tests/agency/                                                                          |
 
 ## 4. Audit checklist (Phase 2 walks every cell)
 
@@ -66,87 +61,42 @@ For each: what the user sees, what the network shows, what the DB holds, console
 
 ## 5. Phases (one OpenCode session each, stop after each)
 
-| Phase | Goal | Exit check |
-| --- | --- | --- |
-| P0 | Reproduce A1 with a failing Playwright spec; confirm cause | Spec fails for the documented reason |
-| P1 | Session-switch detection and honest error states (A1 UI side, A2-A5, A10) | P0 spec passes; agency E2E green |
-| P2 | Full audit sweep per section 4; findings only, no fixes | Section 3 extended; P2 report |
-| P3 | Server hardening of agency routes (A7, A8, A9 server side) plus route-table RBAC test | test:api green |
-| P4 | Fix S1/S2/S3 findings from P2, frontend | Each fix has a test; agency E2E green |
-| P5 | Secrets and super admin identity (A6, A11, per D3) | Seed reads env; docs updated |
-| P6 | Regression and report | lint, build, test:api, full E2E with admin |
-| P7 (needs D1) | View-as via per-tab bearer token, cookie never replaced | View-as specs plus new "both tabs work" spec green |
+| Phase         | Goal                                                                                  | Exit check                                         |
+| ------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| P0            | Reproduce A1 with a failing Playwright spec; confirm cause                            | Spec fails for the documented reason               |
+| P1            | Session-switch detection and honest error states (A1 UI side, A2-A5, A10)             | P0 spec passes; agency E2E green                   |
+| P2            | Full audit sweep per section 4; findings only, no fixes                               | Section 3 extended; P2 report                      |
+| P3            | Server hardening of agency routes (A7, A8, A9 server side) plus route-table RBAC test | test:api green                                     |
+| P4            | Fix S1/S2/S3 findings from P2, frontend                                               | Each fix has a test; agency E2E green              |
+| P5            | Secrets and super admin identity (A6, A11, per D3)                                    | Seed reads env; docs updated                       |
+| P6            | Regression and report                                                                 | lint, build, test:api, full E2E with admin         |
+| P7 (needs D1) | View-as via per-tab bearer token, cookie never replaced                               | View-as specs plus new "both tabs work" spec green |
 
 ## 6. Progress log (agent appends: phase, task, state, commit)
 
 ### P0 - reproduce A1 with a failing spec
 
-| Phase | Task | State | Commit |
-| --- | --- | --- | --- |
-| P0 | Step 1: read section 1 and the three files | done (evidence in section 1) | - |
-| P0 | Step 2: add `apps/e2e/tests/agency/session-switch.spec.ts`, 3 tests asserting the fixed behaviour | done | test(admin-p0) |
-| P0 | Step 3: run with `E2E_WITH_ADMIN=1`, all three fail at the console step | done, red by design | test(admin-p0) |
-| P0 | Step 4: commit | done | test(admin-p0) |
+| Phase | Task                                                                                              | State                        | Commit         |
+| ----- | ------------------------------------------------------------------------------------------------- | ---------------------------- | -------------- |
+| P0    | Step 1: read section 1 and the three files                                                        | done (evidence in section 1) | -              |
+| P0    | Step 2: add `apps/e2e/tests/agency/session-switch.spec.ts`, 3 tests asserting the fixed behaviour | done                         | test(admin-p0) |
+| P0    | Step 3: run with `E2E_WITH_ADMIN=1`, all three fail at the console step                           | done, red by design          | test(admin-p0) |
+| P0    | Step 4: commit                                                                                    | done                         | test(admin-p0) |
 
 **Failure evidence.** `E2E_WITH_ADMIN=1 npm run test:e2e -- tests/agency/session-switch.spec.ts` -> 3 failed, 4 setup passed. Each test prints a `[P0-EVIDENCE]` line sampled from the console tab's own cookie jar before asserting.
 
-| Test | `/agency/analytics/tenants` | `/user/me` role | Failing assertion |
-| --- | --- | --- | --- |
-| view-as tab open | 403 | OWNER (200) | `getByText("No tenants match the selected filters.")` expected 0, found 1 |
-| client login in the same browser | 403 | OWNER (200) | same |
-| view-as tab closed without Exit (A15) | 403 | OWNER (200) | same |
+| Test                                  | `/agency/analytics/tenants` | `/user/me` role | Failing assertion                                                         |
+| ------------------------------------- | --------------------------- | --------------- | ------------------------------------------------------------------------- |
+| view-as tab open                      | 403                         | OWNER (200)     | `getByText("No tenants match the selected filters.")` expected 0, found 1 |
+| client login in the same browser      | 403                         | OWNER (200)     | same                                                                      |
+| view-as tab closed without Exit (A15) | 403                         | OWNER (200)     | same                                                                      |
 
 In all three the `session-switched` notice is absent and the list renders the empty state. The tenant detail page shows the raw `Required role: SUPER_ADMIN` message (logged separately by the spec); the list document also matched that text.
 
 **P0 report (10 lines max)**
+
 - Cause confirmed in code, not just probable: `POST /auth/view-as/activate` replaces the one shared cookie, so the admin tab sends the tenant OWNER session; `RolesGuard` correctly answers 403 and the console renders that as "No tenants match the selected filters" while `AppShell` keeps printing a hardcoded SUPER_ADMIN badge.
 - Closing the view-as tab without Exit leaves the same broken state, so Exit is not the only way in (A15).
 - A plain client-app login in the same browser produces an identical console state, so the bug is the shared cookie, not view-as itself.
 - Nothing was fixed in P0 (out of scope). The spec asserts the fixed behaviour and stays red until P1.
 - P1 must add: central 401/403 handling in `api.ts`, a `session-switched` notice with `session-switched-exit` / `session-switched-login`, honest per-area error states instead of the empty state, and the real role in the header.
-
-### P1 - the console always knows who it is
-
-| Phase | Task | State | Commit |
-| --- | --- | --- | --- |
-| P1 | `api.ts`: 401/403 -> one `/user/me` re-check (single flight) -> `session-expired` / `session-switched` / `forbidden` app event | done | feat(admin-p1) |
-| P1 | `AuthContext`: listens for the events, re-verifies on focus and visibility change (10 s throttle), self-heals when Exit lands | done | feat(admin-p1) |
-| P1 | `SessionSwitchedNotice`: names who the browser is, "Exit view-as" only when impersonated, always "Sign in again" | done | feat(admin-p1) |
-| P1 | Inline error + retry for tenants, overview, tenant detail, analytics note, deal history, signups, tasks, invoices, invoice detail | done | feat(admin-p1) |
-| P1 | Action failures to toast (view-as, CSV, PDFs, status, payment, deal, branch, onboarding) | done | feat(admin-p1) |
-| P1 | `API_BASE_URL` replaces both inlined `NEXT_PUBLIC_API_URL` fallbacks; view-as confirm dialog on list and detail | done | feat(admin-p1) |
-| P1 | `getMe` also returns `business.name` so the notice can name the shop | done | feat(admin-p1) |
-| P1 | Checks: `npm run lint` 0 errors, `build -w agency-admin` clean, `tests/agency/` 24 passed | done | feat(admin-p1) |
-
-**P1 report (10 lines max)**
-- The console can no longer present a rejected request as real data: every listed area has `<area>-error` + `<area>-retry`, and empty text only renders after a successful zero-row response.
-- While the shared cookie belongs to the shop user, the console pauses behind `session-switched` naming the account and shop, instead of showing "No tenants match the selected filters".
-- "Exit view-as" appears only when `/auth/session-info` reports an impersonated session; "Sign in again" is always offered. Exit restores the admin cookie and the list reloads (verified).
-- The header now prints the real role, so it cannot claim SUPER_ADMIN while the browser is not.
-- Cookie behaviour is untouched by design - P7 owns it. In P0 the role/tenants assertions ran while the shop tab was open, which no P1 change can satisfy; they now run after Exit and additionally assert the restored list. Nothing was weakened.
-- Two specs gained one line each (`view-as-confirm-accept`) because P1 added the confirm dialog; no assertion was changed.
-- New: `src/lib/session.ts`, `src/lib/errors.ts`, `src/components/InlineError.tsx`, `src/components/SessionSwitchedNotice.tsx`.
-
-### P1.1 - editable plan presets, and a payment that sets the plan
-
-| Phase | Task | State | Commit |
-| --- | --- | --- | --- |
-| P1.1 | Payments accept `planId` + `billingCycle` and apply them in the same transaction | done | feat(admin-p1.1) |
-| P1.1 | `setDeal()` and `extend()` clear `trialEndsAt` / `graceEndsAt` so a paid period replaces a trial | done | feat(admin-p1.1) |
-| P1.1 | `GET/POST /agency/plans`, `PATCH /agency/plans/:id` with DTOs, ParseUUIDPipe and RBAC | done | feat(admin-p1.1) |
-| P1.1 | Tenant detail: plan editor prefilled from the live subscription, preset select, cycle re-pricing that never overwrites a typed price | done | feat(admin-p1.1) |
-| P1.1 | Payment form: preset + cycle, amount pre-filled from the preset, posts the plan with the payment | done | feat(admin-p1.1) |
-| P1.1 | `/plans` preset manager (rename, re-price, change limits, create, activate) | done | feat(admin-p1.1) |
-| P1.1 | Sales copy bug: `TRIALING` trial-days pill in the client | done | feat(admin-p1.1) |
-| P1.1 | Tests: `apps/server/test/agency-plans.e2e-spec.ts` (8) and `apps/e2e/tests/agency/plans.spec.ts` (5) | done | feat(admin-p1.1) |
-
-**P1.1 report (10 lines max)**
-- Three separate defects, not one: the plan was never written on payment; expiry could not be lifted because a stale `trialEndsAt` pins `computeEffectiveStatus` to READ_ONLY; and there was no edit path or preset UI.
-- A payment now carries the plan, so one action sets plan + cycle + paid-through date and posts the billing row in the same `$transaction`.
-- `setDeal()` and `extend()` both clear `trialEndsAt` and `graceEndsAt`; that is what makes "expired, then extend by a day" actually come back to ACTIVE.
-- Presets are the existing `Plan` rows (Free Trial, Basic, Standard, Custom) and are editable in the new `/plans` page; no migration needed.
-- Cycle changes re-price only while the field still shows the preset's own figure, so a hand-typed deal price survives (this caused a regression in `deals.spec.ts` that is now covered).
-- `AddBranchDto` had to declare `override`, because `whitelist: true` stripped it and branch adds started 400ing.
-- API suite 448/452; the 4 failures are `accounts.e2e-spec.ts` needing Mailpit, which cannot start because host port 1025 is taken - environmental, not this change.
-- Agency E2E 29/29, including the 3 session-switch and 2 deals specs that guard the earlier work.
-- Lint 0 errors; both admin and client builds clean.

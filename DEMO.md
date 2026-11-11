@@ -33,9 +33,7 @@ update the `DATABASE_URL*` lines (5433 → 5434) and `SMTP_PORT` (1025 → 1026)
 ### 2.2 Load demo data
 
 ```bash
-npm run db:migrate   # applies migrations, prints "No pending migrations"
-npm run db:seed      # GM Traders + Shahzaib Electronics, 114 products, 63 orders
-npm run demo:seed    # today's trade: sales, udhar, wasooli, petty cash
+npm run demo:prepare # starts the configured database, migrates, and loads all demo data
 ```
 
 `npm run db:seed` gives the shop a history. `npm run demo:seed` writes **today's**
