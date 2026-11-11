@@ -83,9 +83,51 @@ export interface TenantDetail extends Tenant {
 
 export interface LogPaymentResponse {
   message: string;
-  billingLog: { amount: number };
-  subscriptionExpiresAt: string | null;
-  status: 'ACTIVE' | 'READ_ONLY' | 'SUSPENDED';
+  billingLog: {
+    id: string;
+    amount: string;
+    paymentDate: string;
+    receivedAt: string | null;
+    method: string | null;
+    notes: string | null;
+  };
+}
+
+export type BillingTimelineType = 'deal' | 'payment' | 'legacy-payment';
+
+export interface BillingTimelineRow {
+  id: string;
+  type: BillingTimelineType;
+  at: string;
+  plan?: string | null;
+  amount?: string;
+  method?: string | null;
+  notes?: string | null;
+  paidUntil?: string | null;
+}
+
+export interface BillingResponse {
+  businessId: string;
+  businessName: string;
+  deal: {
+    planId: string;
+    planCode: string;
+    planName: string;
+    billingCycle: string;
+    status: string;
+    price: string;
+    periodStart: string;
+    periodEnd: string | null;
+    limits: {
+      maxBranches: number | null;
+      maxUsers: number | null;
+      maxProducts: number | null;
+    };
+  } | null;
+  totalDue: string;
+  totalReceived: string;
+  balance: string;
+  timeline: BillingTimelineRow[];
 }
 
 export interface SetDealResponse {

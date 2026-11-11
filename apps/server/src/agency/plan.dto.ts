@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsEnum,
   IsInt,
+  IsIn,
   IsISO8601,
   IsNotEmpty,
   IsOptional,
@@ -13,10 +14,13 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { BillingCycle, BusinessStatus } from '@prisma/client';
+import { BusinessStatus } from '@prisma/client';
 
 /** Money arrives as a string so no float maths happens. */
 const MONEY_PATTERN = /^\d{1,12}(\.\d{1,2})?$/;
+
+export const PAYMENT_METHODS = ['CASH', 'BANK', 'ONLINE'] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 const toMoneyOrNull = ({ value }: { value: unknown }) => {
   if (value === null || value === undefined || value === '') return null;
@@ -157,7 +161,11 @@ export class UpdatePlanDto {
 }
 
 /** A payment now also carries the plan it buys. */
-export class LogPaymentDto {
+/**
+ * A payment is cash received against the deal (decision D2). It carries no
+ * plan, no price and no expiry - `setDeal` is the only writer of those.
+ */
+export class RecordPaymentDto {
   @Transform(({ value }) =>
     typeof value === 'number' ? String(value) : value,
   )
@@ -166,21 +174,19 @@ export class LogPaymentDto {
   })
   amount!: string;
 
+  /** The date the money actually arrived (never an expiry date). */
   @IsISO8601()
-  paymentDate!: string;
+  receivedAt!: string;
+
+  @IsIn(PAYMENT_METHODS, {
+    message: 'method must be one of CASH, BANK or ONLINE',
+  })
+  method!: PaymentMethod;
 
   @IsOptional()
   @IsString()
   @MaxLength(1000)
   notes?: string;
-
-  @IsOptional()
-  @IsUUID()
-  planId?: string;
-
-  @IsOptional()
-  @IsEnum(BillingCycle)
-  billingCycle?: BillingCycle;
 }
 
 export class UpdateTenantStatusDto {

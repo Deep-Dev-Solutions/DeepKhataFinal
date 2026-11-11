@@ -11,6 +11,7 @@ const BIZ_B = tenants.B.id;
 const HAFEEZ = tenants.A.branches.hafeezCentre.id;
 const MAIN_B = tenants.B.branches.mainBranch.id;
 const READ_ONLY_MESSAGE = 'Subscription expired. System is in read-only mode.';
+const DAY = 24 * 3600 * 1000;
 const letters = () =>
   Array.from({ length: 12 }, () => String.fromCharCode(97 + Math.floor(Math.random() * 26))).join('');
 const phone = () => `0311${String(Math.floor(Math.random() * 1e7)).padStart(7, '0')}`;
@@ -253,45 +254,83 @@ describe('Oversell race and tenant kill switch (e2e)', () => {
       expect(login.status).toBeLessThan(300);
     });
 
-    it('an expired subscription is read-only even while status is ACTIVE; renewing reactivates at once', async () => {
-      const yesterday = new Date(Date.now() - 24 * 3600 * 1000);
-      // Billing with a past date records the payment but leaves the tenant expired.
-      const expired = await http()
-        .post(`/agency/tenants/${BIZ_B}/billing`)
-        .set(authHeader('superAdmin'))
-        .send({ amount: 100, paymentDate: yesterday.toISOString(), notes: 't3 expiry' });
-      expect(expired.status).toBeLessThan(300);
-      expect((await prisma.business.findUniqueOrThrow({ where: { id: BIZ_B } })).status).toBe('ACTIVE');
+    const dealBody = (planCode: string, endDate: Date) => ({
+      plan: planCode,
+      price: '7000',
+      billingCycle: 'MONTHLY',
+      startDate: new Date(endDate.getTime() - 20 * DAY).toISOString(),
+      endDate: endDate.toISOString(),
+      maxBranches: 5,
+      maxUsers: 20,
+    });
 
+    it('an expired subscription is read-only even while status is ACTIVE; only a new deal reactivates it', async () => {
+      const sub = await prisma.subscription.findUniqueOrThrow({
+        where: { businessId: BIZ_B },
+        include: { plan: true },
+      });
+      const historyBefore = (
+        await prisma.dealHistory.findMany({ where: { businessId: BIZ_B }, select: { id: true } })
+      ).map((r) => r.id);
+
+      // A deal that ended yesterday leaves the shop expired while its status is ACTIVE.
+      await http()
+        .post(`/agency/tenants/${BIZ_B}/deal`)
+        .set(authHeader('superAdmin'))
+        .send(dealBody(sub.plan.code, new Date(Date.now() - DAY)))
+        .expect((r) => expect(r.status).toBeLessThan(300));
+      expect((await prisma.business.findUniqueOrThrow({ where: { id: BIZ_B } })).status).toBe('ACTIVE');
       await ownerBGet().expect(200);
       const blocked = await ownerBWrite();
       expect(blocked.status).toBe(403);
       expect(blocked.body.message).toBe(READ_ONLY_MESSAGE);
 
-      const nextYear = new Date(Date.now() + 365 * 24 * 3600 * 1000);
-      const renew = await http()
+      // Cash received does not renew the shop: the deal owns the expiry (D2).
+      const paid = await http()
         .post(`/agency/tenants/${BIZ_B}/billing`)
         .set(authHeader('superAdmin'))
-        .send({ amount: 100, paymentDate: nextYear.toISOString(), notes: 't3 renewal' });
-      expect(renew.status).toBeLessThan(300);
+        .send({ amount: '100', receivedAt: new Date().toISOString(), method: 'CASH', notes: 't3 payment' });
+      expect(paid.status).toBeLessThan(300);
+      expect((await ownerBWrite()).status).toBe(403);
+
+      // Only the deal moves the expiry, and it reactivates at once.
+      await http()
+        .post(`/agency/tenants/${BIZ_B}/deal`)
+        .set(authHeader('superAdmin'))
+        .send(dealBody(sub.plan.code, new Date(Date.now() + 365 * DAY)))
+        .expect((r) => expect(r.status).toBeLessThan(300));
       const w = await ownerBWrite();
       expect(w.status).toBeLessThan(300);
       expect(
-        await prisma.agencyBillingLog.count({ where: { businessId: BIZ_B, notes: { in: ['t3 expiry', 't3 renewal'] } } }),
-      ).toBe(2);
+        await prisma.agencyBillingLog.count({ where: { businessId: BIZ_B, notes: 't3 payment' } }),
+      ).toBe(1);
+
+      // Leave no deal rows behind for the specs that run after this file.
+      await prisma.dealHistory.deleteMany({
+        where: { businessId: BIZ_B, id: { notIn: historyBefore } },
+      });
     });
 
-    it('renewal also lifts SUSPENDED', async () => {
+    it('a new deal also lifts SUSPENDED', async () => {
       await setStatus('SUSPENDED').expect((r) => expect(r.status).toBeLessThan(300));
       await ownerBGet().expect(403);
-      const nextYear = new Date(Date.now() + 365 * 24 * 3600 * 1000);
+      const sub = await prisma.subscription.findUniqueOrThrow({
+        where: { businessId: BIZ_B },
+        include: { plan: true },
+      });
+      const historyBefore = (
+        await prisma.dealHistory.findMany({ where: { businessId: BIZ_B }, select: { id: true } })
+      ).map((r) => r.id);
       await http()
-        .post(`/agency/tenants/${BIZ_B}/billing`)
+        .post(`/agency/tenants/${BIZ_B}/deal`)
         .set(authHeader('superAdmin'))
-        .send({ amount: 50, paymentDate: nextYear.toISOString(), notes: 't3 unsuspend' })
+        .send(dealBody(sub.plan.code, new Date(Date.now() + 365 * DAY)))
         .expect((r) => expect(r.status).toBeLessThan(300));
       await ownerBGet().expect(200);
       expect((await prisma.business.findUniqueOrThrow({ where: { id: BIZ_B } })).status).toBe('ACTIVE');
+      await prisma.dealHistory.deleteMany({
+        where: { businessId: BIZ_B, id: { notIn: historyBefore } },
+      });
     });
   });
 });

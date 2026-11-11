@@ -18,21 +18,18 @@ import {
   GitBranch,
   CreditCard,
   ShieldCheck,
-  CalendarClock,
   ArrowLeft,
   Loader2,
   Wallet,
   ExternalLink,
   Download,
-  Clock,
-  CheckCircle2,
-  AlertTriangle,
 } from "lucide-react";
 import type {
   TenantDetail,
   LogPaymentResponse,
+  BillingResponse,
+  BillingTimelineRow,
   SetDealResponse,
-  DealHistoryRow,
   TenantAnalyticsDetail,
   PlanPreset,
 } from "@/types/agency";
@@ -134,8 +131,6 @@ export default function TenantDetailPage() {
   const [dealSubmitting, setDealSubmitting] = useState(false);
   const [dealError, setDealError] = useState("");
   const [dealSuccess, setDealSuccess] = useState("");
-  const [dealHistory, setDealHistory] = useState<DealHistoryRow[]>([]);
-  const [dealHistoryError, setDealHistoryError] = useState("");
   const [analyticsError, setAnalyticsError] = useState("");
   const [viewAsConfirm, setViewAsConfirm] = useState(false);
 
@@ -143,8 +138,9 @@ export default function TenantDetailPage() {
   const [plans, setPlans] = useState<PlanPreset[]>([]);
   const [plansError, setPlansError] = useState("");
   const [dealPrefilled, setDealPrefilled] = useState(false);
-  const [payPlanId, setPayPlanId] = useState("");
-  const [payCycle, setPayCycle] = useState("MONTHLY");
+  const [paymentMethod, setPaymentMethod] = useState("CASH");
+  const [billing, setBilling] = useState<BillingResponse | null>(null);
+  const [billingViewError, setBillingViewError] = useState("");
 
   const fetchTenant = useCallback(async () => {
     if (!tenantId || !token) {
@@ -173,16 +169,16 @@ export default function TenantDetailPage() {
     }
   }, [tenantId, token, isAuthLoading]);
 
-  const fetchDealHistory = useCallback(async () => {
+  const fetchBilling = useCallback(async () => {
     if (!tenantId || !token) return;
     try {
-      const data = await api.get<DealHistoryRow[]>(
-        `/agency/tenants/${tenantId}/deal-history`,
+      const data = await api.get<BillingResponse>(
+        `/agency/tenants/${tenantId}/billing`,
       );
-      setDealHistory(data || []);
-      setDealHistoryError("");
-    } catch (err) {
-      setDealHistoryError(describeError(err, "the deal history"));
+      setBilling(data);
+      setBillingViewError("");
+    } catch (err: unknown) {
+      setBillingViewError(describeError(err, "the billing summary"));
     }
   }, [tenantId, token]);
 
@@ -201,14 +197,14 @@ export default function TenantDetailPage() {
     const load = async () => {
       if (tenantId && token) {
         await fetchTenant();
-        await fetchDealHistory();
         await fetchPlans();
+        await fetchBilling();
       } else if (!isAuthLoading) {
         setLoading(false);
       }
     };
     load().catch(console.error);
-  }, [tenantId, token, isAuthLoading, fetchTenant, fetchDealHistory, fetchPlans]);
+  }, [tenantId, token, isAuthLoading, fetchTenant, fetchBilling, fetchPlans]);
 
   /**
    * Fill the plan editor from what the tenant is actually on, once. Admins can
@@ -238,8 +234,6 @@ export default function TenantDetailPage() {
     else if (sub.plan?.maxUsers != null) setDealMaxUsers(sub.plan.maxUsers);
     const products = limits.maxProducts ?? sub.plan?.maxProducts;
     setDealMaxProducts(products == null ? "" : String(products));
-    setPayPlanId(sub.planId ?? sub.plan?.id ?? "");
-    setPayCycle(sub.billingCycle || "MONTHLY");
     setDealPrefilled(true);
     });
   }, [tenant, dealPrefilled]);
@@ -261,42 +255,20 @@ export default function TenantDetailPage() {
     }
   };
 
-  const applyPaymentPreset = (id: string) => {
-    setPayPlanId(id);
-    const preset = plans.find((p) => p.id === id);
-    if (!preset) return;
-    const price = payCycle === "YEARLY" ? preset.priceYearly : preset.priceMonthly;
-    if (price != null) setAmount(price);
-  };
-
   /**
-   * Switching Monthly/Yearly re-prices from the preset, but only while the
-   * price still shows the preset's own figure for the previous cycle. A price
-   * the agent typed by hand is never overwritten.
+   * Switching cycle re-prices only while the visible price is still the preset's
+   * own figure for the previous cycle, so a hand-typed price survives.
    */
   const applyPlanCycle = (cycle: string) => {
     const preset = plans.find((p) => p.code === dealPlan);
     if (preset) {
-      const previous = cyclePrice(preset, dealCycle);
       const next = cyclePrice(preset, cycle);
+      const previous = cyclePrice(preset, dealCycle);
       if (next != null && (dealPrice === "" || dealPrice === (previous ?? ""))) {
         setDealPrice(next);
       }
     }
     setDealCycle(cycle);
-  };
-
-  /** Same rule for the payment form: never clobber a hand-typed amount. */
-  const applyPaymentCycle = (cycle: string) => {
-    const preset = plans.find((p) => p.id === payPlanId);
-    if (preset) {
-      const previous = cyclePrice(preset, payCycle);
-      const next = cyclePrice(preset, cycle);
-      if (next != null && (amount === "" || amount === (previous ?? ""))) {
-        setAmount(next);
-      }
-    }
-    setPayCycle(cycle);
   };
 
   const handleStatusChange = async (
@@ -329,20 +301,17 @@ export default function TenantDetailPage() {
         `/agency/tenants/${tenant.id}/billing`,
         {
           amount,
-          paymentDate,
+          receivedAt: paymentDate,
+          method: paymentMethod,
           notes: notes || undefined,
-          planId: payPlanId || undefined,
-          billingCycle: payCycle,
         },
       );
       setAmount("");
       setNotes("");
-      const planName =
-        plans.find((p) => p.id === payPlanId)?.name ?? "the selected plan";
       setBillingSuccess(
-        `Payment of Rs. ${formatAmount(data.billingLog.amount)} logged. Plan set to ${planName}, subscription extended to ${formatDate(data.subscriptionExpiresAt)}.`,
+        `Payment of Rs. ${formatAmount(data.billingLog.amount)} recorded.`,
       );
-      await fetchTenant();
+      await Promise.all([fetchTenant(), fetchBilling()]);
     } catch (err: unknown) {
       const message = describeError(err, "the payment");
       setBillingError(message);
@@ -426,8 +395,7 @@ export default function TenantDetailPage() {
       setDealSuccess(
         `Deal set: ${data.subscription.billingCycle} ${data.subscription.priceOverride != null ? `Rs. ${formatAmount(data.subscription.priceOverride)}` : ""} · ${data.subscription.currentPeriodStart} → ${data.subscription.currentPeriodEnd}`,
       );
-      await fetchTenant();
-      await fetchDealHistory();
+      await Promise.all([fetchTenant(), fetchBilling()]);
     } catch (err: unknown) {
       const message = describeError(err, "the deal");
       setDealError(message);
@@ -900,64 +868,22 @@ export default function TenantDetailPage() {
           </div>
         </div>
 
-        {/* Log Payment Form */}
+                {/* Record payment - cash received, never changes the deal (D2) */}
         <div className="bg-card border border-gray-200 rounded-lg shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex items-center gap-2">
             <Wallet size={16} className="text-success" />
-            <h3 className="font-semibold text-gray-900">Log Cash / Offline Payment</h3>
+            <h3 className="font-semibold text-gray-900">Record payment</h3>
           </div>
           <form onSubmit={handleLogPayment} className="p-6 space-y-4">
             {billingError && (
-              <div className="bg-danger-bg text-danger border border-danger rounded-lg p-3 text-body">
-                {billingError}
-              </div>
+              <div className="bg-danger-bg text-danger border border-danger rounded-lg p-3 text-body">{billingError}</div>
             )}
             {billingSuccess && (
-              <div data-testid="tenant-payment-success" className="bg-success-bg text-success border border-success rounded-lg p-3 text-body">
-                {billingSuccess}
-              </div>
+              <div data-testid="tenant-payment-success" className="bg-success-bg text-success border border-success rounded-lg p-3 text-body">{billingSuccess}</div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-caption font-medium text-gray-700 mb-1">
-                  Plan bought
-                </label>
-                <select
-                  data-testid="tenant-payment-plan"
-                  value={payPlanId}
-                  onChange={(e) => applyPaymentPreset(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-success/300"
-                >
-                  <option value="">Keep current plan</option>
-                  {plans.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-caption font-medium text-gray-700 mb-1">
-                  Billing cycle
-                </label>
-                <select
-                  data-testid="tenant-payment-cycle"
-                  value={payCycle}
-                  onChange={(e) => applyPaymentCycle(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-success/300"
-                >
-                  <option value="MONTHLY">Monthly</option>
-                  <option value="YEARLY">Yearly</option>
-                  <option value="CUSTOM">Custom</option>
-                </select>
-              </div>
-            </div>
-
             <div>
-              <label className="block text-caption font-medium text-gray-700 mb-1">
-                Amount (PKR) *
-              </label>
+              <label className="block text-body font-medium text-gray-700 mb-1">Amount (PKR) *</label>
               <input
                 type="text"
                 inputMode="decimal"
@@ -965,53 +891,69 @@ export default function TenantDetailPage() {
                 data-testid="tenant-payment-amount"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                placeholder="e.g. 5000"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-success/300"
+                placeholder="e.g. 30000"
               />
             </div>
 
-            <div>
-              <label className="block text-caption font-medium text-gray-700 mb-1">
-                Next Expiry Date *
-              </label>
-              <input
-                type="date"
-                required
-                data-testid="tenant-payment-date"
-                value={paymentDate}
-                onChange={(e) => setPaymentDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-success/300"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-body font-medium text-gray-700 mb-1">Received on *</label>
+                <input
+                  type="date"
+                  required
+                  data-testid="tenant-payment-date"
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-success/300"
+                />
+              </div>
+              <div>
+                <label className="block text-body font-medium text-gray-700 mb-1">Method *</label>
+                <select
+                  data-testid="tenant-payment-method"
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-success/300"
+                >
+                  <option value="CASH">Cash</option>
+                  <option value="BANK">Bank transfer</option>
+                  <option value="ONLINE">Online</option>
+                </select>
+              </div>
             </div>
 
             <div>
-              <label className="block text-caption font-medium text-gray-700 mb-1">
-                Notes
-              </label>
+              <label className="block text-body font-medium text-gray-700 mb-1">Notes</label>
               <input
                 type="text"
+                data-testid="tenant-payment-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="e.g. Paid in cash via field rep"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-success/300"
+                placeholder="e.g. Paid in cash via field rep"
               />
             </div>
+
+            <p className="text-caption text-gray-500">
+              A payment only records money received. To change the plan, price or expiry, edit the deal.
+            </p>
 
             <button
               type="submit"
               disabled={billingSubmitting}
               data-testid="tenant-payment-submit"
-              className="w-full py-2 bg-success text-white rounded-lg text-body font-medium hover:bg-success transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
+              className="w-full flex items-center justify-center gap-2 py-2 bg-success text-white rounded-lg text-body font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
             >
               {billingSubmitting && <Loader2 size={16} className="animate-spin" />}
-              Log Payment & Extend Subscription
+              Record payment
             </button>
           </form>
         </div>
       </div>
 
-      {/* ── Set Custom Deal ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+{/* ── Set Custom Deal ──────────────────────────────────────────────── */}
+      <div>
         {/* Set Deal Form */}
         <div className="bg-card border border-gray-200 rounded-lg shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex items-center gap-2">
@@ -1197,118 +1139,110 @@ export default function TenantDetailPage() {
           </form>
         </div>
 
-        {/* Deal History Table */}
-        <div className="bg-card border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex items-center justify-between">
-            <CalendarClock size={16} className="text-brand-700" />
-            <h3 className="font-semibold text-gray-900">Deal History</h3>
+        {/* Billing: one model - the deal is the contract, payments are cash */}
+        <div data-testid="billing-summary" className="mt-6 bg-card border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60 flex items-center gap-2">
+            <Wallet size={16} className="text-brand-700" />
+            <h3 className="font-semibold text-gray-900">Billing</h3>
           </div>
-          <div className="overflow-x-auto p-6">
-            {dealHistoryError ? (
-              <InlineError
-                area="deal-history"
-                message={dealHistoryError}
-                onRetry={fetchDealHistory}
-              />
-            ) : dealHistory.length === 0 ? (
-              <p className="text-caption text-gray-400 italic text-center py-8">
-                No deal changes recorded yet.
-              </p>
-            ) : (
-              <table className="w-full text-left text-body whitespace-nowrap">
-                <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-medium">
-                  <tr>
-                    <th className="px-6 py-3">Changed At</th>
-                    <th className="px-6 py-3">Plan</th>
-                    <th className="px-6 py-3 text-right">Price</th>
-                    <th className="px-6 py-3">Period</th>
-                    <th className="px-6 py-3">Limits</th>
-                    <th className="px-6 py-3">Notes</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {dealHistory.map((row) => {
-                    const n = (row.new as Record<string, unknown> | null) ?? {};
-                    const limits = (n.customLimits as { maxBranches?: number; maxUsers?: number; maxProducts?: number } | null) ?? {};
-                    return (
-                      <tr
-                        key={row.id}
-                        data-testid="tenant-deal-history-row"
-                        className="hover:bg-gray-50 transition-colors"
+
+          {billingViewError ? (
+            <div className="p-6">
+              <InlineError area="billing" message={billingViewError} onRetry={fetchBilling} />
+            </div>
+          ) : !billing?.deal ? (
+            <p className="p-6 text-body text-gray-500">
+              No deal set yet. Save a plan and deal above to start billing this shop.
+            </p>
+          ) : (
+            <>
+              <div className="px-6 py-4 grid grid-cols-2 lg:grid-cols-4 gap-4 border-b border-gray-100">
+                <div>
+                  <div className="text-caption font-medium text-gray-500">Current deal</div>
+                  <div className="text-base font-semibold text-gray-900 mt-1">{billing.deal.planName}</div>
+                  <div className="text-caption text-gray-500">
+                    {billing.deal.billingCycle === "YEARLY" ? "Yearly" : billing.deal.billingCycle === "MONTHLY" ? "Monthly" : "Custom"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-caption font-medium text-gray-500">Deal period</div>
+                  <div className="text-body font-medium text-gray-900 mt-1">
+                    {formatDate(billing.deal.periodStart)} → {formatDate(billing.deal.periodEnd)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-caption font-medium text-gray-500">Due</div>
+                  <div data-testid="billing-due" className="text-base font-semibold text-gray-900 mt-1">
+                    Rs. {formatAmount(billing.totalDue)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-caption font-medium text-gray-500">Balance</div>
+                  <div
+                    data-testid="billing-balance"
+                    className={`text-base font-semibold mt-1 ${Number(billing.balance) > 0 ? "text-danger" : "text-success"}`}
+                  >
+                    Rs. {formatAmount(billing.balance)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-6 py-3 border-b border-gray-100 flex items-center justify-between text-body">
+                <span className="text-gray-500">Received this period</span>
+                <span data-testid="billing-paid" className="font-semibold text-success">
+                  Rs. {formatAmount(billing.totalReceived)}
+                </span>
+              </div>
+
+              <div className="p-6">
+                <h4 className="text-body font-semibold text-gray-900 mb-3">Timeline</h4>
+                {billing.timeline.length === 0 ? (
+                  <p className="text-caption text-gray-400 italic text-center py-6">
+                    No deal changes or payments recorded yet.
+                  </p>
+                ) : (
+                  <ul data-testid="billing-timeline" className="divide-y divide-gray-100">
+                    {billing.timeline.map((row: BillingTimelineRow) => (
+                      <li
+                        key={`${row.type}-${row.id}`}
+                        data-testid="billing-timeline-row"
+                        data-type={row.type}
+                        className="py-3 flex items-start justify-between gap-4"
                       >
-                        <td className="px-6 py-3 font-medium text-gray-900">
-                          {formatDate(row.changedAt as string | null | undefined)}
-                        </td>
-                        <td className="px-6 py-3 text-gray-600">
-                          {(n.plan as string | undefined) || "—"}
-                        </td>
-                        <td className="px-6 py-3 text-right text-gray-600">
-                          {n.priceOverride != null ? `Rs. ${formatAmount(n.priceOverride as number | string)}` : "—"}
-                        </td>
-                        <td className="px-6 py-3 text-gray-600">
-                          {formatDate(n.currentPeriodStart as string | null | undefined)} →{" "}
-                          {formatDate(n.currentPeriodEnd as string | null | undefined)}
-                        </td>
-                        <td className="px-6 py-3 text-gray-600 text-body">
-                          {limits.maxBranches ?? "∞"} br /{" "}
-                          {limits.maxUsers ?? "∞"} us /{" "}
-                          {limits.maxProducts ?? "∞"} pr
-                        </td>
-                        <td className="px-6 py-3 text-gray-500">
-                          {row.notes || "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
+                        <div
+                          data-testid={
+                            row.type === "deal" ? "tenant-deal-history-row" : undefined
+                          }
+                        >
+                          <div className="text-body font-medium text-gray-900">
+                            {row.type === "deal"
+                              ? `Deal set to ${row.plan ?? "a plan"}`
+                              : row.type === "legacy-payment"
+                                ? "Legacy payment"
+                                : "Payment recorded"}
+                          </div>
+                          <div className="text-caption text-gray-500">
+                            {row.type === "deal"
+                              ? formatDate(row.at)
+                              : `${formatDate(row.at)}${row.method ? ` · ${row.method.toLowerCase()}` : ""}`}
+                            {row.type === "legacy-payment" && row.paidUntil
+                              ? ` · Paid until ${formatDate(row.paidUntil)}`
+                              : ""}
+                            {row.notes ? ` · ${row.notes}` : ""}
+                          </div>
+                        </div>
+                        <div className={`text-body font-semibold whitespace-nowrap ${row.type === "deal" ? "text-gray-500" : "text-success"}`}>
+                          {row.amount ? `Rs. ${formatAmount(row.amount)}` : "—"}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
-
-      {/* ── Billing History Table ────────────────────────────────────────── */}
-      {tenant.billingLogs && tenant.billingLogs.length > 0 && (
-        <div className="bg-card border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/60">
-            <h3 className="font-semibold text-gray-900">Payment & Billing History</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-body whitespace-nowrap">
-              <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-medium">
-                <tr>
-                  <th className="px-6 py-3">Payment Date</th>
-                  <th className="px-6 py-3">Amount</th>
-                  <th className="px-6 py-3">Notes</th>
-                  <th className="px-6 py-3">Recorded At</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {tenant.billingLogs.map((log) => (
-                  <tr
-                    data-testid="tenant-billing-row"
-                    key={log.id}
-                    className="hover:bg-gray-50 transition-colors"
-                  >
-                    <td className="px-6 py-3 font-medium text-gray-900">
-                      {formatDate(log.paymentDate)}
-                    </td>
-                    <td className="px-6 py-3 font-semibold text-success">
-                      Rs. {formatAmount(log.amount)}
-                    </td>
-                    <td className="px-6 py-3 text-gray-500">
-                      {log.notes || "—"}
-                    </td>
-                    <td className="px-6 py-3 text-caption text-gray-400">
-                      {formatDate(log.createdAt)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       {/* ── View-as Confirmation ─────────────────────────────────────────── */}
       {viewAsConfirm && tenant && (

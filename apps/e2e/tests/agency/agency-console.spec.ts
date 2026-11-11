@@ -103,7 +103,7 @@ test.describe.serial('J: tenant lifecycle from the console', () => {
     await expect.poll(async () => (await db.business.findUniqueOrThrow({ where: { id: businessId } })).status).toBe('ACTIVE');
   });
 
-  test('log a payment: subscriptionExpiresAt is extended in the DB and a billing row shows', async ({ page }) => {
+  test('record a payment: the money is logged and the expiry is NOT touched', async ({ page }) => {
     expect(businessId).toBeTruthy();
     const before = await db.business.findUniqueOrThrow({ where: { id: businessId } });
     await adminLogin(page, users.superAdmin.email, TEST_PASSWORD);
@@ -111,23 +111,36 @@ test.describe.serial('J: tenant lifecycle from the console', () => {
     await expect(row).toHaveCount(1, { timeout: 60_000 });
     await row.getByTestId('tenant-open').click();
     await expect(page.getByTestId('tenant-detail')).toBeVisible();
-    await expect(page.getByTestId('tenant-billing-row')).toHaveCount(0);
 
-    const newExpiry = new Date(before.subscriptionExpiresAt!.getTime() + 120 * 24 * 3600 * 1000);
-    const isoDay = newExpiry.toISOString().slice(0, 10);
+    const timelineRows = page.getByTestId('billing-timeline-row');
+    const beforeRows = await timelineRows.count();
+
+    const received = new Date();
+    const isoDay = received.toISOString().slice(0, 10);
     await page.getByTestId('tenant-payment-amount').fill('15000');
     await page.getByTestId('tenant-payment-date').fill(isoDay);
+    await page.getByTestId('tenant-payment-method').selectOption('BANK');
     await page.getByTestId('tenant-payment-submit').click();
 
-    await expect(page.getByTestId('tenant-billing-row')).toHaveCount(1, { timeout: 30_000 });
-    await expect(page.getByTestId('tenant-billing-row')).toContainText('15,000');
+    await expect(timelineRows).toHaveCount(beforeRows + 1, { timeout: 30_000 });
+    const paymentRow = page.getByTestId('billing-timeline-row').filter({ hasText: 'Payment recorded' });
+    await expect(paymentRow).toHaveCount(1);
+    await expect(paymentRow).toContainText('15,000');
+    await expect(paymentRow).toContainText('bank');
 
+    // D2: a payment records cash only. The deal owns the expiry.
     const after = await db.business.findUniqueOrThrow({ where: { id: businessId } });
-    expect(after.subscriptionExpiresAt!.toISOString().slice(0, 10)).toBe(isoDay);
-    expect(after.subscriptionExpiresAt!.getTime()).toBeGreaterThan(before.subscriptionExpiresAt!.getTime());
+    expect(after.subscriptionExpiresAt?.toISOString().slice(0, 10)).toBe(
+      before.subscriptionExpiresAt?.toISOString().slice(0, 10),
+    );
+    expect(after.status).toBe(before.status);
+
     const logs = await db.agencyBillingLog.findMany({ where: { businessId } });
     expect(logs).toHaveLength(1);
     expect(Number(logs[0].amount)).toBe(15000);
+    expect(logs[0].method).toBe('BANK');
+    expect(logs[0].receivedAt?.toISOString().slice(0, 10)).toBe(isoDay);
+    expect(logs[0].paymentDate.toISOString().slice(0, 10)).toBe(isoDay);
     await expect(page.getByTestId('tenant-expiry')).toBeVisible();
   });
 

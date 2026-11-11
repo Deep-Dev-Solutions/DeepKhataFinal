@@ -23,7 +23,7 @@ import {
 import { SetDealDto } from './deal.dto';
 import {
   CreatePlanDto,
-  LogPaymentDto,
+  RecordPaymentDto,
   UpdatePlanDto,
 } from './plan.dto';
 import { addDays, daysBetween, karachiDateOnly } from '../common/dates';
@@ -527,15 +527,18 @@ export class AgencyService {
     });
   }
 
-  async logPaymentAndExtend(businessId: string, data: LogPaymentDto) {
+  /**
+   * A payment is cash received against the deal (decision D2). It records money
+   * and nothing else: no plan, no price, no expiry, no status. `setDeal` owns
+   * all of those, so the two can no longer fight over the same columns.
+   */
+  async recordPayment(businessId: string, data: RecordPaymentDto) {
     const business = await this.prisma.business.findUnique({
       where: { id: businessId },
       select: { id: true },
     });
     if (!business) {
-      throw new NotFoundException(
-        `Business with ID ${businessId} not found`,
-      );
+      throw new NotFoundException(`Business with ID ${businessId} not found`);
     }
 
     let amount: M.Money;
@@ -548,58 +551,135 @@ export class AgencyService {
       throw new BadRequestException('A valid positive amount is required');
     }
 
-    const paymentDate = data?.paymentDate ? new Date(data.paymentDate) : null;
-    if (!paymentDate || isNaN(paymentDate.getTime())) {
-      throw new BadRequestException('A valid payment/expiration date is required');
+    const receivedAt = data?.receivedAt ? new Date(data.receivedAt) : null;
+    if (!receivedAt || isNaN(receivedAt.getTime())) {
+      throw new BadRequestException('A valid received-on date is required');
     }
 
-    const { billingLog, updatedBusiness } = await this.prisma.$transaction(
-      async (tx) => {
-        const billingLog = await tx.agencyBillingLog.create({
-          data: {
-            businessId,
-            amount,
-            paymentDate,
-            notes: data?.notes?.trim() || null,
-          },
-        });
-
-        const updatedBusiness = await tx.business.update({
-          where: { id: businessId },
-          data: {
-            subscriptionExpiresAt: paymentDate,
-            // Renewal reactivates the tenant.
-            status: BusinessStatus.ACTIVE,
-          },
-        });
-
-        // Subscription follows the same paid-through date (period end = paymentDate)
-        // and, when the payment names a plan, that plan is what the shop now buys.
-        await this.subscriptions.extend(
-          businessId,
-          {
-            until: paymentDate,
-            planId: data.planId,
-            billingCycle: data.billingCycle,
-          },
-          tx,
-        );
-
-        return { billingLog, updatedBusiness };
+    const billingLog = await this.prisma.agencyBillingLog.create({
+      data: {
+        businessId,
+        amount,
+        // Kept in step with receivedAt so pre-D2 readers still sort correctly.
+        paymentDate: receivedAt,
+        receivedAt,
+        method: data.method,
+        notes: data?.notes?.trim() || null,
       },
-    );
+    });
     this.tenantCache.invalidateBusiness(businessId);
 
     return {
-      message:
-        'Payment logged, subscription extended and plan updated',
-      billingLog,
-      subscriptionExpiresAt: updatedBusiness.subscriptionExpiresAt,
-      status: updatedBusiness.status,
+      message: 'Payment recorded',
+      billingLog: {
+        ...billingLog,
+        amount: billingLog.amount.toFixed(2),
+      },
     };
   }
 
-  /** Every plan preset (active or not) so the console can manage them. */
+  /**
+   * One billing view for a tenant: what the current deal costs, what has been
+   * received inside that period, the balance, and a single timeline of deal
+   * changes and payments (newest first). Money stays Decimal until the edge.
+   */
+  async getBilling(businessId: string) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true, name: true },
+    });
+    if (!business) {
+      throw new NotFoundException(`Business with ID ${businessId} not found`);
+    }
+
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { businessId },
+      include: { plan: true },
+    });
+
+    const priceForCycle = subscription
+      ? subscription.priceOverride ??
+        (subscription.billingCycle === 'YEARLY'
+          ? subscription.plan.priceYearly
+          : subscription.plan.priceMonthly)
+      : null;
+    const due = M.round2(priceForCycle ?? 0);
+    const periodStart = subscription?.currentPeriodStart ?? null;
+    const periodEnd = subscription?.currentPeriodEnd ?? null;
+
+    const [logs, deals] = await Promise.all([
+      this.prisma.agencyBillingLog.findMany({
+        where: { businessId },
+        orderBy: [{ receivedAt: 'desc' }, { paymentDate: 'desc' }],
+      }),
+      this.prisma.dealHistory.findMany({
+        where: { businessId },
+        orderBy: { changedAt: 'desc' },
+      }),
+    ]);
+
+    // A payment counts against the deal only when it says when it arrived and
+    // that date falls inside the current period. Legacy rows stored an expiry
+    // date, not a received-on date, so they are shown but never counted.
+    const inPeriod = logs.filter(
+      (l) =>
+        l.receivedAt !== null &&
+        periodStart !== null &&
+        periodEnd !== null &&
+        l.receivedAt >= periodStart &&
+        l.receivedAt <= periodEnd,
+    );
+    const received = M.round2(M.sum(inPeriod.map((l) => l.amount)));
+    const balance = M.sub(due, received);
+
+    const timeline = [
+      ...logs.map((l) => ({
+        id: l.id,
+        type: l.receivedAt ? ('payment' as const) : ('legacy-payment' as const),
+        at: (l.receivedAt ?? l.paymentDate).toISOString(),
+        paidUntil: l.receivedAt ? null : l.paymentDate.toISOString(),
+        amount: l.amount.toFixed(2),
+        method: l.method,
+        notes: l.notes,
+      })),
+      ...deals.map((d) => ({
+        id: d.id,
+        type: 'deal' as const,
+        at: d.changedAt.toISOString(),
+        paidUntil: null,
+        amount: null,
+        method: null,
+        notes: d.notes,
+        plan:
+          (d.new as { plan?: string } | null)?.plan ??
+          (d.old as { plan?: string } | null)?.plan ??
+          null,
+      })),
+    ].sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+
+    return {
+      businessId,
+      businessName: business.name,
+      deal: subscription
+        ? {
+            planId: subscription.planId,
+            planCode: subscription.plan.code,
+            planName: subscription.plan.name,
+            billingCycle: subscription.billingCycle,
+            status: subscription.status,
+            price: due.toFixed(2),
+            periodStart: periodStart?.toISOString() ?? null,
+            periodEnd: periodEnd?.toISOString() ?? null,
+            limits: subscription.customLimits ?? null,
+          }
+        : null,
+      totalDue: due.toFixed(2),
+      totalReceived: received.toFixed(2),
+      balance: balance.toFixed(2),
+      timeline,
+    };
+  }
+
   async listPlans() {
     const plans = await this.prisma.plan.findMany({
       orderBy: [{ isPublic: 'desc' }, { priceMonthly: 'asc' }, { code: 'asc' }],

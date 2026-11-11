@@ -85,7 +85,13 @@ model AgencyBillingLog {
   id          String   @id @default(uuid())
   businessId  String
   amount      Decimal @db.Decimal(14, 2)
+  /// Legacy rows store the expiry date the agency once typed in this field.
+  /// Rows written under D2 mirror `receivedAt` so older readers keep working.
   paymentDate DateTime
+  /// When the money actually arrived. Null on rows written before D2.
+  receivedAt  DateTime?
+  /// CASH | BANK | ONLINE. Null on rows written before D2.
+  method      String?
   notes       String?
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)

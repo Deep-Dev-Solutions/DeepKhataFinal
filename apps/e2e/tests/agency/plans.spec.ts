@@ -91,21 +91,25 @@ test.describe.serial('agency plan presets and plan-changing payments', () => {
     await expect(page.getByTestId('deal-end')).not.toHaveValue('');
   });
 
-  test('logging a payment moves the shop onto the plan that was bought', async () => {
-    await selectByLabel(page, 'tenant-payment-plan', 'Basic');
-    await selectByLabel(page, 'tenant-payment-cycle', 'Yearly');
+  test('setting the deal is what changes the plan and the amount due', async () => {
+    const today = new Date();
+    const nextYear = new Date(today);
+    nextYear.setUTCFullYear(nextYear.getUTCFullYear() + 1);
+    await page.getByTestId('deal-start').fill(today.toISOString().slice(0, 10));
+    await page.getByTestId('deal-end').fill(nextYear.toISOString().slice(0, 10));
 
-    await expect(page.getByTestId('tenant-payment-amount')).toHaveValue('30000');
-    await page.getByTestId('tenant-payment-date').fill(new Date().toISOString().slice(0, 10));
-    await page.getByTestId('tenant-payment-submit').click();
+    await selectByLabel(page, 'deal-plan', 'Basic');
+    await selectByLabel(page, 'deal-cycle', 'Yearly');
+    await expect(page.getByTestId('deal-price')).toHaveValue('30000');
 
-    await expect(page.getByTestId('tenant-payment-success')).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId('tenant-payment-success')).toContainText('Basic');
+    await page.getByTestId('deal-submit').click();
+    await expect(page.getByTestId('deal-success')).toBeVisible({ timeout: 30_000 });
 
-    // The page refetches the tenant, so the plan card must now name the paid plan.
+    // The deal owns plan, price and period (D2).
     await expect(page.getByTestId('tenant-plan-current')).toContainText('Basic', {
       timeout: 30_000,
     });
+    await expect(page.getByTestId('billing-due')).toContainText('30,000', { timeout: 30_000 });
 
     const sub = await db.subscription.findUniqueOrThrow({
       where: { businessId: tenant.businessId },
@@ -116,7 +120,48 @@ test.describe.serial('agency plan presets and plan-changing payments', () => {
     expect(sub.trialEndsAt).toBeNull();
   });
 
-  test('the shop itself reports the upgraded plan', async ({ browser }) => {
+  test('recording payments fills paid and balance without touching the plan', async () => {
+    const before = await db.business.findUniqueOrThrow({ where: { id: tenant.businessId } });
+    const timelineRows = page.getByTestId('billing-timeline-row');
+    const beforeRows = await timelineRows.count();
+
+    const receivedDay = new Date().toISOString().slice(0, 10);
+    const payments = [
+      { amount: '10000', method: 'CASH' },
+      { amount: '5000', method: 'BANK' },
+    ];
+
+    for (const [index, payment] of payments.entries()) {
+      await page.getByTestId('tenant-payment-amount').fill(payment.amount);
+      await page.getByTestId('tenant-payment-date').fill(receivedDay);
+      await page.getByTestId('tenant-payment-method').selectOption(payment.method);
+      await page.getByTestId('tenant-payment-submit').click();
+      await expect(timelineRows).toHaveCount(beforeRows + index + 1, { timeout: 30_000 });
+    }
+
+    await expect(page.getByTestId('billing-paid')).toContainText('15,000');
+    await expect(page.getByTestId('billing-balance')).toContainText('15,000');
+
+    // One merged timeline holding both payments and the deal they were paid against.
+    // (Order is asserted in the API spec: a deal's changedAt is now, while a payment
+    // typed into a date input lands at midnight, so card order alone is not a contract.)
+    await expect(page.locator('[data-testid="billing-timeline-row"][data-type="payment"]')).toHaveCount(2);
+    await expect(page.locator('[data-testid="billing-timeline-row"][data-type="deal"]')).toHaveCount(1);
+
+    // Cash received never rewrites the contract.
+    const after = await db.business.findUniqueOrThrow({ where: { id: tenant.businessId } });
+    expect(after.subscriptionExpiresAt?.toISOString()).toBe(
+      before.subscriptionExpiresAt?.toISOString(),
+    );
+    const sub = await db.subscription.findUniqueOrThrow({
+      where: { businessId: tenant.businessId },
+      include: { plan: true },
+    });
+    expect(sub.plan.code).toBe('BASIC');
+    expect(sub.billingCycle).toBe('YEARLY');
+  });
+
+  test('the shop itself reports the plan set by the deal', async ({ browser }) => {
     const ctx = await browser.newContext();
     const shop = await ctx.newPage();
     await shop.goto(`${E2E.webUrl}/login`);

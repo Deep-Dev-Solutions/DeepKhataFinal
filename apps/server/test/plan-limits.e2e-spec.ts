@@ -520,21 +520,34 @@ describe('Plan limits and subscriptions (e2e)', () => {
       expect(await prisma.branch.count({ where: { businessId: t.businessId } })).toBe(2);
     });
 
-    it('logPaymentAndExtend also moves the Subscription to the paid-through date', async () => {
+    it('recordPayment logs cash without moving the subscription (D2)', async () => {
       const t = await makeTrialTenant();
-      const paidUntil = new Date(Date.now() + 90 * DAY);
-      const res = await agency.logPaymentAndExtend(t.businessId, {
-        amount: 3000,
-        paymentDate: paidUntil,
+      const subBefore = await prisma.subscription.findUniqueOrThrow({
+        where: { businessId: t.businessId },
+      });
+      const bizBefore = await prisma.business.findUniqueOrThrow({
+        where: { id: t.businessId },
+      });
+
+      const res = await agency.recordPayment(t.businessId, {
+        amount: '3000',
+        receivedAt: new Date().toISOString(),
+        method: 'CASH',
         notes: 'plan-limits test',
       });
-      expect(res.status).toBe('ACTIVE');
-      const sub = await prisma.subscription.findUniqueOrThrow({ where: { businessId: t.businessId } });
-      expect(sub.status).toBe('ACTIVE');
-      expect(sub.currentPeriodEnd).toEqual(paidUntil);
+      expect(res.billingLog.amount).toBe('3000.00');
+      expect(res.billingLog.method).toBe('CASH');
+
+      const sub = await prisma.subscription.findUniqueOrThrow({
+        where: { businessId: t.businessId },
+      });
+      // A payment is cash received; the deal alone decides plan, price and expiry.
+      expect(sub.status).toBe(subBefore.status);
+      expect(sub.currentPeriodEnd).toEqual(subBefore.currentPeriodEnd);
+      expect(sub.planId).toBe(subBefore.planId);
       const biz = await prisma.business.findUniqueOrThrow({ where: { id: t.businessId } });
-      expect(biz.subscriptionExpiresAt).toEqual(paidUntil);
-      expect(biz.status).toBe('ACTIVE');
+      expect(biz.subscriptionExpiresAt).toEqual(bizBefore.subscriptionExpiresAt);
+      expect(biz.status).toBe(bizBefore.status);
     });
   });
 });

@@ -20,7 +20,7 @@ import { SetDealDto } from './deal.dto';
 import {
   AddBranchDto,
   CreatePlanDto,
-  LogPaymentDto,
+  RecordPaymentDto,
   UpdatePlanDto,
   UpdateTenantStatusDto,
 } from './plan.dto';
@@ -86,13 +86,19 @@ export class AgencyController {
     return this.agencyService.getDealHistory(id);
   }
 
-  /** A payment extends the paid-through date and can also change the plan. */
+  /** Cash received against the deal. Never changes plan, price or expiry (D2). */
   @Post('tenants/:id/billing')
-  async logPaymentAndExtend(
+  async recordPayment(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: LogPaymentDto,
+    @Body() body: RecordPaymentDto,
   ) {
-    return this.agencyService.logPaymentAndExtend(id, body);
+    return this.agencyService.recordPayment(id, body);
+  }
+
+  /** Deal summary, money received, balance and the merged billing timeline. */
+  @Get('tenants/:id/billing')
+  async getBilling(@Param('id', ParseUUIDPipe) id: string) {
+    return this.agencyService.getBilling(id);
   }
 
   @Post('branch/:businessId')
