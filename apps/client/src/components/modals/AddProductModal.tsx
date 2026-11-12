@@ -56,6 +56,7 @@ export default function AddProductModal({
   const [form, setForm] = useState(initialForm);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [cabinets, setCabinets] = useState<CabinetOption[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<string[]>(categories);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -83,20 +84,17 @@ export default function AddProductModal({
 
     const loadMetadata = async () => {
       try {
-        const [branchResponse, cabinetResponse, vendorResponse] =
-          await Promise.all([
-            fetch(`${API_BASE_URL}/product/getbranches`, {
-              credentials: "include",
-              headers: getAuthHeaders(),
-            }),
-            fetch(`${API_BASE_URL}/product/getcabinets`, {
-              credentials: "include",
-              headers: getAuthHeaders(),
-            }),
-            fetch(`${API_BASE_URL}/vendors`, { credentials: "include",  headers: getAuthHeaders() }),
-          ]);
+        const [branchResponse, vendorResponse] = await Promise.all([
+          fetch(`${API_BASE_URL}/product/getbranches`, {
+            credentials: "include",
+            headers: getAuthHeaders(),
+          }),
+          fetch(`${API_BASE_URL}/vendors`, {
+            credentials: "include",
+            headers: getAuthHeaders(),
+          }),
+        ]);
         const branchData = await branchResponse.json();
-        const cabinetData = await cabinetResponse.json();
         const vendorData = await vendorResponse.json();
 
         if (Array.isArray(authBranches) && authBranches.length > 0) {
@@ -104,19 +102,71 @@ export default function AddProductModal({
         } else if (branchData.success && Array.isArray(branchData.branches)) {
           setBranches(branchData.branches);
         }
-        if (cabinetData.success && Array.isArray(cabinetData.cabinets)) {
-          setCabinets(cabinetData.cabinets);
-        }
         if (vendorData.success && Array.isArray(vendorData.vendors)) {
           setVendors(vendorData.vendors);
         }
       } catch {
-        setError("Failed to load branches, cabinets, or vendors.");
+        setError("Failed to load branches or vendors.");
       }
     };
 
     void loadMetadata();
   }, [isOpen, authBranches]);
+
+  // Cabinets and categories belong to the branch picked in the form, not the
+  // sidebar's active branch.
+  useEffect(() => {
+    if (!isOpen || !form.branchId) {
+      setCabinets([]);
+      setCategoryOptions(categories);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadBranchMetadata = async () => {
+      try {
+        const [cabinetResponse, categoryResponse] = await Promise.all([
+          fetch(`${API_BASE_URL}/product/getcabinets`, {
+            credentials: "include",
+            headers: getAuthHeaders(form.branchId),
+            cache: "no-store",
+          }),
+          fetch(`${API_BASE_URL}/product/getcategories`, {
+            credentials: "include",
+            headers: getAuthHeaders(form.branchId),
+            cache: "no-store",
+          }),
+        ]);
+        const cabinetData = await cabinetResponse.json();
+        const categoryData = await categoryResponse.json();
+        if (cancelled) return;
+
+        setCabinets(
+          cabinetData.success && Array.isArray(cabinetData.cabinets)
+            ? cabinetData.cabinets
+            : [],
+        );
+        setCategoryOptions(
+          categoryData.success && Array.isArray(categoryData.categories)
+            ? categoryData.categories
+                .map((category: { name: string }) => category.name)
+                .sort()
+            : categories,
+        );
+      } catch {
+        if (!cancelled) {
+          setError("Failed to load this branch's cabinets and categories.");
+        }
+      }
+    };
+
+    void loadBranchMetadata();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, form.branchId]);
 
   const updateField = (field: keyof typeof initialForm, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -228,7 +278,7 @@ export default function AddProductModal({
             <label className={labelClass}>Category *</label>
             <Select required value={form.category} onChange={(event) => updateField("category", event.target.value)} className="cursor-pointer">
               <option value="" disabled>Select category...</option>
-              {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+              {categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
             </Select>
           </div>
           <div>
@@ -278,7 +328,7 @@ export default function AddProductModal({
           </h3>
           <div>
             <label className={labelClass}>Branch (for physical stock) *</label>
-            <Select value={form.branchId} onChange={(event) => setForm((current) => ({ ...current, branchId: event.target.value, cabinetId: "" }))} className="cursor-pointer">
+            <Select data-testid="product-branch" value={form.branchId} onChange={(event) => setForm((current) => ({ ...current, branchId: event.target.value, cabinetId: "" }))} className="cursor-pointer">
               <option value="" disabled>Select a branch...</option>
               {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
             </Select>
@@ -288,7 +338,7 @@ export default function AddProductModal({
           </div>
           <div>
             <label className={labelClass}>Existing Rack / Shelf / Bin (from Cabinets) *</label>
-            <Select required value={form.cabinetId} onChange={(event) => updateField("cabinetId", event.target.value)} className="cursor-pointer">
+            <Select required data-testid="product-cabinet" value={form.cabinetId} onChange={(event) => updateField("cabinetId", event.target.value)} className="cursor-pointer">
               <option value="">{selectedBranchCabinets.length ? "Choose an existing cabinet..." : "No cabinets in this branch"}</option>
               {selectedBranchCabinets.map((cabinet) => <option key={cabinet.id} value={cabinet.id}>{cabinetLabel(cabinet)}</option>)}
             </Select>
