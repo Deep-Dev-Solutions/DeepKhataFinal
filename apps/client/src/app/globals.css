@@ -307,3 +307,14 @@
 .sidebar-scroll::-webkit-scrollbar-thumb:hover {
   background: var(--gray-300);
 }
+
+/* Marketing homepage: smooth in-page anchors, disabled for reduced motion. */
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
