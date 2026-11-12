@@ -27,7 +27,7 @@ describe('Cash expenses by day and voiding (e2e)', () => {
       await http()
         .post('/cash/register/close')
         .set(authHeader('ownerA', HALL))
-        .send({ actualCash: 0 });
+        .send({ actualCash: '0', notes: 'E2E cleanup close' });
     }
   };
 

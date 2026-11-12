@@ -494,6 +494,27 @@ export class ProductsService {
           ? branchEntry.branchNames.filter((name) => name !== currentBranchName)
           : [];
         const primaryCabinet = p.instances?.[0]?.cabinet || null;
+        // Stock can sit in several cabinets; the list needs every one of them,
+        // with the unit count, not just the cabinet of the first instance.
+        const cabinetMap = new Map<
+          string,
+          { id: string; name: string; location: string | null; units: number }
+        >();
+        for (const instance of p.instances) {
+          const cabinet = instance.cabinet;
+          if (!cabinet) continue;
+          const entry = cabinetMap.get(cabinet.id) ?? {
+            id: cabinet.id,
+            name: cabinet.name,
+            location: cabinet.location,
+            units: 0,
+          };
+          entry.units += 1;
+          cabinetMap.set(cabinet.id, entry);
+        }
+        const cabinets = Array.from(cabinetMap.values()).sort(
+          (a, b) => b.units - a.units || a.name.localeCompare(b.name),
+        );
         return {
           ...p,
           cabinet: primaryCabinet
@@ -506,6 +527,8 @@ export class ProductsService {
                 bin: primaryCabinet.bin,
               }
             : null,
+          cabinets,
+          totalUnits: p.instances.length,
           price: p.basePrice ?? 0,
           stock: p.instances.length,
           totalBusinessStock: branchEntry?.total ?? p.instances.length,

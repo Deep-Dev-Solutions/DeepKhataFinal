@@ -69,6 +69,13 @@ type ProductRecord = {
       location?: string | null;
     } | null;
   }>;
+  cabinets?: Array<{
+    id: string;
+    name: string;
+    location?: string | null;
+    units: number;
+  }>;
+  totalUnits?: number;
 };
 
 type ProductRow = {
@@ -80,6 +87,7 @@ type ProductRow = {
   stock: number;
   lowStockThreshold: number | null;
   location: string;
+  cabinets: Array<{ id: string; name: string; location: string | null; units: number }>;
   hasDeletedBranchStock: boolean;
 };
 
@@ -90,6 +98,35 @@ const normalizeProduct = (product: ProductRecord): ProductRow => {
   const primaryCabinet = instances[0]?.cabinet;
   const location =
     primaryCabinet?.location || primaryCabinet?.name || "Cabinet (Shop Bin)";
+
+  // Prefer the server's per-cabinet counts; fall back to grouping the page's
+  // instances so old API responses still render.
+  let cabinets: Array<{
+    id: string;
+    name: string;
+    location: string | null;
+    units: number;
+  }> = (product.cabinets ?? []).map((cabinet) => ({
+    ...cabinet,
+    location: cabinet.location ?? null,
+  }));
+  if (cabinets.length === 0 && instances.length > 0) {
+    const grouped = new Map<string, { id: string; name: string; location: string | null; units: number }>();
+    for (const instance of instances) {
+      const cabinet = instance.cabinet;
+      if (!cabinet?.name) continue;
+      const key = cabinet.name;
+      const entry = grouped.get(key) ?? {
+        id: key,
+        name: cabinet.name,
+        location: cabinet.location ?? null,
+        units: 0,
+      };
+      entry.units += 1;
+      grouped.set(key, entry);
+    }
+    cabinets = Array.from(grouped.values());
+  }
 
   return {
     id: product.id,
@@ -104,6 +141,7 @@ const normalizeProduct = (product: ProductRecord): ProductRow => {
         ? null
         : Number(product.lowStockThreshold),
     location,
+    cabinets,
     hasDeletedBranchStock: Boolean(product.hasDeletedBranchStock),
   };
 };
@@ -564,11 +602,33 @@ function ProductsPageContent() {
 
                   <TableCell>
                     <span
-                      title={product.location}
+                      data-testid="product-location"
+                      title={
+                        product.cabinets.length > 1
+                          ? product.cabinets
+                              .map(
+                                (cabinet) =>
+                                  `${cabinet.name}${
+                                    cabinet.location ? ` · ${cabinet.location}` : ""
+                                  } — ${cabinet.units} unit${cabinet.units === 1 ? "" : "s"}`,
+                              )
+                              .join("\n")
+                          : product.location
+                      }
                       className="flex w-fit max-w-44 items-center gap-1 rounded border border-border bg-gray-50 px-1.5 h-[18px] text-caption font-medium text-gray-700"
                     >
                       <MapPin className="w-3 h-3 shrink-0 text-gray-500" />
-                      <span className="truncate">{product.location}</span>
+                      <span className="truncate">
+                        {product.cabinets[0]?.name ?? product.location}
+                      </span>
+                      {product.cabinets.length > 1 && (
+                        <span
+                          data-testid="product-extra-cabinets"
+                          className="shrink-0 rounded bg-gray-200 px-1 text-[10px] font-semibold text-gray-700"
+                        >
+                          +{product.cabinets.length - 1}
+                        </span>
+                      )}
                     </span>
                     {product.hasDeletedBranchStock && (
                       <Badge variant="warning" className="mt-1">
