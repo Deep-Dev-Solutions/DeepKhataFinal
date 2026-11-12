@@ -74,9 +74,7 @@ export default function VendorProfilePage() {
   const [isVoiding, setIsVoiding] = useState(false);
 
   // Transaction form states
-  const [actionType, setActionType] = useState<"purchase" | "payment">(
-    "purchase",
-  );
+  const [entryMode, setEntryMode] = useState<"payment" | "opening">("payment");
   const [isSubmittingTx, setIsSubmittingTx] = useState(false);
   const [txAmount, setTxAmount] = useState("");
   const [txDescription, setTxDescription] = useState("");
@@ -143,8 +141,8 @@ export default function VendorProfilePage() {
 
     try {
       const endpoint =
-        actionType === "purchase"
-          ? `/vendors/${id}/purchase`
+        entryMode === "opening"
+          ? `/vendors/${id}/opening-balance`
           : `/vendors/${id}/payment`;
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         credentials: "include",
@@ -159,15 +157,15 @@ export default function VendorProfilePage() {
       const data = await response.json();
       if (!response.ok) {
         throw new Error(
-          data?.message || data?.error || `Failed to record ${actionType}`,
+          data?.message || data?.error || `Failed to record ${entryMode === "opening" ? "opening balance" : "payment"}`,
         );
       }
 
       setTxAmount("");
       setTxDescription("");
       setTxSuccess(
-        actionType === "purchase"
-          ? "Stock purchase recorded to ledger."
+        entryMode === "opening"
+          ? "Purani udhar recorded as an opening balance."
           : "Vendor payment recorded successfully.",
       );
       setTimeout(() => setTxSuccess(""), 4000);
@@ -248,6 +246,9 @@ export default function VendorProfilePage() {
   const products: any[] = vendor.products || [];
   const suppliedInventory: any[] = vendor.suppliedInventory || [];
   const movements: any[] = vendor.movements || [];
+  const hasOpeningBalance = (vendor.ledger || []).some(
+    (item: any) => item.type === "VENDOR_OPENING_BALANCE" && !item.isVoided,
+  );
 
   const filteredProducts = products.filter((p) => {
     if (!itemSearch) return true;
@@ -305,22 +306,10 @@ export default function VendorProfilePage() {
 
           <div className="flex items-center gap-2">
             <Button
-              variant="secondary"
-              size="sm"
-              data-testid="vendor-purchase-open"
-              onClick={() => {
-                setActionType("purchase");
-                const el = document.getElementById("tx-form");
-                el?.scrollIntoView({ behavior: "smooth" });
-              }}
-            >
-              <Plus className="h-3.5 w-3.5" /> Record Purchase
-            </Button>
-            <Button
               size="sm"
               data-testid="vendor-payment-open"
               onClick={() => {
-                setActionType("payment");
+                setEntryMode("payment");
                 const el = document.getElementById("tx-form");
                 el?.scrollIntoView({ behavior: "smooth" });
               }}
@@ -515,32 +504,31 @@ export default function VendorProfilePage() {
             </CardContent>
           </Card>
 
-          {/* Record Transaction Card (Purchase / Payment) */}
+          {/* Record Payment / Opening Balance Card */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-2 border-b border-border bg-gray-50 px-4 py-2">
               <CardTitle className="whitespace-nowrap text-caption font-semibold uppercase tracking-wide text-gray-600">
-                Ledger Entry
+                {entryMode === "opening"
+                  ? "Purani Udhar (Opening Balance)"
+                  : "Ledger Entry"}
               </CardTitle>
-              <div className="flex items-center gap-1 rounded-md bg-gray-100 p-0.5">
+              {entryMode === "opening" ? (
                 <Button
                   type="button"
                   size="sm"
-                  variant={actionType === "purchase" ? "secondary" : "ghost"}
+                  variant="ghost"
                   className="h-6 px-2 text-caption"
-                  onClick={() => setActionType("purchase")}
+                  onClick={() => {
+                    setEntryMode("payment");
+                    setTxError("");
+                    setTxSuccess("");
+                  }}
                 >
-                  Purchase
+                  Cancel
                 </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={actionType === "payment" ? "secondary" : "ghost"}
-                  className="h-6 px-2 text-caption"
-                  onClick={() => setActionType("payment")}
-                >
-                  Payment
-                </Button>
-              </div>
+              ) : (
+                <span className="text-caption text-gray-500">Payment only</span>
+              )}
             </CardHeader>
 
             <CardContent className="px-4 py-3">
@@ -558,8 +546,8 @@ export default function VendorProfilePage() {
 
                 <div>
                   <label className="mb-1 block text-caption font-medium text-gray-700">
-                    {actionType === "purchase"
-                      ? "Purchase amount (Rs.) *"
+                    {entryMode === "opening"
+                      ? "Purani udhar amount (Rs.) *"
                       : "Payment amount to vendor (Rs.) *"}
                   </label>
                   <Input
@@ -583,8 +571,8 @@ export default function VendorProfilePage() {
                     value={txDescription}
                     onChange={(e) => setTxDescription(e.target.value)}
                     placeholder={
-                      actionType === "purchase"
-                        ? "e.g. OLED screens batch #12"
+                      entryMode === "opening"
+                        ? "e.g. Udhar carried over from the old register"
                         : "e.g. Cash settlement for invoice"
                     }
                   />
@@ -600,11 +588,36 @@ export default function VendorProfilePage() {
                   {!isSubmittingTx && <Plus className="h-4 w-4" />}
                   {isSubmittingTx
                     ? "Recording..."
-                    : actionType === "purchase"
-                      ? "Add Purchase to Ledger"
+                    : entryMode === "opening"
+                      ? "Add Purani Udhar"
                       : "Record Payment (Settle)"}
                 </Button>
               </form>
+
+              <div className="mt-3 border-t border-border pt-2">
+                <p className="text-caption text-gray-500">
+                  Maal ki khareed Restock Hub se karein.
+                </p>
+                {!hasOpeningBalance && (
+                  <button
+                    type="button"
+                    data-testid="vendor-opening-balance-open"
+                    className="mt-1 text-caption font-semibold text-brand-700 hover:underline"
+                    onClick={() => {
+                      setEntryMode("opening");
+                      setTxError("");
+                      setTxSuccess("");
+                    }}
+                  >
+                    Purani udhar add karein
+                  </button>
+                )}
+                {hasOpeningBalance && entryMode === "payment" && (
+                  <p className="mt-1 text-caption text-gray-400">
+                    Purani udhar already recorded.
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -942,9 +955,11 @@ export default function VendorProfilePage() {
                           >
                             {item.isReversal
                               ? "REVERSAL"
-                              : item.type === "VENDOR_PAYMENT"
-                                ? "PAYMENT"
-                                : "PURCHASE"}
+                              : item.type === "VENDOR_OPENING_BALANCE"
+                                ? "OPENING"
+                                : item.type === "VENDOR_PAYMENT"
+                                  ? "PAYMENT"
+                                  : "PURCHASE"}
                           </Badge>
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-right">

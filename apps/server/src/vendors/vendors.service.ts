@@ -1,6 +1,7 @@
 import {
   Injectable,
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,8 +9,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { RedisService } from '../redis/redis.service.js';
 import { LedgerService } from '../ledger/ledger.service';
 import * as M from '../common/money';
-import * as D from '../common/dates';
-import { RecordPurchaseDto } from './dto/record-purchase.dto';
+import { OpeningBalanceDto } from './dto/opening-balance.dto';
 import { RecordPaymentDto } from './dto/record-payment.dto';
 import { VoidTransactionDto } from './dto/void-transaction.dto';
 
@@ -384,12 +384,12 @@ export class VendorsService {
     return result;
   }
 
-  async recordPurchase(
+  async recordOpeningBalance(
     userId: string,
     vendorId: string,
-    data: RecordPurchaseDto,
+    data: OpeningBalanceDto,
   ) {
-    const { amount, description, dueDate } = data;
+    const { amount, description } = data;
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { businessId: true },
@@ -402,34 +402,34 @@ export class VendorsService {
     });
     if (!vendor) throw new NotFoundException('Vendor not found');
 
-    const numAmount = this.parseAmount(amount, 'Invalid purchase amount');
+    const numAmount = this.parseAmount(amount, 'Invalid opening balance amount');
 
-    const today = D.startOfKarachiDay();
-    let finalDueDate: Date;
-    if (dueDate) {
-      finalDueDate = new Date(dueDate);
-      if (Number.isNaN(finalDueDate.getTime()))
-        throw new BadRequestException('Invalid due date');
-      if (finalDueDate.getTime() < today.getTime())
-        throw new BadRequestException('Due date cannot be in the past');
-    } else {
-      const business = await this.prisma.business.findUnique({
-        where: { id: currentUser.businessId },
-        select: { defaultPayableDays: true },
-      });
-      finalDueDate = D.addDays(today, business?.defaultPayableDays ?? 15);
+    const existing = await this.prisma.transaction.findFirst({
+      where: {
+        businessId: currentUser.businessId,
+        type: 'VENDOR_OPENING_BALANCE',
+        voidedAt: null,
+        postings: {
+          some: { accountId: vendorId, accountType: 'VENDOR_PAYABLE' },
+        },
+      },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new ConflictException(
+        'Opening balance is already recorded for this vendor. Void the existing entry to correct it.',
+      );
     }
 
     const transaction = await this.ledgerService.createBalancedTransaction({
       businessId: currentUser.businessId,
-      type: 'VENDOR_PURCHASE',
-      description: description || 'Inbound stock purchase',
-      dueDate: finalDueDate,
+      type: 'VENDOR_OPENING_BALANCE',
+      description: description || 'Purani udhar (opening balance)',
       postings: [
         {
-          accountId: 'INVENTORY_ACCOUNT',
-          accountType: 'INVENTORY',
-          amount: numAmount, // Debit
+          accountId: 'OPENING_BALANCE_EQUITY',
+          accountType: 'EQUITY',
+          amount: numAmount, // Debit (source of the carried-over udhar)
         },
         {
           accountId: vendorId,

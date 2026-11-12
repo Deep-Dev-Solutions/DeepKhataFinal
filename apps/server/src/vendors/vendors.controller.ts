@@ -7,12 +7,13 @@ import {
   Req,
   UseGuards,
   Query,
+  GoneException,
 } from '@nestjs/common';
 import { VendorsService } from './vendors.service.js';
 import { SessionGuard } from '../auth/guards/session.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
-import { RecordPurchaseDto } from './dto/record-purchase.dto';
+import { OpeningBalanceDto } from './dto/opening-balance.dto';
 import { RecordPaymentDto } from './dto/record-payment.dto';
 import { VoidTransactionDto } from './dto/void-transaction.dto';
 
@@ -41,12 +42,20 @@ export class VendorsController {
 
   @Post(':id/purchase')
   @RequirePermissions('manage:vendors')
-  recordPurchase(
+  recordPurchase(): never {
+    throw new GoneException(
+      'Purchases are recorded automatically from Add Product and Restock Hub. Use "Purani udhar add karein" for an opening balance.',
+    );
+  }
+
+  @Post(':id/opening-balance')
+  @RequirePermissions('manage:vendors')
+  recordOpeningBalance(
     @Req() req: any,
     @Param('id') id: string,
-    @Body() data: RecordPurchaseDto,
+    @Body() data: OpeningBalanceDto,
   ) {
-    return this.vendorsService.recordPurchase(req.user.id, id, data);
+    return this.vendorsService.recordOpeningBalance(req.user.id, id, data);
   }
 
   @Post(':id/payment')
