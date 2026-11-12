@@ -62,6 +62,7 @@ type SaleItem = {
   id: string;
   orderId: string;
   orderNumber: number;
+  orderLabel?: string;
   createdAt: string;
   quantity: number;
   price: number;
@@ -418,7 +419,7 @@ export default function ProductDetailPage() {
                         href={`/orders/${s.orderId}`}
                         className="text-caption font-semibold text-brand-700 hover:underline"
                       >
-                        #{s.orderNumber}
+                        #{s.orderLabel ?? s.orderNumber}
                       </Link>
                     </TableCell>
                     <TableCell>

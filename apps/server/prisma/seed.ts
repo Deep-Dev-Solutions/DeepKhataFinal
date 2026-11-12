@@ -266,6 +266,7 @@ async function seedTenant(
       create: {
         id: branchData.id,
         name: branchData.name,
+        code: branchCode(branchData.name),
         businessId: business.id,
       },
     });
@@ -1415,6 +1416,18 @@ async function seedLarge(tenantKey: 'A' | 'B', ownerUser: { id: string }) {
   }
 }
 
+/** 2-4 letter branch code from the name's initials ("Hall Road" -> HR). */
+function branchCode(name: string): string {
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .map((word) => word.replace(/[^A-Za-z]/g, "").charAt(0))
+    .join("")
+    .toUpperCase();
+  if (initials.length >= 2) return initials.slice(0, 4);
+  return (name.replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 2) || "BR").padEnd(2, "X");
+}
+
 async function main() {
   const isLargeSeed = process.argv.includes('--large');
   console.log(`Starting seed (${isLargeSeed ? 'LARGE' : 'standard'} mode)...`);
@@ -1538,6 +1551,38 @@ async function main() {
     prisma.vendor.count(),
     prisma.cashRegisterSession.count(),
   ]);
+
+  // Fresh databases get codes and per-branch counters here: migrations run on
+  // an empty schema, so their backfill only helps existing production data.
+  const seededBranches = await prisma.branch.findMany({
+    select: { id: true, name: true, businessId: true, code: true },
+  });
+  for (const branch of seededBranches) {
+    if (!branch.code) {
+      await prisma.branch.update({
+        where: { id: branch.id },
+        data: { code: branchCode(branch.name) },
+      });
+    }
+    const max = await prisma.order.aggregate({
+      where: { businessId: branch.businessId },
+      _max: { orderNumber: true },
+    });
+    await prisma.orderNumberSequence.upsert({
+      where: {
+        businessId_branchId: {
+          businessId: branch.businessId,
+          branchId: branch.id,
+        },
+      },
+      create: {
+        businessId: branch.businessId,
+        branchId: branch.id,
+        last: max._max.orderNumber ?? 0,
+      },
+      update: { last: max._max.orderNumber ?? 0 },
+    });
+  }
 
   console.log(`
 Seed completed successfully!

@@ -94,7 +94,7 @@ export default function OrdersHubPage() {
       const normalized = rawOrders.map((order: any) => ({
         id: order.id,
         // 🟢 FIX: Map the auto-increment orderNumber from DB
-        orderNumber: `ORD-${order.orderNumber || order.id.substring(0, 4)}`,
+        orderNumber: order.orderLabel || `ORD-${order.orderNumber || order.id.substring(0, 4)}`,
         customer: order.customer
           ? order.customer.name
           : order.walkInName || "Walk-in Customer",

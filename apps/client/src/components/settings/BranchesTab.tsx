@@ -52,6 +52,7 @@ export default function BranchesTab() {
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
   const [editFormData, setEditFormData] = useState({
     name: "",
+    code: "",
     phone: "",
     address: "",
   });
@@ -61,6 +62,7 @@ export default function BranchesTab() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [addFormData, setAddFormData] = useState({
     name: "",
+    code: "",
     phone: "",
     address: "",
   });
@@ -107,6 +109,7 @@ export default function BranchesTab() {
     setEditingBranch(branch);
     setEditFormData({
       name: branch.name || "",
+      code: branch.code || "",
       phone: branch.phone || "",
       address: branch.location || "",
     });
@@ -129,6 +132,7 @@ export default function BranchesTab() {
           },
           body: JSON.stringify({
             name: editFormData.name.trim(),
+            code: editFormData.code.trim().toUpperCase() || undefined,
             phone: editFormData.phone.trim(),
             address: editFormData.address.trim(),
           }),
@@ -209,7 +213,7 @@ export default function BranchesTab() {
       return;
     }
     setModalError(null);
-    setAddFormData({ name: "", phone: "", address: "" });
+    setAddFormData({ name: "", code: "", phone: "", address: "" });
     setIsAddDialogOpen(true);
   };
 
@@ -238,6 +242,7 @@ export default function BranchesTab() {
         },
         body: JSON.stringify({
           name: addFormData.name.trim(),
+          code: addFormData.code.trim().toUpperCase() || undefined,
           phone: addFormData.phone.trim(),
           address: addFormData.address.trim(),
         }),
@@ -263,7 +268,7 @@ export default function BranchesTab() {
 
       toast.success("Branch added successfully!");
       setIsAddDialogOpen(false);
-      setAddFormData({ name: "", phone: "", address: "" });
+      setAddFormData({ name: "", code: "", phone: "", address: "" });
       setModalError(null);
       await fetchBranches();
       await queryClient.invalidateQueries({ queryKey: queryKeys.plan.all });
@@ -547,6 +552,27 @@ export default function BranchesTab() {
 
             <div>
               <label className="block text-caption font-semibold uppercase tracking-wider text-gray-700 mb-1.5">
+                Order code (2-4 letters)
+              </label>
+              <input
+                data-testid="branch-code-input"
+                type="text"
+                maxLength={4}
+                value={addFormData.code}
+                onChange={(e) => {
+                  setModalError(null);
+                  setAddFormData({
+                    ...addFormData,
+                    code: e.target.value.replace(/[^A-Za-z]/g, "").toUpperCase(),
+                  });
+                }}
+                className="w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 h-[var(--control-md)] px-2.5 py-1 font-mono font-semibold uppercase"
+                placeholder="e.g. LB — used on order numbers"
+              />
+            </div>
+
+            <div>
+              <label className="block text-caption font-semibold uppercase tracking-wider text-gray-700 mb-1.5">
                 Phone Number
               </label>
               <div className="relative">
@@ -724,6 +750,26 @@ export default function BranchesTab() {
                 }
                 className="w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 h-[var(--control-md)] px-2.5 py-1 font-medium"
                 placeholder="e.g. Main Branch"
+              />
+            </div>
+
+            <div>
+              <label className="block text-caption font-semibold uppercase tracking-wider text-gray-700 mb-1.5">
+                Order code (2-4 letters)
+              </label>
+              <input
+                data-testid="branch-code-edit-input"
+                type="text"
+                maxLength={4}
+                value={editFormData.code}
+                onChange={(e) =>
+                  setEditFormData({
+                    ...editFormData,
+                    code: e.target.value.replace(/[^A-Za-z]/g, "").toUpperCase(),
+                  })
+                }
+                className="w-full rounded-md border border-input bg-white text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:opacity-60 h-[var(--control-md)] px-2.5 py-1 font-mono font-semibold uppercase"
+                placeholder="e.g. HR"
               />
             </div>
 

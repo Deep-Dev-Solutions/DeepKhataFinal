@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import * as M from '../common/money';
+import { formatOrderLabel } from '../orders/order-number';
 import { Prisma } from '@prisma/client';
 import { UpdateCustomerDto } from './dto/customer.dto';
 
@@ -322,7 +323,10 @@ export class CustomersService {
       where: { id, businessId: currentUser.businessId },
       include: {
         orders: {
-          include: { payments: true },
+          include: {
+            payments: true,
+            branch: { select: { code: true, name: true } },
+          },
           orderBy: { createdAt: 'desc' },
         },
       },
@@ -393,7 +397,8 @@ export class CustomersService {
 
       return {
         id: order.id,
-        orderNumber: `ORD-${order.orderNumber || order.id.substring(0, 4)}`,
+        orderNumber: formatOrderLabel(order.orderNumber, order.branch),
+        orderLabel: formatOrderLabel(order.orderNumber, order.branch),
         date: new Date(order.createdAt).toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',

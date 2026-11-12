@@ -9,6 +9,10 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import * as M from '../common/money';
+import {
+  formatOrderLabel,
+  nextOrderNumber,
+} from './order-number';
 import * as D from '../common/dates';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../ledger/ledger.service';
@@ -162,6 +166,28 @@ export class OrdersService {
     try {
       const completeOrder = await this.prisma.$transaction(async (tx) => {
         await this.assertBranchInBusiness(tx, businessId, branchId);
+
+        // A sale always belongs to a branch: the header branch, or the
+        // business's first branch for older clients that send none.
+        const orderBranchId =
+          branchId ??
+          (
+            await tx.branch.findFirst({
+              where: { businessId, deletedAt: null },
+              orderBy: { createdAt: 'asc' },
+              select: { id: true },
+            })
+          )?.id;
+        if (!orderBranchId) {
+          throw new BadRequestException(
+            'Create a branch before recording a sale.',
+          );
+        }
+        const orderNumber = await nextOrderNumber(
+          tx,
+          businessId,
+          orderBranchId,
+        );
 
         let calculatedTotal: M.Money = M.ZERO;
         const secureProducts: Record<string, any> = {};
@@ -326,7 +352,12 @@ export class OrdersService {
           data: {
             id: data.id || undefined,
             businessId,
-            branchId: branchId || null,
+            branchId: orderBranchId,
+            orderNumber,
+            clientRef:
+              typeof data.clientRef === 'string' && data.clientRef.trim()
+                ? data.clientRef.trim().slice(0, 40)
+                : null,
             customerId: customerId || null,
             walkInName: walkInName || null,
             walkInPhone: walkInPhone || null,
@@ -467,7 +498,11 @@ export class OrdersService {
           await this.postDoubleEntrySequence(order, parsedAmountPaid, tx);
         }
 
-        return order;
+        const branch = await tx.branch.findUnique({
+          where: { id: orderBranchId },
+          select: { code: true, name: true },
+        });
+        return { ...order, orderLabel: formatOrderLabel(orderNumber, branch) };
       });
 
       await this.invalidateOrderCaches(
@@ -614,6 +649,7 @@ export class OrdersService {
       include: {
         customer: { select: { id: true, name: true, phone: true } },
         payments: { select: { amount: true } },
+        branch: { select: { code: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -623,6 +659,7 @@ export class OrdersService {
       const pendingBalance = M.sub(order.totalAmount, totalPaid);
       return {
         ...order,
+        orderLabel: formatOrderLabel(order.orderNumber, order.branch),
         totalPaid: M.toApi(totalPaid),
         pendingBalance: M.gt(pendingBalance, 0) ? M.toApi(pendingBalance) : 0,
       };
@@ -656,12 +693,19 @@ export class OrdersService {
           orderBy: { createdAt: 'desc' },
         },
         creator: { select: { name: true } },
+        branch: { select: { code: true, name: true } },
       },
     });
 
     if (!order) throw new NotFoundException('Order not found');
 
-    const result = { success: true, order };
+    const result = {
+      success: true,
+      order: {
+        ...order,
+        orderLabel: formatOrderLabel(order.orderNumber, order.branch),
+      },
+    };
     await this.redis.set(cacheKey, result, 600);
     return result;
   }
@@ -1064,6 +1108,7 @@ export class OrdersService {
         customer: true,
         items: { include: { product: { select: { name: true } } } },
         payments: { orderBy: { createdAt: 'desc' } },
+        branch: { select: { code: true, name: true } },
         business: {
           select: {
             name: true,
@@ -1084,7 +1129,8 @@ export class OrdersService {
 
     const formattedInvoice = {
       ...order,
-      orderNumber: `ORD-${order.orderNumber || order.id.substring(0, 4)}`,
+      orderNumber: formatOrderLabel(order.orderNumber, order.branch),
+      orderLabel: formatOrderLabel(order.orderNumber, order.branch),
       totalPaid: M.toApi(totalPaid),
       pendingBalance: M.gt(pendingBalance, 0) ? M.toApi(pendingBalance) : 0,
     };

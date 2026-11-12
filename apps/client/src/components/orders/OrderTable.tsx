@@ -5,7 +5,7 @@ import { CheckSquare, Square, CheckCircle2, Clock, AlertCircle } from "lucide-re
 
 interface OrderRow {
   id: string;
-  orderNumber: number;
+  orderNumber: number | string;
   customer: string;
   date: string;
   total?: number;
@@ -41,6 +41,7 @@ export default function OrderTable({
           {orders.map((order) => (
             <tr
               key={order.id}
+              data-testid="order-row"
               className={`hover:bg-slate-50 cursor-pointer transition-colors ${selectedOrders.includes(order.id) ? "bg-blue-50/50" : ""} ${order.status === 'CANCELLED' ? 'opacity-60 bg-slate-50' : ''}`}
               onClick={() => router.push(`/orders/${order.id}`)}
             >

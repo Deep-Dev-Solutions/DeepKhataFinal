@@ -10,6 +10,7 @@ import * as M from '../common/money';
 import * as D from '../common/dates';
 import { normalizePkPhone } from './phone';
 import { Bucket, BUCKETS, ListDuesQueryDto, PromiseDto } from './dto/dues.dto';
+import { formatOrderLabel } from '../orders/order-number';
 
 export const ENTITY_TYPES = [
   'ORDER',
@@ -208,7 +209,7 @@ export class DuesService {
             amountOpen: open,
             originDate: o.createdAt,
             dueDate: o.dueDate ?? D.addDays(o.createdAt, terms),
-            reference: `Order #${o.orderNumber}`,
+            reference: `Order ${formatOrderLabel(o.orderNumber, o.branch)}`,
             branch: o.branch ? { id: o.branch.id, name: o.branch.name } : null,
           },
           now,

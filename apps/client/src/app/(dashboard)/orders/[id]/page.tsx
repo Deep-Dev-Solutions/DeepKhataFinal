@@ -190,7 +190,7 @@ export default function OrderDetailsLedger() {
       const normalized = {
         id: rawOrder.id,
         // 🟢 FIX: Use the clean Order Number for the UI!
-        orderNumber: `ORD-${rawOrder.orderNumber || rawOrder.id.substring(0, 4)}`,
+        orderNumber: rawOrder.orderLabel || `ORD-${rawOrder.orderNumber || rawOrder.id.substring(0, 4)}`,
         status: rawOrder.status,
         paymentStatus: rawOrder.paymentStatus,
         date: new Date(rawOrder.createdAt).toLocaleString("en-US", {

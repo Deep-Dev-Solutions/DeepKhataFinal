@@ -133,6 +133,7 @@ export interface Order {
 }
 
 export interface Branch {
+  code?: string | null;
   id: string;
   name: string;
   location?: string | null;

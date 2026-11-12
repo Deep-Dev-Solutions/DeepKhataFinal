@@ -10,6 +10,7 @@ import { LedgerService } from '../ledger/ledger.service';
 import * as M from '../common/money';
 import { PlanLimitsService } from '../plans/plan-limits.service';
 import { nextSerials } from './sku';
+import { formatOrderLabel } from '../orders/order-number';
 
 const COST_KEYS = new Set(['defaultCostPrice', 'unitCost']);
 
@@ -646,15 +647,23 @@ export class ProductsService {
   }
 
   async addBranch(userId: string, data: any) {
-    const { name, location } = data;
+    const { name, location, code } = data;
     const businessId = await this.requireBusinessId(userId);
 
     if (!name || !name.trim())
       throw new BadRequestException('Branch name is required');
 
+    const normalizedCode = code?.trim()
+      ? String(code).trim().toUpperCase()
+      : null;
+    if (normalizedCode && !/^[A-Z]{2,4}$/.test(normalizedCode)) {
+      throw new BadRequestException('Branch code must be 2-4 letters.');
+    }
+
     const branch = await this.prisma.branch.create({
       data: {
         name: name.trim(),
+        code: normalizedCode,
         location: location?.trim() || null,
         businessId,
       },
@@ -1177,6 +1186,7 @@ export class ProductsService {
               select: {
                 id: true,
                 name: true,
+                code: true,
               },
             },
             creator: {
@@ -1211,6 +1221,7 @@ export class ProductsService {
       id: item.id,
       orderId: item.order.id,
       orderNumber: item.order.orderNumber,
+      orderLabel: formatOrderLabel(item.order.orderNumber, item.order.branch),
       createdAt: item.order.createdAt,
       quantity: item.quantity,
       price: M.money(item.price),

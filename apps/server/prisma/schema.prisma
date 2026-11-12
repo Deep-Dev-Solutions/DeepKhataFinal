@@ -104,6 +104,8 @@ model AgencyBillingLog {
 model Branch {
   id       String  @id @default(uuid())
   name     String
+  /** Short human code for per-branch order numbers, e.g. HR, LB. */
+  code     String?
   location String?
   phone    String?
 
@@ -373,6 +375,8 @@ model Order {
   totalAmount   Decimal @db.Decimal(14, 2)
   createdBy     String?
   orderNumber   Int           @default(autoincrement())
+  /** Provisional offline reference (TMP-<code>-<uuid6>) kept after sync. */
+  clientRef     String?
   walkInName    String?
   walkInPhone   String?
   dueDate       DateTime?
@@ -388,6 +392,7 @@ model Order {
 
   @@index([businessId, createdAt])
   @@index([businessId, customerId])
+  @@unique([businessId, branchId, orderNumber])
 }
 
 model OrderItem {
@@ -1190,4 +1195,14 @@ model DealHistory {
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@index([businessId, changedAt])
+}
+
+/// Per-branch order counter. The server is the only issuer; offline tills get
+/// their final number here when the queued sale syncs.
+model OrderNumberSequence {
+  businessId String
+  branchId   String
+  last       Int    @default(0)
+
+  @@id([businessId, branchId])
 }

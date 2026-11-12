@@ -1,6 +1,7 @@
 import {
   Injectable,
   BadRequestException,
+  ConflictException,
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
@@ -146,6 +147,38 @@ export class SettingsService {
     };
   }
 
+
+  /** Branch order codes are 2-4 letters, uppercase, unique inside a business. */
+  private async normalizeBranchCode(
+    businessId: string,
+    raw: unknown,
+    excludeBranchId?: string,
+  ): Promise<string | null> {
+    if (raw === undefined) return null;
+    const code = String(raw ?? '')
+      .trim()
+      .toUpperCase();
+    if (!code) return null;
+    if (!/^[A-Z]{2,4}$/.test(code)) {
+      throw new BadRequestException('Branch code must be 2-4 letters.');
+    }
+    const clash = await this.prisma.branch.findFirst({
+      where: {
+        businessId,
+        code,
+        deletedAt: null,
+        ...(excludeBranchId ? { id: { not: excludeBranchId } } : {}),
+      },
+      select: { id: true, name: true },
+    });
+    if (clash) {
+      throw new ConflictException(
+        `Branch code ${code} is already used by ${clash.name}.`,
+      );
+    }
+    return code;
+  }
+
   async updateBranch(branchId: string, userId: string, data: any) {
     const { name, phone, address } = data; // Note: frontend sends address, which maps to location in DB
 
@@ -172,6 +205,11 @@ export class SettingsService {
     }
 
     const loc = address !== undefined ? address : data.location;
+    const code = await this.normalizeBranchCode(
+      currentUser.businessId,
+      data.code,
+      branchId,
+    );
 
     const updatedBranch = await this.prisma.branch.update({
       where: { id: branchId },
@@ -179,6 +217,7 @@ export class SettingsService {
         ...(name && { name }),
         ...(phone !== undefined && { phone }),
         ...(loc !== undefined && { location: loc }),
+        ...(data.code !== undefined ? { code } : {}),
       },
     });
 
@@ -216,10 +255,12 @@ export class SettingsService {
     }
 
     const loc = address !== undefined ? address : location;
+    const code = await this.normalizeBranchCode(currentUser.businessId, data.code);
 
     const branch = await this.prisma.branch.create({
       data: {
         name: name.trim(),
+        code,
         phone: phone ? phone.trim() : null,
         location: loc ? loc.trim() : null,
         businessId: currentUser.businessId,

@@ -40,6 +40,8 @@ export interface CompletedOrderData {
   paymentMethod?: string;
   runningBalance?: number;
   isOffline?: boolean;
+  /** Offline receipts carry a TMP ref until the server assigns the final number. */
+  isProvisional?: boolean;
   createdAt?: string;
 }
 
@@ -161,6 +163,14 @@ export default function OrderSuccessModal({
                 {order.status === "MEMO" ? "MEMO (Amanat)" : "FINAL SALE"}
               </span>
             </div>
+            {order.isProvisional && (
+              <p
+                data-testid="order-provisional"
+                className="mt-1.5 text-[11px] font-semibold text-amber-700"
+              >
+                Provisional — final number after sync
+              </p>
+            )}
           </div>
 
           {/* Invoice Summary */}

@@ -653,6 +653,23 @@ function CreateOrderPOSContent() {
     if (cart.length === 0) return false;
     setIsSubmitting(true);
 
+    // Offline receipts must never invent a real ORD-n: the server is the only
+    // issuer. A TMP ref is stored as Order.clientRef when the sale syncs.
+    const receiptBranch = authBranches?.find(
+      (branch) => branch.id === activeBranchId,
+    );
+    const receiptCode = (
+      receiptBranch?.code ||
+      (receiptBranch?.name ?? "")
+        .trim()
+        .split(/\s+/)
+        .map((word) => word.replace(/[^A-Za-z]/g, "").charAt(0))
+        .join("")
+        .toUpperCase()
+        .slice(0, 4) ||
+      "BR"
+    ).padEnd(2, "X");
+
     const currentCart = [...cart];
     const currentDiscount = Number(discount) || 0;
     const currentPaid = Number(amountPaid) || 0;
@@ -701,10 +718,13 @@ function CreateOrderPOSContent() {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       try {
         const localOrderId = crypto.randomUUID();
+        const provisionalRef = `TMP-${receiptCode}-${localOrderId
+          .slice(0, 6)
+          .toUpperCase()}`;
         const offlineItem: SyncQueueItem = {
           id: localOrderId,
           type: "CREATE_ORDER",
-          payload,
+          payload: { ...payload, clientRef: provisionalRef },
           createdAt: new Date().toISOString(),
           status: "pending",
         };
@@ -721,7 +741,8 @@ function CreateOrderPOSContent() {
 
         setCompletedOrderData({
           id: localOrderId,
-          orderNumber: `ORD-${localOrderId.slice(0, 6).toUpperCase()}`,
+          orderNumber: provisionalRef,
+          isProvisional: true,
           status: currentStatus,
           customer: currentCustomer || {
             name:
@@ -792,7 +813,9 @@ function CreateOrderPOSContent() {
 
       setCompletedOrderData({
         id: data.order?.id || "N/A",
-        orderNumber: `ORD-${data.order?.orderNumber || data.order?.id?.slice(0, 4) || "NEW"}`,
+        orderNumber:
+          data.order?.orderLabel ||
+          `ORD-${data.order?.orderNumber || data.order?.id?.slice(0, 4) || "NEW"}`,
         status: data.order?.status || currentStatus,
         customer: currentCustomer ||
           data.order?.customer || {
@@ -839,10 +862,13 @@ function CreateOrderPOSContent() {
 
       if (isNetworkIssue) {
         const localOrderId = crypto.randomUUID();
+        const provisionalRef = `TMP-${receiptCode}-${localOrderId
+          .slice(0, 6)
+          .toUpperCase()}`;
         const offlineItem: SyncQueueItem = {
           id: localOrderId,
           type: "CREATE_ORDER",
-          payload,
+          payload: { ...payload, clientRef: provisionalRef },
           createdAt: new Date().toISOString(),
           status: "pending",
         };
@@ -859,7 +885,8 @@ function CreateOrderPOSContent() {
 
         setCompletedOrderData({
           id: localOrderId,
-          orderNumber: `ORD-${localOrderId.slice(0, 6).toUpperCase()}`,
+          orderNumber: provisionalRef,
+          isProvisional: true,
           status: currentStatus,
           customer: currentCustomer || {
             name:

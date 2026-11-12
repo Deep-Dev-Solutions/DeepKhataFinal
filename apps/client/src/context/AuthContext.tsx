@@ -37,6 +37,8 @@ export interface BusinessSubscription {
 export interface Branch {
   id: string;
   name: string;
+  /** Short code used on order numbers (HR, LB). */
+  code?: string | null;
   location?: string | null;
   createdAt?: string;
 }

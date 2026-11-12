@@ -89,7 +89,7 @@ export default function CustomerProfilePage() {
       const formattedOrderHistory = (data.customer.orderHistory || []).map(
         (order: any) => ({
           ...order,
-          orderNumber: `ORD-${order.orderNumber || order.id.substring(0, 4)}`,
+          orderNumber: order.orderLabel || `ORD-${order.orderNumber || order.id.substring(0, 4)}`,
           date: new Date(order.date || order.createdAt).toLocaleDateString(
             "en-US",
             { month: "short", day: "numeric", year: "numeric" },

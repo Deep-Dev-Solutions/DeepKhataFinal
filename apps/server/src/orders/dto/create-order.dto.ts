@@ -97,6 +97,12 @@ export class CreateOrderDto {
   @IsOptional()
   branchId?: string;
 
+  /** Provisional offline reference (TMP-<code>-<uuid6>) kept after sync. */
+  @IsString()
+  @IsOptional()
+  @MaxLength(40)
+  clientRef?: string;
+
   @IsDateString()
   @IsOptional()
   dueDate?: string;
