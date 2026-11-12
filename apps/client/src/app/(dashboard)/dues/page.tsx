@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import DuesSummaryCards from "@/components/dues/DuesSummaryCards";
 import DueRow from "@/components/dues/DueRow";
+import { PageHeader } from "@/components/ui/page-header";
 import DuePayModal from "@/components/dues/DuePayModal";
 import DuePromiseModal from "@/components/dues/DuePromiseModal";
 import {
@@ -147,8 +148,14 @@ function DuesPageContent() {
     }`;
 
   return (
-    <div data-testid="dues-page" className="p-4 sm:p-6 space-y-5 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-black text-slate-900">Lena / Dena</h1>
+    <div
+      data-testid="dues-page"
+      className="mt-1 space-y-4 pb-10 animate-in fade-in duration-300"
+    >
+      <PageHeader
+        title="Lena / Dena"
+        subtitle="Customer udhar and vendor payables, across every branch or just this one."
+      />
 
       <DuesSummaryCards summary={summary} />
 
