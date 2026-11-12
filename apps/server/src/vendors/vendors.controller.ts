@@ -14,6 +14,7 @@ import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { RecordPurchaseDto } from './dto/record-purchase.dto';
 import { RecordPaymentDto } from './dto/record-payment.dto';
+import { VoidTransactionDto } from './dto/void-transaction.dto';
 
 @UseGuards(SessionGuard, PermissionsGuard)
 @Controller('vendors')
@@ -56,5 +57,16 @@ export class VendorsController {
     @Body() data: RecordPaymentDto,
   ) {
     return this.vendorsService.recordPayment(req.user.id, id, data);
+  }
+
+  @Post(':id/transactions/:txId/void')
+  @RequirePermissions('manage:vendors')
+  voidTransaction(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('txId') txId: string,
+    @Body() data: VoidTransactionDto,
+  ) {
+    return this.vendorsService.voidTransaction(req.user.id, id, txId, data);
   }
 }

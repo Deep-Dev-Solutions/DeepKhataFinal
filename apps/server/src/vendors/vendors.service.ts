@@ -1,6 +1,7 @@
 import {
   Injectable,
   BadRequestException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -10,6 +11,7 @@ import * as M from '../common/money';
 import * as D from '../common/dates';
 import { RecordPurchaseDto } from './dto/record-purchase.dto';
 import { RecordPaymentDto } from './dto/record-payment.dto';
+import { VoidTransactionDto } from './dto/void-transaction.dto';
 
 @Injectable()
 export class VendorsService {
@@ -175,7 +177,9 @@ export class VendorsService {
           transaction: { businessId },
         },
         include: {
-          transaction: true,
+          transaction: {
+            include: { voidedBy: { select: { name: true } } },
+          },
         },
         orderBy: { createdAt: 'asc' },
       }),
@@ -223,8 +227,15 @@ export class VendorsService {
     const ledger = postings.map((p) => {
       const credit = M.lt(p.amount, 0) ? M.neg(p.amount) : M.ZERO;
       const debit = M.gt(p.amount, 0) ? M.money(p.amount) : M.ZERO;
-      totalPurchases = M.add(totalPurchases, credit);
-      totalPaid = M.add(totalPaid, debit);
+      const isVoided = Boolean(p.transaction.voidedAt);
+      const isReversal = Boolean(p.transaction.reversesId);
+
+      // Voided entries and their reversals stay in the running balance (they
+      // cancel each other out) but must not inflate the totals.
+      if (!isVoided && !isReversal) {
+        totalPurchases = M.add(totalPurchases, credit);
+        totalPaid = M.add(totalPaid, debit);
+      }
       runningBalance = M.add(runningBalance, M.sub(credit, debit));
 
       return {
@@ -239,6 +250,11 @@ export class VendorsService {
         debit,
         credit,
         balance: runningBalance,
+        isVoided,
+        isReversal,
+        voidedAt: p.transaction.voidedAt,
+        voidReason: p.transaction.voidReason,
+        voidedByName: p.transaction.voidedBy?.name ?? null,
       };
     });
 
@@ -468,6 +484,57 @@ export class VendorsService {
         },
       ],
     });
+
+    await this.redis.delete(`vendors:${currentUser.businessId}`);
+    await this.redis.delete(
+      `vendor_details:${currentUser.businessId}:${vendorId}`,
+    );
+
+    return { success: true, transaction };
+  }
+
+  async voidTransaction(
+    userId: string,
+    vendorId: string,
+    transactionId: string,
+    data: VoidTransactionDto,
+  ) {
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { businessId: true, role: true },
+    });
+    if (!currentUser?.businessId)
+      throw new BadRequestException('No business found.');
+
+    if (currentUser.role !== 'OWNER' && currentUser.role !== 'MANAGER') {
+      throw new ForbiddenException(
+        'Only an owner or manager can void a transaction.',
+      );
+    }
+
+    const vendor = await this.prisma.vendor.findFirst({
+      where: { id: vendorId, businessId: currentUser.businessId },
+    });
+    if (!vendor) throw new NotFoundException('Vendor not found');
+
+    const entry = await this.prisma.transaction.findFirst({
+      where: {
+        id: transactionId,
+        businessId: currentUser.businessId,
+        postings: {
+          some: { accountId: vendorId, accountType: 'VENDOR_PAYABLE' },
+        },
+      },
+      select: { id: true },
+    });
+    if (!entry) throw new NotFoundException('Transaction not found.');
+
+    const transaction = await this.ledgerService.reverse(
+      currentUser.businessId,
+      transactionId,
+      userId,
+      data.reason.trim(),
+    );
 
     await this.redis.delete(`vendors:${currentUser.businessId}`);
     await this.redis.delete(

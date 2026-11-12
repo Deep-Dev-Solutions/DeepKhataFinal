@@ -25,13 +25,16 @@ import {
   CreditCard,
   Warehouse,
   Loader2,
+  Undo2,
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
+import { useAuth } from "@/context/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -57,10 +60,18 @@ export default function VendorProfilePage() {
   const params = useParams();
   const id = params?.id as string;
   const router = useRouter();
+  const { role } = useAuth();
 
   const [vendor, setVendor] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [pageError, setPageError] = useState("");
+
+  // Void (correction) states
+  const canVoid = role === "OWNER" || role === "MANAGER";
+  const [voidTarget, setVoidTarget] = useState<any>(null);
+  const [voidReason, setVoidReason] = useState("");
+  const [voidError, setVoidError] = useState("");
+  const [isVoiding, setIsVoiding] = useState(false);
 
   // Transaction form states
   const [actionType, setActionType] = useState<"purchase" | "payment">(
@@ -167,6 +178,42 @@ export default function VendorProfilePage() {
       );
     } finally {
       setIsSubmittingTx(false);
+    }
+  };
+
+  const handleVoidTransaction = async () => {
+    if (!voidTarget) return;
+    const reason = voidReason.trim();
+    if (reason.length < 3) {
+      setVoidError("Reason must be at least 3 characters.");
+      return;
+    }
+
+    setIsVoiding(true);
+    setVoidError("");
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/vendors/${id}/transactions/${voidTarget.transactionId}/void`,
+        {
+          credentials: "include",
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ reason }),
+        },
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.message || "Failed to void transaction");
+      }
+      setVoidTarget(null);
+      setVoidReason("");
+      await fetchVendorData();
+    } catch (error) {
+      setVoidError(
+        error instanceof Error ? error.message : "Failed to void transaction",
+      );
+    } finally {
+      setIsVoiding(false);
     }
   };
 
@@ -832,11 +879,12 @@ export default function VendorProfilePage() {
                       Debit
                     </TableHead>
                     <TableHead className="text-right">Balance</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {!vendor.ledger || vendor.ledger.length === 0 ? (
-                    <TableEmpty colSpan={6}>
+                    <TableEmpty colSpan={7}>
                       <EmptyState
                         className="border-0 bg-transparent py-4 shadow-none"
                         icon={Wallet}
@@ -846,7 +894,11 @@ export default function VendorProfilePage() {
                     </TableEmpty>
                   ) : (
                     vendor.ledger.map((item: any) => (
-                      <TableRow data-testid="vendor-ledger-row" key={item.id}>
+                      <TableRow
+                        data-testid="vendor-ledger-row"
+                        key={item.id}
+                        className={item.isVoided ? "opacity-60" : undefined}
+                      >
                         <TableCell className="align-top">
                           <span className="block whitespace-nowrap text-caption font-medium text-gray-600">
                             {splitDateTime(item.formattedDate)[0]}
@@ -858,28 +910,50 @@ export default function VendorProfilePage() {
                         <TableCell className="max-w-48">
                           <p
                             title={item.description}
-                            className="truncate text-body font-medium text-gray-800"
+                            className={`truncate text-body font-medium text-gray-800 ${
+                              item.isVoided ? "line-through" : ""
+                            }`}
                           >
                             {item.description}
                           </p>
+                          {item.isVoided && (
+                            <span
+                              data-testid="vendor-tx-voided-badge"
+                              className="mt-1 inline-flex items-center gap-1 rounded-full bg-danger-bg px-2 py-0.5 text-caption font-semibold text-danger-fg"
+                            >
+                              Voided
+                              {item.voidedByName ? ` by ${item.voidedByName}` : ""}
+                              {item.voidReason ? `: ${item.voidReason}` : ""}
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Badge
                             uppercase
                             variant={
-                              item.type === "VENDOR_PAYMENT"
-                                ? "success"
-                                : "brand"
+                              item.isVoided
+                                ? "neutral"
+                                : item.isReversal
+                                  ? "warning"
+                                  : item.type === "VENDOR_PAYMENT"
+                                    ? "success"
+                                    : "brand"
                             }
                           >
-                            {item.type === "VENDOR_PAYMENT"
-                              ? "PAYMENT"
-                              : "PURCHASE"}
+                            {item.isReversal
+                              ? "REVERSAL"
+                              : item.type === "VENDOR_PAYMENT"
+                                ? "PAYMENT"
+                                : "PURCHASE"}
                           </Badge>
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-right">
                           {item.credit > 0 ? (
-                            <span className="font-semibold text-danger">
+                            <span
+                              className={`font-semibold text-danger ${
+                                item.isVoided ? "line-through" : ""
+                              }`}
+                            >
                               Rs. {formatPrice(item.credit)}
                             </span>
                           ) : (
@@ -888,7 +962,11 @@ export default function VendorProfilePage() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-right">
                           {item.debit > 0 ? (
-                            <span className="font-semibold text-success">
+                            <span
+                              className={`font-semibold text-success ${
+                                item.isVoided ? "line-through" : ""
+                              }`}
+                            >
                               Rs. {formatPrice(item.debit)}
                             </span>
                           ) : (
@@ -897,6 +975,25 @@ export default function VendorProfilePage() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-right font-semibold text-gray-900">
                           Rs. {formatPrice(item.balance)}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right">
+                          {canVoid && !item.isVoided && !item.isReversal ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              data-testid="vendor-tx-void"
+                              onClick={() => {
+                                setVoidReason("");
+                                setVoidError("");
+                                setVoidTarget(item);
+                              }}
+                            >
+                              <Undo2 className="mr-1 h-4 w-4" /> Void
+                            </Button>
+                          ) : (
+                            <span className="text-gray-300">-</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))
@@ -977,6 +1074,86 @@ export default function VendorProfilePage() {
           </div>
         </Card>
       </div>
+
+      {voidTarget && (
+        <div
+          data-testid="vendor-tx-void-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="vendor-void-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+        >
+          <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-elevated">
+            <h2
+              id="vendor-void-title"
+              className="text-subtitle font-semibold text-gray-900"
+            >
+              Void this ledger entry?
+            </h2>
+            <p className="mt-1 text-body text-gray-600">
+              To correct an amount, void this entry and record the right amount.
+              Nothing is deleted — a reversing entry is added and both stay in
+              your books.
+            </p>
+            <p className="mt-2 text-caption text-gray-500">
+              {voidTarget.description} · Rs.{" "}
+              {formatPrice(
+                Number(voidTarget.debit) > 0
+                  ? voidTarget.debit
+                  : voidTarget.credit,
+              )}
+            </p>
+
+            <div className="mt-4">
+              <label
+                htmlFor="vendor-void-reason"
+                className="mb-1 block text-caption font-medium text-gray-700"
+              >
+                Reason (3–200 characters)
+              </label>
+              <Textarea
+                id="vendor-void-reason"
+                data-testid="vendor-tx-void-reason"
+                value={voidReason}
+                onChange={(e) => setVoidReason(e.target.value)}
+                placeholder="e.g. Typed an extra zero while entering the payment"
+                rows={3}
+              />
+              {voidError && (
+                <p
+                  data-testid="vendor-tx-void-error"
+                  className="mt-1 text-caption text-danger-fg"
+                >
+                  {voidError}
+                </p>
+              )}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setVoidTarget(null);
+                  setVoidReason("");
+                  setVoidError("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                data-testid="vendor-tx-void-confirm"
+                onClick={handleVoidTransaction}
+                disabled={isVoiding || voidReason.trim().length < 3}
+              >
+                {isVoiding ? "Voiding..." : "Void entry"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

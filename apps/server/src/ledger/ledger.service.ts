@@ -1,8 +1,13 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
-import { round2, sum, isZero } from '../common/money';
+import { round2, sum, isZero, neg } from '../common/money';
 
 @Injectable()
 export class LedgerService {
@@ -45,5 +50,79 @@ export class LedgerService {
 
     if (tx) return write(tx);
     return this.prisma.$transaction((client) => write(client));
+  }
+
+  /**
+   * Voids a transaction by marking it and posting a mirror transaction inside
+   * one database transaction. Postings are never updated or deleted.
+   */
+  async reverse(
+    businessId: string,
+    transactionId: string,
+    userId: string,
+    reason: string,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const run = async (client: Prisma.TransactionClient) => {
+      const original = await client.transaction.findFirst({
+        where: { id: transactionId, businessId },
+        include: { postings: true },
+      });
+
+      if (!original) {
+        throw new NotFoundException('Transaction not found.');
+      }
+      if (original.voidedAt) {
+        throw new ConflictException('This transaction is already voided.');
+      }
+      if (original.reversesId) {
+        throw new ConflictException(
+          'A reversing transaction cannot itself be voided.',
+        );
+      }
+
+      let reversal;
+      try {
+        reversal = await client.transaction.create({
+          data: {
+            businessId,
+            referenceId: original.referenceId,
+            type: `${original.type}_REVERSAL`,
+            description: `Void: ${reason}`,
+            reversesId: original.id,
+            postings: {
+              create: original.postings.map((posting) => ({
+                accountId: posting.accountId,
+                accountType: posting.accountType,
+                amount: neg(posting.amount),
+              })),
+            },
+          },
+          include: { postings: true },
+        });
+      } catch (err) {
+        if (
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          err.code === 'P2002'
+        ) {
+          throw new ConflictException('This transaction is already voided.');
+        }
+        throw err;
+      }
+
+      await client.transaction.update({
+        where: { id: original.id },
+        data: {
+          voidedAt: new Date(),
+          voidedById: userId,
+          voidReason: reason,
+        },
+      });
+
+      return reversal;
+    };
+
+    if (tx) return run(tx);
+    return this.prisma.$transaction(run);
   }
 }

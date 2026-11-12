@@ -162,6 +162,7 @@ model User {
   sessions Session[]
   accounts Account[]
   branches UserBranch[]
+  voidedTransactions Transaction[] @relation("TransactionVoidedBy")
 
   businessId String?
   business   Business? @relation("BusinessUsers", fields: [businessId], references: [id])
@@ -432,6 +433,16 @@ model Transaction {
   postings  Posting[]
   expense   Expense?
   createdAt DateTime  @default(now())
+
+  // Voiding never deletes: the original is marked and a reversing
+  // transaction (reversesId points back here) restores the balances.
+  voidedAt   DateTime?
+  voidedById String?
+  voidedBy   User?    @relation("TransactionVoidedBy", fields: [voidedById], references: [id])
+  voidReason String?
+  reversesId String?  @unique
+  reverses   Transaction? @relation("TransactionReversal", fields: [reversesId], references: [id])
+  reversedBy Transaction? @relation("TransactionReversal")
 
   @@index([businessId, type, createdAt])
 }
