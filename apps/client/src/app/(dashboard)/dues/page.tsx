@@ -38,6 +38,7 @@ function DuesPageContent() {
   const [direction, setDirection] = useState<DueDirection>("receivable");
   const [bucket, setBucket] = useState<DueBucket | "all">("all");
   const [sort, setSort] = useState<DueSort>("oldest");
+  const [branchOnly, setBranchOnly] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [q, setQ] = useState("");
 
@@ -52,7 +53,13 @@ function DuesPageContent() {
   }, [searchInput]);
 
   const summaryQuery = useDuesSummary();
-  const listQuery = useDues({ direction, bucket, q, sort });
+  const listQuery = useDues({
+    direction,
+    bucket,
+    q,
+    sort,
+    scope: branchOnly ? "branch" : "business",
+  });
   const recordPayment = useRecordDuePayment();
   const promiseMutation = usePostPromise();
   const remindedMutation = usePostReminded();
@@ -221,6 +228,19 @@ function DuesPageContent() {
           <option value="amount">Amount</option>
           <option value="due">Due date</option>
         </select>
+        <button
+          type="button"
+          data-testid="dues-branch-only"
+          aria-pressed={branchOnly}
+          onClick={() => setBranchOnly((prev) => !prev)}
+          className={`px-3 py-2.5 rounded-xl border text-sm font-semibold transition-colors ${
+            branchOnly
+              ? "border-blue-500 bg-blue-50 text-blue-700"
+              : "border-slate-300 bg-white text-slate-700"
+          }`}
+        >
+          This branch only
+        </button>
       </div>
 
       {error && (

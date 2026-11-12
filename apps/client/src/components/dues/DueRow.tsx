@@ -59,6 +59,12 @@ export default function DueRow({
           {item.partyPhone || "No phone"}
           {item.reference ? ` · ${item.reference}` : ""}
         </p>
+        <p
+          data-testid="dues-row-branch"
+          className="text-[11px] font-medium text-slate-400 truncate"
+        >
+          {item.branch?.name ?? "—"}
+        </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 lg:flex-1 text-xs text-slate-600">

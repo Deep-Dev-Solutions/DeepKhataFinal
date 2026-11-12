@@ -441,6 +441,7 @@ export class KhataEntriesService {
         ...(direction ? { direction } : {}),
       },
       orderBy: { dueDate: 'asc' },
+      include: { branch: { select: { id: true, name: true } } },
     });
     return entries.map((e) => ({ ...e, openAmount: openOf(e) }));
   }

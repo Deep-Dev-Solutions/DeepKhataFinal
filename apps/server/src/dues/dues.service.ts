@@ -38,6 +38,7 @@ export interface DueItem {
   snoozedUntil: Date | null;
   reference: string;
   link: string;
+  branch: { id: string; name: string } | null;
 }
 
 const OPEN_ORDER_STATUSES: OrderStatus[] = [
@@ -144,6 +145,7 @@ export class DuesService {
       | 'originDate'
       | 'dueDate'
       | 'reference'
+      | 'branch'
     >,
     now: Date,
   ): DueItem {
@@ -181,6 +183,7 @@ export class DuesService {
               paymentTermsDays: true,
             },
           },
+          branch: { select: { id: true, name: true } },
           payments: { select: { amount: true } },
         },
       }),
@@ -206,6 +209,7 @@ export class DuesService {
             originDate: o.createdAt,
             dueDate: o.dueDate ?? D.addDays(o.createdAt, terms),
             reference: `Order #${o.orderNumber}`,
+            branch: o.branch ? { id: o.branch.id, name: o.branch.name } : null,
           },
           now,
         ),
@@ -310,6 +314,8 @@ export class DuesService {
               originDate: pu.createdAt,
               dueDate: pu.dueDate ?? D.addDays(pu.createdAt, defaultDays),
               reference: `Purchase ${D.karachiDateString(pu.createdAt)}`,
+              // Ledger transactions have no branch yet; payables show "—".
+              branch: null,
             },
             now,
           ),
@@ -342,6 +348,7 @@ export class DuesService {
           originDate: e.createdAt,
           dueDate: e.dueDate,
           reference: e.note?.trim() ? e.note : 'Khata entry',
+          branch: e.branch ? { id: e.branch.id, name: e.branch.name } : null,
         },
         now,
       ),
@@ -423,10 +430,16 @@ export class DuesService {
     };
   }
 
-  async list(businessId: string, q: ListDuesQueryDto) {
+  async list(businessId: string, q: ListDuesQueryDto, branchId?: string | null) {
     const direction: DueDirection =
       q.direction === 'payable' ? 'PAYABLE' : 'RECEIVABLE';
     let items = await this.listOpen(businessId, direction);
+
+    // "This branch only" filters the rows to the active branch. Payables have no
+    // branch on the ledger yet, so they only appear in the business-wide list.
+    if (q.scope === 'branch' && branchId) {
+      items = items.filter((i) => i.branch?.id === branchId);
+    }
 
     if (q.bucket) items = items.filter((i) => i.bucket === q.bucket);
     if (q.customerId)

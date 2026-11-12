@@ -28,6 +28,10 @@ export class ListDuesQueryDto {
   sort?: 'oldest' | 'amount' | 'due';
 
   @IsOptional()
+  @IsIn(['business', 'branch'])
+  scope?: 'business' | 'branch';
+
+  @IsOptional()
   @IsString()
   customerId?: string;
 

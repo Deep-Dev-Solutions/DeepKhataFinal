@@ -45,6 +45,7 @@ export interface DueItem {
   snoozedUntil: string | null;
   reference: string | null;
   link: string | null;
+  branch: { id: string; name: string } | null;
 }
 
 export interface DuesListParams {
@@ -52,6 +53,8 @@ export interface DuesListParams {
   bucket?: DueBucket | "all";
   q?: string;
   sort?: DueSort;
+  /** business = every branch (default); branch = only the active branch. */
+  scope?: "business" | "branch";
 }
 
 async function request<T>(
@@ -97,6 +100,7 @@ export async function fetchDues(
   if (params.bucket && params.bucket !== "all") qs.set("bucket", params.bucket);
   if (params.q) qs.set("q", params.q);
   if (params.sort) qs.set("sort", params.sort);
+  if (params.scope === "branch") qs.set("scope", "branch");
   const data = await request<{ items?: DueItem[] }>(
     `/dues?${qs.toString()}`,
     branchId,

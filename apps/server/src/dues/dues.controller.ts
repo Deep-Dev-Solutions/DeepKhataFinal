@@ -42,7 +42,7 @@ export class DuesController {
   @Get()
   @RequirePermissions('read:dues')
   list(@Tenant() t: TenantContext, @Query() q: ListDuesQueryDto) {
-    return this.dues.list(t.businessId, q);
+    return this.dues.list(t.businessId, q, t.branchId);
   }
 
   @Post(':entityType/:entityId/promise')
