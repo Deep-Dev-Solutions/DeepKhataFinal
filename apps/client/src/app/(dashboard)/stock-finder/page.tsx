@@ -6,6 +6,7 @@ import { Search } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { PageHeader } from "@/components/ui/page-header";
 import StockResultCard from "@/components/stock-finder/StockResultCard";
 import ReserveModal from "@/components/stock-finder/ReserveModal";
 import TransferModal from "@/components/stock-finder/TransferModal";
@@ -29,6 +30,7 @@ function StockFinderContent() {
 
   const [input, setInput] = useState(urlQ);
   const [q, setQ] = useState(urlQ.trim());
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [prevUrlQ, setPrevUrlQ] = useState(urlQ);
   const [results, setResults] = useState<StockResult[]>([]);
   const [tookMs, setTookMs] = useState<number | null>(null);
@@ -49,6 +51,31 @@ function StockFinderContent() {
 
   const key = `${activeBranchId ?? ""}|${q}|${tick}`;
   const loading = !!q && loadedKey !== key;
+
+  // Last 5 searches, remembered per browser so a shopkeeper can repeat one.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem("stock-finder:recent");
+      setRecentSearches(Array.isArray(JSON.parse(raw || "[]")) ? JSON.parse(raw || "[]") : []);
+    } catch {
+      setRecentSearches([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2 || typeof window === "undefined") return;
+    setRecentSearches((prev) => {
+      const next = [term, ...prev.filter((t) => t.toLowerCase() !== term.toLowerCase())].slice(0, 5);
+      try {
+        window.localStorage.setItem("stock-finder:recent", JSON.stringify(next));
+      } catch {
+        // Private mode: keep it in memory only.
+      }
+      return next;
+    });
+  }, [q]);
 
   useEffect(() => {
     const h = setTimeout(() => setQ(input.trim()), 250);
@@ -97,9 +124,12 @@ function StockFinderContent() {
   return (
     <div
       data-testid="stock-finder-page"
-      className="p-4 sm:p-6 space-y-5 max-w-4xl mx-auto"
+      className="mt-1 space-y-4 pb-10 animate-in fade-in duration-300"
     >
-      <h1 className="text-2xl font-black text-slate-900">Stock Finder</h1>
+      <PageHeader
+        title="Stock Finder"
+        subtitle="Search every branch by part name, part number or model — even before the customer finishes talking."
+      />
 
       <div className="space-y-1.5">
         <div className="relative">
@@ -130,6 +160,55 @@ function StockFinderContent() {
       {error && (
         <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-sm text-rose-600">
           {error}
+        </div>
+      )}
+
+      {!q && (
+        <div data-testid="stock-finder-hints" className="space-y-3">
+          <div className="bg-white border border-slate-200 rounded-2xl p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+              Search kaise karein
+            </p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-3">
+              {[
+                { label: "Part number", hint: "e.g. 840 G3 keyboard" },
+                { label: "Model", hint: "e.g. EliteBook 840 G3" },
+                { label: "Shop name", hint: "e.g. keyboard, battery, screen" },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                >
+                  <p className="text-sm font-bold text-slate-800">{item.label}</p>
+                  <p className="text-xs text-slate-500">{item.hint}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {recentSearches.length > 0 && (
+            <div
+              data-testid="stock-finder-recent"
+              className="flex flex-wrap items-center gap-2"
+            >
+              <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                Pichli searches
+              </span>
+              {recentSearches.map((term) => (
+                <button
+                  key={term}
+                  type="button"
+                  onClick={() => {
+                    setInput(term);
+                    setQ(term);
+                  }}
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  {term}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
