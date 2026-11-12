@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   Plus,
   Search,
   Calendar,
   MessageCircle,
-  Package,
   Download,
   AlertCircle,
   Loader2,
@@ -163,25 +163,20 @@ export default function OrdersHubPage() {
   };
 
   return (
-    <div className="relative min-h-[80vh] flex flex-col space-y-4 animate-in fade-in duration-500 pb-20">
-      {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <Package className="w-6 h-6 text-blue-600" />
-            Orders Hub
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Manage lifecycle, payments, and dispatch tracking.
-          </p>
-        </div>
-        <Link
-          href="/orders/new"
-          className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 transition-all shadow-sm"
-        >
-          <Plus className="w-4 h-4" /> Create Order
-        </Link>
-      </div>
+    <div className="relative mt-1 flex min-h-[80vh] flex-col space-y-4 pb-10 animate-in fade-in duration-300">
+      <PageHeader
+        title="Orders"
+        subtitle="Manage lifecycle, payments, and dispatch tracking."
+        actions={
+          <Link
+            href="/orders/new"
+            data-testid="orders-create"
+            className="flex h-[var(--control-md)] items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-brand-800"
+          >
+            <Plus className="w-4 h-4" /> Create Order
+          </Link>
+        }
+      />
 
       {/* TABS & VIEW TOGGLE */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
