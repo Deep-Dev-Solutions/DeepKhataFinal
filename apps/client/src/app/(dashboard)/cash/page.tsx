@@ -44,6 +44,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/context/AuthContext";
 
 const EXPENSE_CATEGORIES = [
@@ -86,7 +87,7 @@ const EXPENSE_CATEGORIES = [
 ];
 
 export default function CashHubPage() {
-  const { activeBranchId } = useAuth();
+  const { activeBranchId, role } = useAuth();
   const [loading, setLoading] = useState(true);
   const [registerStatus, setRegisterStatus] = useState<any>(null);
   const [expenses, setExpenses] = useState<any[]>([]);
@@ -98,6 +99,12 @@ export default function CashHubPage() {
   const [description, setDescription] = useState("");
   const [branchId, setBranchId] = useState("");
   const [submittingExpense, setSubmittingExpense] = useState(false);
+  const [gallaBlock, setGallaBlock] = useState<{
+    kind: "closed" | "insufficient";
+    message: string;
+    amount: string;
+  } | null>(null);
+  const [overrideReason, setOverrideReason] = useState("");
   const [expenseSuccessMsg, setExpenseSuccessMsg] = useState<string | null>(
     null,
   );
@@ -160,10 +167,11 @@ export default function CashHubPage() {
     fetchCashData();
   }, [fetchCashData]);
 
-  // Log Expense Handler
-  const handleLogExpense = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const numAmount = parseFloat(amount);
+  // Log Expense Handler. The branch always comes from the x-branch-id header
+  // (the active branch), never from this form.
+  const submitExpense = async (overrideReason?: string) => {
+    const amountValue = amount.trim();
+    const numAmount = parseFloat(amountValue);
     if (isNaN(numAmount) || numAmount <= 0) return;
 
     setSubmittingExpense(true);
@@ -171,16 +179,18 @@ export default function CashHubPage() {
 
     const expenseId = crypto.randomUUID();
     const expensePayload = {
-      amount: numAmount,
+      amount: amountValue,
       category,
       description: description.trim() || undefined,
-      branchId: branchId || activeBranchId || undefined,
+      ...(overrideReason ? { overrideReason } : {}),
     };
 
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       await enqueue("CREATE_EXPENSE", expensePayload, expenseId);
       setAmount("");
       setDescription("");
+      setGallaBlock(null);
+      setOverrideReason("");
       setExpenseSuccessMsg(
         `✓ PKR ${numAmount.toLocaleString()} recorded & queued offline!`,
       );
@@ -199,20 +209,42 @@ export default function CashHubPage() {
       });
 
       const data = await res.json();
-      if (data.success) {
+      if (res.ok && data.success) {
         setAmount("");
         setDescription("");
+        setGallaBlock(null);
+        setOverrideReason("");
         setExpenseSuccessMsg(
           `✓ PKR ${numAmount.toLocaleString()} recorded & balanced in ledger!`,
         );
         setTimeout(() => setExpenseSuccessMsg(null), 4000);
         await fetchCashData();
-      } else {
-        setMessageAlert({
-          title: "Could Not Log Expense",
-          description: data.message || "Failed to log expense",
-        });
+        return;
       }
+
+      if (data.code === "REGISTER_CLOSED") {
+        setGallaBlock({
+          kind: "closed",
+          message:
+            data.message || "Galla band hai. Pehle register kholen.",
+          amount: amountValue,
+        });
+        return;
+      }
+
+      if (data.code === "GALLA_INSUFFICIENT") {
+        setGallaBlock({
+          kind: "insufficient",
+          message: data.message,
+          amount: amountValue,
+        });
+        return;
+      }
+
+      setMessageAlert({
+        title: "Could Not Log Expense",
+        description: data.message || "Failed to log expense",
+      });
     } catch (err) {
       const isNetworkErr =
         err instanceof TypeError ||
@@ -236,6 +268,11 @@ export default function CashHubPage() {
     } finally {
       setSubmittingExpense(false);
     }
+  };
+
+  const handleLogExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitExpense();
   };
 
   // Open Register Handler
@@ -750,6 +787,97 @@ export default function CashHubPage() {
         onClose={() => setIsZReportModalOpen(false)}
         reportData={currentZReport}
       />
+
+      {gallaBlock && (
+        <div
+          data-testid="cash-galla-warning"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="galla-warning-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+        >
+          <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-elevated">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-6 w-6 shrink-0 text-warning" />
+              <div className="min-w-0">
+                <h2
+                  id="galla-warning-title"
+                  className="text-subtitle font-semibold text-gray-900"
+                >
+                  {gallaBlock.kind === "closed"
+                    ? "Galla band hai"
+                    : "Galla mein cash kam hai"}
+                </h2>
+                <p className="mt-1 text-body text-gray-600">
+                  {gallaBlock.message}
+                </p>
+              </div>
+            </div>
+
+            {gallaBlock.kind === "insufficient" &&
+              (role === "OWNER" || role === "MANAGER") && (
+                <div className="mt-4">
+                  <label
+                    htmlFor="galla-override-reason"
+                    className="mb-1 block text-caption font-medium text-gray-700"
+                  >
+                    Reason for override (3–200 characters)
+                  </label>
+                  <Textarea
+                    id="galla-override-reason"
+                    data-testid="cash-galla-override-reason"
+                    value={overrideReason}
+                    onChange={(e) => setOverrideReason(e.target.value)}
+                    placeholder="e.g. Paid the rider from home cash, will add tomorrow"
+                    rows={3}
+                  />
+                </div>
+              )}
+
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setGallaBlock(null);
+                  setOverrideReason("");
+                }}
+              >
+                Cancel
+              </Button>
+
+              {gallaBlock.kind === "closed" ? (
+                <Button
+                  type="button"
+                  data-testid="cash-galla-open-register"
+                  onClick={() => {
+                    setGallaBlock(null);
+                    setIsOpenModalOpen(true);
+                  }}
+                >
+                  <Unlock className="h-4 w-4" />
+                  Open Register
+                </Button>
+              ) : (
+                role === "OWNER" ||
+                role === "MANAGER"
+              ) && (
+                <Button
+                  type="button"
+                  data-testid="cash-galla-log-anyway"
+                  disabled={
+                    overrideReason.trim().length < 3 ||
+                    overrideReason.trim().length > 200
+                  }
+                  onClick={() => submitExpense(overrideReason.trim())}
+                >
+                  Log anyway
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <AlertDialog
         isOpen={messageAlert !== null}

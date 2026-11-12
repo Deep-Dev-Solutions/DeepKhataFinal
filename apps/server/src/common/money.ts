@@ -87,3 +87,15 @@ export function installDecimalJson(): void {
       return Number(this.toFixed(2));
     };
 }
+
+/** Display helper only (grouping + up to 2 decimals). Never use for arithmetic. */
+export function formatMoney(
+  v: MoneyInput,
+  opts: Intl.NumberFormatOptions = {},
+): string {
+  return new Intl.NumberFormat('en-PK', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+    ...opts,
+  }).format(money(v).toNumber());
+}

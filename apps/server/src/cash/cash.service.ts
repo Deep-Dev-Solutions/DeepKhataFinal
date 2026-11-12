@@ -1,7 +1,14 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../ledger/ledger.service';
 import * as M from '../common/money';
+import { formatMoney } from '../common/money';
 import { RedisService } from '../redis/redis.service';
 import { LogExpenseDto } from './dto/log-expense.dto';
 import { OpenRegisterDto } from './dto/open-register.dto';
@@ -42,8 +49,18 @@ export class CashService {
   /**
    * Step 1: Log Daily Operational Cash Expense & Post to Double-Entry Ledger
    * Debits EXPENSE account, Credits CASH asset account. Postings sum to 0.
+   *
+   * The branch always comes from the x-branch-id header (or the sync queue's
+   * tenant context), never from the body. The expense needs an OPEN register
+   * for that branch and can never take more cash than the drawer holds, unless
+   * an OWNER / MANAGER overrides it with a reason (logged in the description).
    */
-  async logExpense(userId: string, dto: LogExpenseDto, id?: string) {
+  async logExpense(
+    userId: string,
+    dto: LogExpenseDto,
+    branchId: string,
+    id?: string,
+  ) {
     const user = await this.getUserWithBusiness(userId);
 
     let parsedAmount: M.Money;
@@ -56,30 +73,77 @@ export class CashService {
       throw new BadRequestException('Expense amount must be a positive number.');
     }
 
+    const branch = await this.prisma.branch.findFirst({
+      where: { id: branchId, businessId: user.businessId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!branch) {
+      throw new NotFoundException('Branch not found.');
+    }
+
     const category = dto.category.trim().toUpperCase();
 
-    // Check if there is an active open register session
-    const activeSession = await this.prisma.cashRegisterSession.findFirst({
-      where: {
-        businessId: user.businessId,
-        status: 'OPEN',
-        ...(dto.branchId ? { branchId: dto.branchId } : {}),
-      },
-      orderBy: { openedAt: 'desc' },
-    });
+    const overrideReason = dto.overrideReason?.trim();
+    const canOverride = user.role === 'OWNER' || user.role === 'MANAGER';
+    if (overrideReason && !canOverride) {
+      throw new BadRequestException(
+        'Only an owner or manager can override the galla balance.',
+      );
+    }
+
+    const baseDescription = dto.description?.trim() || '';
+    const description = overrideReason
+      ? `[OVERRIDE: ${overrideReason}] ${baseDescription}`.trim()
+      : baseDescription || null;
 
     const result = await this.prisma.$transaction(async (tx) => {
+      // The register must be open for this branch, and the drawer balance is
+      // read in the same transaction so two tills cannot both pass the check.
+      const activeSession = await tx.cashRegisterSession.findFirst({
+        where: { businessId: user.businessId, branchId, status: 'OPEN' },
+        orderBy: { openedAt: 'desc' },
+      });
+
+      if (!activeSession) {
+        throw new ConflictException({
+          code: 'REGISTER_CLOSED',
+          message: 'Galla band hai. Pehle register kholen.',
+        });
+      }
+
+      const totals = await this.computeSessionTotals(
+        user.businessId,
+        branchId,
+        activeSession.openedAt,
+        undefined,
+        tx,
+      );
+      const expectedCash = this.expectedCashOf(
+        activeSession.openingBalance,
+        totals,
+      );
+
+      if (M.gt(parsedAmount, expectedCash)) {
+        if (!overrideReason) {
+          throw new ConflictException({
+            code: 'GALLA_INSUFFICIENT',
+            available: expectedCash.toString(),
+            message: `Galla mein sirf Rs ${formatMoney(expectedCash)} hain.`,
+          });
+        }
+      }
+
       // 1. Create the Expense record
       const expense = await tx.expense.create({
         data: {
           ...(id ? { id } : {}),
           businessId: user.businessId,
-          branchId: dto.branchId || null,
+          branchId,
           amount: parsedAmount,
           category,
-          description: dto.description?.trim() || null,
+          description,
           createdById: user.id,
-          sessionId: activeSession?.id || null,
+          sessionId: activeSession.id,
         },
       });
 
@@ -89,7 +153,7 @@ export class CashService {
         businessId: user.businessId,
         referenceId: expense.id,
         type: 'EXPENSE',
-        description: `Operational Expense: [${category}] ${dto.description || ''}`.trim(),
+        description: `Operational Expense: [${category}] ${baseDescription}`.trim(),
         postings: [
           {
             accountId: category,
@@ -122,7 +186,7 @@ export class CashService {
       };
     });
 
-    await this.invalidateCashCaches(user.businessId, dto.branchId);
+    await this.invalidateCashCaches(user.businessId, branchId);
     return result;
   }
 
@@ -178,11 +242,12 @@ export class CashService {
     branchId: string,
     from: Date,
     to?: Date,
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
   ) {
     const window = { gte: from, ...(to ? { lte: to } : {}) };
 
     const [cashPayments, expenses, returnTxs] = await Promise.all([
-      this.prisma.payment.findMany({
+      db.payment.findMany({
         where: {
           method: 'CASH',
           createdAt: window,
@@ -190,11 +255,11 @@ export class CashService {
         },
         select: { id: true, amount: true },
       }),
-      this.prisma.expense.findMany({
+      db.expense.findMany({
         where: { businessId, branchId, createdAt: window },
         select: { id: true, amount: true },
       }),
-      this.prisma.transaction.findMany({
+      db.transaction.findMany({
         where: {
           businessId,
           type: 'RETURN',
@@ -214,7 +279,7 @@ export class CashService {
     let cashRefunds = M.ZERO;
     if (returnTxs.length > 0) {
       const orderIds = returnTxs.map((t) => (t.referenceId as string).slice(4));
-      const branchOrders = await this.prisma.order.findMany({
+      const branchOrders = await db.order.findMany({
         where: { id: { in: orderIds }, businessId, branchId },
         select: { id: true },
       });

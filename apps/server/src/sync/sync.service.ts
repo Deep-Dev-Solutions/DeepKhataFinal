@@ -329,14 +329,14 @@ export class SyncService {
     payload: Record<string, unknown>,
   ) {
     const dto = await this.validated(LogExpenseDto, payload);
-    if (dto.branchId) {
-      const branch = await this.prisma.branch.findFirst({
-        where: { id: dto.branchId, businessId: t.businessId, deletedAt: null },
-        select: { id: true },
-      });
-      if (!branch) throw new BadRequestException('Invalid branch');
+    const branchId =
+      (payload.branchId as string | undefined) ?? t.branchId ?? undefined;
+    if (!branchId) {
+      throw new BadRequestException(
+        'Branch is required to log an expense. Select a branch and retry.',
+      );
     }
-    return this.cashService.logExpense(t.userId, dto, id);
+    return this.cashService.logExpense(t.userId, dto, branchId, id);
   }
 
   // ---- UPSERT_CUSTOMER ----------------------------------------------------

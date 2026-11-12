@@ -25,13 +25,10 @@ export class CashController {
   @RequirePermissions('manage:cash')
   async logExpense(
     @Req() req: any,
-    @BranchId({ required: false }) branchId: string | undefined,
+    @BranchId() branchId: string,
     @Body() dto: LogExpenseDto,
   ) {
-    return this.cashService.logExpense(req.user.id, {
-      ...dto,
-      branchId: dto.branchId || branchId,
-    });
+    return this.cashService.logExpense(req.user.id, dto, branchId);
   }
 
   @Get('expenses')
