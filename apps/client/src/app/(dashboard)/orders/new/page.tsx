@@ -1191,6 +1191,9 @@ function CreateOrderPOSContent() {
     if (customerMode === "existing" && !selectedCustomer) {
       return "Select an existing customer to proceed with customer account.";
     }
+    if (amountPaid.trim() !== "" && Number(amountPaid) > grandTotal) {
+      return `Amount paid (Rs ${Number(amountPaid).toLocaleString()}) is more than the bill (Rs ${grandTotal.toLocaleString()}).`;
+    }
     if (
       canOverrideMinPrice &&
       cart.some((i) => isBelowMin(i) && !i.priceOverrideReason?.trim())

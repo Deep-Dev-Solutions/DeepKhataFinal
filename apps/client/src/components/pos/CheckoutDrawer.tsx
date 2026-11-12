@@ -163,9 +163,16 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
   const projectedDebt = existingBalance + Math.max(0, pendingAmount);
   const exceedsCreditLimit =
     creditLimit > 0 && projectedDebt > creditLimit;
-  const changeToReturn = Number(amountPaid) > grandTotal;
+  const paidNumber = Number(amountPaid) || 0;
+  const isOverpay = amountPaid.trim() !== "" && paidNumber > grandTotal;
+  const overpayMessage = isOverpay
+    ? `Amount paid (Rs ${paidNumber.toLocaleString()}) is more than the bill (Rs ${grandTotal.toLocaleString()}).`
+    : null;
   const isSubmitDisabled =
-    Boolean(disabledReason) || isSubmitting || cartCount === 0;
+    Boolean(disabledReason) ||
+    isOverpay ||
+    isSubmitting ||
+    cartCount === 0;
 
   return (
     <div
@@ -488,12 +495,6 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
               >
                 Rs. {Math.max(0, pendingAmount).toLocaleString()}
               </p>
-              {changeToReturn && (
-                <p className="text-xs font-semibold text-success mt-1">
-                  Change to Return: Rs.{" "}
-                  {(Number(amountPaid) - grandTotal).toLocaleString()}
-                </p>
-              )}
               {pendingAmount > 0 &&
                 orderStatus !== "ESTIMATE" &&
                 onDueDateChange && (
@@ -571,14 +572,28 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                 <input
                   type="number"
                   min="0"
+                  max={grandTotal}
                   value={amountPaid}
                   onFocus={(e) => e.target.select()}
                   onChange={(e) => setAmountPaid(e.target.value)}
                   data-testid="checkout-amount"
                   placeholder="0"
+                  aria-invalid={isOverpay}
+                  aria-describedby={isOverpay ? "checkout-overpay-error" : undefined}
                   className="w-full px-3 h-full text-subtitle font-semibold text-gray-900 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder-gray-400"
                 />
               </div>
+              {overpayMessage && (
+                <p
+                  id="checkout-overpay-error"
+                  role="alert"
+                  data-testid="checkout-overpay-error"
+                  className="mt-1.5 flex items-start gap-1.5 text-xs font-semibold text-danger"
+                >
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-px" />
+                  <span>{overpayMessage}</span>
+                </p>
+              )}
             </div>
 
             <div>
@@ -637,7 +652,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
             </div>
           )}
 
-          {disabledReason && cartCount > 0 && (
+          {disabledReason && !isOverpay && cartCount > 0 && (
             <div className="flex items-center gap-2 p-2 bg-warning-bg border border-warning rounded-md text-xs font-medium text-warning-fg animate-in fade-in duration-200">
               <AlertCircle className="w-4 h-4 shrink-0 text-warning" />
               <span>{disabledReason}</span>

@@ -258,6 +258,13 @@ export class OrdersService {
         }
 
         const finalGrandTotal = M.sub(calculatedTotal, parsedDiscount);
+
+        if (M.gt(parsedAmountPaid, finalGrandTotal)) {
+          throw new BadRequestException(
+            `Amount paid (Rs ${parsedAmountPaid.toString()}) is more than the bill (Rs ${finalGrandTotal.toString()}).`,
+          );
+        }
+
         const udhaarRequested = M.sub(finalGrandTotal, parsedAmountPaid);
 
         let calculatedPaymentStatus = 'UNPAID';

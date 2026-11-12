@@ -202,6 +202,84 @@ describe('Phase 5 order rules (e2e)', () => {
     });
   });
 
+  describe('overpayment guard', () => {
+    it('rejects an amount paid above the bill and creates no order, payment or ledger row', async () => {
+      const { product, instanceIds } = await makeProduct(1);
+      const ordersBefore = await orderCount();
+      const paymentsBefore = await prisma.payment.count({ where: { order: { businessId: A } } });
+      const txsBefore = await prisma.transaction.count({ where: { businessId: A } });
+
+      const res = await sell('staffA', {
+        walkInName: 'Walk In',
+        items: [{ productId: product.id, quantity: 1, price: 9000 }],
+        amountPaid: 9500,
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe(
+        'Amount paid (Rs 9500) is more than the bill (Rs 9000).',
+      );
+      expect(await orderCount()).toBe(ordersBefore);
+      expect(await prisma.payment.count({ where: { order: { businessId: A } } })).toBe(
+        paymentsBefore,
+      );
+      expect(await prisma.transaction.count({ where: { businessId: A } })).toBe(txsBefore);
+      expect(
+        (await prisma.productInstance.findUniqueOrThrow({ where: { id: instanceIds[0] } }))
+          .status,
+      ).toBe('AVAILABLE');
+    });
+
+    it('compares against the discounted bill, not the subtotal', async () => {
+      const { product } = await makeProduct(1);
+      const res = await sell('staffA', {
+        walkInName: 'Walk In',
+        items: [{ productId: product.id, quantity: 1, price: 9000 }],
+        discount: 500,
+        amountPaid: 8600,
+      });
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe(
+        'Amount paid (Rs 8600) is more than the bill (Rs 8500).',
+      );
+
+      const ok = await sell('managerA', {
+        walkInName: 'Walk In',
+        items: [{ productId: product.id, quantity: 1, price: 9000 }],
+        discount: 500,
+        amountPaid: 8500,
+      });
+      expect(ok.status).toBe(201);
+    });
+
+    it('accepts an amount paid equal to the bill and keeps the payment in step with the ledger', async () => {
+      const { product } = await makeProduct(1);
+      const res = await sell('staffA', {
+        walkInName: 'Walk In',
+        items: [{ productId: product.id, quantity: 1, price: 9000 }],
+        amountPaid: 9000,
+      });
+      expect(res.status).toBe(201);
+
+      const order = await prisma.order.findFirstOrThrow({
+        where: { businessId: A, items: { some: { productId: product.id } } },
+        include: { payments: true },
+      });
+      expect(order.paymentStatus).toBe('PAID');
+      expect(order.payments).toHaveLength(1);
+      expect(Number(order.payments[0].amount)).toBe(9000);
+
+      const tx = await prisma.transaction.findFirstOrThrow({
+        where: { businessId: A, referenceId: order.id },
+      });
+      const cash = await prisma.posting.findFirstOrThrow({
+        where: { transactionId: tx.id, accountId: 'CASH' },
+      });
+      expect(Number(cash.amount)).toBe(9000);
+      expect(Number(order.payments[0].amount)).toBe(Number(cash.amount));
+    });
+  });
+
   describe('credit sale due dates', () => {
     it('defaults the due date to Karachi today plus the business default receivable days', async () => {
       const biz = await prisma.business.findUniqueOrThrow({ where: { id: A } });
