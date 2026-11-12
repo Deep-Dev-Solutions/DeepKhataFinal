@@ -36,6 +36,15 @@ export class CashService {
     ]);
   }
 
+  /** The branch always comes from the session header; prove it is this tenant's. */
+  private async assertBranch(businessId: string, branchId: string) {
+    const branch = await this.prisma.branch.findFirst({
+      where: { id: branchId, businessId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!branch) throw new NotFoundException('Branch not found.');
+  }
+
   private async getUserWithBusiness(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -653,15 +662,12 @@ export class CashService {
   /**
    * Open Register Session
    */
-  async openRegister(userId: string, dto: OpenRegisterDto) {
+  async openRegister(userId: string, branchId: string, dto: OpenRegisterDto) {
     const user = await this.getUserWithBusiness(userId);
-
-    if (!dto.branchId) {
-      throw new BadRequestException('Select a branch');
-    }
+    await this.assertBranch(user.businessId, branchId);
 
     const existing = await this.prisma.cashRegisterSession.findFirst({
-      where: { businessId: user.businessId, status: 'OPEN', branchId: dto.branchId },
+      where: { businessId: user.businessId, status: 'OPEN', branchId },
     });
 
     if (existing) {
@@ -671,7 +677,7 @@ export class CashService {
     const session = await this.prisma.cashRegisterSession.create({
       data: {
         businessId: user.businessId,
-        branchId: dto.branchId,
+        branchId,
         openedById: user.id,
         openingBalance: M.round2(dto.openingBalance || 0),
         notes: dto.notes?.trim() || null,
@@ -694,15 +700,12 @@ export class CashService {
   /**
    * Step 2: Close Register Session and generate reconciliation
    */
-  async closeRegister(userId: string, dto: CloseRegisterDto) {
+  async closeRegister(userId: string, branchId: string, dto: CloseRegisterDto) {
     const user = await this.getUserWithBusiness(userId);
-
-    if (!dto.branchId) {
-      throw new BadRequestException('Select a branch');
-    }
+    await this.assertBranch(user.businessId, branchId);
 
     const activeSession = await this.prisma.cashRegisterSession.findFirst({
-      where: { businessId: user.businessId, status: 'OPEN', branchId: dto.branchId },
+      where: { businessId: user.businessId, status: 'OPEN', branchId },
       orderBy: { openedAt: 'desc' },
     });
 

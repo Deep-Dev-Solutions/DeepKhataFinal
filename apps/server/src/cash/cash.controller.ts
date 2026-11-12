@@ -85,19 +85,20 @@ export class CashController {
   @RequirePermissions('manage:cash')
   async openRegister(
     @Req() req: any,
-    @BranchId({ required: false }) branchId: string | undefined,
+    @BranchId() branchId: string,
     @Body() dto: OpenRegisterDto,
   ) {
-    return this.cashService.openRegister(req.user.id, {
-      ...dto,
-      branchId: dto.branchId || branchId,
-    });
+    return this.cashService.openRegister(req.user.id, branchId, dto);
   }
 
   @Post('register/close')
   @RequirePermissions('manage:cash')
-  async closeRegister(@Req() req: any, @Body() dto: CloseRegisterDto) {
-    return this.cashService.closeRegister(req.user.id, dto);
+  async closeRegister(
+    @Req() req: any,
+    @BranchId() branchId: string,
+    @Body() dto: CloseRegisterDto,
+  ) {
+    return this.cashService.closeRegister(req.user.id, branchId, dto);
   }
 
   @Get('register/z-report')

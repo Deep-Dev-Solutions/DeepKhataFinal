@@ -15,10 +15,6 @@ export class CloseRegisterDto {
 
   @IsString()
   @IsOptional()
-  branchId?: string;
-
-  @IsString()
-  @IsOptional()
   @MaxLength(500)
   notes?: string;
 }

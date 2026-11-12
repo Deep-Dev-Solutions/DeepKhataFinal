@@ -64,6 +64,21 @@ describe('Close register variance rules (e2e)', () => {
     expect(short.body.session.notes).toBe('Rs 200 short — change given');
   });
 
+  it('takes the branch from the header and refuses another tenant’s branch', async () => {
+    const foreign = await http()
+      .post('/cash/register/open')
+      .set(authHeader('ownerB', HALL))
+      .send({ openingBalance: 100 });
+    expect(foreign.status).toBe(403);
+
+    const noBranch = await http()
+      .post('/cash/register/open')
+      .set(authHeader('ownerB'))
+      .send({ openingBalance: 100 });
+    expect(noBranch.status).toBe(400);
+    expect(noBranch.body.message).toContain('x-branch-id');
+  });
+
   it('refuses a variance with no note and validates the amount', async () => {
     await open(1500).expect(201);
 

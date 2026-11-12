@@ -39,23 +39,23 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
-import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/context/AuthContext";
 import { EXPENSE_CATEGORIES } from "@/lib/expense-categories";
 
 export default function CashHubPage() {
-  const { activeBranchId, role } = useAuth();
+  const { activeBranchId, role, branches: authBranches } = useAuth();
   const [loading, setLoading] = useState(true);
   const [registerStatus, setRegisterStatus] = useState<any>(null);
   const [expenses, setExpenses] = useState<any[]>([]);
-  const [branches, setBranches] = useState<any[]>([]);
+
+  const activeBranchName =
+    authBranches?.find((branch) => branch.id === activeBranchId)?.name ?? null;
 
   // Expense Form State
   const [category, setCategory] = useState("CHAI_REFRESHMENT");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
-  const [branchId, setBranchId] = useState("");
   const [submittingExpense, setSubmittingExpense] = useState(false);
   const [gallaBlock, setGallaBlock] = useState<{
     kind: "closed" | "insufficient";
@@ -103,16 +103,6 @@ export default function CashHubPage() {
       const expData = await expRes.json();
       if (expData.success) {
         setExpenses(expData.expenses);
-      }
-
-      // Fetch Branches for selector
-      const branchRes = await fetch(`${API_BASE_URL}/product/getbranches`, {
-        credentials: "include",
-        headers,
-      });
-      const branchData = await branchRes.json();
-      if (branchData.success) {
-        setBranches(branchData.branches);
       }
     } catch (err) {
       console.error("Error fetching cash hub data:", err);
@@ -246,7 +236,6 @@ export default function CashHubPage() {
       body: JSON.stringify({
         openingBalance: data.openingBalance,
         notes: data.notes,
-        branchId: branchId || activeBranchId || undefined,
       }),
     });
     const result = await res.json();
@@ -273,7 +262,6 @@ export default function CashHubPage() {
       body: JSON.stringify({
         actualCash: data.actualCash,
         notes: data.notes,
-        branchId: branchId || activeBranchId || undefined,
       }),
     });
     const result = await res.json();
@@ -329,7 +317,15 @@ export default function CashHubPage() {
     <div data-testid="cash-page" className="mt-1 space-y-4 pb-10 animate-in fade-in duration-300">
       <PageHeader
         title="Cash Hub & Register"
-        subtitle="Petty-cash expense vouchers and end-of-day (Z-Report) drawer reconciliation."
+        subtitle={
+          <>
+            <span data-testid="cash-branch-label">
+              Galla: <strong>{activeBranchName ?? "active branch"}</strong>
+            </span>{" "}
+            · Petty-cash expense vouchers and end-of-day (Z-Report) drawer
+            reconciliation.
+          </>
+        }
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <span
@@ -568,25 +564,6 @@ export default function CashHubPage() {
                   placeholder="e.g. 5 teas from Butt Tea Stall for customers"
                 />
               </div>
-
-              {branches.length > 0 && (
-                <div>
-                  <label className="mb-1 block text-caption font-medium text-gray-700">
-                    Shop Branch
-                  </label>
-                  <Select
-                    value={branchId}
-                    onChange={(e) => setBranchId(e.target.value)}
-                  >
-                    <option value="">All Branches / Main Counter</option>
-                    {branches.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-              )}
 
               {expenseSuccessMsg && (
                 <div className="flex items-center gap-2 rounded-md border border-success/30 bg-success-bg px-3 py-2 text-body font-medium text-success-fg">

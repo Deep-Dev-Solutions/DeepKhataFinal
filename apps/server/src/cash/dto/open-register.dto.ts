@@ -7,9 +7,5 @@ export class OpenRegisterDto {
 
   @IsString()
   @IsOptional()
-  branchId?: string;
-
-  @IsString()
-  @IsOptional()
   notes?: string;
 }
