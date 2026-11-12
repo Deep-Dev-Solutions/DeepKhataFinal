@@ -163,6 +163,8 @@ function CreateOrderPOSContent() {
   const [customerResults, setCustomerResults] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
+  const [isLoadingCustomerBalance, setIsLoadingCustomerBalance] =
+    useState(false);
   const [walkInName, setWalkInName] = useState("");
   const [walkInPhone, setWalkInPhone] = useState("");
 
@@ -457,27 +459,67 @@ function CreateOrderPOSContent() {
   }, [customerSearch]);
 
   // ==========================================
+  // 🟢 SELECT A CUSTOMER AND LOAD THEIR LIVE UDHAR
+  // ==========================================
+  const handleSelectCustomer = useCallback(
+    async (customer: any | null) => {
+      if (!customer) {
+        setSelectedCustomer(null);
+        setIsLoadingCustomerBalance(false);
+        return;
+      }
+
+      // Show the cached row immediately so the drawer never feels stuck.
+      setSelectedCustomer(customer);
+      setIsLoadingCustomerBalance(true);
+
+      const offline = typeof navigator !== "undefined" && !navigator.onLine;
+      if (offline) {
+        setIsLoadingCustomerBalance(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/customer/${customer.id}`, {
+          credentials: "include",
+          headers: getAuthHeaders(activeBranchId),
+          cache: "no-store",
+        });
+        const data = await res.json();
+        if (data.success && data.customer) {
+          setSelectedCustomer((prev: any) =>
+            prev && prev.id === customer.id
+              ? { ...prev, ...data.customer }
+              : prev,
+          );
+        }
+      } catch {
+        // Keep the last known balance from the search row / offline cache.
+      } finally {
+        setIsLoadingCustomerBalance(false);
+        // Warm the search worker so the next product/customer search is instant.
+        void searchClient.warm();
+      }
+    },
+    [activeBranchId],
+  );
+
+  // ==========================================
   // 🟢 AUTO-LOAD CUSTOMER FROM URL
   // ==========================================
   useEffect(() => {
     const urlCustomerId = searchParams.get("customerId");
-    if (urlCustomerId) {
-      setCustomerMode("existing");
-      fetch(`${API_BASE_URL}/customer/${urlCustomerId}`, {
-        credentials: "include",
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success) setSelectedCustomer(data.customer);
-        })
-        .catch(() => {
-          // Check IndexedDB
-          void offlineDb.customers.get(urlCustomerId).then((cached) => {
-            if (cached) setSelectedCustomer(cached);
-          });
-        });
-    }
-  }, [searchParams]);
+    if (!urlCustomerId) return;
+    setCustomerMode("existing");
+    let cancelled = false;
+    void offlineDb.customers.get(urlCustomerId).then((cached) => {
+      if (cancelled) return;
+      void handleSelectCustomer(cached ?? { id: urlCustomerId });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, handleSelectCustomer]);
 
   // ==========================================
   // Default due date: Karachi today + customer's payment terms (or 7 days)
@@ -2125,7 +2167,8 @@ function CreateOrderPOSContent() {
         customerResults={customerResults}
         setCustomerResults={setCustomerResults}
         selectedCustomer={selectedCustomer}
-        setSelectedCustomer={setSelectedCustomer}
+        onSelectCustomer={handleSelectCustomer}
+        isLoadingCustomerBalance={isLoadingCustomerBalance}
         isSearchingCustomer={isSearchingCustomer}
         onOpenNewCustomer={() => setIsNewCustomerModalOpen(true)}
         subtotal={subtotal}

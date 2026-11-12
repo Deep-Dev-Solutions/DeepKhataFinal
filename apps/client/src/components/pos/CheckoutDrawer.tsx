@@ -56,7 +56,8 @@ type CheckoutDrawerProps = {
   customerResults: Customer[];
   setCustomerResults: (v: Customer[]) => void;
   selectedCustomer: Customer | null;
-  setSelectedCustomer: (c: Customer | null) => void;
+  onSelectCustomer: (c: Customer | null) => void;
+  isLoadingCustomerBalance?: boolean;
   isSearchingCustomer: boolean;
   onOpenNewCustomer: () => void;
 
@@ -98,7 +99,8 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
     customerResults,
     setCustomerResults,
     selectedCustomer,
-    setSelectedCustomer,
+    onSelectCustomer,
+    isLoadingCustomerBalance = false,
     isSearchingCustomer,
     onOpenNewCustomer,
     subtotal,
@@ -231,7 +233,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                 data-testid="pos-customer-mode-walkin"
                 onClick={() => {
                   setCustomerMode("walk-in");
-                  setSelectedCustomer(null);
+                  onSelectCustomer(null);
                   setOrderStatus("FINAL");
                 }}
                 className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
@@ -300,7 +302,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                     </p>
                   </div>
                   <Button
-                    onClick={() => setSelectedCustomer(null)}
+                    onClick={() => onSelectCustomer(null)}
                     variant="secondary"
                     size="sm"
                     className="shrink-0"
@@ -355,7 +357,7 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                           data-testid="pos-customer-option"
                           key={c.id}
                           onClick={() => {
-                            setSelectedCustomer(c);
+                            onSelectCustomer(c);
                             setCustomerResults([]);
                             setCustomerSearch("");
                           }}
@@ -392,12 +394,29 @@ export default function CheckoutDrawer(props: CheckoutDrawerProps) {
                   )}
                 </div>
                 <p
+                  data-testid="pos-customer-balance"
                   className={`text-lg font-semibold tracking-tight mt-0.5 ${
                     existingBalance > 0 ? "text-danger" : "text-success"
                   }`}
                 >
                   Rs. {existingBalance.toLocaleString()}
                 </p>
+                {isLoadingCustomerBalance && (
+                  <p
+                    data-testid="pos-customer-balance-loading"
+                    className="text-caption text-gray-500 mt-0.5"
+                  >
+                    Loading latest udhar…
+                  </p>
+                )}
+                {!isLoadingCustomerBalance && !isOnline && (
+                  <p
+                    data-testid="pos-customer-balance-offline"
+                    className="text-caption text-warning-fg mt-0.5"
+                  >
+                    Offline: balance may be old
+                  </p>
+                )}
                 {creditLimit > 0 && (
                   <p className="text-caption text-gray-500 mt-0.5">
                     Credit Limit: Rs. {creditLimit.toLocaleString()}
