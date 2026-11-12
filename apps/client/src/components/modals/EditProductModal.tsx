@@ -131,6 +131,12 @@ export default function EditProductModal({
     }
   };
 
+  const priceNumber = Number(price) || 0;
+  const costNumber = Number(costPrice) || 0;
+  const margin = priceNumber - costNumber;
+  const marginPct = priceNumber > 0 ? (margin / priceNumber) * 100 : 0;
+  const belowCost = costNumber > 0 && priceNumber > 0 && priceNumber < costNumber;
+
   return (
     <Modal
       open={isOpen}
@@ -156,100 +162,138 @@ export default function EditProductModal({
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <label className={labelClass}>Product / Part Name *</label>
-            <Input
-              data-testid="edit-product-name"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className={labelClass}>SKU / Part Serial</label>
-            <Input
-              data-testid="edit-product-sku"
-              value={sku}
-              onChange={(e) => setSku(e.target.value)}
-              className="font-mono"
-            />
-          </div>
-          <div>
-            <label className={labelClass}>Selling Price (Rs) *</label>
-            <Input
-              data-testid="edit-product-price"
-              type="number"
-              min="0"
-              required
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-            />
-          </div>
-          {canSeeCost && (
+        <section className="space-y-3">
+          <h3 className="text-caption font-semibold uppercase tracking-wide text-gray-500">
+            1 · Product
+          </h3>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>Cost Price (Rs)</label>
+              <label className={labelClass}>Product / Part Name *</label>
               <Input
-                data-testid="edit-product-cost"
-                type="number"
-                min="0"
-                value={costPrice}
-                onChange={(e) => setCostPrice(e.target.value)}
+                data-testid="edit-product-name"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
               />
             </div>
+            <div>
+              <label className={labelClass}>SKU / Part Serial</label>
+              <Input
+                data-testid="edit-product-sku"
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
+                className="font-mono"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelClass}>Part Number</label>
+              <Input
+                data-testid="product-part-number"
+                value={partNumber}
+                onChange={(e) => setPartNumber(e.target.value)}
+                className="font-mono"
+                placeholder="Manufacturer part number"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-3 border-t border-border pt-4">
+          <h3 className="text-caption font-semibold uppercase tracking-wide text-gray-500">
+            2 · Price
+          </h3>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {canSeeCost && (
+              <div>
+                <label className={labelClass}>Cost Price (Rs)</label>
+                <Input
+                  data-testid="edit-product-cost"
+                  type="number"
+                  min="0"
+                  value={costPrice}
+                  onChange={(e) => setCostPrice(e.target.value)}
+                />
+              </div>
+            )}
+            <div>
+              <label className={labelClass}>Selling Price (Rs) *</label>
+              <Input
+                data-testid="edit-product-price"
+                type="number"
+                min="0"
+                required
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Minimum Sale Price (Rs)</label>
+              <Input
+                data-testid="product-min-price"
+                type="number"
+                min="0"
+                value={minSalePrice}
+                onChange={(e) => setMinSalePrice(e.target.value)}
+                placeholder="Empty clears the floor price"
+              />
+            </div>
+          </div>
+          {canSeeCost && (
+            <p data-testid="edit-product-margin-hint" className="text-caption text-gray-500">
+              Margin:{" "}
+              <strong className={belowCost ? "text-warning-fg" : "text-success-fg"}>
+                Rs {margin.toLocaleString()} ({marginPct.toFixed(1)}%)
+              </strong>{" "}
+              per unit
+            </p>
           )}
-          <div>
-            <label className={labelClass}>Part Number</label>
-            <Input
-              data-testid="product-part-number"
-              value={partNumber}
-              onChange={(e) => setPartNumber(e.target.value)}
-              className="font-mono"
-              placeholder="Manufacturer part number"
-            />
+        </section>
+
+        <section className="space-y-3 border-t border-border pt-4">
+          <h3 className="text-caption font-semibold uppercase tracking-wide text-gray-500">
+            3 · Stock alert
+          </h3>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className={labelClass}>Low Stock Threshold</label>
+              <Input
+                data-testid="product-low-stock"
+                type="number"
+                min="0"
+                step="1"
+                value={lowStockThreshold}
+                onChange={(e) => setLowStockThreshold(e.target.value)}
+                placeholder="Optional"
+              />
+            </div>
           </div>
-          <div>
-            <label className={labelClass}>Minimum Sale Price (Rs)</label>
-            <Input
-              data-testid="product-min-price"
-              type="number"
-              min="0"
-              value={minSalePrice}
-              onChange={(e) => setMinSalePrice(e.target.value)}
-              placeholder="Empty clears the floor price"
-            />
+        </section>
+
+        <details className="space-y-3 border-t border-border pt-4">
+          <summary className="cursor-pointer text-caption font-semibold uppercase tracking-wide text-gray-500">
+            More details (search helpers)
+          </summary>
+          <div className="mt-3 space-y-3">
+            <div>
+              <label className={labelClass}>Aliases / Shop Names</label>
+              <TagInput
+                testId="product-aliases"
+                value={aliases}
+                onChange={setAliases}
+                placeholder="Type a name and press Enter"
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Compatible Models</label>
+              <TagInput
+                testId="product-compatible"
+                value={compatibleWith}
+                onChange={setCompatibleWith}
+                placeholder="e.g. iPhone 13, iPhone 13 Pro"
+              />
+            </div>
           </div>
-          <div>
-            <label className={labelClass}>Low Stock Threshold</label>
-            <Input
-              data-testid="product-low-stock"
-              type="number"
-              min="0"
-              step="1"
-              value={lowStockThreshold}
-              onChange={(e) => setLowStockThreshold(e.target.value)}
-              placeholder="Optional"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className={labelClass}>Aliases / Shop Names</label>
-            <TagInput
-              testId="product-aliases"
-              value={aliases}
-              onChange={setAliases}
-              placeholder="Type a name and press Enter"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className={labelClass}>Compatible Models</label>
-            <TagInput
-              testId="product-compatible"
-              value={compatibleWith}
-              onChange={setCompatibleWith}
-              placeholder="e.g. iPhone 13, iPhone 13 Pro"
-            />
-          </div>
-        </div>
+        </details>
 
         <div className="flex justify-end gap-2 border-t border-border pt-3">
           <Button

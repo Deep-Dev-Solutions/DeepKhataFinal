@@ -246,6 +246,13 @@ export default function AddProductModal({
 
   const labelClass = "mb-1 block text-caption font-medium text-gray-700";
   const hintClass = "mt-1 flex items-center gap-1 text-caption text-gray-500";
+  const sectionClass = "space-y-3 border-t border-border pt-4";
+  const priceNumber = Number(form.price) || 0;
+  const costNumber = Number(form.costPrice) || 0;
+  const margin = priceNumber - costNumber;
+  const marginPct = priceNumber > 0 ? (margin / priceNumber) * 100 : 0;
+  const belowCost = costNumber > 0 && priceNumber > 0 && priceNumber < costNumber;
+  const vendorUdhar = costNumber * Math.max(1, Number(form.quantity) || 1);
 
   return (
     <Modal
@@ -262,96 +269,144 @@ export default function AddProductModal({
       }
       description="Add a catalog item and place its physical stock in an existing cabinet."
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
-          <div className="rounded-md border border-danger/30 bg-danger-bg px-3 py-2 text-body font-medium text-danger-fg">
+          <div
+            data-testid="product-form-error"
+            className="rounded-md border border-danger/30 bg-danger-bg px-3 py-2 text-body font-medium text-danger-fg"
+          >
             {error}
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <label className={labelClass}>Product / Part Name *</label>
-            <Input required autoFocus value={form.name} onChange={(event) => updateField("name", event.target.value)} placeholder="e.g. iPhone 13 OLED Display" />
-          </div>
-          <div>
-            <label className={labelClass}>Category *</label>
-            <Select required value={form.category} onChange={(event) => updateField("category", event.target.value)} className="cursor-pointer">
-              <option value="" disabled>Select category...</option>
-              {categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
-            </Select>
-          </div>
-          <div>
-            <label className={labelClass}>SKU / Part Serial</label>
-            <div className="relative">
-              <Barcode className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <Input value={form.sku} onChange={(event) => updateField("sku", event.target.value)} className="pl-9 font-mono" placeholder="Auto-generated if empty" />
+        <section className="space-y-3">
+          <h3 className="text-caption font-semibold uppercase tracking-wide text-gray-500">
+            1 · Product
+          </h3>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className={labelClass}>Product / Part Name *</label>
+              <Input data-testid="product-name" required autoFocus value={form.name} onChange={(event) => updateField("name", event.target.value)} placeholder="e.g. iPhone 13 OLED Display" />
+            </div>
+            <div>
+              <label className={labelClass}>Category *</label>
+              <Select data-testid="product-category" required value={form.category} onChange={(event) => updateField("category", event.target.value)} className="cursor-pointer">
+                <option value="" disabled>Select category...</option>
+                {categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
+              </Select>
+            </div>
+            <div>
+              <label className={labelClass}>Part Number</label>
+              <Input data-testid="product-part-number" value={form.partNumber} onChange={(event) => updateField("partNumber", event.target.value)} className="font-mono" placeholder="Manufacturer part number" />
+            </div>
+            <div>
+              <label className={labelClass}>SKU / Part Serial</label>
+              <div className="relative">
+                <Barcode className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Input value={form.sku} onChange={(event) => updateField("sku", event.target.value)} className="pl-9 font-mono" placeholder="Auto-generated if empty" />
+              </div>
             </div>
           </div>
-          <div>
-            <label className={labelClass}>Selling Price (Rs) *</label>
-            <Input type="number" min="0" required value={form.price} onChange={(event) => updateField("price", event.target.value)} placeholder="0.00" />
-          </div>
-          <div>
-            <label className={labelClass}>Cost Price (Rs)</label>
-            <Input type="number" min="0" value={form.costPrice} onChange={(event) => updateField("costPrice", event.target.value)} placeholder="Optional" />
-          </div>
-          <div>
-            <label className={labelClass}>Physical Instances *</label>
-            <Input type="number" min="1" required value={form.quantity} onChange={(event) => updateField("quantity", event.target.value)} />
-          </div>
-          <div>
-            <label className={labelClass}>Part Number</label>
-            <Input data-testid="product-part-number" value={form.partNumber} onChange={(event) => updateField("partNumber", event.target.value)} className="font-mono" placeholder="Manufacturer part number" />
-          </div>
-          <div>
-            <label className={labelClass}>Minimum Sale Price (Rs)</label>
-            <Input data-testid="product-min-price" type="number" min="0" value={form.minSalePrice} onChange={(event) => updateField("minSalePrice", event.target.value)} placeholder="Floor price (optional)" />
-          </div>
-          <div>
-            <label className={labelClass}>Low Stock Threshold</label>
-            <Input data-testid="product-low-stock" type="number" min="0" step="1" value={form.lowStockThreshold} onChange={(event) => updateField("lowStockThreshold", event.target.value)} placeholder="Optional" />
-          </div>
-          <div className="sm:col-span-2">
-            <label className={labelClass}>Aliases / Shop Names</label>
-            <TagInput testId="product-aliases" value={aliases} onChange={setAliases} placeholder="Type a name and press Enter" />
-          </div>
-          <div className="sm:col-span-2">
-            <label className={labelClass}>Compatible Models</label>
-            <TagInput testId="product-compatible" value={compatibleWith} onChange={setCompatibleWith} placeholder="e.g. iPhone 13, iPhone 13 Pro" />
-          </div>
-        </div>
+        </section>
 
-        <div className="space-y-3 border-t border-border pt-4">
+        <section className={sectionClass}>
+          <h3 className="text-caption font-semibold uppercase tracking-wide text-gray-500">
+            2 · Price
+          </h3>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <label className={labelClass}>Cost Price (Rs)</label>
+              <Input data-testid="product-cost-price" type="number" min="0" value={form.costPrice} onChange={(event) => updateField("costPrice", event.target.value)} placeholder="Optional" />
+            </div>
+            <div>
+              <label className={labelClass}>Selling Price (Rs) *</label>
+              <Input data-testid="product-selling-price" type="number" min="0" required value={form.price} onChange={(event) => updateField("price", event.target.value)} placeholder="0.00" />
+            </div>
+            <div>
+              <label className={labelClass}>Minimum Sale Price (Rs)</label>
+              <Input data-testid="product-min-price" type="number" min="0" value={form.minSalePrice} onChange={(event) => updateField("minSalePrice", event.target.value)} placeholder="Floor price (optional)" />
+            </div>
+          </div>
+          <p data-testid="product-margin-hint" className="text-caption text-gray-500">
+            Margin:{" "}
+            <strong className={belowCost ? "text-warning-fg" : "text-success-fg"}>
+              Rs {margin.toLocaleString()} ({marginPct.toFixed(1)}%)
+            </strong>{" "}
+            per unit
+          </p>
+          {belowCost && (
+            <p data-testid="product-below-cost" className="text-caption font-medium text-warning-fg">
+              Selling price is below cost. You can still save, but check the numbers.
+            </p>
+          )}
+        </section>
+
+        <section className={sectionClass}>
           <h3 className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-wide text-gray-500">
-            <MapPin className="h-3.5 w-3.5 text-brand-700" /> Physical Stock Location
+            <MapPin className="h-3.5 w-3.5 text-brand-700" /> 3 · Stock &amp; location
+          </h3>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className={labelClass}>Branch (for physical stock) *</label>
+              <Select data-testid="product-branch" value={form.branchId} onChange={(event) => setForm((current) => ({ ...current, branchId: event.target.value, cabinetId: "" }))} className="cursor-pointer">
+                <option value="" disabled>Select a branch...</option>
+                {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+              </Select>
+            </div>
+            <div>
+              <label className={labelClass}>Cabinet (Rack / Shelf / Bin) *</label>
+              <Select required data-testid="product-cabinet" value={form.cabinetId} onChange={(event) => updateField("cabinetId", event.target.value)} className="cursor-pointer">
+                <option value="">{selectedBranchCabinets.length ? "Choose an existing cabinet..." : "No cabinets in this branch"}</option>
+                {selectedBranchCabinets.map((cabinet) => <option key={cabinet.id} value={cabinet.id}>{cabinetLabel(cabinet)}</option>)}
+              </Select>
+            </div>
+            <div>
+              <label className={labelClass}>Physical Instances *</label>
+              <Input data-testid="product-quantity" type="number" min="1" required value={form.quantity} onChange={(event) => updateField("quantity", event.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass}>Low Stock Threshold</label>
+              <Input data-testid="product-low-stock" type="number" min="0" step="1" value={form.lowStockThreshold} onChange={(event) => updateField("lowStockThreshold", event.target.value)} placeholder="Optional" />
+            </div>
+          </div>
+          <p className={hintClass}>
+            <Layers className="h-3 w-3" /> The master product is global; the units are filed in this branch&apos;s cabinet.
+          </p>
+        </section>
+
+        <section className={sectionClass}>
+          <h3 className="text-caption font-semibold uppercase tracking-wide text-gray-500">
+            4 · Vendor (optional)
           </h3>
           <div>
-            <label className={labelClass}>Branch (for physical stock) *</label>
-            <Select data-testid="product-branch" value={form.branchId} onChange={(event) => setForm((current) => ({ ...current, branchId: event.target.value, cabinetId: "" }))} className="cursor-pointer">
-              <option value="" disabled>Select a branch...</option>
-              {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </Select>
-            <p className={hintClass}>
-              <Layers className="h-3 w-3" /> The master product is global; physical units are placed in this branch.
-            </p>
-          </div>
-          <div>
-            <label className={labelClass}>Existing Rack / Shelf / Bin (from Cabinets) *</label>
-            <Select required data-testid="product-cabinet" value={form.cabinetId} onChange={(event) => updateField("cabinetId", event.target.value)} className="cursor-pointer">
-              <option value="">{selectedBranchCabinets.length ? "Choose an existing cabinet..." : "No cabinets in this branch"}</option>
-              {selectedBranchCabinets.map((cabinet) => <option key={cabinet.id} value={cabinet.id}>{cabinetLabel(cabinet)}</option>)}
-            </Select>
-            <p className={hintClass}>Create cabinets first from Settings &gt; Cabinets.</p>
-          </div>
-          <div>
-            <label className={labelClass}>Select Vendor (Optional)</label>
-            <Select value={form.vendorId} onChange={(event) => updateField("vendorId", event.target.value)} className="cursor-pointer">
+            <label className={labelClass}>Select Vendor</label>
+            <Select data-testid="product-vendor" value={form.vendorId} onChange={(event) => updateField("vendorId", event.target.value)} className="cursor-pointer">
               <option value="">No Vendor</option>
               {vendors.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.businessName}</option>)}
             </Select>
           </div>
-        </div>
+          {form.vendorId && vendorUdhar > 0 && (
+            <p data-testid="product-vendor-udhar" className="text-caption font-medium text-warning-fg">
+              Rs {vendorUdhar.toLocaleString()} vendor ke khate mein udhar jayega (vendor payable).
+            </p>
+          )}
+        </section>
+
+        <details className="space-y-3 border-t border-border pt-4">
+          <summary className="cursor-pointer text-caption font-semibold uppercase tracking-wide text-gray-500">
+            More details (search helpers)
+          </summary>
+          <div className="mt-3 space-y-3">
+            <div>
+              <label className={labelClass}>Aliases / Shop Names</label>
+              <TagInput testId="product-aliases" value={aliases} onChange={setAliases} placeholder="Type a name and press Enter" />
+            </div>
+            <div>
+              <label className={labelClass}>Compatible Models</label>
+              <TagInput testId="product-compatible" value={compatibleWith} onChange={setCompatibleWith} placeholder="e.g. iPhone 13, iPhone 13 Pro" />
+            </div>
+          </div>
+        </details>
 
         <div className="flex justify-end gap-2 border-t border-border pt-3">
           <Button type="button" variant="ghost" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
