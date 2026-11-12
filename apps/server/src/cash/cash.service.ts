@@ -456,7 +456,7 @@ export class CashService {
   ) {
     const window = { gte: from, ...(to ? { lte: to } : {}) };
 
-    const [cashPayments, expenses, returnTxs] = await Promise.all([
+    const [cashPayments, expenses, returnTxs, reversalTxs] = await Promise.all([
       db.payment.findMany({
         where: {
           method: 'CASH',
@@ -489,6 +489,39 @@ export class CashService {
           },
         },
       }),
+      // Expense voids that happened in this window but belong to an earlier
+      // (already closed) session: the cash came back into the drawer now, so it
+      // is an adjustment of this session, not of the closed one.
+      db.transaction.findMany({
+        where: {
+          businessId,
+          type: 'EXPENSE_REVERSAL',
+          createdAt: window,
+        },
+        select: {
+          id: true,
+          description: true,
+          createdAt: true,
+          postings: {
+            where: { accountId: 'CASH', accountType: 'ASSET' },
+            select: { amount: true },
+          },
+          reverses: {
+            select: {
+              id: true,
+              expense: {
+                select: {
+                  id: true,
+                  amount: true,
+                  description: true,
+                  branchId: true,
+                  createdAt: true,
+                },
+              },
+            },
+          },
+        },
+      }),
     ]);
 
     let cashRefunds = M.ZERO;
@@ -508,12 +541,44 @@ export class CashService {
       }
     }
 
+    let cashAdjustments = M.ZERO;
+    const adjustments: Array<{
+      transactionId: string;
+      expenseId: string | null;
+      description: string;
+      amount: M.Money;
+      createdAt: Date;
+    }> = [];
+    for (const reversal of reversalTxs) {
+      const expense = reversal.reverses?.expense ?? null;
+      if (!expense) continue;
+      // Same-session voids are already netted out by excluding the expense.
+      if (expense.createdAt.getTime() >= from.getTime()) continue;
+      if (expense.branchId && expense.branchId !== branchId) continue;
+      // An expense reversal debits CASH: the money came back into the drawer.
+      const refunded = M.sum(reversal.postings.map((p) => p.amount));
+      if (!M.gt(refunded, 0)) continue;
+      cashAdjustments = M.add(cashAdjustments, refunded);
+      adjustments.push({
+        transactionId: reversal.id,
+        expenseId: expense.id,
+        description:
+          reversal.description ??
+          expense.description ??
+          'Voided expense from an earlier galla',
+        amount: refunded,
+        createdAt: reversal.createdAt,
+      });
+    }
+
     const cashSales = M.sum(cashPayments.map((p) => p.amount));
     const cashExpenses = M.sum(expenses.map((e) => e.amount));
     return {
       cashSales,
       cashExpenses,
       cashRefunds,
+      cashAdjustments,
+      adjustments,
       salesCount: cashPayments.length,
       expensesCount: expenses.length,
     };
@@ -521,10 +586,18 @@ export class CashService {
 
   private expectedCashOf(
     openingBalance: M.MoneyInput,
-    t: { cashSales: M.Money; cashExpenses: M.Money; cashRefunds: M.Money },
+    t: {
+      cashSales: M.Money;
+      cashExpenses: M.Money;
+      cashRefunds: M.Money;
+      cashAdjustments?: M.Money;
+    },
   ): M.Money {
     return M.sub(
-      M.sub(M.add(openingBalance, t.cashSales), t.cashExpenses),
+      M.sub(
+        M.add(M.add(openingBalance, t.cashSales), t.cashAdjustments ?? M.ZERO),
+        t.cashExpenses,
+      ),
       t.cashRefunds,
     );
   }
@@ -569,6 +642,8 @@ export class CashService {
       cashSales: totals.cashSales,
       cashExpenses: totals.cashExpenses,
       cashRefunds: totals.cashRefunds,
+      cashAdjustments: totals.cashAdjustments,
+      adjustments: totals.adjustments,
       expectedCash,
       salesCount: totals.salesCount,
       expensesCount: totals.expensesCount,
@@ -726,7 +801,8 @@ export class CashService {
 
     const endTime = session.closedAt || new Date();
 
-    // Itemized cash sales
+    // Itemized cash sales: payments carry no session, so the window applies but
+    // the branch is always enforced.
     const cashPayments = await this.prisma.payment.findMany({
       where: {
         method: 'CASH',
@@ -736,7 +812,7 @@ export class CashService {
         },
         order: {
           businessId: user.businessId,
-          ...(session.branchId ? { branchId: session.branchId } : {}),
+          branchId: session.branchId,
         },
       },
       include: {
@@ -753,25 +829,49 @@ export class CashService {
       orderBy: { createdAt: 'asc' },
     });
 
-    // Itemized cash expenses
+    // Itemized cash expenses: the session link wins over the time window, and
+    // legacy vouchers with no session still count when they are this branch's
+    // and fall inside the window. A branch-less orphan never belongs to a report.
     const expenses = await this.prisma.expense.findMany({
       where: {
         businessId: user.businessId,
-        createdAt: {
-          gte: session.openedAt,
-          lte: endTime,
-        },
-        ...(session.branchId ? { branchId: session.branchId } : {}),
+        OR: [
+          { sessionId: session.id },
+          {
+            sessionId: null,
+            branchId: session.branchId,
+            createdAt: { gte: session.openedAt, lte: endTime },
+          },
+        ],
       },
       include: {
         createdBy: { select: { name: true } },
+        transaction: { select: { voidedAt: true, voidReason: true } },
       },
       orderBy: { createdAt: 'asc' },
     });
 
-    // Group expenses by category
+    const itemizedExpenses = expenses.map((exp) => ({
+      ...exp,
+      isVoided: Boolean(exp.transaction?.voidedAt),
+      voidedAt: exp.transaction?.voidedAt ?? null,
+      voidReason: exp.transaction?.voidReason ?? null,
+    }));
+
+    // A voucher voided after the galla closed stays in that session's numbers
+    // (the cash had already left) and comes back as an adjustment in the next
+    // session. A voucher voided before closing nets out here.
+    const countedInReport = itemizedExpenses.filter(
+      (exp) =>
+        !exp.isVoided ||
+        (exp.voidedAt !== null && exp.voidedAt.getTime() > endTime.getTime()),
+    );
+
+    // Group the session's expenses by category (voided vouchers stay visible).
     const expensesByCategory: Record<string, { total: M.Money; count: number }> = {};
-    for (const exp of expenses) {
+    let expensesCount = 0;
+    for (const exp of countedInReport) {
+      expensesCount += 1;
       if (!expensesByCategory[exp.category]) {
         expensesByCategory[exp.category] = { total: M.ZERO, count: 0 };
       }
@@ -786,8 +886,11 @@ export class CashService {
       endTime,
     );
     const cashSalesTotal = totals.cashSales;
-    const cashExpensesTotal = totals.cashExpenses;
-    const expectedCash = this.expectedCashOf(session.openingBalance, totals);
+    const cashExpensesTotal = M.sum(countedInReport.map((e) => e.amount));
+    const expectedCash = this.expectedCashOf(session.openingBalance, {
+      ...totals,
+      cashExpenses: cashExpensesTotal,
+    });
     const actualCash = session.actualCash != null ? M.money(session.actualCash) : expectedCash;
     const difference = session.difference != null ? M.money(session.difference) : M.sub(actualCash, expectedCash);
 
@@ -801,6 +904,7 @@ export class CashService {
           cashSales: cashSalesTotal,
           cashExpenses: cashExpensesTotal,
           cashRefunds: totals.cashRefunds,
+          cashAdjustments: totals.cashAdjustments,
           expectedCash,
           actualCash,
           difference,
@@ -808,9 +912,10 @@ export class CashService {
         },
         expensesByCategory,
         salesCount: cashPayments.length,
-        expensesCount: expenses.length,
+        expensesCount,
         itemizedSales: cashPayments,
-        itemizedExpenses: expenses,
+        itemizedExpenses,
+        adjustments: totals.adjustments,
       },
     };
   }

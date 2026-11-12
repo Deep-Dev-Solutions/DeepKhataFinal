@@ -244,12 +244,24 @@ export interface ItemizedExpense {
   amount: number;
   createdAt: Date;
   createdBy?: { name: string } | null;
+  isVoided?: boolean;
+  voidedAt?: Date | string | null;
+  voidReason?: string | null;
+}
+
+export interface ExpenseAdjustment {
+  transactionId: string;
+  expenseId: string | null;
+  description: string;
+  amount: number;
+  createdAt: Date | string;
 }
 
 export interface ZReportSummary {
   openingBalance: number;
   cashSales: number;
   cashExpenses: number;
+  cashAdjustments?: number;
   expectedCash: number;
   actualCash: number;
   difference: number;
@@ -272,6 +284,7 @@ export interface ZReportData {
   expensesByCategory: Record<string, ExpenseCategory>;
   itemizedSales?: unknown[];
   itemizedExpenses: ItemizedExpense[];
+  adjustments?: ExpenseAdjustment[];
   salesCount: number;
   expensesCount: number;
 }

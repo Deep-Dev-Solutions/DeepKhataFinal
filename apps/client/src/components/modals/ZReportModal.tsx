@@ -41,6 +41,7 @@ export default function ZReportModal({ isOpen, onClose, reportData }: Props) {
     expensesByCategory,
     itemizedSales,
     itemizedExpenses,
+    adjustments,
   } = reportData;
 
   const handlePrint = () => {
@@ -63,6 +64,7 @@ CASH RECONCILIATION SUMMARY:
 Opening Cash Float:  PKR ${summary.openingBalance.toLocaleString()}
 Cash Sales Inflow:   +PKR ${summary.cashSales.toLocaleString()}
 Cash Expenses Out:   -PKR ${summary.cashExpenses.toLocaleString()}
+Adjustments In:      +PKR ${(summary.cashAdjustments || 0).toLocaleString()}
 ------------------------------
 Expected in Drawer:  PKR ${summary.expectedCash.toLocaleString()}
 Counted Physical:    PKR ${summary.actualCash.toLocaleString()}
@@ -289,6 +291,30 @@ Notes: ${session.notes || "None"}
             </div>
           )}
         </div>
+
+        {adjustments && adjustments.length > 0 && (
+          <div>
+            <h3 className="mb-2 text-caption font-semibold uppercase tracking-wide text-gray-600">
+              Adjustments from earlier galla
+            </h3>
+            <div className="divide-y divide-border overflow-hidden rounded-md border border-border">
+              {adjustments.map((adjustment) => (
+                <div
+                  key={adjustment.transactionId}
+                  data-testid="zreport-adjustment"
+                  className="flex items-center justify-between gap-3 bg-card px-3 py-2 text-caption"
+                >
+                  <span className="min-w-0 truncate text-gray-700">
+                    {adjustment.description}
+                  </span>
+                  <span className="shrink-0 font-mono font-semibold text-success">
+                    +PKR {Number(adjustment.amount).toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {itemizedExpenses && itemizedExpenses.length > 0 && (
           <div>

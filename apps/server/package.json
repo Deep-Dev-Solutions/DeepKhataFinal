@@ -20,6 +20,7 @@
     "lint": "oxlint src/ test/",
     "verify:ledger": "tsx scripts/verify-ledger.ts",
     "usage:backfill": "tsx scripts/usage-backfill.ts",
+    "expenses:attach-orphans": "tsx scripts/attach-orphan-expenses.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
