@@ -7,7 +7,7 @@ Numbers below are only ones that were measured.
 ## Where the code is
 
 - Branch `final-fixes` holds phases 0-10 (phase-6-10 merged in 37cdbbb); `hardening-close` (PR, not merged) adds the close-run fixes, missing specs, `isOfflineSync`, cleanup, bot hardening and k6. Nothing deployed; nothing run against Supabase.
-- Migrations `0000_baseline` to `0013_trial_claim`. `0000_baseline` assumes Supabase matches the old `final-fixes` `schema.prisma`; verify before `prisma migrate resolve --applied 0000_baseline` (see `deploy/MIGRATION.md`).
+- Migrations `0000_baseline` to `0017_branch_order_sequence` (`0014_deal_history`, `0015_plan_templates`, `p1_2_billing_received_at`, `0016_transaction_void`, `0017_branch_order_sequence` came after the close run). `0000_baseline` assumes Supabase matches the old `final-fixes` `schema.prisma`; verify before `prisma migrate resolve --applied 0000_baseline` (see `deploy/MIGRATION.md`).
 - Workspaces: `server`, `client`, `agency-admin`, `desktop`, `e2e`, `bench`.
 
 ## Verification
@@ -75,6 +75,16 @@ Measured at the end of the close run (`hardening-close`, 2026-10-22):
 - [x] `apps/desktop`: Electron main process, embedded Postgres (the `embedded-postgres` package, not SQLite), migrate on start, utility processes, tray, LAN mode, Ed25519 licence verify with grace and clock-rollback guard, pg_dump backup rotation, outbox push; server side `DEPLOYMENT_MODE=desktop`, `POST /sync/desktop/push`, licence issuance
 - [ ] Deferred (needs Windows and a certificate): NSIS installer, code signing, Electron Playwright suite on a Windows runner, 4 GB RAM test, auto-update from GitHub Releases
 
+### Phase 11: Fix list, done
+22 tickets (T00–T21) on branch `fix/phase-11`, one commit per ticket; run logs `runs/phase-11-baseline.md`, `runs/phase-11-regression.md`, `runs/phase-11-B5.md`.
+- [x] T00 baseline; T01 overpayment rejected; T02 branch limit from the plan allowance; T03 expenses guarded by branch and galla balance with an owner/manager override note
+- [x] T04 void vendor payments (reversal ledger transaction, `Transaction.voidedAt/reversesId`, migration `0016`); T05 vendors record only purani udhar (`/purchase` now 410)
+- [x] T06–T08 modal/restock branch data, customer udhar in checkout, cabinet required on restock; T09 continuing unit serials; T10 duplicate cabinets refused
+- [x] T11 kharcha history page with daily totals and voidable vouchers; T12 session-scoped Z-report with adjustments from earlier gallas; T13 one-tap close with a note required for variances; T14 galla follows the active branch
+- [x] T15 multi-cabinet counts on the products list; T16 branch on each due row plus a branch-only filter; T17 grouped product form; T18 consistent page shells and screenshot baselines
+- [x] T19 per-branch order numbers with a branch code, provisional `TMP-<code>-<uuid6>` refs for offline receipts, migration `0017`; T20 transfer failures surfaced and blocked without an active branch
+- [x] T21 full regression: lint 0 errors (211 warnings), build pass, API 504 passed with only the 4 known Mailpit failures (green on the local ports), Playwright 202 passed / 1 skipped / 5 environmental failures (green on re-run)
+
 ## Security review
 
 RBAC and tenancy audit: `docs/plan/runs/rbac-audit.md` (about 187 routes; 3 S1, 12 S2, 17 S3). The 3 S1 findings are fixed with tests (owner to SUPER_ADMIN promotion, settings invite role, customer update mass assignment). The 12 S2 and 17 S3 findings are open and listed in BUGS.md (F4-F15): STAFF can see vendor/low-stock costs and the cached dashboard, STAFF can cancel orders and discount below the minimum price, several cross-tenant id checks, public invoice leaks the customer row, desktop endpoints ignore READ_ONLY.
@@ -98,3 +108,4 @@ RBAC and tenancy audit: `docs/plan/runs/rbac-audit.md` (about 187 routes; 3 S1, 
 | 2026-10-18 | 0-5 | Done (3 prepared, not deployed) | See runs/phase-4-5.md |
 | 2026-10-18 to 10-20 | 6-10 | Built, merged to final-fixes | See runs/phase-6-10.md; Windows-only parts of 10 deferred |
 | 2026-10-22 | close | Done, PR open | Truth run, missing specs, `isOfflineSync`, cleanup, bot hardening, k6, RBAC audit; PR `hardening-close` into `final-fixes` (not merged) |
+| 2026-11-12 | 11 | Done, branch `fix/phase-11` | 22 tickets, one commit each; laps found and fixed during the run (overpayment, galla guards, void/reversal, order numbering); regression in `runs/phase-11-regression.md` |
