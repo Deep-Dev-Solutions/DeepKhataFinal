@@ -19,6 +19,9 @@ describe('Cash expenses by day and voiding (e2e)', () => {
   const http = () => request(app.getHttpServer());
   const today = karachiToday();
 
+  let riderExpenseId = '';
+  let riderAmount = 0;
+
   const closeHallIfOpen = async () => {
     const status = await http()
       .get('/cash/register/status')
@@ -42,6 +45,29 @@ describe('Cash expenses by day and voiding (e2e)', () => {
       .get(`/cash/expenses/daily?from=${from}&to=${to}`)
       .set(authHeader('ownerA', HALL));
 
+  // Other spec files leave vouchers in this branch on the same day, so the
+  // assertions work from a snapshot and check what this file added.
+  const snapshot = async () => {
+    const res = await daily().expect(200);
+    const day = (res.body.days as Array<any>).find((d) => d.date === today);
+    const byCategory = new Map<string, { total: number; count: number }>(
+      ((day?.byCategory ?? []) as Array<any>).map((c) => [
+        c.category as string,
+        { total: Number(c.total), count: Number(c.count) },
+      ]),
+    );
+    return {
+      dayTotal: Number(day?.total ?? 0),
+      dayCount: Number(day?.count ?? 0),
+      total: Number(res.body.total),
+      count: Number(res.body.count),
+      ids: new Set<string>(
+        ((day?.expenses ?? []) as Array<any>).map((e) => e.id as string),
+      ),
+      byCategory,
+    };
+  };
+
   beforeAll(async () => {
     app = await createTestApp();
     prisma = new PrismaClient();
@@ -59,55 +85,79 @@ describe('Cash expenses by day and voiding (e2e)', () => {
   });
 
   it('totals the day by category and lists the vouchers', async () => {
+    const before = await snapshot();
+
     const chai = await logExpense('300', 'CHAI_REFRESHMENT', 'Chai for the counter').expect(201);
     const rider = await logExpense('1200.50', 'DELIVERY_RIDER', 'Rider to Liberty').expect(201);
+    riderExpenseId = rider.body.expense.id;
+    riderAmount = 1200.5;
 
     const res = await daily().expect(200);
     const day = (res.body.days as Array<any>).find((d) => d.date === today);
     expect(day).toBeTruthy();
-    expect(day.total).toBe(1500.5);
-    expect(day.count).toBe(2);
-    expect(day.byCategory[0]).toEqual({
-      category: 'DELIVERY_RIDER',
-      total: 1200.5,
-      count: 1,
-    });
-    expect(day.byCategory[1]).toEqual({
-      category: 'CHAI_REFRESHMENT',
-      total: 300,
-      count: 1,
-    });
+    expect(Number(day.total)).toBe(before.dayTotal + 1500.5);
+    expect(day.count).toBe(before.dayCount + 2);
+
+    const byCategory = new Map<string, { total: number; count: number }>(
+      (day.byCategory as Array<any>).map((c) => [
+        c.category as string,
+        { total: Number(c.total), count: Number(c.count) },
+      ]),
+    );
+    const riderCat = byCategory.get('DELIVERY_RIDER')!;
+    expect(riderCat.total).toBe(
+      (before.byCategory.get('DELIVERY_RIDER')?.total ?? 0) + 1200.5,
+    );
+    expect(riderCat.count).toBe(
+      (before.byCategory.get('DELIVERY_RIDER')?.count ?? 0) + 1,
+    );
+    const chaiCat = byCategory.get('CHAI_REFRESHMENT')!;
+    expect(chaiCat.total).toBe(
+      (before.byCategory.get('CHAI_REFRESHMENT')?.total ?? 0) + 300,
+    );
+    expect(chaiCat.count).toBe(
+      (before.byCategory.get('CHAI_REFRESHMENT')?.count ?? 0) + 1,
+    );
+
     expect(day.sessions.some((s: any) => s.closedAt === null)).toBe(true);
-    expect(
-      (day.expenses as Array<any>).map((e) => e.id).sort(),
-    ).toEqual([chai.body.expense.id, rider.body.expense.id].sort());
-    expect(res.body.total).toBe(1500.5);
-    expect(res.body.count).toBe(2);
+    const listed = (day.expenses as Array<any>).map((e) => e.id);
+    expect(listed).toEqual(
+      expect.arrayContaining([chai.body.expense.id, rider.body.expense.id]),
+    );
+    expect(before.ids.has(chai.body.expense.id)).toBe(false);
+    expect(before.ids.has(rider.body.expense.id)).toBe(false);
+    expect(Number(res.body.total)).toBe(before.total + 1500.5);
+    expect(res.body.count).toBe(before.count + 2);
   });
 
   it('voids a voucher with a reversal: the total drops and the row stays visible', async () => {
-    const before = await daily().expect(200);
-    const day = (before.body.days as Array<any>)[0];
-    const target = (day.expenses as Array<any>)[0];
+    const before = await snapshot();
+    expect(before.ids.has(riderExpenseId)).toBe(true);
 
     const txBefore = await prisma.expense.findUniqueOrThrow({
-      where: { id: target.id },
+      where: { id: riderExpenseId },
     });
 
     const voided = await http()
-      .post(`/cash/expenses/${target.id}/void`)
+      .post(`/cash/expenses/${riderExpenseId}/void`)
       .set(authHeader('ownerA', HALL))
       .send({ reason: 'Wrong amount, chai was Rs 100' })
       .expect(201);
     expect(voided.body.success).toBe(true);
 
-    const after = await daily().expect(200);
-    const afterDay = (after.body.days as Array<any>)[0];
-    expect(afterDay.total).toBe(before.body.total - target.amount);
-    expect(afterDay.count).toBe(day.count - 1);
-    const row = (afterDay.expenses as Array<any>).find((e) => e.id === target.id);
-    expect(row.isVoided).toBe(true);
-    expect(row.voidReason).toBe('Wrong amount, chai was Rs 100');
+    const afterRes = await daily().expect(200);
+    const afterDay = (afterRes.body.days as Array<any>).find(
+      (d) => d.date === today,
+    );
+    expect(Number(afterDay.total)).toBe(before.dayTotal - riderAmount);
+    expect(afterDay.count).toBe(before.dayCount - 1);
+    expect(Number(afterRes.body.total)).toBe(before.total - riderAmount);
+    expect(afterRes.body.count).toBe(before.count - 1);
+    const row = (afterDay.expenses as Array<any>).find(
+      (e) => e.id === riderExpenseId,
+    );
+    expect(row?.isVoided).toBe(true);
+    expect(row?.voidReason).toBe('Wrong amount, chai was Rs 100');
 
     const reversal = await prisma.transaction.findUniqueOrThrow({
       where: { id: voided.body.transactionId },
@@ -118,7 +168,7 @@ describe('Cash expenses by day and voiding (e2e)', () => {
 
     // Voiding twice is refused, the original never changes.
     await http()
-      .post(`/cash/expenses/${target.id}/void`)
+      .post(`/cash/expenses/${riderExpenseId}/void`)
       .set(authHeader('ownerA', HALL))
       .send({ reason: 'again' })
       .expect(409);

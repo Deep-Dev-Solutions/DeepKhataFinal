@@ -716,15 +716,24 @@ export class CashService {
     const now = new Date();
 
     // Totals are scoped to the SESSION's branch, never to the request body.
-    const { cashSales, cashExpenses, cashRefunds } = await this.computeSessionTotals(
-      user.businessId,
-      activeSession.branchId as string,
-      activeSession.openedAt,
-      now,
-    );
+    const { cashSales, cashExpenses, cashRefunds, cashAdjustments } =
+      await this.computeSessionTotals(
+        user.businessId,
+        activeSession.branchId as string,
+        activeSession.openedAt,
+        now,
+      );
 
     const openingBalance = M.money(activeSession.openingBalance);
-    const expectedCash = this.expectedCashOf(openingBalance, { cashSales, cashExpenses, cashRefunds });
+    // Adjustments (an earlier galla's voucher voided while this one is open)
+    // move cash in or out of the drawer, so the close must count them like the
+    // live status and the Z-report do.
+    const expectedCash = this.expectedCashOf(openingBalance, {
+      cashSales,
+      cashExpenses,
+      cashRefunds,
+      cashAdjustments,
+    });
     const actualCash = M.round2(dto.actualCash);
     const difference = M.sub(actualCash, expectedCash);
 
@@ -764,6 +773,7 @@ export class CashService {
         cashSales,
         cashExpenses,
         cashRefunds,
+        cashAdjustments,
         expectedCash,
         actualCash,
         difference,

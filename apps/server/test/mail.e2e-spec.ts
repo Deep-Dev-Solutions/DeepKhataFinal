@@ -62,12 +62,17 @@ describe('MailService (e2e)', () => {
 
   beforeAll(async () => {
     delete process.env.RESEND_API_KEY;
-    process.env.SMTP_HOST = '127.0.0.1';
-    process.env.SMTP_PORT = '1025';
+    // Defaults match the CI docker stack; a local stack that publishes other
+    // ports (Mailpit on 8026/1026 here) can point the run at them.
+    process.env.SMTP_HOST ??= '127.0.0.1';
+    process.env.SMTP_PORT ??= '1025';
     delete process.env.SMTP_USER;
     delete process.env.SMTP_PASS;
     const ping = await fetch(`${MAILPIT}/api/v1/messages?limit=1`).catch(() => null);
-    expect(ping?.ok, 'Mailpit must be reachable on 127.0.0.1:8025').toBe(true);
+    expect(
+      ping?.ok,
+      `Mailpit must be reachable on ${MAILPIT}`,
+    ).toBe(true);
 
     app = await createTestApp();
     prisma = new PrismaClient();

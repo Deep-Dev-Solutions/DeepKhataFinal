@@ -32,13 +32,36 @@ describe('Per-branch order numbers (e2e)', () => {
         ...(clientRef ? { clientRef } : {}),
       });
 
-  const maxNumber = async () =>
+  const maxNumber = async (branchId?: string) =>
     (
       await prisma.order.aggregate({
-        where: { businessId: BIZ },
+        where: { businessId: BIZ, ...(branchId ? { branchId } : {}) },
         _max: { orderNumber: true },
       })
     )._max.orderNumber ?? 0;
+
+  /**
+   * Put a branch's counter back to the business max, the state a fresh seed
+   * leaves. Earlier spec files create orders in one branch only, which pushes
+   * that branch's counter ahead of the other; this keeps the expectations
+   * meaningful without depending on file order.
+   */
+  const resetCounter = async (branchId: string) => {
+    const last = await maxNumber();
+    await prisma.orderNumberSequence.upsert({
+      where: { businessId_branchId: { businessId: BIZ, branchId } },
+      create: { businessId: BIZ, branchId, last },
+      update: { last },
+    });
+    return last;
+  };
+
+  const counterOf = async (branchId: string) =>
+    (
+      await prisma.orderNumberSequence.findUniqueOrThrow({
+        where: { businessId_branchId: { businessId: BIZ, branchId } },
+      })
+    ).last;
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -60,7 +83,8 @@ describe('Per-branch order numbers (e2e)', () => {
     expect(hall.code).toMatch(/^[A-Z]{2,4}$/);
     expect(hafeez.code).toMatch(/^[A-Z]{2,4}$/);
 
-    const before = await maxNumber();
+    const before = await resetCounter(HALL);
+    await resetCounter(HAFEEZ);
     const [a, b] = await Promise.all([sell(HALL), sell(HAFEEZ)]);
     expect(a.status).toBe(201);
     expect(b.status).toBe(201);
@@ -72,7 +96,8 @@ describe('Per-branch order numbers (e2e)', () => {
   });
 
   it('20 concurrent sales in one branch get 20 distinct, gapless numbers', async () => {
-    const before = await maxNumber();
+    await resetCounter(HALL);
+    const before = await counterOf(HALL);
     const results = await Promise.all(
       Array.from({ length: 20 }, () => sell(HALL)),
     );

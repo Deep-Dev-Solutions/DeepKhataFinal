@@ -100,4 +100,39 @@ describe('Close register variance rules (e2e)', () => {
     const ok = await close('1500').expect(201);
     expect(Number(ok.body.session.difference)).toBe(0);
   });
+
+  it('counts an earlier galla’s voided voucher when closing, so no note is needed', async () => {
+    await cleanup();
+
+    // Galla one pays Rs 300 for chai and closes balanced.
+    await open(1000).expect(201);
+    const chai = await http()
+      .post('/cash/expense')
+      .set(authHeader('ownerA', HALL))
+      .send({ amount: '300', category: 'CHAI_REFRESHMENT', description: 'Chai' })
+      .expect(201);
+    const firstClose = await close('700').expect(201);
+    expect(Number(firstClose.body.session.expectedCash)).toBe(700);
+
+    // Galla two opens, then the chai voucher from galla one is voided: Rs 300
+    // comes back into this drawer, so it must be part of this close.
+    await open(1000).expect(201);
+    await http()
+      .post(`/cash/expenses/${chai.body.expense.id}/void`)
+      .set(authHeader('ownerA', HALL))
+      .send({ reason: 'Chai was already paid from home' })
+      .expect(201);
+
+    const status = await http()
+      .get('/cash/register/status')
+      .set(authHeader('ownerA', HALL))
+      .expect(200);
+    expect(Number(status.body.expectedCash)).toBe(1300);
+
+    const closed = await close('1300').expect(201);
+    expect(Number(closed.body.session.expectedCash)).toBe(1300);
+    expect(Number(closed.body.reconciliation.cashAdjustments)).toBe(300);
+    expect(Number(closed.body.session.difference)).toBe(0);
+    expect(closed.body.session.notes).toBeNull();
+  });
 });

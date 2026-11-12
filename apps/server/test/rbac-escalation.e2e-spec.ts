@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import request from 'supertest';
 import { createTestApp, closeTestApp } from './setup/app';
 import { authHeader, freshSessionToken, users, tenants } from './setup/auth';
+import { nextOrderNumber } from '../src/orders/order-number';
 
 const uniq = () => `${Date.now()}${Math.floor(Math.random() * 1e6)}`;
 const TENANT_A = tenants.A.id;
@@ -203,14 +204,21 @@ describe('RBAC escalation fixes F1-F3 (e2e)', () => {
         },
       });
       createdCustomerIds.push(customer.id);
-      const order = await prisma.order.create({
-        data: {
-          customerId: customer.id,
-          businessId: TENANT_A,
-          branchId: HAFEEZ,
-          status: 'COMPLETED',
-          totalAmount: 100,
-        },
+      // Fixture orders bypass the API, so they must allocate their number from
+      // the same per-branch counter the POS uses; the DB default (a global
+      // sequence) can hand out a number this branch already has.
+      const order = await prisma.$transaction(async (tx) => {
+        const orderNumber = await nextOrderNumber(tx, TENANT_A, HAFEEZ);
+        return tx.order.create({
+          data: {
+            customerId: customer.id,
+            businessId: TENANT_A,
+            branchId: HAFEEZ,
+            orderNumber,
+            status: 'COMPLETED',
+            totalAmount: 100,
+          },
+        });
       });
       return { customer, order };
     }
