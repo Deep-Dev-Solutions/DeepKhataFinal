@@ -83,34 +83,21 @@ export class InventoryService {
         });
         if (!branch) throw new BadRequestException('Branch not found');
 
-        // Resolve the spatial cabinet: explicit cabinet (must be in branch) or
-        // shared 'General' cabinet for the branch.
-        let finalCabinetId = cabinetId;
-        if (finalCabinetId) {
-          const cabinet = await tx.cabinet.findFirst({
-            where: { id: finalCabinetId, businessId, branchId },
-          });
-          if (!cabinet)
-            throw new BadRequestException(
-              'Cabinet not found in the selected branch',
-            );
-        } else {
-          let general = await tx.cabinet.findFirst({
-            where: { branchId, name: 'General' },
-            select: { id: true },
-          });
-          if (!general) {
-            general = await tx.cabinet.create({
-              data: {
-                name: 'General',
-                location: 'General Storage',
-                businessId,
-                branchId,
-              },
-            });
-          }
-          finalCabinetId = general.id;
+        // Every unit must be filed in a real cabinet: never guess one for the
+        // shopkeeper, because a wrong cabinet means the unit cannot be found.
+        if (!cabinetId) {
+          throw new BadRequestException(
+            `Select a cabinet for ${product.name}`,
+          );
         }
+        const cabinet = await tx.cabinet.findFirst({
+          where: { id: cabinetId, businessId, branchId },
+        });
+        if (!cabinet)
+          throw new BadRequestException(
+            'Cabinet not found in the selected branch',
+          );
+        const finalCabinetId = cabinet.id;
 
         await tx.productInstance.createMany({
           data: Array.from({ length: qty }).map(() => ({

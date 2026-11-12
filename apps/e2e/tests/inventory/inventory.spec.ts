@@ -19,6 +19,14 @@ async function createVendor(request: APIRequestContext, label: string) {
   return { id: body.vendor.id as string, name: businessName };
 }
 
+async function createCabinet(request: APIRequestContext, label: string) {
+  const owner = await apiAs('ownerA', request);
+  const res = await owner.post('/cabinet', { name: `E2E ${label} Cab ${uniq()}`, branchId: HALL_ROAD });
+  expect(res.ok(), await res.text()).toBeTruthy();
+  const body = await res.json();
+  return { id: body.cabinet.id as string, name: body.cabinet.name as string };
+}
+
 /** Net posting per account type of the ledger transaction(s) that reference `referenceId`. */
 async function postings(referenceId: string) {
   const rows = await db.posting.findMany({ where: { transaction: { referenceId } }, include: { transaction: true } });
@@ -86,12 +94,14 @@ test.describe('inventory: restock', () => {
   test('restock from a vendor on credit through the UI: stock, movement, VENDOR_PAYABLE and INVENTORY postings', async ({ page, request }) => {
     const product = await createProduct(request, { price: 800, qty: 1, label: 'Restock' });
     const vendor = await createVendor(request, 'Credit');
+    const restockCabinet = await createCabinet(request, 'Restock');
 
     await useBranch(page.context(), HALL_ROAD);
     await page.goto('/inventory/restock');
     await page.getByTestId('restock-product-search').fill(product.sku);
     // MISSING testid: restock catalog product button, restock-add-to-batch
     await page.getByRole('button', { name: new RegExp(product.name) }).click();
+    await page.getByTestId('restock-cabinet').selectOption(restockCabinet.id);
     await page.getByTestId('restock-vendor').selectOption(vendor.id);
     await page.getByTestId('restock-qty').fill('4');
     await page.getByTestId('restock-unit-cost').fill('250');
@@ -136,9 +146,19 @@ test.describe('inventory: restock', () => {
   test('restock paid now posts against CASH, not VENDOR_PAYABLE', async ({ request }) => {
     const product = await createProduct(request, { price: 500, qty: 1, label: 'Cash' });
     const vendor = await createVendor(request, 'Cash');
+    const cabinet = await createCabinet(request, 'Cash');
     const res = await restockApi(request, {
       paidNow: true,
-      items: [{ productId: product.id, branchId: HALL_ROAD, quantity: 3, vendorId: vendor.id, unitCost: 120.5 }],
+      items: [
+        {
+          productId: product.id,
+          branchId: HALL_ROAD,
+          cabinetId: cabinet.id,
+          quantity: 3,
+          vendorId: vendor.id,
+          unitCost: 120.5,
+        },
+      ],
     });
     expect(res.ok(), await res.text()).toBeTruthy();
 
@@ -153,7 +173,10 @@ test.describe('inventory: restock', () => {
 
   test('restock without a vendor adds stock and a movement but writes no ledger transaction', async ({ request }) => {
     const product = await createProduct(request, { price: 500, qty: 1, label: 'NoVendor' });
-    const res = await restockApi(request, { items: [{ productId: product.id, branchId: HALL_ROAD, quantity: 2 }] });
+    const cabinet = await createCabinet(request, 'NoVendor');
+    const res = await restockApi(request, {
+      items: [{ productId: product.id, branchId: HALL_ROAD, cabinetId: cabinet.id, quantity: 2 }],
+    });
     expect(res.ok(), await res.text()).toBeTruthy();
     expect(await instanceCounts(product.id)).toEqual({ AVAILABLE: 3 });
     const movement = await db.inventoryMovement.findFirstOrThrow({ where: { productId: product.id, referenceType: 'RESTOCK' } });
@@ -166,11 +189,12 @@ test.describe('inventory: restock', () => {
     const p1 = await createProduct(request, { price: 500, qty: 1, label: 'Batch1' });
     const p2 = await createProduct(request, { price: 500, qty: 1, label: 'Batch2' });
     const vendor = await createVendor(request, 'Batch');
+    const cabinet = await createCabinet(request, 'Batch');
     const txBefore = await db.transaction.count({ where: { businessId: BUSINESS_A } });
 
     const res = await restockApi(request, {
       items: [
-        { productId: p1.id, branchId: HALL_ROAD, quantity: 5, vendorId: vendor.id, unitCost: 100 },
+        { productId: p1.id, branchId: HALL_ROAD, cabinetId: cabinet.id, quantity: 5, vendorId: vendor.id, unitCost: 100 },
         { productId: p2.id, branchId: HALL_ROAD, quantity: 5, cabinetId: '00000000-0000-4000-8000-0000000000ff' },
       ],
     });

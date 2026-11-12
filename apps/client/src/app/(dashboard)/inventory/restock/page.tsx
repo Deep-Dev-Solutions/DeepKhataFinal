@@ -57,6 +57,7 @@ type Product = {
   basePrice?: number | null;
   price?: number | null;
   stock: number;
+  cabinet?: { id: string; name: string; location?: string | null } | null;
 };
 
 type BatchLine = {
@@ -129,6 +130,22 @@ export default function RestockPage() {
     const branch = branches.find((b) => b.id === selectedBranchId);
     return branch?.cabinets || [];
   }, [cabinets, branches, selectedBranchId]);
+
+  /**
+   * Choosing a product must never inherit the previous product's cabinet:
+   * a wrong cabinet means the shopkeeper cannot find the unit later.
+   */
+  const handleSelectProduct = (productId: string) => {
+    setSelectedProductId(productId);
+    setSelectedCabinetId("");
+  };
+
+  // The product's own cabinet is only a hint; the shopkeeper still confirms it.
+  const suggestedCabinet = useMemo(() => {
+    const own = selectedProduct?.cabinet;
+    if (!own) return null;
+    return selectedBranchCabinets.some((c) => c.id === own.id) ? own : null;
+  }, [selectedProduct, selectedBranchCabinets]);
 
   const loadBranches = useCallback(async () => {
     try {
@@ -258,6 +275,10 @@ export default function RestockPage() {
   const handleAddToBatch = () => {
     if (!selectedProduct) {
       setErrorMsg("Select a product to add to the batch.");
+      return;
+    }
+    if (!selectedCabinetId) {
+      setErrorMsg("Select a cabinet for this restock line.");
       return;
     }
     const qty = Math.max(1, Number(quantity) || 1);
@@ -442,7 +463,7 @@ export default function RestockPage() {
               </label>
               <Select
                 value={selectedProductId}
-                onChange={(e) => setSelectedProductId(e.target.value)}
+                onChange={(e) => handleSelectProduct(e.target.value)}
                 className="cursor-pointer"
               >
                 <option value="">-- Choose a product to restock --</option>
@@ -508,6 +529,19 @@ export default function RestockPage() {
                     </option>
                   ))}
                 </Select>
+                {suggestedCabinet && selectedCabinetId !== suggestedCabinet.id && (
+                  <button
+                    type="button"
+                    data-testid="restock-cabinet-suggest"
+                    onClick={() => setSelectedCabinetId(suggestedCabinet.id)}
+                    className="mt-1 block text-left text-caption font-medium text-brand-700 hover:underline"
+                  >
+                    Suggested: {suggestedCabinet.name}
+                    {suggestedCabinet.location
+                      ? ` (${suggestedCabinet.location})`
+                      : ""}
+                  </button>
+                )}
               </div>
 
               <div>
@@ -593,7 +627,7 @@ export default function RestockPage() {
                 {products.map((p) => (
                   <button
                     key={p.id}
-                    onClick={() => setSelectedProductId(p.id)}
+                    onClick={() => handleSelectProduct(p.id)}
                     className={`flex w-full items-center justify-between gap-3 rounded-md border px-2.5 py-2 text-left transition-colors ${
                       selectedProductId === p.id
                         ? "border-brand-500 bg-brand-50"
