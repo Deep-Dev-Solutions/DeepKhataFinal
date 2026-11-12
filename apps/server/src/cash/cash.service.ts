@@ -2,17 +2,20 @@ import {
   Injectable,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../ledger/ledger.service';
 import * as M from '../common/money';
+import * as D from '../common/dates';
 import { formatMoney } from '../common/money';
 import { RedisService } from '../redis/redis.service';
 import { LogExpenseDto } from './dto/log-expense.dto';
 import { OpenRegisterDto } from './dto/open-register.dto';
 import { CloseRegisterDto } from './dto/close-register.dto';
+import { VoidExpenseDto } from './dto/void-expense.dto';
 
 @Injectable()
 export class CashService {
@@ -221,13 +224,220 @@ export class CashService {
       take: query.limit ? Number(query.limit) : 100,
     });
 
-    const totalAmount = M.sum(expenses.map((e) => e.amount));
+    const live = expenses.filter((e) => !e.transaction?.voidedAt);
+    const totalAmount = M.sum(live.map((e) => e.amount));
 
     return {
       success: true,
       count: expenses.length,
       totalAmount,
-      expenses,
+      expenses: expenses.map((e) => ({
+        ...e,
+        isVoided: Boolean(e.transaction?.voidedAt),
+      })),
+    };
+  }
+
+  /**
+   * Expense totals per Karachi calendar day for one branch, plus the vouchers
+   * themselves so the history page can expand a day. Voided vouchers are listed
+   * but never counted.
+   */
+  async getDailyExpenses(
+    userId: string,
+    branchId: string,
+    query: { from?: string; to?: string },
+  ) {
+    const user = await this.getUserWithBusiness(userId);
+
+    const parseDay = (value: string | undefined, label: string): Date => {
+      if (!value) throw new BadRequestException(`${label} date is required`);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        throw new BadRequestException(
+          `${label} date must be in YYYY-MM-DD format`,
+        );
+      }
+      return D.startOfKarachiDay(new Date(`${value}T00:00:00.000Z`));
+    };
+
+    const today = D.startOfKarachiDay();
+    const fromDay = query.from
+      ? parseDay(query.from, 'From')
+      : D.startOfKarachiDay(new Date(`${D.karachiDateString(today).slice(0, 7)}-01T00:00:00.000Z`));
+    const toDay = query.to ? parseDay(query.to, 'To') : today;
+
+    if (fromDay.getTime() > toDay.getTime()) {
+      throw new BadRequestException('From date cannot be after the to date');
+    }
+    if (D.daysBetween(fromDay, toDay) > 91) {
+      throw new BadRequestException('Date range cannot be longer than 92 days');
+    }
+
+    const from = fromDay;
+    const toExclusive = D.addDays(toDay, 1);
+
+    const [expenses, sessions] = await Promise.all([
+      this.prisma.expense.findMany({
+        where: {
+          businessId: user.businessId,
+          branchId,
+          createdAt: { gte: from, lt: toExclusive },
+        },
+        include: {
+          createdBy: { select: { id: true, name: true } },
+          transaction: { select: { id: true, voidedAt: true, voidReason: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.cashRegisterSession.findMany({
+        where: {
+          businessId: user.businessId,
+          branchId,
+          openedAt: { lt: toExclusive },
+          OR: [{ closedAt: null }, { closedAt: { gte: from } }],
+        },
+        select: { id: true, openedAt: true, closedAt: true },
+        orderBy: { openedAt: 'asc' },
+      }),
+    ]);
+
+    type DayBucket = {
+      date: string;
+      total: M.Money;
+      count: number;
+      byCategory: Map<string, { total: M.Money; count: number }>;
+      sessions: Array<{ id: string; openedAt: Date; closedAt: Date | null }>;
+      expenses: Array<Record<string, unknown>>;
+    };
+    const buckets = new Map<string, DayBucket>();
+
+    for (const expense of expenses) {
+      const date = D.karachiDateString(expense.createdAt);
+      let bucket = buckets.get(date);
+      if (!bucket) {
+        bucket = {
+          date,
+          total: M.ZERO,
+          count: 0,
+          byCategory: new Map(),
+          sessions: sessions.filter(
+            (session) =>
+              D.karachiDateString(session.openedAt) === date ||
+              (session.closedAt !== null &&
+                D.karachiDateString(session.closedAt) === date),
+          ),
+          expenses: [],
+        };
+        buckets.set(date, bucket);
+      }
+
+      const isVoided = Boolean(expense.transaction?.voidedAt);
+      if (!isVoided) {
+        bucket.total = M.add(bucket.total, expense.amount);
+        bucket.count += 1;
+        const category = bucket.byCategory.get(expense.category) ?? {
+          total: M.ZERO,
+          count: 0,
+        };
+        category.total = M.add(category.total, expense.amount);
+        category.count += 1;
+        bucket.byCategory.set(expense.category, category);
+      }
+
+      bucket.expenses.push({
+        id: expense.id,
+        amount: expense.amount,
+        category: expense.category,
+        description: expense.description,
+        createdAt: expense.createdAt,
+        createdById: expense.createdById,
+        createdByName: expense.createdBy?.name ?? null,
+        sessionId: expense.sessionId,
+        isVoided,
+        voidReason: expense.transaction?.voidReason ?? null,
+        voidedAt: expense.transaction?.voidedAt ?? null,
+      });
+    }
+
+    const days = Array.from(buckets.values()).map((bucket) => ({
+      date: bucket.date,
+      total: M.toApi(bucket.total),
+      count: bucket.count,
+      byCategory: Array.from(bucket.byCategory.entries())
+        .map(([category, value]) => ({
+          category,
+          total: M.toApi(value.total),
+          count: value.count,
+        }))
+        .sort((a, b) => b.total - a.total),
+      sessions: bucket.sessions,
+      expenses: bucket.expenses,
+    }));
+
+    return {
+      success: true,
+      from: D.karachiDateString(from),
+      to: D.karachiDateString(toDay),
+      days,
+      total: M.toApi(M.sum(Array.from(buckets.values()).map((b) => b.total))),
+      count: days.reduce((acc, day) => acc + day.count, 0),
+    };
+  }
+
+  /**
+   * Void an expense voucher. The creator may void while their galla is still
+   * open; an owner or manager may void at any time. The ledger is corrected by a
+   * reversal (never by editing the original posting).
+   */
+  async voidExpense(userId: string, expenseId: string, dto: VoidExpenseDto) {
+    const user = await this.getUserWithBusiness(userId);
+
+    const expense = await this.prisma.expense.findFirst({
+      where: { id: expenseId, businessId: user.businessId },
+      include: {
+        session: { select: { id: true, closedAt: true } },
+        transaction: { select: { id: true, voidedAt: true } },
+      },
+    });
+    if (!expense) throw new NotFoundException('Expense not found.');
+    if (!expense.transactionId) {
+      throw new BadRequestException(
+        'This expense has no ledger entry to void.',
+      );
+    }
+    if (expense.transaction?.voidedAt) {
+      throw new ConflictException('This expense is already voided.');
+    }
+
+    const privileged = user.role === 'OWNER' || user.role === 'MANAGER';
+    if (!privileged) {
+      if (expense.createdById !== userId) {
+        throw new ForbiddenException(
+          'Only the person who logged this expense, an owner or a manager can void it.',
+        );
+      }
+      if (!expense.session || expense.session.closedAt) {
+        throw new ForbiddenException(
+          'The galla for this expense is closed. Ask an owner or manager to void it.',
+        );
+      }
+    }
+
+    const reason = dto.reason.trim();
+    const transaction = await this.ledgerService.reverse(
+      user.businessId,
+      expense.transactionId,
+      userId,
+      reason,
+    );
+
+    await this.invalidateCashCaches(user.businessId, expense.branchId);
+
+    return {
+      success: true,
+      message: `Expense of Rs ${formatMoney(expense.amount)} voided.`,
+      expenseId: expense.id,
+      transactionId: transaction.id,
     };
   }
 
@@ -256,7 +466,12 @@ export class CashService {
         select: { id: true, amount: true },
       }),
       db.expense.findMany({
-        where: { businessId, branchId, createdAt: window },
+        where: {
+          businessId,
+          branchId,
+          createdAt: window,
+          OR: [{ transactionId: null }, { transaction: { voidedAt: null } }],
+        },
         select: { id: true, amount: true },
       }),
       db.transaction.findMany({

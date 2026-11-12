@@ -22,6 +22,7 @@ import {
   LayoutGrid,
   HandCoins,
   ScanSearch,
+  Receipt,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { AGENCY_APP_URL } from "@/lib/auth";
@@ -35,6 +36,7 @@ const navGroups = [
       { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { name: "Point of Sale", href: "/orders", icon: ShoppingCart },
       { name: "Galla / Cash", href: "/cash", icon: Banknote },
+      { name: "Kharcha (Expenses)", href: "/cash/expenses", icon: Receipt },
     ],
   },
   {

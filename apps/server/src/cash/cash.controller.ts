@@ -4,6 +4,7 @@ import {
   Get,
   Body,
   Query,
+  Param,
   UseGuards,
   Req,
 } from '@nestjs/common';
@@ -14,6 +15,7 @@ import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { LogExpenseDto } from './dto/log-expense.dto';
 import { OpenRegisterDto } from './dto/open-register.dto';
 import { CloseRegisterDto } from './dto/close-register.dto';
+import { VoidExpenseDto } from './dto/void-expense.dto';
 import { BranchId } from '../auth/decorators/branch-id.decorator';
 
 @Controller('cash')
@@ -44,6 +46,30 @@ export class CashController {
       branchId,
       limit,
     });
+  }
+
+  @Get('expenses/daily')
+  @RequirePermissions('read:cash')
+  async getDailyExpenses(
+    @Req() req: any,
+    @BranchId() branchId: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.cashService.getDailyExpenses(req.user.id, branchId, {
+      from,
+      to,
+    });
+  }
+
+  @Post('expenses/:id/void')
+  @RequirePermissions('manage:cash')
+  async voidExpense(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: VoidExpenseDto,
+  ) {
+    return this.cashService.voidExpense(req.user.id, id, dto);
   }
 
   @Get('register/status')

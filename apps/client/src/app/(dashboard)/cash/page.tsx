@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { API_BASE_URL, getAuthHeaders } from "@/lib/auth";
 import { enqueue } from "@/lib/sync/queue";
 
@@ -6,11 +7,6 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Banknote,
   Coffee,
-  Bike,
-  Wrench,
-  Package,
-  Zap,
-  Tag,
   Plus,
   ArrowDownRight,
   ArrowUpRight,
@@ -46,45 +42,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/context/AuthContext";
-
-const EXPENSE_CATEGORIES = [
-  {
-    id: "CHAI_REFRESHMENT",
-    label: "Chai / Tea",
-    icon: Coffee,
-    color: "text-amber-700 bg-amber-50 border-amber-200",
-  },
-  {
-    id: "DELIVERY_RIDER",
-    label: "Delivery Rider",
-    icon: Bike,
-    color: "text-blue-700 bg-blue-50 border-blue-200",
-  },
-  {
-    id: "REPAIR_PARTS",
-    label: "Parts / Shop",
-    icon: Wrench,
-    color: "text-purple-700 bg-purple-50 border-purple-200",
-  },
-  {
-    id: "SUPPLIES",
-    label: "Packaging",
-    icon: Package,
-    color: "text-emerald-700 bg-emerald-50 border-emerald-200",
-  },
-  {
-    id: "UTILITIES",
-    label: "Bills / Power",
-    icon: Zap,
-    color: "text-orange-700 bg-orange-50 border-orange-200",
-  },
-  {
-    id: "OTHER",
-    label: "Other Expense",
-    icon: Tag,
-    color: "text-slate-700 bg-slate-50 border-slate-200",
-  },
-];
+import { EXPENSE_CATEGORIES } from "@/lib/expense-categories";
 
 export default function CashHubPage() {
   const { activeBranchId, role } = useAuth();
@@ -434,7 +392,7 @@ export default function CashHubPage() {
           <CardContent className="px-4 py-3">
             <div className="mb-1 flex items-center justify-between">
               <span className="text-caption font-medium uppercase tracking-wide text-gray-500">
-                Opening Float
+                Subah ka cash
               </span>
               <Clock className="h-3.5 w-3.5 text-gray-400" />
             </div>
@@ -443,8 +401,8 @@ export default function CashHubPage() {
             </p>
             <p className="text-caption text-gray-400">
               {registerStatus?.isOpen
-                ? `Opened at ${new Date(registerStatus.session.openedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                : "Initial drawer base"}
+                ? `Opening float · opened at ${new Date(registerStatus.session.openedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                : "Opening float · initial drawer base"}
             </p>
           </CardContent>
         </Card>
@@ -495,7 +453,7 @@ export default function CashHubPage() {
           <CardContent className="px-4 py-3">
             <div className="mb-1 flex items-center justify-between">
               <span className="text-caption font-medium uppercase tracking-wide text-brand-100">
-                Expected in Drawer
+                Galla mein hona chahiye
               </span>
               <span className="rounded bg-brand-800 px-1.5 py-0.5 font-mono text-[10px] text-brand-100">
                 Live ledger
@@ -505,7 +463,8 @@ export default function CashHubPage() {
               PKR {(registerStatus?.expectedCash || 0).toLocaleString()}
             </p>
             <p className="pt-1.5 text-caption text-brand-100">
-              Float + sales − expenses · must match physical cash
+              Expected in drawer · float + sales − expenses must match physical
+              cash
             </p>
           </CardContent>
         </Card>
@@ -661,16 +620,25 @@ export default function CashHubPage() {
               Chronological log of petty cash disbursements
             </CardDescription>
             <CardAction>
-              <div className="relative w-full sm:w-48">
-                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
-                <Input
-                  size="sm"
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search notes..."
-                  className="pl-8"
-                />
+              <div className="flex items-center gap-2">
+                <div className="relative w-full sm:w-48">
+                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                  <Input
+                    size="sm"
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search notes..."
+                    className="pl-8"
+                  />
+                </div>
+                <Link
+                  href="/cash/expenses"
+                  data-testid="cash-expenses-history"
+                  className="shrink-0 whitespace-nowrap text-caption font-semibold text-brand-700 hover:underline"
+                >
+                  Puri history
+                </Link>
               </div>
             </CardAction>
           </CardHeader>
