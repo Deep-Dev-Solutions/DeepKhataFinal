@@ -238,7 +238,10 @@ export default function CabinetsSettingsPage() {
       )}
 
       {pageError && (
-        <div className="p-3.5 bg-danger-bg border border-danger/30 rounded-lg flex items-center justify-between text-body font-semibold text-danger shadow-sm animate-in fade-in">
+        <div
+          data-testid="cabinet-error"
+          className="p-3.5 bg-danger-bg border border-danger/30 rounded-lg flex items-center justify-between text-body font-semibold text-danger shadow-sm animate-in fade-in"
+        >
           <span className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0 text-danger" />
             {pageError}

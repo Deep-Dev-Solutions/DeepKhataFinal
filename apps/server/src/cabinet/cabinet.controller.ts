@@ -18,6 +18,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { BranchId } from '../auth/decorators/branch-id.decorator';
+import { CreateCabinetDto, UpdateCabinetDto } from './dto/cabinet.dto';
 
 @Controller('cabinet')
 @UseGuards(SessionGuard)
@@ -44,7 +45,7 @@ export class CabinetController {
   async addCabinet(
     @Req() req: any,
     @BranchId({ required: false }) branchId: string | undefined,
-    @Body() body: any,
+    @Body() body: CreateCabinetDto,
   ) {
     return this.cabinetService.addCabinet(req.user.id, {
       ...body,
@@ -63,7 +64,7 @@ export class CabinetController {
   async updateCabinet(
     @Req() req: any,
     @Param('id') id: string,
-    @Body() body: any,
+    @Body() body: UpdateCabinetDto,
   ) {
     return this.cabinetService.updateCabinet(req.user.id, id, body);
   }
