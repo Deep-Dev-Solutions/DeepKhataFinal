@@ -278,6 +278,59 @@ describe('Plan limits and subscriptions (e2e)', () => {
       await expect(limits.assert(t.businessId, 'products', 100000)).resolves.toBeUndefined();
     });
 
+    it('a 3-branch deal can create the 3rd branch and blocks the 4th', async () => {
+      const t = await makeTenant();
+      const plan = await prisma.plan.findUniqueOrThrow({ where: { code: 'CUSTOM' } });
+      await prisma.subscription.create({
+        data: {
+          businessId: t.businessId,
+          planId: plan.id,
+          status: 'ACTIVE',
+          currentPeriodStart: new Date(Date.now() - DAY),
+          currentPeriodEnd: new Date(Date.now() + 30 * DAY),
+          customLimits: { maxBranches: 3, maxUsers: 5, maxProducts: null },
+        },
+      });
+
+      await settings.createBranch(t.owner.id, { name: 'Second' });
+      await settings.createBranch(t.owner.id, { name: 'Third' });
+      expect(
+        await prisma.branch.count({ where: { businessId: t.businessId, deletedAt: null } }),
+      ).toBe(3);
+
+      const body = await limitError(settings.createBranch(t.owner.id, { name: 'Fourth' }));
+      expect(body).toMatchObject({
+        resource: 'branches',
+        limit: 3,
+        used: 3,
+        plan: 'CUSTOM',
+        message: 'Plan limit reached: 3 branches on Custom',
+      });
+      expect(
+        await prisma.branch.count({ where: { businessId: t.businessId, deletedAt: null } }),
+      ).toBe(3);
+    });
+
+    it('ignores custom limits once the deal window has ended', async () => {
+      const t = await makeTenant();
+      const starter = await prisma.plan.findUniqueOrThrow({ where: { code: 'STARTER' } });
+      await prisma.subscription.create({
+        data: {
+          businessId: t.businessId,
+          planId: starter.id,
+          status: 'ACTIVE',
+          currentPeriodStart: new Date(Date.now() - 60 * DAY),
+          currentPeriodEnd: new Date(Date.now() - DAY),
+          customLimits: { maxBranches: 3, maxUsers: 5, maxProducts: null },
+        },
+      });
+
+      expect(await limits.getLimits(t.businessId)).toMatchObject({
+        plan: { code: 'STARTER' },
+        maxBranches: 1,
+      });
+    });
+
     it('blocks the 6th user (members + invites)', async () => {
       const t = await makeCustomTenant({ maxBranches: 2, maxUsers: 5, maxProducts: null });
       for (let i = 0; i < 3; i++) {

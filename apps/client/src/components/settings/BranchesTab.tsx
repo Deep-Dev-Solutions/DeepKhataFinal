@@ -2,7 +2,11 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
 import { API_BASE_URL } from "@/lib/auth";
+import { upgradeWhatsappUrl } from "@/lib/billing";
+import { usePlanUsage } from "@/hooks/queries/usePlan";
+import { queryKeys } from "@/lib/query-keys";
 import { useIsReadOnly } from "@/hooks/useIsReadOnly";
 import { Branch } from "@/types/api";
 import {
@@ -34,6 +38,7 @@ export default function BranchesTab() {
   const { role, branches: authBranches, refreshUser } = useAuth();
   const { toast } = useToast();
   const readOnly = useIsReadOnly();
+  const queryClient = useQueryClient();
 
   const [branches, setBranches] = useState<Branch[]>(
     Array.isArray(authBranches) ? (authBranches as Branch[]) : [],
@@ -170,6 +175,7 @@ export default function BranchesTab() {
       toast.success("Branch deleted. Stock preserved and detached.");
       setDeleteTarget(null);
       await fetchBranches();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.plan.all });
       if (refreshUser) {
         await refreshUser();
       }
@@ -181,7 +187,20 @@ export default function BranchesTab() {
   };
 
   const safeBranches = Array.isArray(branches) ? branches : [];
-  const isLimitReached = safeBranches.length >= 2 && role !== "SUPER_ADMIN";
+  const { data: planUsage, isPending: isPlanLoading } = usePlanUsage();
+  const maxBranches = planUsage?.limits.maxBranches ?? null;
+  const usedBranches = planUsage?.usage.branches ?? safeBranches.length;
+  const planName = planUsage?.plan.name ?? "current";
+  const isLimitReached =
+    !isPlanLoading &&
+    maxBranches !== null &&
+    usedBranches >= maxBranches &&
+    role !== "SUPER_ADMIN";
+  const upgradeWhatsapp = upgradeWhatsappUrl(null, planUsage?.plan.name);
+  const limitMessage =
+    maxBranches === null
+      ? "Contact your agency to add more branches."
+      : `Plan limit reached (${maxBranches} branch${maxBranches === 1 ? "" : "es"}). Contact your agency to upgrade.`;
 
   // Add Handlers
   const openAddDialog = () => {
@@ -197,9 +216,7 @@ export default function BranchesTab() {
   const handleAddBranch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLimitReached) {
-      setModalError(
-        "Base plan limit reached (2 branches). Contact administration to upgrade.",
-      );
+      setModalError(limitMessage);
       setIsAddDialogOpen(false);
       setIsUpgradeDialogOpen(true);
       return;
@@ -228,9 +245,7 @@ export default function BranchesTab() {
 
       const data = await res.json();
       if (!res.ok) {
-        const errorMsg =
-          data.message ||
-          "Base plan limit reached (2 branches). Contact administration to upgrade.";
+        const errorMsg = data.message || limitMessage;
         setModalError(errorMsg);
 
         // Catch tier limit / payment required error
@@ -251,6 +266,7 @@ export default function BranchesTab() {
       setAddFormData({ name: "", phone: "", address: "" });
       setModalError(null);
       await fetchBranches();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.plan.all });
       if (refreshUser) {
         await refreshUser();
       }
@@ -273,19 +289,23 @@ export default function BranchesTab() {
                 <GitBranch className="w-5 h-5 text-brand-700" />
                 Branches & Locations
               </h2>
-              <span
-                className={`px-2 py-0.5 rounded-full text-caption font-semibold ${
-                  isLimitReached
-                    ? "bg-warning-bg text-warning border border-warning"
-                    : "bg-gray-200/80 text-gray-700"
-                }`}
-              >
-                {safeBranches.length} / 2 Base Plan
-              </span>
+              {maxBranches !== null && (
+                <span
+                  data-testid="branch-plan-badge"
+                  className={`px-2 py-0.5 rounded-full text-caption font-semibold ${
+                    isLimitReached
+                      ? "bg-warning-bg text-warning border border-warning"
+                      : "bg-gray-200/80 text-gray-700"
+                  }`}
+                >
+                  {usedBranches} / {maxBranches}
+                </span>
+              )}
             </div>
             <p className="text-caption text-gray-500 mt-1">
-              Manage your business branches. Your base plan includes up to 2
-              active locations.
+              Manage your business branches.
+              {maxBranches !== null &&
+                ` Your ${planName} plan includes up to ${maxBranches} branches.`}
             </p>
           </div>
 
@@ -293,13 +313,14 @@ export default function BranchesTab() {
             <button
               onClick={() => setIsUpgradeDialogOpen(true)}
               className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-warning-bg hover:bg-warning-bg text-warning border border-warning rounded-lg text-caption font-semibold transition-all shadow-xs shrink-0 cursor-pointer"
-              title="Base plan limit reached (2 branches). Click to upgrade."
+              title={`Plan limit reached (${usedBranches}/${maxBranches}). Click to upgrade.`}
             >
               <Lock className="w-3.5 h-3.5 text-warning" />
-              Limit Reached (2/2)
+              Limit Reached ({usedBranches}/{maxBranches})
             </button>
           ) : (
             <button
+              data-testid="branch-add-open"
               onClick={openAddDialog}
               disabled={readOnly}
               title={
@@ -319,20 +340,23 @@ export default function BranchesTab() {
           )}
         </div>
 
-        {/* Tier Limit Notice Banner when 2 branches reached */}
+        {/* Tier limit notice once the plan allowance is used up */}
         {isLimitReached && (
-          <div className="mx-5 mt-4 p-4 rounded-lg bg-warning-bg border border-warning flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-warning">
+          <div
+            data-testid="branch-limit-banner"
+            className="mx-5 mt-4 p-4 rounded-lg bg-warning-bg border border-warning flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-warning">
             <div className="flex items-start sm:items-center gap-3">
               <div className="p-2 bg-warning-bg rounded-lg text-warning shrink-0 mt-0.5 sm:mt-0">
                 <Lock className="w-5 h-5" />
               </div>
               <div>
                 <p className="font-semibold text-body text-warning">
-                  Base Plan Limit Reached (2/2 Locations Active)
+                  {planName} plan limit reached ({usedBranches}/{maxBranches}{" "}
+                  locations active)
                 </p>
                 <p className="text-caption text-warning mt-0.5">
-                  Your current Base Plan includes up to 2 branch locations.
-                  Upgrade your subscription to provision additional branches.
+                  Your {planName} plan includes up to {maxBranches} branches.
+                  Contact your agency to upgrade for more locations.
                 </p>
               </div>
             </div>
@@ -480,13 +504,18 @@ export default function BranchesTab() {
               Add New Branch
             </DialogTitle>
             <DialogDescription>
-              Create a new branch location for your store (up to 2 on the Base
-              Plan).
+              Create a new branch location for your store
+              {maxBranches !== null &&
+                ` (up to ${maxBranches} on the ${planName} plan)`}
+              .
             </DialogDescription>
           </DialogHeader>
 
           {modalError && (
-            <div className="mt-1 p-3.5 rounded-lg bg-warning-bg border border-warning text-warning flex items-start gap-3 text-caption shadow-xs">
+            <div
+              data-testid="branch-modal-error"
+              className="mt-1 p-3.5 rounded-lg bg-warning-bg border border-warning text-warning flex items-start gap-3 text-caption shadow-xs"
+            >
               <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="font-semibold text-warning text-body">Action Blocked</p>
@@ -503,6 +532,7 @@ export default function BranchesTab() {
                 Branch Name <span className="text-danger">*</span>
               </label>
               <input
+                data-testid="branch-name-input"
                 type="text"
                 required
                 value={addFormData.name}
@@ -565,6 +595,7 @@ export default function BranchesTab() {
                 Cancel
               </button>
               <button
+                data-testid="branch-add-submit"
                 type="submit"
                 disabled={isAdding || !addFormData.name.trim() || readOnly}
                 title={
@@ -594,11 +625,11 @@ export default function BranchesTab() {
               <Lock className="w-6 h-6" />
             </div>
             <DialogTitle className="text-center text-subtitle font-semibold text-gray-900">
-              Base Plan Limit Reached
+              {planName} Plan Limit Reached
             </DialogTitle>
             <DialogDescription className="text-center text-gray-600 text-caption mt-1">
-              Your current subscription includes up to 2 branch locations and 5
-              user accounts.
+              Your current subscription includes up to {maxBranches} branch
+              locations.
             </DialogDescription>
           </DialogHeader>
 
@@ -609,11 +640,19 @@ export default function BranchesTab() {
                   Current Branches
                 </span>
                 <span className="font-semibold text-gray-900">
-                  {safeBranches.length} / 2 Used
+                  {usedBranches} / {maxBranches} Used
                 </span>
               </div>
               <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
-                <div className="bg-warning h-full w-full rounded-full" />
+                <div
+                  className="bg-warning h-full rounded-full"
+                  style={{
+                    width:
+                      maxBranches === null
+                        ? "0%"
+                        : `${Math.min(100, Math.round((usedBranches / maxBranches) * 100))}%`,
+                  }}
+                />
               </div>
             </div>
 
@@ -638,13 +677,21 @@ export default function BranchesTab() {
             >
               Close
             </button>
-            <a
-              href="mailto:support@bizflow.com?subject=Upgrade%20Tier%20Request%20-%20Additional%20Branches"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-brand-700 hover:bg-brand-700 text-white text-body font-semibold rounded-lg transition-colors shadow-sm cursor-pointer"
-            >
-              <ExternalLink className="w-4 h-4" />
-              Contact Administration
-            </a>
+            {upgradeWhatsapp ? (
+              <a
+                href={upgradeWhatsapp}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-brand-700 hover:bg-brand-700 text-white text-body font-semibold rounded-lg transition-colors shadow-sm cursor-pointer"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Contact your agency to upgrade
+              </a>
+            ) : (
+              <span className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gray-100 text-gray-500 text-body font-semibold rounded-lg">
+                Contact your agency to upgrade
+              </span>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

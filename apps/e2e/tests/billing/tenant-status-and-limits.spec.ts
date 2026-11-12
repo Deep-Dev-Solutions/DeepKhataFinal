@@ -287,6 +287,38 @@ test.describe('H: base plan limits', () => {
     expect(await db.branch.count({ where: { businessId: tenant.businessId, name: 'Third Shop' } })).toBe(0);
   });
 
+  test('a 3-branch deal shows 2 / 3 and the owner can add a third branch', async ({ page, request }) => {
+    const tenant = await createThrowawayTenant(request, 'branches3');
+    await db.subscription.update({
+      where: { businessId: tenant.businessId },
+      data: {
+        customLimits: { maxBranches: 3, maxUsers: 5, maxProducts: null },
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      },
+    });
+    const { api } = await ownerApi(request, tenant);
+    const second = await api.post('/settings/branch', { name: 'Second Shop' });
+    expect(second.ok(), `${second.status()} ${await second.text()}`).toBeTruthy();
+
+    await uiLogin(page, tenant.ownerEmail);
+    await expect(page).toHaveURL(/\/dashboard$/, { timeout: 60_000 });
+    await page.goto('/settings?tab=branches');
+
+    await expect(page.getByTestId('branch-plan-badge')).toHaveText('2 / 3');
+    await expect(page.getByTestId('branch-limit-banner')).toHaveCount(0);
+
+    await page.getByTestId('branch-add-open').click();
+    await page.getByTestId('branch-name-input').fill('Third Shop');
+    await page.getByTestId('branch-add-submit').click();
+
+    await expect(page.getByText('Third Shop', { exact: true })).toBeVisible();
+    await expect(page.getByTestId('branch-plan-badge')).toHaveText('3 / 3');
+    expect(
+      await db.branch.count({ where: { businessId: tenant.businessId, deletedAt: null } }),
+    ).toBe(3);
+  });
+
   test('the account cap also covers a full roster of members, not only invites', async ({ request }) => {
     const tenant = await createThrowawayTenant(request, 'roster');
     const { api } = await ownerApi(request, tenant);
