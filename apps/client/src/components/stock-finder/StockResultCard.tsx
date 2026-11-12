@@ -14,6 +14,8 @@ interface Props {
   result: StockResult;
   canReserve: boolean;
   canRequest: boolean;
+  /** Set when transfers are possible but no active branch is selected. */
+  requestDisabledReason?: string | null;
   onReserve: (r: StockResult) => void;
   onRequest: (r: StockResult) => void;
   onSell: (r: StockResult) => void;
@@ -24,6 +26,7 @@ export default function StockResultCard({
   result,
   canReserve,
   canRequest,
+  requestDisabledReason,
   onReserve,
   onRequest,
   onSell,
@@ -200,11 +203,13 @@ export default function StockResultCard({
           <button
             type="button"
             data-testid="stock-action-request"
-            disabled={!otherAvailable}
+            disabled={!otherAvailable || Boolean(requestDisabledReason)}
+            title={requestDisabledReason ?? undefined}
             onClick={() => onRequest(result)}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <Send className="w-4 h-4" /> Request from branch
+            <Send className="w-4 h-4" />
+            {requestDisabledReason ?? "Request from branch"}
           </button>
         )}
         <button

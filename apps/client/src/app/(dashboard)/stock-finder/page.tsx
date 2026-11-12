@@ -115,10 +115,17 @@ function StockFinderContent() {
   };
 
   const submitTransfer = async (payload: TransferPayload) => {
-    await createStockTransfer(payload, activeBranchId);
-    toast.success("Request bhej di");
-    setTransferFor(null);
-    setTick((t) => t + 1);
+    try {
+      await createStockTransfer(payload, activeBranchId);
+      toast.success("Request bhej di");
+      setTransferFor(null);
+      setTick((t) => t + 1);
+    } catch (err) {
+      // Never fail silently: the server message is the only useful hint.
+      toast.error(
+        err instanceof Error ? err.message : "Transfer request failed",
+      );
+    }
   };
 
   return (
@@ -130,6 +137,16 @@ function StockFinderContent() {
         title="Stock Finder"
         subtitle="Search every branch by part name, part number or model — even before the customer finishes talking."
       />
+
+      {!activeBranchId && (
+        <div
+          data-testid="stock-finder-branch-warning"
+          className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800"
+        >
+          Select your branch first — transfers are requested for the branch you
+          are working in.
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <div className="relative">
@@ -229,6 +246,9 @@ function StockFinderContent() {
               result={r}
               canReserve={hasPermission("manage:reservations")}
               canRequest={hasPermission("request:transfers")}
+              requestDisabledReason={
+                activeBranchId ? null : "Select your branch first"
+              }
               onReserve={setReserveFor}
               onRequest={setTransferFor}
               onSell={(res) =>
