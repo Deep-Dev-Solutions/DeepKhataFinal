@@ -28,7 +28,7 @@
     "build": "npm run build --workspaces --if-present"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^10.0.7"
   },
   "allowScripts": {
     "@prisma/client@6.19.3": true,
