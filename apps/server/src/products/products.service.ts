@@ -9,6 +9,7 @@ import { RedisService } from '../redis/redis.service';
 import { LedgerService } from '../ledger/ledger.service';
 import * as M from '../common/money';
 import { PlanLimitsService } from '../plans/plan-limits.service';
+import { nextSerials } from './sku';
 
 const COST_KEYS = new Set(['defaultCostPrice', 'unitCost']);
 
@@ -262,6 +263,12 @@ export class ProductsService {
       });
 
       // Discrete physical units placed in a spatial cabinet under a branch.
+      const serials = await nextSerials(
+        tx,
+        product.id,
+        product.sku,
+        instanceQty,
+      );
       const instancesData = Array.from({ length: instanceQty }).map(
         (_, index) => ({
           productId: product.id,
@@ -270,7 +277,7 @@ export class ProductsService {
           vendorId: vendorId || null,
           unitCost: defaultCostPrice ? M.round2(defaultCostPrice) : null,
           status: 'AVAILABLE' as any,
-          serialNumber: sku ? `${sku}-${index + 1}` : null,
+          serialNumber: serials[index] ?? null,
         }),
       );
 
@@ -664,7 +671,8 @@ export class ProductsService {
     );
 
     const result = await this.prisma.$transaction(async (tx) => {
-      const instancesData = Array.from({ length: qty }).map(() => ({
+      const serials = await nextSerials(tx, product.id, product.sku, qty);
+      const instancesData = Array.from({ length: qty }).map((_, index) => ({
         productId,
         cabinetId: targetCabinetId,
         branchId: branch,
@@ -674,6 +682,7 @@ export class ProductsService {
             ? M.round2(unitCost)
             : (product.defaultCostPrice ?? null),
         status: 'AVAILABLE' as any,
+        serialNumber: serials[index] ?? null,
       }));
 
       await tx.productInstance.createMany({
@@ -988,6 +997,12 @@ export class ProductsService {
         });
 
         if (instanceQty > 0) {
+          const serials = await nextSerials(
+            tx,
+            newProd.id,
+            newProd.sku,
+            instanceQty,
+          );
           const instancesData = Array.from({ length: instanceQty }).map(
             (_, index) => ({
               productId: newProd.id,
@@ -998,7 +1013,7 @@ export class ProductsService {
                 ? M.round2(item.defaultCostPrice)
                 : null,
               status: 'AVAILABLE' as any,
-              serialNumber: `${sku}-${index + 1}`,
+              serialNumber: serials[index] ?? null,
             }),
           );
 

@@ -4,6 +4,7 @@ import { RedisService } from '../redis/redis.service';
 import * as M from '../common/money';
 import * as D from '../common/dates';
 import { LedgerService } from '../ledger/ledger.service';
+import { nextSerials } from '../products/sku';
 
 @Injectable()
 export class InventoryService {
@@ -99,14 +100,21 @@ export class InventoryService {
           );
         const finalCabinetId = cabinet.id;
 
+        const serials = await nextSerials(
+          tx,
+          product.id,
+          product.sku,
+          qty,
+        );
         await tx.productInstance.createMany({
-          data: Array.from({ length: qty }).map(() => ({
+          data: Array.from({ length: qty }).map((_, index) => ({
             productId: product.id,
             cabinetId: finalCabinetId,
             branchId,
             vendorId: vendorId || null,
             unitCost: unitCost ? M.round2(unitCost) : null,
             status: 'AVAILABLE' as any,
+            serialNumber: serials[index] ?? null,
           })),
         });
 

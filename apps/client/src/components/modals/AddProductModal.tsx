@@ -209,7 +209,7 @@ export default function AddProductModal({
         headers: getAuthHeaders(),
         body: JSON.stringify({
           name: form.name.trim(),
-          sku: form.sku.trim() || `PART-${Math.floor(1000 + Math.random() * 9000)}`,
+          sku: form.sku.trim() || `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
           category: form.category,
           price: Number(form.price),
           defaultCostPrice: form.costPrice ? Number(form.costPrice) : undefined,
