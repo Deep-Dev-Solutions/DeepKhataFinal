@@ -1,12 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import {
-  Calculator,
-  AlertTriangle,
-  CheckCircle2,
-  Coins,
-} from "lucide-react";
+import { Calculator, AlertTriangle, CheckCircle2, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
@@ -18,7 +13,10 @@ type Props = {
   openingBalance: number;
   cashSales: number;
   cashExpenses: number;
-  onConfirmClose: (data: { actualCash: number; notes?: string }) => Promise<void>;
+  onConfirmClose: (data: {
+    actualCash: string;
+    notes?: string;
+  }) => Promise<void>;
 };
 
 const DENOMINATIONS = [
@@ -43,7 +41,9 @@ export default function CloseRegisterModal({
   cashExpenses,
   onConfirmClose,
 }: Props) {
-  const [useDenominations, setUseDenominations] = useState(true);
+  // Closing is one tap by default: the shopkeeper does not count notes unless
+  // they actually want to.
+  const [showDenominations, setShowDenominations] = useState(false);
   const [counts, setCounts] = useState<Record<number, number>>({
     5000: 0,
     1000: 0,
@@ -57,6 +57,7 @@ export default function CloseRegisterModal({
   const [manualCash, setManualCash] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const denominationTotal = useMemo(() => {
     const notesTotal = Object.entries(counts).reduce((sum, [denom, count]) => {
@@ -65,27 +66,41 @@ export default function CloseRegisterModal({
     return notesTotal + (Number(coins) || 0);
   }, [counts, coins]);
 
-  const actualCash = useDenominations
+  const actualCash = showDenominations
     ? denominationTotal
     : Number(manualCash) || 0;
   const difference = actualCash - expectedCash;
+  const needsNote = difference !== 0;
+  const noteMissing = needsNote && notes.trim().length === 0;
 
   const handleCountChange = (denom: number, val: string) => {
     const num = Math.max(0, parseInt(val, 10) || 0);
     setCounts((prev) => ({ ...prev, [denom]: num }));
   };
 
+  const fillExpected = () => {
+    setManualCash(expectedCash.toFixed(2).replace(/\.00$/, ""));
+    setError(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (noteMissing) {
+      setError("Likhein ke galla kam ya zyada kyun hai — a note is required.");
+      return;
+    }
     setSubmitting(true);
+    setError(null);
     try {
       await onConfirmClose({
-        actualCash,
+        actualCash: String(actualCash),
         notes: notes.trim() || undefined,
       });
       onClose();
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Could not close the register.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -105,7 +120,7 @@ export default function CloseRegisterModal({
           Close Register & Reconcile
         </span>
       }
-      description="Count physical drawer cash; the end-of-day Z-Report is recorded and locked."
+      description="One tap if the galla is correct; a note only when it is short or over."
       footer={
         <>
           <Button
@@ -121,6 +136,7 @@ export default function CloseRegisterModal({
             type="button"
             variant="danger"
             loading={submitting}
+            disabled={noteMissing}
             onClick={handleSubmit}
           >
             Confirm & Close Register
@@ -132,18 +148,21 @@ export default function CloseRegisterModal({
         <div className="rounded-md bg-brand-700 p-3 text-white">
           <div className="flex items-center justify-between">
             <span className="text-caption font-medium uppercase tracking-wide text-brand-100">
-              System expected cash
+              Galla mein hona chahiye
             </span>
             <span className="rounded bg-brand-800 px-1.5 py-0.5 font-mono text-[10px] text-brand-100">
               Live ledger
             </span>
           </div>
-          <p className="mt-0.5 font-mono text-heading font-semibold">
+          <p
+            data-testid="close-register-expected"
+            className="mt-0.5 font-mono text-heading font-semibold"
+          >
             PKR {expectedCash.toLocaleString()}
           </p>
           <div className="mt-2 grid grid-cols-3 gap-2 border-t border-brand-600 pt-2 text-caption">
             <div>
-              <div className="text-brand-200">Opening float</div>
+              <div className="text-brand-200">Subah ka cash</div>
               <div className="font-semibold">
                 PKR {openingBalance.toLocaleString()}
               </div>
@@ -163,35 +182,57 @@ export default function CloseRegisterModal({
           </div>
         </div>
 
+        {!showDenominations && (
+          <div className="space-y-2">
+            <label className="mb-1 block text-caption font-medium text-gray-700">
+              Total Physical Cash Counted (PKR)
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-caption font-semibold text-gray-400">
+                PKR
+              </span>
+              <Input
+                data-testid="close-register-counted"
+                type="number"
+                min="0"
+                required
+                value={manualCash}
+                onChange={(e) => setManualCash(e.target.value)}
+                placeholder="e.g. 15000"
+                className="pl-12 font-mono font-semibold"
+              />
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              data-testid="close-register-one-tap"
+              onClick={fillExpected}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Galla poora hai (Rs {expectedCash.toLocaleString()})
+            </Button>
+          </div>
+        )}
+
         <div className="flex items-center justify-between border-b border-border pb-2">
           <span className="flex items-center gap-1.5 text-body font-semibold text-gray-900">
             <Coins className="h-4 w-4 text-gray-500" />
-            Physical Cash Count
+            Notes gin kar likhein (optional)
           </span>
-          <div className="flex items-center gap-1.5">
-            <Button
-              type="button"
-              size="sm"
-              variant={useDenominations ? "primary" : "secondary"}
-              className="h-6 px-2 text-caption"
-              onClick={() => setUseDenominations(true)}
-            >
-              Denominations
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              data-testid="close-register-mode-total"
-              variant={!useDenominations ? "primary" : "secondary"}
-              className="h-6 px-2 text-caption"
-              onClick={() => setUseDenominations(false)}
-            >
-              Total Sum Only
-            </Button>
-          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant={showDenominations ? "primary" : "secondary"}
+            className="h-6 px-2 text-caption"
+            data-testid="close-register-mode-notes"
+            onClick={() => setShowDenominations((prev) => !prev)}
+          >
+            {showDenominations ? "Hide note count" : "Count notes"}
+          </Button>
         </div>
 
-        {useDenominations ? (
+        {showDenominations && (
           <div className="space-y-2">
             <p className="text-caption text-gray-500">
               Count each currency note denomination in the drawer:
@@ -243,27 +284,6 @@ export default function CloseRegisterModal({
               </div>
             </div>
           </div>
-        ) : (
-          <div>
-            <label className="mb-1 block text-caption font-medium text-gray-700">
-              Total Physical Cash Counted (PKR)
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-caption font-semibold text-gray-400">
-                PKR
-              </span>
-              <Input
-                data-testid="close-register-counted"
-                type="number"
-                min="0"
-                required
-                value={manualCash}
-                onChange={(e) => setManualCash(e.target.value)}
-                placeholder="e.g. 15000"
-                className="pl-12 font-mono font-semibold"
-              />
-            </div>
-          </div>
         )}
 
         <div
@@ -293,10 +313,10 @@ export default function CloseRegisterModal({
               )}
               <span>
                 {difference === 0
-                  ? "Drawer is Perfectly Balanced"
+                  ? "Galla poora hai"
                   : difference < 0
-                    ? "Cash Shortage Detected"
-                    : "Cash Overage Detected"}
+                    ? "Galla kam hai (short)"
+                    : "Galla zyada hai (over)"}
               </span>
             </div>
             <span className="whitespace-nowrap rounded border border-border bg-card px-1.5 py-0.5 font-mono text-caption font-semibold text-gray-700">
@@ -308,7 +328,7 @@ export default function CloseRegisterModal({
             {difference === 0 ? (
               <>
                 Counted cash exactly matches expected drawer cash of PKR{" "}
-                {expectedCash.toLocaleString()}. Zero discrepancy.
+                {expectedCash.toLocaleString()}. Zero variance.
               </>
             ) : difference < 0 ? (
               <>
@@ -331,16 +351,37 @@ export default function CloseRegisterModal({
         </div>
 
         <div>
-          <label className="mb-1 block text-caption font-medium text-gray-700">
-            Reconciliation Notes / Handover Remarks
+          <label
+            className="mb-1 block text-caption font-medium text-gray-700"
+            htmlFor="close-register-notes"
+          >
+            {noteMissing ? "Variance note (required) *" : "Notes / handover remarks"}
           </label>
           <textarea
+            id="close-register-notes"
+            data-testid="close-register-notes"
             rows={2}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="e.g. 50 PKR short due to loose change shortage during evening rush..."
+            placeholder={
+              noteMissing
+                ? "e.g. Rs 50 short — loose change given in the evening rush"
+                : "Anything the next shift should know…"
+            }
             className={textareaClass}
           />
+          {noteMissing && (
+            <p
+              data-testid="close-register-note-required"
+              className="mt-1 text-caption font-medium text-danger"
+            >
+              A note is required when the counted cash is not exactly the
+              expected amount.
+            </p>
+          )}
+          {error && (
+            <p className="mt-1 text-caption font-medium text-danger">{error}</p>
+          )}
         </div>
       </div>
     </Modal>

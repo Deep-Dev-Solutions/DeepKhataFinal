@@ -262,7 +262,7 @@ export default function CashHubPage() {
 
   // Close Register Handler
   const handleCloseRegister = async (data: {
-    actualCash: number;
+    actualCash: string;
     notes?: string;
   }) => {
     const headers = getAuthHeaders(activeBranchId);

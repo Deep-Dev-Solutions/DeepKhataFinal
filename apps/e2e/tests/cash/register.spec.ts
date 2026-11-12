@@ -28,7 +28,7 @@ async function closeHallRoadIfOpen(request: APIRequestContext) {
   const owner = await apiAs('ownerA', request);
   const open = await db.cashRegisterSession.count({ where: { businessId: BUSINESS_A, branchId: HALL_ROAD, status: 'OPEN' } });
   if (open > 0) {
-    const res = await owner.post('/cash/register/close', { actualCash: 0, branchId: HALL_ROAD }, { branchId: HALL_ROAD });
+    const res = await owner.post('/cash/register/close', { actualCash: '0', branchId: HALL_ROAD, notes: 'E2E cleanup close' }, { branchId: HALL_ROAD });
     expect(res.ok(), await res.text()).toBeTruthy();
   }
 }
@@ -106,10 +106,10 @@ test('open with float, cash sale, petty expense, close with shortage: session, v
   // 4. Close counting 3,100: variance -100 (shortage)
   await page.getByTestId('cash-close-register').click();
   await expect(page.getByTestId('close-register-modal')).toBeVisible();
-  // Fallback selector: the count-mode tab has no testid (see MISSING_TESTIDS); default mode is a denomination counter.
-  await page.getByRole('button', { name: 'Total Sum Only' }).click();
+  // Total-only is the default now; a variance needs a written note.
   await page.getByTestId('close-register-counted').fill('3100');
   await expect(page.getByTestId('close-register-variance')).toContainText('SHORT by PKR 100');
+  await page.getByTestId('close-register-notes').fill('Rs 100 short in the evening rush');
   await page.getByTestId('close-register-submit').click();
 
   // Z-report opens for the closed session with totals equal to the session's cash movements.
@@ -127,6 +127,7 @@ test('open with float, cash sale, petty expense, close with shortage: session, v
   expect(Number(closed.actualCash)).toBe(3100);
   expect(Number(closed.difference)).toBe(Number(closed.actualCash) - Number(closed.expectedCash));
   expect(Number(closed.difference)).toBe(-100);
+  expect(closed.notes).toBe('Rs 100 short in the evening rush');
   expect(closed.closedAt).not.toBeNull();
   await expectLedgerBalanced(BUSINESS_A);
 });
@@ -168,9 +169,8 @@ test('closing a register with exactly the expected cash records zero difference;
   await useBranch(page.context(), HALL_ROAD);
   await page.goto('/cash');
   await page.getByTestId('cash-close-register').click();
-  await page.getByRole('button', { name: 'Total Sum Only' }).click();
   await page.getByTestId('close-register-counted').fill('1000');
-  await expect(page.getByTestId('close-register-variance')).toContainText('Perfectly Balanced');
+  await expect(page.getByTestId('close-register-variance')).toContainText('Galla poora hai');
   await page.getByTestId('close-register-submit').click();
   await expect(page.getByTestId('zreport-modal')).toBeVisible();
   await page.getByTestId('zreport-close').click();

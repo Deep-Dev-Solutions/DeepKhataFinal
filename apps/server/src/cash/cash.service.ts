@@ -725,6 +725,13 @@ export class CashService {
     const actualCash = M.round2(dto.actualCash);
     const difference = M.sub(actualCash, expectedCash);
 
+    // A variance must be explained in writing before the galla is locked.
+    if (!M.isZero(difference) && !dto.notes?.trim()) {
+      throw new BadRequestException(
+        'A note is required when the counted cash differs from the expected cash.',
+      );
+    }
+
     const closedSession = await this.prisma.cashRegisterSession.update({
       where: { id: activeSession.id },
       data: {

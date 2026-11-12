@@ -16,7 +16,7 @@ async function closeHallRoadIfOpen(request: APIRequestContext) {
     const owner = await apiAs('ownerA', request);
     const res = await owner.post(
       '/cash/register/close',
-      { actualCash: 0, branchId: HALL_ROAD },
+      { actualCash: '0', branchId: HALL_ROAD, notes: 'E2E cleanup close' },
       { branchId: HALL_ROAD },
     );
     expect(res.ok(), await res.text()).toBeTruthy();
